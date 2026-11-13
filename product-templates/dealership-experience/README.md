@@ -42,10 +42,19 @@ The pure export is `buildDealershipQualityTemplate(manifest, catalogue)`.
   instruction strings are not copied into this builder or from Northfield's draft.
 - Executor only: knowledge overview, bounded two-space RAG fan-out, explicitly
   allowed missing-space recovery, iterative READ planning and its approved limits.
-- Prompt limits: eight context documents and 8,000 context characters.
+- Exact qualified OpenAI model: `gpt-5.4-mini-2026-03-17`, explicitly set even
+  when the reviewed template previously inherited its model.
+- Prompt defaults: similarity threshold `0.4`, eight context documents and 8,000
+  context characters.
+- Required DATA reference: `mkp-data-dealership-knowledge-v1@1.1.0` -> `@1.2.0`.
+  Rekey its `requiredPluginInstallDefaults` entry without changing its config,
+  source approvals, filters or secret references. Main owns that DATA revision's
+  publication and scoped Console transport addition; this builder does not edit
+  the DATA manifest or add identity modes itself. Missing, duplicated, unexpected
+  or mixed reference/install baselines stop the build rather than guessing.
 - The manifest receives the proposed new version; the historical input is retained.
 
-Every other manifest field is cloned unchanged: existing models/provider choices,
+Every other manifest field is cloned unchanged: other model and provider choices,
 URLs/references, security, source/plugin contributions, action confirmation,
 orchestrator modes, specialist configuration and presentation. No customer
 credentials or customer-draft inputs are imported. Existing fields in the approved
@@ -61,7 +70,9 @@ Contextual suggestions may use the existing additional suggestion-generation cal
 
 Node tests cover exact change scope, deep preservation, input immutability,
 catalogue-driven instructions, JSON managed-profile round-trip, invalid contracts,
-ambiguous IDs/revisions and CLI behaviour. `behaviour-catalogue.test.json` has
+ambiguous IDs/revisions, explicit/inherited OpenAI model defaults, threshold
+replacement, DATA reference/rekey preservation and CLI behaviour.
+`behaviour-catalogue.test.json` has
 **synthetic TEST ONLY instructions** and is not a publication input. These checks
 are not live model-quality, server compilation, runtime or customer-journey proof.
 

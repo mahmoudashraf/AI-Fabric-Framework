@@ -61,6 +61,34 @@ function validateExistingBehaviour(promptConfig) {
   }
 }
 
+function upgradedRequiredDataPlugin(template) {
+  const plugin = defaults.requiredDataPlugin
+  const currentRef = `${plugin.pluginId}@${plugin.currentVersion}`
+  const candidateRef = `${plugin.pluginId}@${plugin.candidateVersion}`
+  const refs = template.requiredPluginRefs
+  if (!Array.isArray(refs) || refs.some(ref => typeof ref !== 'string' || !ref.trim())) {
+    throw new Error('Template requiredPluginRefs must be an array of nonempty references.')
+  }
+  const matchingRefs = refs.filter(ref => ref.split('@')[0] === plugin.pluginId)
+  if (matchingRefs.length !== 1 || matchingRefs[0] !== currentRef) {
+    throw new Error('Required dealership DATA reference differs from the reviewed baseline or is ambiguous.')
+  }
+  const installs = record(template.requiredPluginInstallDefaults, 'Template requiredPluginInstallDefaults')
+  const matchingInstalls = Object.keys(installs).filter(ref => ref.split('@')[0] === plugin.pluginId)
+  if (matchingInstalls.length !== 1 || matchingInstalls[0] !== currentRef) {
+    throw new Error('Required dealership DATA install defaults differ from the reviewed baseline or are ambiguous.')
+  }
+  const entry = record(installs[currentRef], 'Required dealership DATA install defaults')
+  optionalRecord(entry, 'config', 'Required dealership DATA config')
+  optionalRecord(entry, 'secretRefs', 'Required dealership DATA secretRefs')
+  return {
+    requiredPluginRefs: refs.map(ref => ref === currentRef ? candidateRef : ref),
+    requiredPluginInstallDefaults: structuredClone(Object.fromEntries(
+      Object.entries(installs).map(([ref, value]) => [ref === currentRef ? candidateRef : ref, value]),
+    )),
+  }
+}
+
 /** Builds a new template revision; never accepts or updates a customer draft. */
 export function buildDealershipQualityTemplate(manifest, catalogue) {
   record(manifest, 'Current template manifest')
@@ -82,6 +110,7 @@ export function buildDealershipQualityTemplate(manifest, catalogue) {
   const prompt = optionalRecord(template, 'promptConfig', 'Template promptConfig')
   validateExistingBehaviour(prompt)
   const selectedBehaviour = managedBehaviour(catalogue)
+  const requiredDataPlugin = upgradedRequiredDataPlugin(template)
   const candidate = structuredClone(manifest)
   const candidateTemplate = candidate.contributions.template
   const executorDefaults = defaults.providerConfig.orchestrationModeOverrides.executor
@@ -91,6 +120,7 @@ export function buildDealershipQualityTemplate(manifest, catalogue) {
   }
   candidateTemplate.providerConfig = structuredClone({
     ...provider,
+    openaiModel: defaults.providerConfig.openaiModel,
     orchestrationModeOverrides: { ...modes, executor: mergedExecutor },
   })
   candidateTemplate.promptConfig = {
@@ -98,6 +128,7 @@ export function buildDealershipQualityTemplate(manifest, catalogue) {
     ...defaults.promptConfig,
     aiBehaviour: selectedBehaviour,
   }
+  Object.assign(candidateTemplate, requiredDataPlugin)
   candidate.version = target.candidateVersion
   return candidate
 }

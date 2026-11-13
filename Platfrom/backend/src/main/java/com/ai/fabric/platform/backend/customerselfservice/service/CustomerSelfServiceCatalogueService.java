@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.customerselfservice.service;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferContracts.*;
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferEntitlementRepository;
+import com.ai.fabric.platform.backend.config.CustomerOnboardingProperties;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,15 +22,18 @@ public class CustomerSelfServiceCatalogueService {
     private final DeploymentTargetProfileRepository profiles;
     private final CustomerReviewedCompositionService composition;
     private final CustomerTargetPlacementService placement;
+    private final CustomerOnboardingProperties onboarding;
 
     public CustomerSelfServiceCatalogueService(CustomerOfferEntitlementService access,
         CustomerOfferEntitlementRepository entitlements, DeploymentTargetProfileRepository profiles,
-        CustomerReviewedCompositionService composition, CustomerTargetPlacementService placement) {
+        CustomerReviewedCompositionService composition, CustomerTargetPlacementService placement,
+        CustomerOnboardingProperties onboarding) {
         this.access = access;
         this.entitlements = entitlements;
         this.profiles = profiles;
         this.composition = composition;
         this.placement = placement;
+        this.onboarding = onboarding;
     }
 
     @Transactional(readOnly = true)
@@ -51,6 +55,9 @@ public class CustomerSelfServiceCatalogueService {
             .filter(entity -> entity.getStatus() == EntitlementStatus.ACTIVE
                 && (ownerUserId == null || ownerUserId.equals(entity.getOwnerUserId())))
             .filter(entity -> entity.getExpiresAt() != null && entity.getExpiresAt().isAfter(now))
+            // Retired public starters remain authorized for existing resources, but are not new-install choices.
+            .filter(entity -> !"PUBLIC_SELF_SERVICE".equals(entity.getInvitationReference())
+                || onboarding.templateOfferIds().contains(entity.getOfferId()))
             .map(entity -> offer(customerId, ownerUserId, entity.getOfferId())).toList();
     }
 

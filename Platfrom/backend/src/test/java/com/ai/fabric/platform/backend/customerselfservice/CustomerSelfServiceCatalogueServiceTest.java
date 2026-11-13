@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.customerselfservice.model.CustomerOfferCon
 import com.ai.fabric.platform.backend.customerselfservice.model.CustomerSelfServiceException.Code;
 import com.ai.fabric.platform.backend.customerselfservice.repository.CustomerOfferEntitlementRepository;
 import com.ai.fabric.platform.backend.customerselfservice.service.*;
+import com.ai.fabric.platform.backend.config.CustomerOnboardingProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,7 @@ class CustomerSelfServiceCatalogueServiceTest {
     private final CustomerTargetPlacementService placement = mock(CustomerTargetPlacementService.class);
     private final CustomerOfferEntitlementRepository grants = mock(CustomerOfferEntitlementRepository.class);
     private final CustomerSelfServiceCatalogueService catalogue = new CustomerSelfServiceCatalogueService(access,
-        grants, profiles, composition, placement);
+        grants, profiles, composition, placement, new CustomerOnboardingProperties(true, List.of("offer")));
     private Definition definition;
 
     @BeforeEach void setUp() {
@@ -102,6 +103,57 @@ class CustomerSelfServiceCatalogueServiceTest {
 
         assertThatThrownBy(catalogue::catalogue).hasMessageContaining(ENTITLEMENT_REVOKED.name());
         verify(access, never()).requireOffer(anyString());
+    }
+
+    @Test void onlyCurrentlySelectedPublicStartersAppearForNewInstallation() {
+        var current = grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        var retired = grant("old-public", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        current.setInvitationReference("PUBLIC_SELF_SERVICE");
+        retired.setInvitationReference("PUBLIC_SELF_SERVICE");
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer")).thenReturn(List.of(retired, current));
+
+        assertThat(catalogue.catalogue()).extracting(OfferSummary::id).containsExactly("offer");
+        verify(access, never()).requireEntitlement("customer", "old-public", "owner", false);
+        assertThat(retired.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
+        verify(grants, never()).save(any());
+    }
+
+    @Test void privatelyInvitedStartersRemainDiscoverableOutsidePublicDefaults() {
+        var privateGrant = grant("private", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        privateGrant.setInvitationReference("staff-invitation");
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer")).thenReturn(List.of(privateGrant));
+        var privateOffer = new CustomerOfferEntity("private", "{}", "private-fingerprint", "review", "staff", Instant.now());
+        when(access.requireOffer("private")).thenReturn(privateOffer);
+        when(access.requireEntitlement("customer", "private", "owner", false)).thenReturn(privateGrant);
+        when(access.definition(privateOffer)).thenReturn(definition);
+
+        assertThat(catalogue.catalogue()).extracting(OfferSummary::id).containsExactly("private");
+    }
+
+    @Test void existingResourceCanStillResolveItsRetiredPublicStarterDirectly() {
+        var retired = grant("retired", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        retired.setInvitationReference("PUBLIC_SELF_SERVICE");
+        var historical = new CustomerOfferEntity("retired", "{}", "old-fingerprint", "review", "staff", Instant.now());
+        when(access.requireEntitlement("customer", "retired", "owner", false)).thenReturn(retired);
+        when(access.requireOffer("retired")).thenReturn(historical);
+        when(access.definition(historical)).thenReturn(definition);
+
+        assertThat(catalogue.offer("retired").id()).isEqualTo("retired");
+        verify(access).requireEntitlement("customer", "retired", "owner", false);
+    }
+
+    @Test void staffDiscoveryAlsoHidesRetiredPublicStartersWithoutRevokingThem() {
+        var current = grant("offer", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        var retired = grant("retired", EntitlementStatus.ACTIVE, "owner", Instant.now().plusSeconds(3600));
+        current.setInvitationReference("PUBLIC_SELF_SERVICE");
+        retired.setInvitationReference("PUBLIC_SELF_SERVICE");
+        when(grants.findByCustomerIdOrderByCreatedAtAsc("customer")).thenReturn(List.of(retired, current));
+        when(access.requireEntitlement("customer", "offer", null, false)).thenReturn(current);
+
+        assertThat(catalogue.catalogueForCustomer("customer")).extracting(OfferSummary::id).containsExactly("offer");
+        verify(access, never()).requireEntitlement("customer", "retired", null, false);
+        verify(grants, never()).save(any());
+        assertThat(retired.getStatus()).isEqualTo(EntitlementStatus.ACTIVE);
     }
 
     @Test void staffCatalogueUsesExplicitCustomerAndExistingGrantWithoutImpersonatingOwner() {

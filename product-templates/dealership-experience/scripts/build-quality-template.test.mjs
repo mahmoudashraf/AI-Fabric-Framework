@@ -16,6 +16,8 @@ const versions = [
   ['mkp-template-dealership-external-systems-managed-inbox-v1', '1.10.0', '1.11.0'],
 ]
 const groups = ['tone', 'answerBreadth', 'answerLength', 'nextSteps']
+const currentDataRef = 'mkp-data-dealership-knowledge-v1@1.1.0'
+const candidateDataRef = 'mkp-data-dealership-knowledge-v1@1.2.0'
 
 function manifestFor([pluginId, version] = versions[0]) {
   return {
@@ -28,12 +30,32 @@ function manifestFor([pluginId, version] = versions[0]) {
       deploymentBehavior: { type: 'CONVERSATIONAL', contractVersion: 1,
         allowedExecutionExtensions: ['CONVERSATION_HANDOVER'], defaultExecutionExtensions: [] },
       security: { authzMode: 'ALLOW_VERIFIED', publicRuntimeAcceptedAudiences: 'original-audience' },
-      requiredPluginRefs: ['original-stock@1.0.0', 'original-policy@1.0.0'],
-      requiredPluginInstallDefaults: { 'original-policy@1.0.0': {
-        config: { publicContentApprovalConfirmed: false }, secretRefs: { sourceKey: 'ORIGINAL_SCOPED_REFERENCE' },
-      } },
+      requiredPluginRefs: ['original-stock@1.0.0', currentDataRef, 'original-action@2.0.0'],
+      requiredPluginInstallDefaults: {
+        'original-stock@1.0.0': { config: { advertiserId: 'SYNTHETIC_ADVERTISER' } },
+        [currentDataRef]: {
+          config: { publicContentApprovalConfirmed: false, sourcePrefix: 'approved/original/',
+            identityModes: ['PUBLIC_ANONYMOUS', 'PUBLIC_AUTHENTICATED', 'PRIVATE_AUTHENTICATED'],
+            approvedDocumentIds: ['original-document'] },
+          secretRefs: { sourceKey: 'ORIGINAL_SCOPED_REFERENCE' },
+          originalMetadata: { retained: true },
+        },
+        'original-action@2.0.0': { config: { confirmationRequired: true } },
+      },
+      actionDefinitions: [{ actionId: 'original-write', accessMode: 'WRITE', requiresConfirmation: true }],
+      storageConfig: { vectorStrategy: 'EXTERNAL_EXISTING', runtimeState: 'BYO' },
       shell: { defaultConversationMode: 'executor', greeting: { title: 'Original brand' } },
     }, shell: { modules: [{ id: 'original-module' }] } },
+  }
+}
+
+function expectedDataUpgrade(template) {
+  template.requiredPluginRefs = ['original-stock@1.0.0', candidateDataRef, 'original-action@2.0.0']
+  const installs = template.requiredPluginInstallDefaults
+  template.requiredPluginInstallDefaults = {
+    'original-stock@1.0.0': installs['original-stock@1.0.0'],
+    [candidateDataRef]: installs[currentDataRef],
+    'original-action@2.0.0': installs['original-action@2.0.0'],
   }
 }
 
@@ -62,7 +84,7 @@ test('fixture is limited to the three reviewed IDs, versions and candidate statu
   assert.deepEqual(defaults.templates.map(item => [item.pluginId, item.currentVersion, item.candidateVersion]), versions)
   assert.deepEqual(defaults.aiBehaviour, { schemaVersion: 'loomai-ai-behaviour-v1', revision: 1,
     selections: { tone: 'consultative', answerBreadth: 'advisory', answerLength: 'balanced', nextSteps: 'contextual' } })
-  assert.deepEqual(defaults.providerConfig, { orchestrationModeOverrides: { executor: {
+  assert.deepEqual(defaults.providerConfig, { openaiModel: 'gpt-5.4-mini-2026-03-17', orchestrationModeOverrides: { executor: {
     knowledgeBaseOverviewEnabled: true,
     rag: { fanoutEnabled: true, maxSpaces: 2 },
     semanticRecovery: { missingVectorSpace: 'BOUNDED_ALLOWED_FAN_OUT' },
@@ -70,7 +92,9 @@ test('fixture is limited to the three reviewed IDs, versions and candidate statu
       ragCooperationMode: 'RAG_IF_ACTIONS_INSUFFICIENT', maxPlannerContextChars: 12000,
       maxActionEvidenceCharsPerAction: 8000, maxActionEvidenceItems: 10 },
   } } })
-  assert.deepEqual(defaults.promptConfig, { ragMaxDocumentsUsedForContext: 8, ragMaxContextChars: 8000 })
+  assert.deepEqual(defaults.promptConfig, { ragSimilarityThreshold: 0.4, ragMaxDocumentsUsedForContext: 8, ragMaxContextChars: 8000 })
+  assert.deepEqual(defaults.requiredDataPlugin, { pluginId: 'mkp-data-dealership-knowledge-v1',
+    currentVersion: '1.1.0', candidateVersion: '1.2.0' })
 })
 
 for (const target of versions) {
@@ -82,6 +106,7 @@ for (const target of versions) {
     expected.version = target[2]
     expected.contributions.template.providerConfig = structuredClone(defaults.providerConfig)
     expected.contributions.template.promptConfig = { ...defaults.promptConfig, aiBehaviour: expectedBehaviour() }
+    expectedDataUpgrade(expected.contributions.template)
     assert.deepEqual(output, expected)
     assert.deepEqual(source, historical)
     output.contributions.template.security.authzMode = 'CHANGED_ONLY_IN_OUTPUT'
@@ -93,6 +118,7 @@ test('deep merge preserves provider choices, references, other modes and unselec
   const source = manifestFor(versions[1])
   const provider = {
     llmProvider: 'existing-provider', openaiModel: 'existing-model',
+    anthropicModel: 'original-anthropic-model', embeddingModel: 'original-embedding-model',
     vectorStrategy: 'existing-vector', existingEndpoint: 'https://example.test/vector',
     llmApiKeyRef: 'EXISTING_KEY_REFERENCE',
     orchestrationModeOverrides: {
@@ -113,6 +139,8 @@ test('deep merge preserves provider choices, references, other modes and unselec
   const output = buildDealershipQualityTemplate(source, catalogue)
   const expected = structuredClone(historical)
   expected.version = versions[1][2]
+  expected.contributions.template.providerConfig.openaiModel = 'gpt-5.4-mini-2026-03-17'
+  expectedDataUpgrade(expected.contributions.template)
   const executor = expected.contributions.template.providerConfig.orchestrationModeOverrides.executor
   executor.knowledgeBaseOverviewEnabled = true
   for (const key of ['rag', 'semanticRecovery', 'readActionResolution']) {
@@ -123,6 +151,79 @@ test('deep merge preserves provider choices, references, other modes and unselec
   assert.deepEqual(source, historical)
   output.contributions.template.providerConfig.orchestrationModeOverrides.navigator.ownSetting = false
   assert.deepEqual(source, historical)
+})
+
+test('qualified model and threshold are explicit for inherited, matching and different defaults', () => {
+  for (const target of versions) {
+    for (const previous of [undefined, 'gpt-5.4-mini-2026-03-17', 'previous-model']) {
+      const source = manifestFor(target)
+      source.contributions.template.providerConfig = { llmProvider: 'openai', embeddingProvider: 'original-embedding' }
+      if (previous !== undefined) source.contributions.template.providerConfig.openaiModel = previous
+      source.contributions.template.promptConfig = { ragSimilarityThreshold: 0.9,
+        ragMaxDocumentsUsedForContext: 3, ragMaxContextChars: 2000 }
+      const historical = structuredClone(source)
+      const output = buildDealershipQualityTemplate(freeze(source), catalogue).contributions.template
+      assert.equal(output.providerConfig.openaiModel, 'gpt-5.4-mini-2026-03-17')
+      assert.equal(output.providerConfig.llmProvider, 'openai')
+      assert.equal(output.providerConfig.embeddingProvider, 'original-embedding')
+      assert.equal(output.promptConfig.ragSimilarityThreshold, 0.4)
+      assert.equal(output.promptConfig.ragMaxDocumentsUsedForContext, 8)
+      assert.equal(output.promptConfig.ragMaxContextChars, 8000)
+      assert.deepEqual(source, historical)
+    }
+  }
+})
+
+test('DATA upgrade rekeys only the reviewed reference and preserves approvals, identity modes and secret references', () => {
+  const source = manifestFor()
+  const historical = structuredClone(source)
+  const output = buildDealershipQualityTemplate(freeze(source), catalogue).contributions.template
+  assert.deepEqual(output.requiredPluginRefs, ['original-stock@1.0.0', candidateDataRef, 'original-action@2.0.0'])
+  assert.equal(Object.hasOwn(output.requiredPluginInstallDefaults, currentDataRef), false)
+  assert.deepEqual(Object.keys(output.requiredPluginInstallDefaults), ['original-stock@1.0.0', candidateDataRef, 'original-action@2.0.0'])
+  assert.deepEqual(output.requiredPluginInstallDefaults[candidateDataRef], historical.contributions.template.requiredPluginInstallDefaults[currentDataRef])
+  for (const ref of ['original-stock@1.0.0', 'original-action@2.0.0']) {
+    assert.deepEqual(output.requiredPluginInstallDefaults[ref], historical.contributions.template.requiredPluginInstallDefaults[ref])
+  }
+  output.requiredPluginInstallDefaults[candidateDataRef].config.approvedDocumentIds.push('OUTPUT_ONLY')
+  output.requiredPluginInstallDefaults[candidateDataRef].secretRefs.sourceKey = 'OUTPUT_ONLY'
+  assert.deepEqual(source, historical)
+})
+
+test('missing, malformed, unsupported and ambiguous required DATA baselines are rejected without mutation', () => {
+  for (const mutate of [
+    value => { delete value.requiredPluginRefs },
+    value => { value.requiredPluginRefs = null },
+    value => { value.requiredPluginRefs = {} },
+    value => { value.requiredPluginRefs = [] },
+    value => { value.requiredPluginRefs.push(null) },
+    value => { value.requiredPluginRefs.push({ pluginId: 'unexpected' }) },
+    value => { value.requiredPluginRefs.push('') },
+    value => { value.requiredPluginRefs = ['original-stock@1.0.0'] },
+    value => { value.requiredPluginRefs[1] = candidateDataRef },
+    value => { value.requiredPluginRefs[1] = 'mkp-data-dealership-knowledge-v1@1.0.0' },
+    value => { value.requiredPluginRefs[1] = `${currentDataRef}@extra` },
+    value => { value.requiredPluginRefs.push(currentDataRef) },
+    value => { value.requiredPluginRefs.push(candidateDataRef) },
+    value => { value.requiredPluginRefs.push('mkp-data-dealership-knowledge-v1@9.0.0') },
+    value => { delete value.requiredPluginInstallDefaults },
+    value => { value.requiredPluginInstallDefaults = null },
+    value => { value.requiredPluginInstallDefaults = [] },
+    value => { value.requiredPluginInstallDefaults = 'invalid' },
+    value => { delete value.requiredPluginInstallDefaults[currentDataRef] },
+    value => { value.requiredPluginInstallDefaults[candidateDataRef] = {} },
+    value => { value.requiredPluginInstallDefaults['mkp-data-dealership-knowledge-v1@9.0.0'] = {} },
+    ...[null, [], 'invalid'].map(invalid => value => { value.requiredPluginInstallDefaults[currentDataRef] = invalid }),
+    ...['config', 'secretRefs'].flatMap(key => [null, [], 'invalid'].map(invalid => value => {
+      value.requiredPluginInstallDefaults[currentDataRef][key] = invalid
+    })),
+  ]) {
+    const source = manifestFor()
+    mutate(source.contributions.template)
+    const historical = structuredClone(source)
+    assert.throws(() => buildDealershipQualityTemplate(freeze(source), catalogue), /requiredPlugin|DATA/)
+    assert.deepEqual(source, historical)
+  }
 })
 
 test('catalogue instructions, not a customer draft or copied prompt strings, determine each profile', () => {
@@ -140,7 +241,7 @@ test('catalogue instructions, not a customer draft or copied prompt strings, det
   for (const sentinel of ['DO_NOT_COPY_CUSTOMER_CREDENTIAL', 'DO_NOT_COPY_CUSTOMER_PROMPT', 'DO_NOT_COPY_OPTION_CREDENTIAL']) {
     assert.equal(JSON.stringify(output).includes(sentinel), false)
   }
-  assert.equal(output.contributions.template.providerConfig.openaiModel, undefined)
+  assert.equal(output.contributions.template.providerConfig.openaiModel, 'gpt-5.4-mini-2026-03-17')
   assert.equal(output.contributions.template.providerConfig.openaiApiKey, undefined)
 })
 
@@ -265,6 +366,8 @@ test('CLI handles saved manifests and published captures without copying wrapper
       { version: { pluginId: 'wrong-plugin', version: source.version, status: 'PUBLISHED', manifest: source } },
       { version: { pluginId: source.pluginId, version: source.version, status: 'DRAFT', manifest: source } },
       { providerConfig: { apiKey: 'DO_NOT_COPY_CUSTOMER_CREDENTIAL' } },
+      { ...source, contributions: { template: { ...source.contributions.template,
+        requiredPluginRefs: [candidateDataRef] } } },
     ]) {
       writeFileSync(manifestPath, JSON.stringify(saved))
       const result = spawnSync(process.execPath, [cli, manifestPath, cataloguePath], { encoding: 'utf8' })

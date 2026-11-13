@@ -30,6 +30,7 @@
     }
   },
   "providerConfig": {
+    "openaiModel": "gpt-5.4-mini-2026-03-17",
     "orchestrationModeOverrides": {
       "executor": {
         "knowledgeBaseOverviewEnabled": true,
@@ -52,7 +53,13 @@
     }
   },
   "promptConfig": {
+    "ragSimilarityThreshold": 0.4,
     "ragMaxDocumentsUsedForContext": 8,
     "ragMaxContextChars": 8000
+  },
+  "requiredDataPlugin": {
+    "pluginId": "mkp-data-dealership-knowledge-v1",
+    "currentVersion": "1.1.0",
+    "candidateVersion": "1.2.0"
   }
 }

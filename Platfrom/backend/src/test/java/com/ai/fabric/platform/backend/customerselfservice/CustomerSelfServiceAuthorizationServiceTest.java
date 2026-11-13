@@ -609,7 +609,8 @@ class CustomerSelfServiceAuthorizationServiceTest {
     }
 
     @Test void catalogueRedactsSourceProviderAndVaultDataAndExcludesBadPlacement() {
-        var catalogue = new CustomerSelfServiceCatalogueService(entitlements, grants, profiles, composition, placement);
+        var catalogue = new CustomerSelfServiceCatalogueService(entitlements, grants, profiles, composition, placement,
+            new com.ai.fabric.platform.backend.config.CustomerOnboardingProperties(true, java.util.List.of()));
         var result = catalogue.offer("offer");
         assertThat(result.targets()).hasSize(2);
         String json = codec.write(result);
