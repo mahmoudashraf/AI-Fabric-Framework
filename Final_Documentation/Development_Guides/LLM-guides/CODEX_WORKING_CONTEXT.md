@@ -15435,3 +15435,40 @@ test is being called hosted acceptance. UI extraction remains last.
   remain1a1a1e19b/81fe7169..., runtime0.8.52/source008981816 unchanged.
 - Exacttaskfilesonlytocommit; retainunrelateddirt/manualAPIlab/phonevideos.
   Noownerinputpending. Allneededrunscompleted, noagentsactive. Firewalluntouched.
+
+### Protected Engineer Profile Live (2026-11-13, 22:45 UTC)
+
+- Owner asked which dealershipdefaults generalize (assessmentonly), plus publish
+  existing AIProductEngineer profile at loomai.pro/founder behindproposal-style
+  code. NO genericKit/deployment/default/model/framework change this task.
+- Source07cd4940b +phonecontrols c77c7eab66b3d546fb83f965e33da4b42f6fae8e pushed.
+  Existinguntrackedprofile/assets/styles and theirBaseLayout slots were reused;
+  no Founderheadline. Framework/Brain diagrams, realassistant screenshots, skills,
+  experience/contact/developerlink preserved. Privatepage disablesvisittracker.
+- ReusesSupabasecustomer-proposals schema/function/key, newindependentfoundergrant
+  and /founder-scoped SecureHttpOnlySameSitecookie. QuerycodeexchangedbeforeHTML,
+  cleanredirect, manualentry andlock. CurrentauthcheckedforHTMLand4images; errors
+  failclosed. BuildmovesHTML/images into protected-dist outsidepublicdist; static
+  smokeenforcesabsence. Publicsourcescontainownerportfolio, NOTprivatecustomer
+  documents; websitegate doesnotmakepreviouslypublishedsourceconfidential.
+- InitialCSP browserchecks caughtinlinestyle/datafont blocks. Astro now emits
+  externalstyles/fonts; strictproposalCSP retained, no unsafeinline/eval exception.
+  Mobileheadercontrols nowflexgroup, independenttheme/lock verified390/320.
+- 21focusedproposal/contenttests PASS; Astro89files0errors/warnings/hints;
+  build+28routestaticsmokePASS. FinalsiteonlyCI43520945230 PASS. Productionexisting
+  site t3r7unm08sh3tfatpadz7qky deploymentq144f6di3ai5og249mcfygzb FINISHED,
+  nativehealthy exactc77c7eab6 / OCIf0f39b787f9166f4d93a9265af55d71d328bc4c5b6c4381ac2222f7b546d6c91.
+- Actualproduction8HTTPboundarychecks +manual/invitation/cleanredirect/reload/
+  lock/reopen/tabs/themes pass. 1440/390/320nooverflow/brokenimages/unexpected
+  browsererrors. Deliberatewrongcode401 countedseparately (HTTP2reasontextdiff
+  fromlocal initiallyneededtestadapteradjustment, no productfix). Botholdproposal
+  codes/content/sessionrevocation PASS;5existingpublicpages200.
+- Privateauthoritative ~/.codex/private/loomai-founder-20261113/ containsaccessURL,
+  30dayexpiry13Dec, realverification/screenshots/nativeimage/deployintent receipts.
+  Originalaccessregistry customer-proposals/.private/access.private.json retains
+  allpriorgrants. No authsecrets/linkscopiedtoGit. Do NOTrepublish/redeployreplay;
+  intentconsumed. Publicverification-support/founder-profile/README.md recordsproof.
+- Shareddefaultcandidates: tone/length/contextualsuggestions, boundedREAD+RAG
+  cooperation/evidencebudgets. Qualifygenericsource/providerthreshold/cost/breadth
+  beforeadoption; nevercopydealerdata/identitypermissions. GeneralKitunchanged.
+  Preserveunrelateddirt/manualAPIlab/oldvideos. Noagents/neededrunsleftatcloseout.

@@ -30,5 +30,31 @@ or deployment-template configuration changed for this website work.
   proposal CSP was retained, without unsafe-inline/unsafe-eval exceptions.
 
 The private raw HTTP/browser reports and screenshots are retained under the
-owner's private operational directory, not committed. Live rollout qualification
-will be recorded separately after the production image is verified.
+owner's private operational directory, not committed.
+
+## Production Qualification
+
+- Source `c77c7eab66b3d546fb83f965e33da4b42f6fae8e` includes the phone-control
+  follow-up to initial source `07cd4940b`. Final site-only CI `43520945230` passed.
+- Production deployment `q144f6di3ai5og249mcfygzb` finished. The existing single
+  public-site service is natively healthy, with exact OCI source revision and
+  image digest `sha256:f0f39b787f9166f4d93a9265af55d71d328bc4c5b6c4381ac2222f7b546d6c91`.
+- Eight production HTTP boundary checks pass: anonymous access sees only the
+  entry form; protected images return401; direct/static/encoded aliases return404.
+- Real production browser manual entry, wrong-code denial, clean invitation
+  redirect, reload, lock/reopen, screenshot tabs and theme toggle pass. Desktop
+  1440px and phone390/320px have no overflow or broken visible images; theme and
+  lock controls are separately clickable. Zero unexpected browser errors. The
+  deliberately invalid code's expected401 is recorded, not treated as a defect.
+- Home, Products, Platform, dealership demo and health respond200. Both existing
+  proposals still exchange their own codes, return authorized content, log out
+  and deny the revoked session. Their code records/content were not updated.
+- Supabase issued the separate portfolio invitation for30 days. The exact URL,
+  expiry and operational reports are private. No booking, email or AI query ran.
+
+The AI Customer Experience default-generalization question was assessment only.
+No general Kit default or existing customer Brain was changed. Reusable candidates
+are behaviour profiles, contextual next steps, bounded READ/RAG cooperation and
+evidence budgets. Provider-specific thresholds, source counts, costs and any
+broader-answer profile require their own generic-Kit qualification; dealership
+policies, inventory configuration and customer permissions must not be copied.
