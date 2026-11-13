@@ -301,7 +301,10 @@ class CustomerReviewedCompositionServiceTest {
         assertThat(codec.hash(codec.tree("{\"b\":1,\"a\":2}"))).isEqualTo(codec.hash(codec.tree("{\"a\":2,\"b\":1}")));
         var freshCodec = CustomerOfferTestFixtures.codec();
         assertThat(freshCodec.hash(freshCodec.read(codec.write(definition), Definition.class))).isEqualTo(codec.hash(definition));
-        assertThat(CustomerPermissionMatrix.rows(EnumSet.allOf(Operation.class))).hasSize(Operation.values().length);
+        assertThat(CustomerPermissionMatrix.rows(EnumSet.allOf(Operation.class)))
+            .extracting(PermissionRow::operation)
+            .containsExactlyElementsOf(java.util.Arrays.stream(Operation.values())
+                .filter(CustomerPermissionMatrix::supported).toList());
     }
 
     @Test void reviewedBindingMayTargetOnlyATextConfigFieldOnAnExactlyPinnedPlugin() {

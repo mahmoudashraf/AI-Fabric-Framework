@@ -148,6 +148,41 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void templateThresholdAndBehaviourProfilesReuseDeploymentContractsWithoutRewritingDefaults() throws Exception {
+        ObjectNode manifest = runtimeDefaultsManifest();
+        ObjectNode template = (ObjectNode) manifest.at("/contributions/template");
+        ObjectNode prompts = com.ai.fabric.platform.backend.deployment.service.DeploymentAiBehaviourProfiles.select(
+            template.path("promptConfig"), objectMapper.readTree("""
+                {"tone":"consultative","answerBreadth":"advisory","answerLength":"balanced","nextSteps":"contextual"}
+                """));
+        template.set("promptConfig", prompts);
+        for (double threshold : java.util.List.of(0.0, 0.4, 1.0)) {
+            prompts.put("ragSimilarityThreshold", threshold);
+            var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+            assertThat(parsed.manifest().at("/contributions/template/promptConfig")).isEqualTo(prompts);
+            assertThat(parsed.manifest().at("/contributions/template/promptConfig/aiBehaviour/tone/presetId").asText())
+                .isEqualTo("consultative");
+            assertThat(parsed.manifest().at("/contributions/template/promptConfig").has("answerGenerationPrompt")).isFalse();
+        }
+    }
+
+    @Test
+    void templateThresholdRejectsMalformedAndOutOfRangeValues() throws Exception {
+        for (String value : java.util.List.of("null", "true", "[]", "{}", "\"0.4\"", "-0.01", "1.01", "1e309")) {
+            assertInvalidRuntimeDefault("/contributions/template/promptConfig/ragSimilarityThreshold", value);
+        }
+    }
+
+    @Test
+    void templateBehaviourRejectsUnsupportedOrMalformedProfilesThroughExistingValidation() throws Exception {
+        for (String value : java.util.List.of("null", "true", "[]", "{}", "\"profile\"",
+                "{\"schemaVersion\":\"loomai-ai-behaviour-v1\",\"revision\":2}",
+                "{\"schemaVersion\":\"loomai-ai-behaviour-v1\",\"revision\":1,\"tone\":{}}")) {
+            assertInvalidRuntimeDefault("/contributions/template/promptConfig/aiBehaviour", value);
+        }
+    }
+
+    @Test
     void templateRuntimeDefaultsCannotIntroduceSecretsSourceAuthorityOrOtherSettings() throws Exception {
         String provider = "/contributions/template/providerConfig";
         String executor = provider + "/orchestrationModeOverrides/executor";

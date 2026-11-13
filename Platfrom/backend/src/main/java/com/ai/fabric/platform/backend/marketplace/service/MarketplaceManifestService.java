@@ -142,9 +142,9 @@ public class MarketplaceManifestService {
         "systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt", "clarificationPrompt",
         "answerGenerationPrompt", "retrievalPrompt", "assistantUiPrompt"
     );
-    private static final Set<String> TEMPLATE_PROMPT_FIELDS = java.util.stream.Stream.concat(
-        TEMPLATE_PROMPT_BUDGET_FIELDS.stream(), TEMPLATE_PROMPT_TEXT_FIELDS.stream()
-    ).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private static final Set<String> TEMPLATE_PROMPT_FIELDS = java.util.stream.Stream.of(
+        TEMPLATE_PROMPT_BUDGET_FIELDS, TEMPLATE_PROMPT_TEXT_FIELDS, Set.of("ragSimilarityThreshold", "aiBehaviour")
+    ).flatMap(Set::stream).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private static final int MAX_TEMPLATE_PROMPT_CHARS = 12_000;
     private static final Set<String> TEMPLATE_READ_RESOLUTION_INTEGER_FIELDS = Set.of(
         "maxIterations", "maxPlannerContextChars", "maxActionEvidenceCharsPerAction", "maxActionEvidenceItems"
@@ -1065,6 +1065,14 @@ public class MarketplaceManifestService {
             prompts.fields().forEachRemaining(entry -> {
                 if (TEMPLATE_PROMPT_BUDGET_FIELDS.contains(entry.getKey())) {
                     validateTemplateIntegerShape(plugin, version, entry.getKey(), entry.getValue());
+                } else if ("ragSimilarityThreshold".equals(entry.getKey())) {
+                    if (!entry.getValue().isNumber()) {
+                        throw invalid(plugin, version, "template ragSimilarityThreshold must be a number.");
+                    }
+                } else if ("aiBehaviour".equals(entry.getKey())) {
+                    if (!entry.getValue().isObject() || entry.getValue().toString().length() > MAX_TEMPLATE_PROMPT_CHARS) {
+                        throw invalid(plugin, version, "template aiBehaviour must be a bounded configuration object.");
+                    }
                 } else if (!entry.getValue().isTextual() || entry.getValue().textValue().length() > MAX_TEMPLATE_PROMPT_CHARS) {
                     // Bound catalogue payload size, not the meaning of operator-authored prompt text.
                     throw invalid(plugin, version, "template " + entry.getKey() + " must be a string of at most "
