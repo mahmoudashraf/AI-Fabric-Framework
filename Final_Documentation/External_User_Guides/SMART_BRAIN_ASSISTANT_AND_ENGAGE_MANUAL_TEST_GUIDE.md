@@ -11,6 +11,16 @@ The temporary Harbor Office API is already running. **Your Brain and Engage
 apps have not been created for you.** Follow this guide using your own Console
 account. Estimated hands-on time is 45-75 minutes, plus provisioning/indexing.
 
+**Latest recheck, 14 November 2026:** a fresh test customer completed creation,
+secure connection checks, LoomAI-managed search provisioning, public-policy
+indexing, version publication/apply, native verification and activation of both
+channels. Confirmed/rejected enquiries and actual receipt reads passed in both.
+The retained [standalone lab](https://harbor-office-lab-20261114.apps.loomai.pro)
+is available for review. **Natural follow-up/source-selection quality is not fully
+qualified: only 2/6 of the original read questions passed on the final run.** See the
+[recorded results and setup findings](../../verification-support/harbor-brain-creation/2026-11-14-creation-flow-check.md).
+The retained test fixture is separate from your own account setup.
+
 ## 1. Your lab and the result to aim for
 
 - Console: [Open LoomAI Console](https://console.loomai.pro/).
@@ -91,12 +101,19 @@ The Kit route above avoids that extra wiring and tests the normal customer story
    Do not remove usage or funding checks to make an unavailable model work.
 9. The current Knowledge workspace starter can require document storage.
    Configure **Knowledge -> storage** using LoomAI-provided storage or an owned
-   S3-compatible binding. Keep any required vector/search binding valid. The live
-   API actions themselves do not require you to invent vector-space names.
+   S3-compatible binding. In **Knowledge -> Search settings**, choose your search
+   engine and either **Platform-managed** hosting (LoomAI provisions the owned
+   service during apply) or **Bring your own** (provide your own endpoint and
+   scoped credentials). The selected Brain destination is used by the existing
+   service binding form; keep it explicit in the Brain header. Review provider
+   requirements under **Service connection** and save the draft. The live API
+   actions themselves do not require you to invent vector-space names.
 10. If the starter needs a source file, upload the supplied
     `harbor-returns-policy.txt` from the external lab folder using the Knowledge
-    upload flow. Then discover/preview, approve and index it explicitly. This file
-    covers returns, not the catalogue/delivery facts used by the API tests.
+    upload flow. Upload can happen before deployment; actual indexing requires a
+    running runtime and its search service. Complete explicit approval/indexing
+    after the initial apply, as described in section 5. This file covers returns,
+    not the catalogue/delivery facts used by the API tests.
 11. Keep all changes in this new lab Brain. Do not reset or repurpose an existing
     production Brain. The default workspace allowance is two provisioned
     environments; drafts and resource-free Engage apps do not use another slot.
@@ -138,6 +155,22 @@ and any missing provider/storage requirements are visible rather than bypassed.
   `productId` and `email`, optional `message`; **confirmation required**.
 - **Read enquiry:** READ; GET `/v1/enquiries/{reference}`; use the actual receipt
   reference, not a guessed number or the product ID.
+
+The native access-mode value for the enquiry is **WRITE_ONLY**, not `WRITE`.
+Check setup now reports unsupported values before publication. For optional
+customer-supplied filters and `message`, keep **Ask user for missing value** on
+and **Required** off. Turning Ask user off hides an input from model extraction;
+it is intended for values supplied by trusted runtime context, not ordinary
+optional inputs.
+
+Review omitted optional JSON fields as well as populated ones. For this API,
+the existing whole-parameter body template `"{{params}}"` sends just the supplied
+action parameters; a fixed `message: "{{params.message}}"` mapping sends a null
+when the optional field is absent, which the lab correctly rejects. Do not add
+an invented message or weaken the receiver to conceal that mapping error.
+Leave the connector's fixed **Success message** blank unless its template also
+handles failures truthfully; a constant such as "Enquiry submitted" can otherwise
+appear alongside a genuine upstream error.
 
 All five operations in this lab can be permitted to anonymous app visitors.
 The key is a **company-to-API credential**, not end-user sign-in. A private
@@ -234,8 +267,14 @@ reviewed, and changes remain draft-only.
    exercise is meant to include the new protected-READ behavior. A newer backend
    or a freshly saved draft does not upgrade an already running runtime.
 3. Run the explicit publish-and-update/apply action for staging. On a fresh Brain,
-   this creates its infrastructure. Wait for **verified/active**, not only a queued
-   job or saved version. Record the applied version and runtime image.
+   this creates its infrastructure. If verification reports no active approved
+   document, open **Knowledge -> storage**, select the uploaded returns file,
+   approve it for anonymous public answers, and choose **Index selected files**.
+   Re-select it and choose **Reconcile selected files** if its upload row has not
+   yet picked up the completed indexing status. Confirm the source is ACTIVE,
+   then return to **Updates -> Verify again**. Do not bypass the missing-document
+   finding or count upload alone as indexing. Wait for **verified/active**, not
+   only a queued job or saved version. Record the applied version and runtime image.
 4. Open **Try it** if available and confirm it points at that applied staging
    version. An unsaved draft is not what the running chat executes.
 
@@ -274,6 +313,10 @@ reviewed, and changes remain draft-only.
 14. Test a docked conversation, expand to MAX, then minimize/reopen. Check the
     visible branding and conversation state. Run at least one read and one
     confirmation scenario here as well as in standalone.
+
+The launcher remembers MAX after closing it. To return to the docked conversation,
+focus the compact composer; its minimize control hides the panel without deleting
+messages. Do not expect a **Minimize assistant** button while MAX itself is open.
 
 The two channels share a Brain, not browser storage or an automatic cross-origin
 conversation. Do not expect a standalone conversation to appear on the test site.

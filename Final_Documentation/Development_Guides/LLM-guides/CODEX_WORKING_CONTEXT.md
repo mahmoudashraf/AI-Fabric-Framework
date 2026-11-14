@@ -15518,3 +15518,189 @@ test is being called hosted acceptance. UI extraction remains last.
   DO NOTreplaypublish/select/create/deletion. Public2026-11-13-generic-kit-default-
   adoption.md and01063recordupdated. Noagents/neededruns/ownerinputpending.
   Keepunrelateddirt/manualAPIlab/phonevideos; firewalluntouched.
+
+### Harbor Brain Creation Journey In Progress (2026-11-14)
+
+- Owner requested requalification of the separately retained Harbor Office API
+  lab. Its HTTPS health, OpenAPI and authenticated read-only connection probe pass.
+  Service source remains outside this repository at ../loomai-assistant-lab;
+  do not remove its staging app or existing Northfield/Support resources.
+- Genuine customer UI created kit-84aa674b-5d65-4b62-8286-3b8994f087fb once,
+  Brain dep-5fbdc125, customer cus-6ac3c336-3d42-4a3e-8fcd-8a08215f6a0a,
+  target dtp-coolify-staging-behavior, both Engage channels still draft.
+  Private receipts: ~/.codex/private/loomai-harbor-journey-20261114/.
+- Actual Actions assistant imported real OpenAPI and all five selected operations.
+  First turn saved only three READs; follow-ups requested unnecessary clarification,
+  then the credential guard rejected a proposal. Explicit definition/route-only
+  follow-up saved all five, including confirmed WRITE. Preserve these first outcomes;
+  do not claim a clean one-shot pass or silently retry. No framework/Platform fix made.
+- Company/provider keys saved through customer Secrets UI; raw values never sent
+  to the assistant. Manual connector fields now use the saved reference, exact lab
+  origin and authenticated safe GET probe. Lucene saved LOCAL_MANAGED; hosted
+  storage connection dsc-eb86a37b-dff8-4450-bed1-469d332ff576 READY. Binding/upload,
+  response guidance, real deployment/indexing, Engage activation and R/W scenarios
+  remain to qualify. No lab enquiry executed by this run yet; no infra deployed yet.
+- Do not replay create intents. Current browser automation state is in node_repl;
+  ui-auth.private.json permits recovery. Preserve unrelated dirt and firewall state.
+- Subsequent verification: restored original external Milvus/shared mode; Lucene
+  is intentionally invalid for durable S3 documents, not a supported workaround.
+  Hosted S3 is bound and returns TXT uploaded, not indexed. Aggregate setup passes
+  with zero warnings; OpenAI and company-key safe probes both HTTP 200.
+  v1 ver-43ba4358 published on 0.8.52, no apply. Assistant rename/Undo restored
+  all ten configuration sections exactly. Correctly sourced Responses preparation
+  passed once after restoring valid provider configuration, with no unintended
+  changes. Earlier response-loop failures overlapped the invalid Lucene experiment.
+- Both app welcomes/placeholders saved through real UI. Standalone managed domain
+  VERIFIED and frontend route available; both apps DRAFT, blocked only on no
+  verified release. Still no business write/counter increase. No product code fix.
+- CustomerExistingVectorBinding.VectorChoices resolves environment without the
+  explicit/bootstrap target ID. Fresh immutable target URL therefore produces
+  an unambiguous-environment warning with legacy profiles also present. Record as
+  a narrow UI binding issue, not failed serving credentials. Not fixed here.
+- Required for production checking unused approved vector capacity; all four
+  documented Zilliz targets are actively assigned so far. Fresh read-only handle
+  inventory saved privately (8 staging/26 production). No cluster creation,
+  transfer, occupied binding reuse or billable upgrade approved by this check.
+  Remaining: exact-target form correction, approved durable connection, staging
+  apply/index, both Engage activation and actual R1-R6/W1-W4 including dock/MAX.
+  Public verification-support/harbor-brain-creation/2026-11-14-creation-flow-check.md
+  records partial status; never claim full end-to-end success from saved drafts.
+- Final read-only capacity reply: no currently qualified/approved unused endpoint
+  available. Unmatched provider resources have unqualified ownership/reservations
+  and are NOT authorized spares. Do not bind them. Closeout receipts confirm no
+  release, two DRAFT apps, unchanged enquiry counter and healthy retained API.
+  Browser closed; no active assistant turns or shell jobs needed by this check.
+  Current follow-up is the narrow form fix plus an approved vector integration,
+  not a framework release or vector-transfer/capacity project.
+
+### Harbor Managed Search Completion Authorized (2026-11-14, In Progress)
+
+- Owner explicitly approved fixing destination selection, checking both BYO and
+  LoomAI-managed search, then completing Harbor with managed search. Infrastructure
+  cost is approved; a spare existing cluster is no longer a prerequisite. Do not
+  reuse occupied/archived Northfield clusters or change other deployments.
+- Same retained Kit/Brain, hosted S3 upload, provider credentials and v1 are used;
+  no duplicate creation. New private receipts are under the existing Harbor
+  private directory's managed-search/ child.
+- Main changed CustomerExistingVectorBinding to honor the explicit Brain target
+  in display and fresh save revalidation, retaining active/owned/version checks.
+  New real-component browser regression passes (exact immutable target, another
+  profile's release, invalid/inactive destination, changed owner/availability).
+  Existing 23 unit checks pass after repairing their lossless-JSON test resolver.
+- One bounded sidecar agent owns ProvidersPage mode-transition normalization and
+  focused tests; main owns integration/rollout/live customer journey. No framework
+  change planned. Existing UI-only image CI/deploy path, staging before production.
+- Production Platform reports its managed Zilliz and Qdrant management credentials
+  present (metadata only). Known project proj-a58a34b87ccfe2c80d6ec2, region
+  aws-eu-central-1 from successful read-only provider inventory. Managed Milvus
+  will create an owned Serverless cluster through existing apply, not copy a
+  serving key from an old cluster. Current UI images both 0089818162f8805bc58578dc20149dec9a93d237.
+- Remaining: review provider-form patch, build/commit/push/UI-only rollout,
+  live BYO form without provider reuse, managed configuration -> publish/apply,
+  policy approval/indexing, assignment/activation of both apps and actual R/W
+  chat scenarios. Do not call saved/uploaded/published state end-to-end success.
+- UI fix source 6acfd7da6712c66915c471a60248009e5da9baf9 is pushed/live on both
+  Consoles, image digest471d5318f6c66d9d54dd6177fe04b70e60e0c5f9e1290f24fc20d4609937d332;
+  CI43538521876 passed UI-only. Stage real customer signin/navigation no errors.
+  Production Harbor BYO form now honors exact target and displays serving-token
+  inputs; no external binding submitted or borrowed secret. Managed selection
+  saved through real UI and validation passed. All other config sections retained.
+- Managed apply CREATED Harbor-only Zilliz Serverless cluster in05-7ac848eb2991692,
+  name aifabric-5fbdc125, resource mvr-6e946cab. Runtime connected successfully.
+  v2 ver-038e9cf7 / rel-6fcdd325 FAILED startup because AI-generated accessMode WRITE
+  is not a native enum. Existing prompt/editor already list READ/READ_WRITE/
+  WRITE_ONLY; Check setup lacked this execution-contract validation. No FW defect.
+- Corrected ONLY enquiry accessMode through existing UI to WRITE_ONLY, preserving
+  final confirmation and all other config. v3 ver-42c86691 / rel-e1dc02a4 applied
+  ONCE; runtime healthy, normal provider workflow now awaiting connector. Same
+  owned cluster reused. New runtime app dvdd7wof3fm1fcm3wsppn45o, connector
+  uhvkpu0g7itmzd2ly1ttrkug, optional AI-state PG i11w1dtzbz9wqwrkfoa1bs0c. No
+  customer inventory DB. Do NOT replay consumed publication/apply intent files.
+- Narrow backend enum guard/test sidecar running; main continues live journey.
+  No silent WRITE coercion or mandatory confirmation policy added. Raw runtime
+  startup logs/signed artifact URLs stay private. API harness's old one-hour token
+  expired; explicit normal sign-in refreshed it, not a product auth bypass.
+- Subsequent checkpoint: both backend rollouts of f691f718c are healthy on digest
+  87bf4ecf4e8381916b19f0bfdea34de160db5bf6a5c47569f73b2427d9c19d9c;
+  UI remains 6acfd7da6. Native live unpublished-draft WRITE negative check failed
+  early as intended and WRITE_ONLY was restored, never published. 111 tests pass.
+- Harbor v3 completed and its uploaded returns TXT was explicitly approved,
+  indexed and reconciled ACTIVE (doc-d9b0652bede8b697817c56d15f705ef2).
+  Verification vrf-776bd310: 30 passed, 0 failed, 4 optional skips. Both Engage
+  channels were activated, not merely previewed. Standalone retained address:
+  https://harbor-office-lab-20261114.apps.loomai.pro .
+- Baseline GPT-4o-mini READ quality was mixed: product category miss, comparison
+  target clarification, stale prior-question answer, missed indexed returns.
+  Capture first failures; do not label them later passes. Initial confirmed write
+  returned 400 (no counter change): optional message mapped to null; generated
+  fixed success narration appeared on the failure. Generated askUser:false also
+  hid optional user parameters. Harbor configuration now uses askUser:true with
+  required:false, whole-parameter body "{{params}}", and no constant connector
+  success messages. No receiver relaxation or fabricated optional value.
+- Harbor v4 ver-40cd1519 / rel-78a1754a applied and verified on SAME owned cluster,
+  image/framework unchanged except model selected gpt-5.4-mini-2026-03-17. Both
+  existing installation IDs ACTIVE/ready against consumer
+  engage-1320fc43-ed6f-3f37-af9e-21039c37c8bc. Explicit re-verification resolved
+  a brief shared-frontend readiness interruption; first visitor load needed the
+  visible Try again, later phone load passed immediately. Record transient.
+- Actual v4 anonymous write proof: rejected draft counter delta0; standalone
+  Confirm exactly once counter1->2, real ENQ-c9588d21-9b7e-462b-bf3a-238a61bf3019;
+  separate website Confirm counter2->3, ENQ-650326cc-144d-4ad7-b5d1-dce92385acc7.
+  Both RECEIVED, emailSent=false, stockReserved=false. Docked READ, MAX,
+  close/reopen and minimize/reopen retain messages; no browser page errors.
+  Phone 390x844 standalone loads, document width390, no errors. Launcher remembers
+  MAX; click compact composer to reopen docked view. A wrong automation selector
+  caused one REPL reset; raw traces survived. New real customer login restored.
+- v4 stronger-model read quality is NOT green: chair included for desk, indirect
+  comparisons/policy request require attachment, returns still misses indexed
+  policy. Existing source overview was off, generated products lacked explicit
+  llmFacts.records projection, and intent guidance over-requested target resolution.
+  Draft r5 now maps original product fields explicitly, enables authorized source
+  overview and saves generic LLM-driven follow-up guidance (verified readback).
+  No keyword routing, search-all, answer replacement or invented vector space.
+- Receipt lookup exposed actual Platform generic REST path-template bug: literal
+  {{params.reference}} reached URI.create. Focused fix d3ba7460159206cf4e05d23b8a6c83b644f05e03
+  pushed. Encoded scalar path expansion; missing/null/blank/object/dot targets fail
+  before upstream. Static/query/body/header/absolute routes preserved. All139
+  connector tests pass; 57 focused. No sibling framework change/release.
+  CI43546347638 runtime/provider verification passed; image publishing underway.
+  Main will register exact digest (private register-connector-image.mjs), publish
+  current Harbor draft once, apply new image only to Harbor, reverify and reconnect
+  same app IDs, then R1-R6 and real receipt checks. Keep other deployments unchanged.
+  Sidecar closed; no active agents. No new approvals/cost blockers. Do not replay
+  private publication/apply intent files. Guide/report need final closeout update.
+- FINAL 2026-11-14 02:51 UTC: runtime CI43546347638 SUCCESS. Registered dsa-e1974edf,
+  digest82fa26e2293469622b0ee841034ffc4112fba3689178556d1eb4dd639d5ed31e,
+  same framework0.8.52. Harbor v5 ver-ec80fdb2 / rel-82523b43 APPLIED_VERIFIED;
+  post-apply vrf-3fa53fe7:30PASS/0FAIL/4SKIP. Runtime and connector native source,
+  digest and healthy states attested. Same managed cluster/storage/AI-state DB.
+  BOTH original app IDs ACTIVE/ready on consumer
+  engage-6eecd231-8833-34cb-a214-482f61bce5e5. Standalone URL unchanged and live.
+- Final v5 REAL integration checks passed: direct indexed returns (document source,
+  unused/original packaging/14days), dynamic product READ, real receipt READ,
+  standalone AND website reject delta0, Confirm delta1 each, receipt delta0 each.
+  Final receipts ENQ-8dafafac-a606-4687-90aa-2b6baa684437 and
+  ENQ-4d420c08-4180-4f80-861c-e683c67209ab. Overall receiver counter1->5 through
+  four separately confirmed intended successful writes over v4/v5, retained4.
+  Out-of-stock v5 confirmation intentionally got HTTP409/successfalse/no write;
+  narration no longer claims success. Unsupported refund out-of-scope/no write.
+  Phone reload on v5:390x844/scrollWidth390/no page errors. Both website and
+  standalone final browser error arrays empty. Native verification/index persisted.
+- IMPORTANT quality remains OPEN, not full Harbor conversational acceptance:
+  final original R1-R6 only2/6: R1correct desk, R5honest warranty uncertainty PASS;
+  R2/R3still attachment-target clarification, R4answers inability to arrange rather
+  than concrete restrictions, R6still delivery evidence instead of returns FAIL.
+  Natural standing-desk enquiry also clarifies instead of resolving known product.
+  Explicit source/ID successes do not replace original failures. Do NOT claim
+  general quality improvement or complete conversational readiness. Next review
+  should trace nonindexed READ result continuity/target resolution and semantic
+  evidence sufficiency/source selection; seek owner review before any FW changes.
+  No added keyword rules/search-all/hidden fallback. Fresh BYO runtime NOT tested;
+  BYO exact-target UI/save/security regressions pass; managed end-to-end passes.
+- Guide and verification-support/harbor-brain-creation/2026-11-14-creation-flow-check.md
+  now distinguish integration completion from open quality findings. Retain working
+  lab/Kit/apps/owned managed cluster for owner review; do not remove another
+  customer's resources. Serving UI6acfd7da6/backendsf691f718c remain unchanged by
+  Harbor-only image d3ba74601. Staging snapshot8CPU/load3.10/2780MiB available/
+  4125MiBswap; production4CPU/load0.37/8537MiBavailable/no swap. CI builds only.
+  No active agents or shell jobs remain; final browser contexts will be closed.
