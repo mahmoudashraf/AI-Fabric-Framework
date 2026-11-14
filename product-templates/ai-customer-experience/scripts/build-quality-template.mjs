@@ -53,12 +53,20 @@ export function buildCustomerExperienceQualityTemplate(manifest, catalogue) {
   }
   const candidate = structuredClone(manifest)
   const next = candidate.contributions.template
-  next.promptConfig = { ...largerBudgets(structuredClone(prompt), defaults.evidenceBudgets.prompt), aiBehaviour: profiles }
+  next.promptConfig = {
+    ragSimilarityThreshold: defaults.missingDefaults.ragSimilarityThreshold,
+    intentExtractionPrompt: defaults.missingDefaults.intentExtractionPrompt,
+    answerGenerationPrompt: defaults.missingDefaults.answerGenerationPrompt,
+    ...largerBudgets(structuredClone(prompt), defaults.evidenceBudgets.prompt),
+    aiBehaviour: profiles,
+  }
   next.providerConfig = {
+    openaiModel: defaults.missingDefaults.openaiModel,
     ...structuredClone(provider),
     orchestrationModeOverrides: {
       ...structuredClone(modes),
       executor: {
+        knowledgeBaseOverviewEnabled: defaults.missingDefaults.knowledgeBaseOverviewEnabled,
         ...structuredClone(executor),
         readActionResolution: {
           ...largerBudgets(structuredClone(reads), defaults.evidenceBudgets.readActionResolution),

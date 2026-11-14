@@ -226,8 +226,12 @@ remained Harbor-owned throughout; no vectors were copied.
   does not answer the actual Paris/tomorrow policy restriction. It makes no
   unsupported arrangement or delivery promise.
 - **R5 PASS:** it does not invent a warranty for the chair.
-- **R6 FAIL:** the natural used-chair returns question selects delivery evidence,
-  not the indexed returns guide, despite the authorized overview being active.
+- **R6 FAIL:** the answer only uses delivery evidence and misses the indexed
+  returns guide. Detailed trace review subsequently confirmed that the planner
+  selected READ + RAG, searched the correct `document` source, and got zero
+  documents at threshold 0.5. This is not proof of a source-selection failure;
+  the dealership's 0.4 threshold is a recall candidate to qualify. The successful
+  explicit-guide query scored approximately 0.533 at the same 0.5 threshold.
 
 This is **not an overall quality improvement claim**: R1 improves, but the six
 original cases are still only 2/6. A natural standalone enquiry after showing the
@@ -267,9 +271,9 @@ four current enquiries; the original historical fixture is no longer retained.
 1. Trace target-resolution and structured READ-result continuity for ordinary
    non-indexed business records. Do not invent a vector space or require manual
    IDs as a hidden repair of the original follow-up tests.
-2. Trace why the model treats delivery evidence as sufficient for the returns
-   question instead of selecting the authorized document source. Direct retrieval
-   succeeding rules out a missing upload/index as the explanation.
+2. Qualify retrieval recall for the returns question: the source was actually
+   searched but returned zero documents. Direct retrieval succeeding rules out a
+   missing upload/index; it does not prove the original query clears threshold.
 3. Review whether any framework change is needed with the owner before implementing
    it. No additional framework patch, search-all recovery, keyword routing or
    canned-answer replacement was added to force the quality set green.
@@ -277,6 +281,33 @@ four current enquiries; the original historical fixture is no longer retained.
    customer form and focused binding/save/security regressions pass; managed
    provisioning is the path proven end to end here. No other customer's provider
    credentials were reused to manufacture a BYO pass.
+
+## Approved Follow-Up: Qualified Generic Defaults
+
+The owner approved configuration-first alignment and promotion of reusable
+settings to new-template defaults only if answer quality improves. The trial
+keeps the original six questions, existing Brain/apps, provider model and safety
+contracts. It adds bounded API-record memory without an invented vector space,
+sets retrieval threshold to 0.4, and guides the model to distinguish factual
+service questions from requests to execute unavailable mutations. Fan-out is
+unchanged because Harbor has only one document space.
+
+Framework 0.8.52 already persists/seeds action targets with no vector space. The
+Platform connector's collection mapper is being aligned with that existing
+optional field contract; identifiers, field projections, bounds and auth remain.
+The authoring catalogue also explains declarative record memory and optional
+user-input semantics, so imports can produce the same supported configuration.
+No framework release or semantic matcher is introduced. The initial trial and
+three later configuration trials completed on the same resources. The latest
+`ver-47128d34` / `rel-4f279fec` is APPLIED_VERIFIED/PASSED, and both apps remain
+ACTIVE/ready. Final original-six scores improved to **4/6 and 5/6**, but failed
+the two-run qualification criterion. Delivery eligibility/totals are still
+sometimes wrong or contradictory; one comparison missed its second record, and
+an extended question requested a technical domain. **Additional defaults were
+not promoted.** Published generic1.4.0 and its selected starter remain unchanged.
+Read [the complete quality/defaults record](./2026-11-14-quality-defaults.md) for
+all intermediate results, successful retrieval/memory changes and remaining gaps.
+Do not interpret the earlier v5-only results above as the latest live score.
 
 ## Final Host Snapshot
 

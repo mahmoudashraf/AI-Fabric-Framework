@@ -12,7 +12,7 @@ const defaults = JSON.parse(readFileSync(new URL('../fixtures/quality-defaults.j
 const profile = (key, id) => ({ presetId: id, revision: 1, instructions: catalogue.groups.find(g => g.key === key).options.find(o => o.id === id).instructions })
 const expectedProfiles = () => ({ schemaVersion: catalogue.schemaVersion, revision: 1,
   tone: profile('tone', 'consultative'), answerLength: profile('answerLength', 'balanced'), nextSteps: profile('nextSteps', 'contextual'), answerBreadth: profile('answerBreadth', 'grounded') })
-const manifest = () => ({ schemaVersion: 1, pluginType: 'TEMPLATE', pluginId: 'mkp-template-document-knowledge-assistant', version: '1.3.0',
+const manifest = () => ({ schemaVersion: 1, pluginType: 'TEMPLATE', pluginId: 'mkp-template-document-knowledge-assistant', version: '1.4.0',
   displayName: 'Synthetic generic workspace', permissions: { contributesTemplate: true }, compatibility: { supportedDeploymentTargets: ['original-target'] },
   contributions: { template: { templateId: 'original-template', deploymentBehavior: { type: 'CONVERSATIONAL', contractVersion: 1, defaultExecutionExtensions: [] },
     requiredPluginRefs: ['generic-source@1.0.0'], requiredPluginInstallDefaults: { 'generic-source@1.0.0': { config: { publicContentApprovalConfirmed: false }, secretRefs: { key: 'EXISTING_REF' } } },
@@ -22,36 +22,44 @@ const manifest = () => ({ schemaVersion: 1, pluginType: 'TEMPLATE', pluginId: 'm
   } } })
 
 test('fixture changes only the reviewed generic template family', () => {
-  assert.equal(defaults.status, 'PUBLISHED_BOOTSTRAP_DEFAULTS_20261113')
-  assert.deepEqual(defaults.template, { pluginId: 'mkp-template-document-knowledge-assistant', currentVersion: '1.3.0', candidateVersion: '1.4.0' })
+  assert.equal(defaults.status, 'HELD_NOT_QUALIFIED_20261114')
+  assert.deepEqual(defaults.template, { pluginId: 'mkp-template-document-knowledge-assistant', currentVersion: '1.4.0', candidateVersion: '1.5.0' })
   assert.deepEqual(defaults.aiBehaviour.selections, { tone: 'consultative', answerLength: 'balanced', nextSteps: 'contextual' })
   assert.ok(!Object.hasOwn(defaults, 'requiredDataPlugin'))
 })
 
-test('only four approved quality areas and version change; source, security and model are preserved', () => {
+test('quality defaults and version change; source, security and explicit model are preserved', () => {
   const source = manifest(), before = structuredClone(source)
   const output = build(source, catalogue)
   const expected = structuredClone(before)
-  expected.version = '1.4.0'
-  expected.contributions.template.promptConfig = { ragMaxDocumentsUsedForContext: 8, ragMaxContextChars: 8000, aiBehaviour: expectedProfiles() }
-  expected.contributions.template.providerConfig.orchestrationModeOverrides = { executor: { readActionResolution: {
+  expected.version = '1.5.0'
+  expected.contributions.template.promptConfig = {
+    ragSimilarityThreshold: 0.3, intentExtractionPrompt: defaults.missingDefaults.intentExtractionPrompt,
+    answerGenerationPrompt: defaults.missingDefaults.answerGenerationPrompt,
+    ragMaxDocumentsUsedForContext: 8, ragMaxContextChars: 8000, aiBehaviour: expectedProfiles(),
+  }
+  expected.contributions.template.providerConfig.orchestrationModeOverrides = { executor: { knowledgeBaseOverviewEnabled: true, readActionResolution: {
     maxPlannerContextChars: 12000, maxActionEvidenceCharsPerAction: 8000, maxActionEvidenceItems: 10,
     planningMode: 'ITERATIVE', maxIterations: 2, ragCooperationMode: 'RAG_IF_ACTIONS_INSUFFICIENT',
   } } }
   assert.deepEqual(output, expected)
   assert.deepEqual(source, before)
-  assert.equal(Object.hasOwn(output.contributions.template.promptConfig, 'ragSimilarityThreshold'), false)
+  assert.equal(output.contributions.template.promptConfig.ragSimilarityThreshold, 0.3)
   assert.equal(Object.hasOwn(output.contributions.template.providerConfig.orchestrationModeOverrides.executor, 'semanticRecovery'), false)
 })
 
-test('existing breadth, threshold, other modes and unselected executor configuration are unchanged', () => {
+test('existing breadth, threshold, prompt, model, other modes and explicit source policy are unchanged', () => {
   const source = manifest(), t = source.contributions.template
-  t.promptConfig = { ragSimilarityThreshold: 0.61, customPrompt: { instructions: 'Original approved prompt' }, aiBehaviour: expectedProfiles() }
+  t.promptConfig = { ragSimilarityThreshold: 0.61, intentExtractionPrompt: 'Original custom intent instructions.', answerGenerationPrompt: 'Original custom answer instructions.', customPrompt: { instructions: 'Original approved prompt' }, aiBehaviour: expectedProfiles() }
   t.promptConfig.aiBehaviour.answerBreadth = { presetId: 'custom', revision: 1, instructions: 'Original custom breadth.' }
-  t.providerConfig.orchestrationModeOverrides = { navigator: { marker: true }, executor: { rag: { fanoutEnabled: false, maxSpaces: 1 }, semanticRecovery: { missingVectorSpace: 'DENY' }, readActionResolution: { enabled: true, unrelated: { preserved: true } } } }
+  t.providerConfig.orchestrationModeOverrides = { navigator: { marker: true }, executor: { knowledgeBaseOverviewEnabled: false, rag: { fanoutEnabled: false, maxSpaces: 1 }, semanticRecovery: { missingVectorSpace: 'DENY' }, readActionResolution: { enabled: true, unrelated: { preserved: true } } } }
   const output = build(source, catalogue).contributions.template
   assert.deepEqual(output.promptConfig.aiBehaviour.answerBreadth, t.promptConfig.aiBehaviour.answerBreadth)
   assert.equal(output.promptConfig.ragSimilarityThreshold, 0.61)
+  assert.equal(output.promptConfig.intentExtractionPrompt, 'Original custom intent instructions.')
+  assert.equal(output.promptConfig.answerGenerationPrompt, 'Original custom answer instructions.')
+  assert.equal(output.providerConfig.openaiModel, 'original-model')
+  assert.equal(output.providerConfig.orchestrationModeOverrides.executor.knowledgeBaseOverviewEnabled, false)
   assert.deepEqual(output.providerConfig.orchestrationModeOverrides.navigator, { marker: true })
   assert.deepEqual(output.providerConfig.orchestrationModeOverrides.executor.rag, t.providerConfig.orchestrationModeOverrides.executor.rag)
   assert.deepEqual(output.providerConfig.orchestrationModeOverrides.executor.semanticRecovery, { missingVectorSpace: 'DENY' })
@@ -59,6 +67,23 @@ test('existing breadth, threshold, other modes and unselected executor configura
   output.providerConfig.orchestrationModeOverrides.executor.readActionResolution.unrelated.preserved = false
   assert.equal(t.promptConfig.customPrompt.instructions, 'Original approved prompt')
   assert.equal(t.providerConfig.orchestrationModeOverrides.executor.readActionResolution.unrelated.preserved, true)
+})
+
+test('missing provider and recall settings receive domain-neutral defaults without new permissions or fanout', () => {
+  const source = manifest()
+  delete source.contributions.template.providerConfig.openaiModel
+  const output = build(source, catalogue).contributions.template
+  assert.equal(output.providerConfig.openaiModel, 'gpt-5.4-mini-2026-03-17')
+  assert.equal(output.promptConfig.ragSimilarityThreshold, 0.3)
+  assert.equal(output.providerConfig.orchestrationModeOverrides.executor.knowledgeBaseOverviewEnabled, true)
+  assert.equal(Object.hasOwn(output.providerConfig.orchestrationModeOverrides.executor, 'rag'), false)
+  assert.equal(Object.hasOwn(output.providerConfig.orchestrationModeOverrides.executor, 'semanticRecovery'), false)
+  assert.match(output.promptConfig.intentExtractionPrompt, /authorization requirements unchanged/)
+  assert.doesNotMatch(output.promptConfig.intentExtractionPrompt, /Harbor|dealer|furniture|stockId/)
+  assert.equal(output.promptConfig.answerGenerationPrompt, defaults.missingDefaults.answerGenerationPrompt)
+  assert.doesNotMatch(output.promptConfig.answerGenerationPrompt, /Harbor|dealer|499|500|London|chair|desk/)
+  assert.deepEqual(output.security, source.contributions.template.security)
+  assert.deepEqual(output.actionDefinitions, source.contributions.template.actionDefinitions)
 })
 
 test('already larger evidence limits are not reduced', () => {
@@ -112,8 +137,8 @@ test('CLI accepts a raw manifest or matched published capture without leaking wr
   writeFileSync(cataloguePath, JSON.stringify(catalogue))
   const cli = fileURLToPath(new URL('./build-quality-template.mjs', import.meta.url))
   const run = value => { writeFileSync(input, JSON.stringify(value)); return spawnSync(process.execPath, [cli, input, cataloguePath], { encoding: 'utf8' }) }
-  for (const value of [manifest(), { version: { status: 'PUBLISHED', pluginId: manifest().pluginId, version: '1.3.0', manifest: manifest() }, unrelatedSecret: 'DO_NOT_COPY' }]) {
+  for (const value of [manifest(), { version: { status: 'PUBLISHED', pluginId: manifest().pluginId, version: '1.4.0', manifest: manifest() }, unrelatedSecret: 'DO_NOT_COPY' }]) {
     const result = run(value); assert.equal(result.status, 0, result.stderr); assert.deepEqual(JSON.parse(result.stdout), build(manifest(), catalogue)); assert.equal(result.stdout.includes('DO_NOT_COPY'), false)
   }
-  assert.notEqual(run({ version: { status: 'DRAFT', pluginId: manifest().pluginId, version: '1.3.0', manifest: manifest() } }).status, 0)
+  assert.notEqual(run({ version: { status: 'DRAFT', pluginId: manifest().pluginId, version: '1.4.0', manifest: manifest() } }).status, 0)
 })

@@ -16,9 +16,15 @@ secure connection checks, LoomAI-managed search provisioning, public-policy
 indexing, version publication/apply, native verification and activation of both
 channels. Confirmed/rejected enquiries and actual receipt reads passed in both.
 The retained [standalone lab](https://harbor-office-lab-20261114.apps.loomai.pro)
-is available for review. **Natural follow-up/source-selection quality is not fully
-qualified: only 2/6 of the original read questions passed on the final run.** See the
+is available for review. Follow-up tuning improved the original-six results from
+the 2/6 baseline to **4/6 and 5/6 in the final two runs**, but remains **not fully
+quality-qualified**: delivery eligibility/totals can be contradictory, comparison
+planning can miss an item, and an extended question still requested a technical
+domain. The extra generic-template candidate is held; existing published defaults
+remain selected. See the
 [recorded results and setup findings](../../verification-support/harbor-brain-creation/2026-11-14-creation-flow-check.md).
+The [full quality/defaults record](../../verification-support/harbor-brain-creation/2026-11-14-quality-defaults.md)
+preserves all intermediate failures and the final decision.
 The retained test fixture is separate from your own account setup.
 
 ## 1. Your lab and the result to aim for
@@ -217,6 +223,14 @@ the document, and the synthetic write still requires confirmation.
    in the Connections assistant and say **"Use my saved HARBOR_LAB_KEY
    reference for this API."** Inspect its result in the same routing form.
 
+For descriptive follow-ups, review the catalogue response's bounded
+`pinned-targets-from-collection` mapping: use the actual returned collection and
+stable ID, plus the relevant display facts. Non-indexed API records do not need
+an invented vector space. Current authoring guidance explains this supported
+mapping, but its actual saved output still needs review. Also describe filter
+semantics accurately: `inStock:true` excludes unavailable comparators, and a
+previous budget filter can exclude an explicitly requested higher-priced item.
+
 The API document intentionally omits the connection-check route from the five
 business actions. It is a setup probe, not a capability the model needs to call.
 The connector may attach this company key to the public reads too; visitors must
@@ -263,7 +277,7 @@ reviewed, and changes remain draft-only.
 1. Confirm **Staging** in the Brain header. In **Updates**, inspect Changes and
    the current draft/release comparison. Check that only intended Harbor changes
    are included; avoid publishing an unrelated unfinished edit.
-2. Select a compatible runtime image with framework **0.8.50 or later** if this
+2. Select the current compatible runtime image with framework **0.8.52** if this
    exercise is meant to include the new protected-READ behavior. A newer backend
    or a freshly saved draft does not upgrade an already running runtime.
 3. Run the explicit publish-and-update/apply action for staging. On a fresh Brain,

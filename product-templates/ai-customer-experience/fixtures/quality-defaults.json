@@ -1,11 +1,11 @@
 {
   "schemaVersion": "loomai-customer-experience-quality-v1",
-  "revision": 1,
-  "status": "PUBLISHED_BOOTSTRAP_DEFAULTS_20261113",
+  "revision": 2,
+  "status": "HELD_NOT_QUALIFIED_20261114",
   "template": {
     "pluginId": "mkp-template-document-knowledge-assistant",
-    "currentVersion": "1.3.0",
-    "candidateVersion": "1.4.0"
+    "currentVersion": "1.4.0",
+    "candidateVersion": "1.5.0"
   },
   "aiBehaviour": {
     "schemaVersion": "loomai-ai-behaviour-v1",
@@ -20,6 +20,13 @@
     "planningMode": "ITERATIVE",
     "maxIterations": 2,
     "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+  },
+  "missingDefaults": {
+    "openaiModel": "gpt-5.4-mini-2026-03-17",
+    "knowledgeBaseOverviewEnabled": true,
+    "ragSimilarityThreshold": 0.3,
+    "answerGenerationPrompt": "Answer the latest user question directly, then give only the relevant supporting evidence and limitations. Treat a new question as the current goal; do not answer an earlier unresolved question instead. Use approved documents and authorized live results for business facts. When applying a numerical threshold, compare the actual values in consistent units before concluding eligibility. Calculate requested totals from the supported components and show the short calculation; do not contradict the stated threshold in the conclusion. For comparisons, distinguish unavailable records from records not retrieved. Explain what is unknown without listing unrelated missing fields or inventing facts. An informational answer does not authorize a write; preserve authentication and confirmation requirements.",
+    "intentExtractionPrompt": "Classify each request carefully as informational, action-oriented, or clarification-needed. Extract only parameters explicitly present or supported by authorized context; never invent an identifier. Use conversation history to resolve descriptive follow-ups and express a self-contained retrievalQueryHint. For read-only factual, policy or comparison questions, prefer the authorized READ tools and knowledge sources that can answer the question. Do not require attachment selection merely because the user refers to a previous answer. Set requiresTargetResolution only when the requested operation needs an exact trusted entity target that cannot already be established from the request or available structured context. General policy questions do not require a product target unless the selected tool actually needs one. Do not mark requiresTargetResolution for broad discovery or explicit item names/identifiers. Keep confirmation and authorization requirements unchanged. A question about whether a service is available or what its terms are is informational, not authorization to perform it. If authorized READ capabilities or approved knowledge can explain the answer, use that evidence. Do not classify a factual question OUT_OF_SCOPE merely because execution of the underlying service is unavailable. Actual requests for unsupported mutations remain out of scope."
   },
   "evidenceBudgets": {
     "prompt": {

@@ -15704,3 +15704,122 @@ test is being called hosted acceptance. UI extraction remains last.
   Harbor-only image d3ba74601. Staging snapshot8CPU/load3.10/2780MiB available/
   4125MiBswap; production4CPU/load0.37/8537MiBavailable/no swap. CI builds only.
   No active agents or shell jobs remain; final browser contexts will be closed.
+
+### Harbor Generic Quality Defaults Qualification (2026-11-14, In Progress)
+
+- Owner approved configuration-first alignment with dealership tuning and making
+  proven reusable improvements the default for new AI Customer Experience Kits.
+  Do not change existing customer releases/drafts or copy dealership data schemas.
+- Corrected prior R6 diagnosis in the verification report: it DID select READ+RAG
+  and search document-knowledge but got0 results at threshold0.5. Explicit policy
+  query scored0.533. Dealer uses0.4. R2/R3 show seeded:false because Harbor lacked
+  returned-record target mapping. No framework defect is established by those.
+- Framework0.8.52 already persists/seeds targets with vectorSpace=null. Platform
+  collection mapper aligned to that optional contract in 11cb0152dcd8ddc31823911f931a7b9ee7ea3dbc;
+  100 focused tests pass, CI43604540677 SUCCESS, image
+  sha256:a265d26692f78dfdd7da8d5519d443d89df396c84bd21f09053b99e3010fbde4,
+  artifact dsa-57559e4b registered production CP/staging channel. No FW release.
+- Authoring guidance1e4cf3eac35c1050ed9029ee39373ca257cdb72c teaches existing
+  memory/optional-input/mapping contracts;33 focused tests pass with normal Java
+  attachment (restricted Mockito run could not initialize). CI43604574298 SUCCESS;
+  backend image NOT deployed yet. One Supabase500 stopped initial registration
+  before any mutation; normal customer auth subsequently worked. Do not fake auth.
+- Exact existing Harbor r6 updated only promptConfig/routingConfig:threshold0.4,
+  generic information-vs-execution guidance, search-result collection pinning
+  with NO vector-space, detail single-record pinning; credentials/grants/source/
+  model/budgets unchanged. ver-0ee14417 published, rel-76384db3 APPLY_REQUESTED/
+  normal cold replacement on same resources. Existing apps remain on v5 until
+  verification then update SAME consumer via existing audited binding API.
+- Private trial scripts/receipts currently /private/tmp/loomai-harbor-quality-20261114/:
+  control.mjs snapshot/prepare/publish/register/apply are CONSUMED. Use observe,
+  then assign after verified; do NOT replay mutation intents. queries.mjs <unique
+  run-label> uses real anonymous UI, originalR1-R6, records actual first responses,
+  never auto-grades/retries. Run twice in fresh browser contexts and judge meaning.
+  Current permissions require escalated exec for network/Java attach/git writes;
+  node_repl fetch is restricted. No active agents (sidecar closed).
+- Generic1.5.0 candidate prepared in product-templates/ai-customer-experience,
+  missing-only model5.4mini/overview/threshold0.4/generic intent guidance, retains
+  explicit custom settings and existing evidence/profile defaults.10 tests pass.
+  Files UNCOMMITTED, status CANDIDATE; do NOT mark published until live improvement.
+  defaults.mjs capture/publish/select uses existing registry/offer mechanism,
+  requires quality-decision.private.json with two>=5/6 runs and zero trust
+  regressions before publishing. Intended new offer public-knowledge-quality-20261114,
+  preserve other starter IDs. Configure new selection then deploy backend1e4 once
+  per environment (combine changes), stage before prod; no UI rebuild needed.
+  staging capture currently running session8235; observe session89287. Finish
+  reads/queries, then qualify defaults, fresh config-only Kit inheritance/cleanup,
+  docs and private evidence retention. Main target remains quality/defaults, no
+  capacity/recovery expansion or framework patch without owner review.
+- Initial trial v6 rel-76384db3 APPLIED_VERIFIED. Existing shared consumer binding
+  updated normally via customer PUT; both original apps retained ACTIVE/ready,
+  no disable/recreate/frontend-route churn. trial-a scored3/6 (R2/R4/R5), trial-b
+  approximately4/6 (R1/R2/R4/R5, R2 wording confusing but explicit total524). R2
+  now seeds real PINNED_TARGETS; no attachment clarification. NOT default-qualified.
+  R3 model applies inStock:true, excluding requested Executive Desk; missing
+  record is integration-filter semantics, not a missing source in the service.
+- Existing read-only document retrieval-proof endpoint measured actual policy:
+  original R6 score0.363896; trial-a embedding query0.358162; trial-b0.364479.
+  Explicit guide query0.502149. Therefore0.4 still excludes relevant policy;
+  metadata proves correct source, model-selected RAG, no keyword routing needed.
+- Evidence-led second trial saved ONLY threshold0.3 and truthful API filter/ID
+  descriptions from the actual external server contract. No data change or
+  special-query answer prompt. Native optional-memory mapping, auth, grants,
+  provider/model/budgets retained. ver-c158ae08 / rel-f7cc94d7 APPLY_REQUESTED,
+  same image dsa-57559e4b. /private/tmp/.../control.mjs uses
+  QUALITY_PHASE=refined for this trial; refine/publish/apply are CONSUMED.
+  Next observe, assign, then queries.mjs refined-a / refined-b. Do not rerun
+  mutation commands/intents. Initial defaults candidate still0.4/CANDIDATE;
+  revise only after actual second-trial quality before promotion. Generic and
+  dealership builders now26 tests pass. Backend1e4 image CI passed/not deployed.
+  Both staging/production defaults capture complete; no templates/offers selected.
+
+### Harbor Quality Closeout: Additional Defaults Held (2026-11-14)
+
+- Latest state supersedes the preceding in-progress entries and old v5-only
+  2/6 result. Owner requested proven dealer-derived tuning become defaults;
+  conditional qualification was not met for the additional generic1.5.0 bundle.
+  Existing generic1.4.0 already has consultative/balanced/contextual profiles,
+  bounded iterative READ/RAG cooperation and larger evidence budgets. It remains
+  selected via public-knowledge-quality-20261113 on BOTH control planes.
+- Completed final description-only v8 ver-4b3dbc7b/rel-611d805e, then generic
+  calculation/latest-question-guidance v9 ver-47128d34/rel-4f279fec. Same image
+  dsa-57559e4b/source11cb0152d/framework0.8.52. No FW source/release change.
+  New answer prompt contains no expected prices/answers, Harbor domain or matcher.
+- Every first response retained: v6 trials3/6,4/6; v7 refined4/6,5/6; v8 scoped
+  3/6,5/6; final v9 guided-a4/6 (R2/R3fail), guided-b5/6 (R2fail). Guideda falsely
+  gave free delivery for499<500; guidedb claimed free while adding25 for524.
+  Extended2/4: exact500 subtotal incorrectly charged25;499 query asked technical
+  domain; unavailable desk and unused returns passed. No retries into a pass.
+  Original R6 correct in both final runs using actual approved indexed evidence.
+- Final natural enquiry after extended context clarified, no automatic write;
+  explicit-ID enquiry required confirmation, Confirm delta1, real receipt READ
+  delta0/RECEIVED/no email/no reservation. Current Reject not reached (SKIP),
+  scoped-b Reject previously delta0. Natural clarification is NOT a quality pass.
+- Both original Engage apps ACTIVE/ready on SAME consumer and latest rel-4f279fec;
+  URL https://harbor-office-lab-20261114.apps.loomai.pro unchanged/HTTP200.
+  Native vrf-63a0efae PASSED:30PASS/0FAIL/4SKIP, actual document source/index1ready.
+  Operational verification is not semantic acceptance. Keep this lab for review.
+- Authoring guidance1e4cf3eac35c1050ed9029ee39373ca257cdb72c NOW DEPLOYED staging
+  and production, both native healthy at backend digest
+  sha256:031960508f3be13e729400705c13b6cd1e01939cfc60f36a8630e7b5830e44f7.
+  Coolify jobs cldxh9zbeolbmhlzr4hpijaa and xwzhul2shu7mq3440twxa0eg finished.
+  Both assistant status APIs enabled/ready. UI unchanged6acfd7da6.
+- Final read-only audit proved BOTH actual backend starter env selections equal
+  before captures; published generic1.4.0 manifest unchanged; customer catalogue
+  offers old generic starter with zero blockers. NO1.5.0/default offer publication,
+  selection, fresh candidate Kit or extra infra. Candidate source marked
+  HELD_NOT_QUALIFIED_20261114; private quality-decision approveDefaultPromotionfalse.
+  Do not run defaults publish/select or fresh-kit create using these receipts.
+- Connector100 focused tests and authoring33 focused tests/CI passed earlier;
+  final generic/dealer builder suites26PASS, diff check clean. More generation or
+  routing FW work requires owner review. Next investigate exact inference inputs
+  and a stronger-model comparison rather than adding more speculative prompts,
+  hard semantic validators, answer rewrites or keyword/domain routing. A real
+  business quote API is an appropriate future integration, not hidden core math.
+- All raw/private evidence and consumed trial scripts retained at
+  ~/.codex/private/loomai-harbor-journey-20261114/quality-defaults/; the old
+  /private/tmp/loomai-harbor-quality-20261114/ was a working location, not public
+  material. Full public account is verification-support/harbor-brain-creation/
+  2026-11-14-quality-defaults.md; manual guide and creation-flow record updated.
+  No active agents; all trial/deploy/audit jobs and browser contexts completed.
+  Firewall left as owner authorized; no unrelated worktree changes reverted.
