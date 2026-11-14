@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferen
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,6 +23,102 @@ import static org.mockito.Mockito.when;
 class DeploymentDraftValidationServiceTest {
 
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
+
+    @ParameterizedTest
+    @ValueSource(strings = {"READ", "READ_WRITE", "WRITE_ONLY", "read", "read_write", "write_only",
+        "\t ReAd \r\n", "\n Read_Write\t", "\twrite_ONLY "})
+    void validateAcceptsNativeActionAccessModesWithoutRewritingDraft(String mode) throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = actionAccessModeDraft();
+        var actions = mapper.readTree(draft.getActionsConfigJson());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) actions.at("/actions/0")).put("accessMode", mode);
+        draft.setActionsConfigJson(actions.toString());
+        String original = draft.getActionsConfigJson();
+
+        var response = service.validate(draft);
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+        assertThat(draft.getActionsConfigJson()).isEqualTo(original);
+        assertThat(actions.at("/actions/0/requiresConfirmation").isMissingNode()).isTrue();
+        assertThat(actions.at("/actions/0/groundingVectorSpaces").isMissingNode()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"accessMode\":null}", "{\"accessMode\":\"\"}",
+        "{\"accessMode\":\" \\t\\r\\n\"}", "{\"accessMode\":\"\\u2003\"}", "{\"accessMode\":\"\\u0000\"}"})
+    void validateRequiresExplicitActionAccessMode(String fields) throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = actionAccessModeDraft();
+        var actions = mapper.readTree(draft.getActionsConfigJson());
+        var action = (com.fasterxml.jackson.databind.node.ObjectNode) actions.at("/actions/0");
+        action.remove("accessMode");
+        action.setAll((com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(fields));
+        draft.setActionsConfigJson(actions.toString());
+        String original = draft.getActionsConfigJson();
+
+        var response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.errorCount()).isEqualTo(1);
+        assertThat(response.issues()).filteredOn(issue -> "ERROR".equals(issue.severity())).singleElement()
+            .satisfies(issue -> {
+                assertThat(issue.section()).isEqualTo("actions");
+                assertThat(issue.code()).isEqualTo("ACTION_ACCESS_MODE_REQUIRED");
+                assertThat(issue.path()).isEqualTo("$.actions[0].accessMode");
+                assertThat(issue.message()).contains("required", "READ", "READ_WRITE", "WRITE_ONLY");
+            });
+        assertThat(draft.getActionsConfigJson()).isEqualTo(original);
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"WRITE\"", "\"EXECUTE\"", "\"READ-WRITE\"", "42", "false",
+        "[]", "{}", "[\"READ\"]", "{\"mode\":\"READ\"}", "\"\\u2003READ\\u2003\""})
+    void validateRejectsUnsupportedActionAccessModeWithExactPath(String value) throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = actionAccessModeDraft();
+        var actions = mapper.readTree(draft.getActionsConfigJson());
+        var action = ((com.fasterxml.jackson.databind.node.ArrayNode) actions.path("actions"))
+            .addObject().put("name", "another_service_capability").put("description", "Call another service");
+        action.set("route", actions.at("/actions/0/route").deepCopy());
+        action.set("accessMode", mapper.readTree(value));
+        draft.setActionsConfigJson(actions.toString());
+        String original = draft.getActionsConfigJson();
+
+        var response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.errorCount()).isEqualTo(1);
+        assertThat(response.issues()).filteredOn(issue -> "ERROR".equals(issue.severity())).singleElement()
+            .satisfies(issue -> {
+                assertThat(issue.section()).isEqualTo("actions");
+                assertThat(issue.code()).isEqualTo("ACTION_ACCESS_MODE_INVALID");
+                assertThat(issue.path()).isEqualTo("$.actions[1].accessMode");
+                assertThat(issue.message()).contains("READ", "READ_WRITE", "WRITE_ONLY");
+            });
+        assertThat(draft.getActionsConfigJson()).isEqualTo(original);
+        assertThat(draft.getStatus()).isEqualTo("DRAFT");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"READ", "READ_WRITE", "WRITE_ONLY"})
+    void validateDoesNotRequireConfirmationOrVectorsForActionAccessMode(String mode) throws Exception {
+        var mapper = new ObjectMapper();
+        for (String confirmation : java.util.List.of("true", "false", "null")) {
+            var draft = actionAccessModeDraft();
+            var actions = mapper.readTree(draft.getActionsConfigJson());
+            var action = (com.fasterxml.jackson.databind.node.ObjectNode) actions.at("/actions/0");
+            action.put("accessMode", mode);
+            action.set("requiresConfirmation", mapper.readTree(confirmation));
+            draft.setActionsConfigJson(actions.toString());
+
+            var response = service.validate(draft);
+
+            assertThat(response.publishReady()).as("%s with requiresConfirmation=%s", mode, confirmation).isTrue();
+            assertThat(response.errorCount()).isZero();
+        }
+    }
 
     @Test
     void taskValidationAcceptsInputOnlyTaskAndReportsUninstalledCapabilities() throws Exception {
@@ -349,6 +447,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products",
                       "requiredParameters": ["query"]
                     }
@@ -499,6 +598,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products",
                       "route": {
                         "method": "GET",
@@ -1001,6 +1101,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_orders",
+                      "accessMode": "READ",
                       "description": "List orders",
                       "route": {
                         "method": "GET",
@@ -1199,11 +1300,13 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "cancel_purchase_order",
+                      "accessMode": "WRITE_ONLY",
                       "description": "Cancel purchase order",
                       "requiresConfirmation": true
                     },
                     {
                       "name": "offer_order_discount",
+                      "accessMode": "WRITE_ONLY",
                       "description": "Offer discount",
                       "requiresConfirmation": true
                     }
@@ -1606,6 +1709,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -1794,6 +1898,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -1888,6 +1993,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -3099,6 +3205,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -3182,6 +3289,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -3526,6 +3634,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -3620,6 +3729,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -3892,6 +4002,7 @@ class DeploymentDraftValidationServiceTest {
                   "actions": [
                     {
                       "name": "list_products",
+                      "accessMode": "READ",
                       "description": "List products"
                     }
                   ]
@@ -4627,6 +4738,15 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .doesNotContain("EMBEDDINGMANAGEDSERVICEREF_UNKNOWN", "EMBEDDINGENDPOINTPROFILE_UNKNOWN");
+    }
+
+    private DeploymentDraftEntity actionAccessModeDraft() {
+        var draft = executorOverrideDraft(null);
+        draft.setActionsConfigJson("""
+            {"actions":[{"name":"service_capability","description":"Call external service","accessMode":"READ",
+              "route":{"method":"GET","url":"https://service.example/capability"}}]}
+            """);
+        return draft;
     }
 
     private DeploymentDraftEntity executorOverrideDraft(JsonNode executor) {

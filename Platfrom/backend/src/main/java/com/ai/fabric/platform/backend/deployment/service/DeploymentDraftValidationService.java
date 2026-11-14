@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -34,6 +35,7 @@ import java.util.regex.Pattern;
 @Service
 public class DeploymentDraftValidationService {
 
+    private static final Set<String> SUPPORTED_ACTION_ACCESS_MODES = Set.of("READ", "READ_WRITE", "WRITE_ONLY");
     private static final Set<String> SUPPORTED_CONFIRMATION_TYPES = Set.of("CONFIRMATION_POSITIVE", "CONFIRMATION_NEGATIVE");
     private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
     private static final Set<String> SUPPORTED_POST_POLICY_TYPES = Set.of("WEBHOOK");
@@ -317,6 +319,19 @@ public class DeploymentDraftValidationService {
             } else if (!actionNames.add(name)) {
                 issues.add(error("actions", "DUPLICATE_ACTION_NAME", basePath + ".name", "Duplicate action name: " + name));
             }
+
+            // Match the native catalog's required startup/execution enum without rewriting the draft.
+            JsonNode accessMode = action.path("accessMode");
+            if (accessMode.isMissingNode() || accessMode.isNull()
+                || (accessMode.isTextual() && !StringUtils.hasText(accessMode.textValue().trim()))) {
+                issues.add(error("actions", "ACTION_ACCESS_MODE_REQUIRED", basePath + ".accessMode",
+                    "Action accessMode is required by the runtime contract; choose READ, READ_WRITE, or WRITE_ONLY."));
+            } else if (!accessMode.isTextual()
+                || !SUPPORTED_ACTION_ACCESS_MODES.contains(accessMode.textValue().trim().toUpperCase(Locale.ROOT))) {
+                issues.add(error("actions", "ACTION_ACCESS_MODE_INVALID", basePath + ".accessMode",
+                    "Action accessMode must be one of READ, READ_WRITE, or WRITE_ONLY for the runtime contract."));
+            }
+
             JsonNode execution = action.path("execution");
             boolean mcpAction = "mcp-tool".equalsIgnoreCase(action.path("adapterType").asText())
                 || "mcp-tool".equalsIgnoreCase(execution.path("adapterType").asText())
