@@ -160,6 +160,12 @@ type ProviderFormState = {
   milvusSecure: boolean
   milvusFlushOnWrite: boolean
   milvusCollectionPrefix: string
+  milvusExternalConnection?: {
+    host: string
+    port: string
+    secure: boolean
+    storagePosture: string
+  }
   zillizCloudProjectId: string
   zillizCloudRegionId: string
   zillizCloudClusterPlan: string
@@ -806,15 +812,22 @@ function syncProvisioningMode(form: ProviderFormState, nextMode: string): Provid
     nextMode,
     form.pineconeManagedIndexEnabled,
   )
+  const milvusExternalConnection = form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'EXTERNAL_EXISTING'
+    ? { host: form.milvusHost, port: form.milvusPort, secure: form.milvusSecure, storagePosture: form.vectorStoragePosture }
+    : form.milvusExternalConnection
+  const restoringMilvus = form.vectorStrategy === 'milvus' && normalizedMode === 'EXTERNAL_EXISTING'
+    && form.vectorProvisioningMode !== normalizedMode
   const vectorStoragePosture = normalizeVectorStoragePosture(
     form.vectorStrategy,
     normalizedMode,
-    form.vectorStoragePosture,
+    restoringMilvus ? milvusExternalConnection?.storagePosture ?? 'DEDICATED' : form.vectorStoragePosture,
   )
   return {
     ...form,
     vectorProvisioningMode: normalizedMode,
     vectorStoragePosture,
+    // Browser-only buffer: a mode toggle must not overwrite the customer's BYO endpoint.
+    milvusExternalConnection,
     pineconeManagedIndexEnabled:
       form.vectorStrategy === 'pinecone'
         ? normalizedMode === 'PLATFORM_MANAGED'
@@ -831,11 +844,13 @@ function syncProvisioningMode(form: ProviderFormState, nextMode: string): Provid
       form.vectorStrategy === 'weaviate'
         ? vectorStoragePosture === 'SHARED' || form.weaviateNativeMultiTenancyEnabled
         : form.weaviateNativeMultiTenancyEnabled,
-    milvusSecure:
+    milvusHost: restoringMilvus ? milvusExternalConnection?.host ?? '' :
+      form.vectorStrategy === 'milvus' && normalizedMode === 'PLATFORM_MANAGED' ? '' : form.milvusHost,
+    milvusSecure: restoringMilvus ? milvusExternalConnection?.secure ?? false :
       form.vectorStrategy === 'milvus'
         ? normalizedMode === 'PLATFORM_MANAGED' || form.milvusSecure
         : form.milvusSecure,
-    milvusPort:
+    milvusPort: restoringMilvus ? milvusExternalConnection?.port ?? DEFAULT_PROVIDER_FORM_STATE.milvusPort :
       form.vectorStrategy === 'milvus' && normalizedMode === 'PLATFORM_MANAGED'
         ? '443'
         : form.milvusPort,
@@ -1521,6 +1536,32 @@ function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): 
   return providerFormKeys.every((key) => left[key] === right[key])
 }
 
+function applyMilvusProvisioningConfig(config: Record<string, unknown>, form: ProviderFormState, baseConfig: unknown): void {
+  const leavingManagedMilvus = form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'EXTERNAL_EXISTING'
+    && isRecord(baseConfig) && baseConfig.vectorStrategy === 'milvus' && baseConfig.vectorProvisioningMode === 'PLATFORM_MANAGED'
+  if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    config.milvusExternalBindingRequired = false
+    config.milvusAuthenticationType = 'USERNAME_PASSWORD'
+    config.vectorStoragePosture = 'DEDICATED'
+    config.milvusPort = '443'
+    config.milvusSecure = true
+    // Apply resolves the owned managed endpoint and issues its own credentials.
+    delete config.milvusHost
+    delete config.milvusRuntimeTokenSecretName
+    delete config.milvusRuntimeUsernameSecretName
+    delete config.milvusRuntimePasswordSecretName
+  } else if (leavingManagedMilvus) {
+    config.milvusExternalBindingRequired = false
+    config.milvusAuthenticationType = 'USERNAME_PASSWORD'
+    delete config.milvusRuntimeTokenSecretName
+    delete config.milvusRuntimeUsernameSecretName
+    delete config.milvusRuntimePasswordSecretName
+    if (!form.milvusHost.trim()) delete config.milvusHost
+  } else if (form.vectorStrategy !== 'milvus' && 'milvusExternalBindingRequired' in config) {
+    config.milvusExternalBindingRequired = false
+  }
+}
+
 function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState): Record<string, unknown> {
   const nextConfig = cloneJson(isRecord(baseConfig) ? baseConfig : {}) as Record<string, unknown>
   providerFormKeys.forEach((key) => {
@@ -1589,11 +1630,7 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
   if (form.vectorStrategy === 'weaviate' && nextConfig.vectorStoragePosture === 'SHARED') {
     nextConfig.weaviateNativeMultiTenancyEnabled = true
   }
-  if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
-    nextConfig.milvusHost = ''
-    nextConfig.milvusPort = '443'
-    nextConfig.milvusSecure = true
-  }
+  applyMilvusProvisioningConfig(nextConfig, form, baseConfig)
   if (form.vectorStrategy !== 'milvus') {
     nextConfig.milvusCollectionPrefix = ''
   }
@@ -1629,6 +1666,12 @@ function buildFocusedProviderConfigDraft(baseConfig: unknown, saved: ProviderFor
     }
   }
   applyDelta(next, before, after)
+  const vectorModeChanged = saved.vectorStrategy !== form.vectorStrategy
+    || saved.vectorProvisioningMode !== form.vectorProvisioningMode
+    || saved.vectorStoragePosture !== form.vectorStoragePosture
+  const milvusSettingsChanged = providerFormKeys.some(key =>
+    (key.startsWith('milvus') || key.startsWith('zillizCloud')) && saved[key] !== form[key])
+  if (vectorModeChanged || milvusSettingsChanged) applyMilvusProvisioningConfig(next, form, baseConfig)
   return next
 }
 

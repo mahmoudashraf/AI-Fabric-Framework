@@ -116,6 +116,115 @@ test('storage changes retain existing provisioning and tenant-scope mapping', ()
   }
 })
 
+const externalMilvusConfig = {
+  ...providerConfig, vectorStrategy: 'milvus', milvusExternalBindingRequired: true,
+  milvusAuthenticationType: 'TOKEN', milvusRuntimeTokenSecretName: 'MANAGED_EXTERNAL_VECTOR_TOKEN_TEST',
+  milvusHost: 'byo.example.test', milvusPort: '19530', milvusSecure: false,
+  milvusDatabaseName: 'default', milvusCollectionPrefix: 'customer_tenant_',
+}
+
+test('Milvus BYO to managed serializes the managed auth and clears only external connection references', () => {
+  const saved = helpers.readProviderForm(externalMilvusConfig)
+  const form = { ...helpers.syncProvisioningMode(saved, 'PLATFORM_MANAGED'),
+    zillizCloudProjectId: 'project-test', zillizCloudRegionId: 'aws-eu-central-1' }
+  for (const next of [helpers.buildProviderConfigDraft(externalMilvusConfig, form),
+    helpers.buildFocusedProviderConfigDraft(externalMilvusConfig, saved, form)]) {
+    assert.equal(next.vectorProvisioningMode, 'PLATFORM_MANAGED')
+    assert.equal(next.vectorStoragePosture, 'DEDICATED')
+    assert.equal(next.milvusExternalBindingRequired, false)
+    assert.equal(next.milvusAuthenticationType, 'USERNAME_PASSWORD')
+    assert.equal(next.milvusPort, '443')
+    assert.equal(next.milvusSecure, true)
+    for (const key of ['milvusHost', 'milvusRuntimeTokenSecretName', 'milvusRuntimeUsernameSecretName',
+      'milvusRuntimePasswordSecretName', 'milvusExternalConnection']) assert.equal(key in next, false, key)
+    assert.equal(next.zillizCloudProjectId, 'project-test')
+    assert.equal(next.milvusCollectionPrefix, externalMilvusConfig.milvusCollectionPrefix)
+    assert.deepEqual(next.customExtension, externalMilvusConfig.customExtension)
+  }
+  assert.equal(externalMilvusConfig.milvusExternalBindingRequired, true, 'The source is not mutated')
+})
+
+test('unsaved managed/BYO toggles restore shared BYO transport, auth and references exactly', () => {
+  for (const authentication of [
+    { milvusAuthenticationType: 'TOKEN', milvusRuntimeTokenSecretName: 'MANAGED_EXTERNAL_VECTOR_TOKEN_TEST' },
+    { milvusAuthenticationType: 'USERNAME_PASSWORD', milvusRuntimeUsernameSecretName: 'EXTERNAL_USERNAME', milvusRuntimePasswordSecretName: 'EXTERNAL_PASSWORD' },
+  ]) {
+    const base = { ...externalMilvusConfig, ...authentication }
+    if (authentication.milvusAuthenticationType !== 'TOKEN') delete base.milvusRuntimeTokenSecretName
+    const saved = helpers.readProviderForm(base)
+    const managed = helpers.syncProvisioningMode(saved, 'PLATFORM_MANAGED')
+    const restored = helpers.syncProvisioningMode(managed, 'EXTERNAL_EXISTING')
+    assert.equal(restored.vectorStoragePosture, 'SHARED')
+    assert.equal(restored.milvusPort, '19530')
+    assert.equal(restored.milvusSecure, false)
+    assert.equal(restored.milvusHost, base.milvusHost)
+    assert.deepEqual(helpers.buildFocusedProviderConfigDraft(base, saved, restored), base)
+    const edited = helpers.buildFocusedProviderConfigDraft(base, saved, { ...restored, milvusTimeout: '45' })
+    assert.deepEqual(edited, { ...base, milvusTimeout: '45' })
+  }
+})
+
+test('returning from saved managed mode requires an explicit external endpoint, not managed identity reuse', () => {
+  const base = { ...externalMilvusConfig, vectorProvisioningMode: 'PLATFORM_MANAGED', vectorStoragePosture: 'DEDICATED',
+    milvusExternalBindingRequired: false, milvusAuthenticationType: 'USERNAME_PASSWORD',
+    milvusHost: 'owned-managed.example.test', milvusPort: '443', milvusSecure: true,
+    milvusRuntimeUsernameSecretName: 'MANAGED_USERNAME', milvusRuntimePasswordSecretName: 'MANAGED_PASSWORD' }
+  delete base.milvusRuntimeTokenSecretName
+  const saved = helpers.readProviderForm(base)
+  const byo = helpers.syncProvisioningMode(saved, 'EXTERNAL_EXISTING')
+  assert.equal(byo.milvusHost, '')
+  for (const form of [byo, { ...byo, milvusHost: 'explicit-byo.example.test' }]) {
+    for (const next of [helpers.buildProviderConfigDraft(base, form), helpers.buildFocusedProviderConfigDraft(base, saved, form)]) {
+      assert.equal(next.milvusHost, form.milvusHost || undefined)
+      assert.equal(next.milvusPort, '19530')
+      assert.equal(next.milvusSecure, false)
+      assert.equal(next.milvusAuthenticationType, 'USERNAME_PASSWORD')
+      assert.equal(next.milvusExternalBindingRequired, false)
+      for (const key of ['milvusRuntimeTokenSecretName', 'milvusRuntimeUsernameSecretName', 'milvusRuntimePasswordSecretName']) {
+        assert.equal(key in next, false, key)
+      }
+    }
+  }
+})
+
+test('editing stale managed settings fixes fields that the normalized form delta would otherwise miss', () => {
+  const base = { ...externalMilvusConfig, vectorProvisioningMode: 'PLATFORM_MANAGED',
+    milvusRuntimeUsernameSecretName: 'OLD_USERNAME', milvusRuntimePasswordSecretName: 'OLD_PASSWORD',
+    zillizCloudProjectId: 'old-project' }
+  const saved = helpers.readProviderForm(base)
+  const next = helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved, zillizCloudProjectId: 'reviewed-project' })
+  assert.equal(next.milvusExternalBindingRequired, false)
+  assert.equal(next.milvusAuthenticationType, 'USERNAME_PASSWORD')
+  assert.equal(next.vectorStoragePosture, 'DEDICATED')
+  assert.equal(next.milvusPort, '443')
+  assert.equal(next.milvusSecure, true)
+  for (const key of ['milvusHost', 'milvusRuntimeTokenSecretName', 'milvusRuntimeUsernameSecretName', 'milvusRuntimePasswordSecretName']) {
+    assert.equal(key in next, false, key)
+  }
+  assert.equal(next.zillizCloudProjectId, 'reviewed-project')
+  assert.deepEqual(next.customExtension, base.customExtension)
+  assert.deepEqual(helpers.buildFocusedProviderConfigDraft(base, saved, saved), base)
+  assert.deepEqual(helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved, openaiModel: 'changed' }), { ...base, openaiModel: 'changed' })
+})
+
+test('leaving Milvus cannot retain its required binding flag on another search provider', () => {
+  const saved = helpers.readProviderForm(externalMilvusConfig)
+  for (const strategy of ['lucene', 'memory', 'qdrant', 'pinecone', 'weaviate']) {
+    const form = helpers.syncVectorStrategy(saved, strategy)
+    const next = helpers.buildFocusedProviderConfigDraft(externalMilvusConfig, saved, form)
+    assert.equal(next.vectorStrategy, strategy)
+    assert.equal(next.milvusExternalBindingRequired, false)
+    assert.deepEqual(next.customExtension, externalMilvusConfig.customExtension)
+  }
+})
+
+test('mode cleanup does not hide unsupported literal credentials from backend validation', () => {
+  const base = { ...externalMilvusConfig, milvusToken: 'invalid-literal-test-value' }
+  const saved = helpers.readProviderForm(base)
+  const next = helpers.buildFocusedProviderConfigDraft(base, saved, helpers.syncProvisioningMode(saved, 'PLATFORM_MANAGED'))
+  assert.equal(next.milvusToken, base.milvusToken)
+})
+
 test('focused settings keep staff provider operations outside customer scope', async () => {
   const settings = await readFile(settingsPath, 'utf8')
   assert.match(source, /<ProvidersEditor[\s\S]*?configurationOnly scoped view=/)
@@ -358,6 +467,51 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
         if (['Lucene', 'Memory'].includes(strategy)) await page.getByRole('alert').filter({ hasText: 'no external service endpoint' }).waitFor()
         else await waitField(strategy === 'Pinecone' ? 'Pinecone index' : `${strategy} host`)
       }
+    })
+
+    await t.test('Milvus hosting controls restore unsaved BYO settings and submit managed-only connection fields', async () => {
+      await page.goto(url('storage'))
+      await waitField('Search engine')
+      await page.evaluate(config => {
+        window.__settingsTest.draft.providerConfig = config
+        window.__settingsTest.refetch(config)
+      }, externalMilvusConfig)
+      await page.getByLabel('Search engine', { exact: true }).filter({ hasText: 'Milvus' }).waitFor()
+      await choose('Hosting', 'Platform-managed')
+      await page.getByRole('button', { name: 'Customer separation', exact: true }).click()
+      assert.equal(await page.getByLabel('Data isolation', { exact: true }).textContent(), 'Dedicated')
+      await page.getByRole('button', { name: 'Search service', exact: true }).click()
+      await choose('Hosting', 'Bring your own')
+      await saved()
+      await page.getByRole('button', { name: 'Customer separation', exact: true }).click()
+      assert.equal(await page.getByLabel('Data isolation', { exact: true }).textContent(), 'Shared')
+      await page.getByRole('button', { name: 'Service connection', exact: true }).click()
+      assert.equal(await page.getByLabel('Milvus host', { exact: true }).inputValue(), externalMilvusConfig.milvusHost)
+      assert.equal(await page.getByLabel('Milvus port', { exact: true }).inputValue(), '19530')
+      assert.equal(await page.getByLabel('Use secure Milvus transport', { exact: true }).isChecked(), false)
+      assert.equal(await page.evaluate(() => window.__settingsTest.writes.length), 0)
+      await page.getByRole('button', { name: 'Search service', exact: true }).click()
+      await choose('Hosting', 'Platform-managed')
+      await page.getByRole('button', { name: 'Service connection', exact: true }).click()
+      assert.equal(await page.getByLabel('Resolved Milvus host', { exact: true }).inputValue(), '')
+      assert.equal(await page.getByLabel('Resolved Milvus port', { exact: true }).inputValue(), '443')
+      await page.getByLabel('Zilliz Cloud project ID', { exact: true }).fill('project-test')
+      await page.getByLabel('Zilliz Cloud region ID', { exact: true }).fill('aws-eu-central-1')
+      await save()
+      const config = await page.evaluate(() => window.__settingsTest.writes[0].payload.providerConfig)
+      assert.equal(config.milvusExternalBindingRequired, false)
+      assert.equal(config.milvusAuthenticationType, 'USERNAME_PASSWORD')
+      assert.equal(config.vectorStoragePosture, 'DEDICATED')
+      assert.equal(config.milvusPort, '443')
+      assert.equal(config.milvusSecure, true)
+      assert.equal('milvusRuntimeTokenSecretName' in config, false)
+      assert.equal('milvusHost' in config, false)
+      assert.equal('milvusExternalConnection' in config, false)
+      assert.deepEqual(config.customExtension, externalMilvusConfig.customExtension)
+      await page.getByRole('button', { name: 'Search service', exact: true }).click()
+      await choose('Hosting', 'Bring your own')
+      await page.getByRole('button', { name: 'Service connection', exact: true }).click()
+      assert.equal(await page.getByLabel('Milvus host', { exact: true }).inputValue(), '', 'A saved managed configuration does not reuse its old BYO host')
     })
 
     await t.test('technical views retain recovery, provider parameters, raw unknown fields and probes', async () => {

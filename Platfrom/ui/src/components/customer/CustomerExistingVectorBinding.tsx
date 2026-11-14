@@ -54,11 +54,12 @@ function VectorChoices({ scope, session, deploymentId, targetProfileId }: { scop
   const environment = targetProfileId !== undefined ? targets.data?.find(value => value.id === targetProfileId)?.environmentName ?? '' : chosenEnvironment
   const choices = ['staging', 'production'].map(name => ({ name,
     label: environments.find(value => value.name === name)?.label ?? (name === 'staging' ? 'Staging' : 'Production') }))
-  const selection = connectionEnvironmentSelection(environment, targets.data ?? [],
-    (releases.data ?? []).filter(value => value.deploymentId === deploymentId))
+  const selection = targetProfileId !== undefined ? { targetId: targetProfileId }
+    : connectionEnvironmentSelection(environment, targets.data ?? [],
+      (releases.data ?? []).filter(value => value.deploymentId === deploymentId))
   const target = targets.isSuccess && releases.isSuccess
     ? targets.data.find(value => value.id === selection.targetId && value.active && value.environmentName === environment) : undefined
-  const exactTarget = !targetProfileId || target?.id === targetProfileId
+  const exactTarget = targetProfileId === undefined || target?.id === targetProfileId
   const selectionIssue = environment && targets.isSuccess && releases.isSuccess && !target
     ? targets.data.some(value => value.active && value.environmentName === environment)
       ? `The vector target for this environment is ambiguous. An exact ${deploymentTerm.lowercase} target must be resolved before binding.`
@@ -91,13 +92,14 @@ function VectorChoices({ scope, session, deploymentId, targetProfileId }: { scop
     {selected && manifest.isSuccess && !authType && !configError ? <Alert severity="info">This published version does not require a typed existing Milvus binding.</Alert> : null}
     {selected && target && exactTarget && authType && !error ? <VectorForm key={`${scope}:${target.id}:${selected.id}:${selected.configHash}:${authType}`}
       scope={scope} session={session} deploymentId={deploymentId} targetId={target.id} version={selected}
-      environment={environment} authType={authType} canBind={workspace.data?.access.canAdmin ?? false} /> : null}
+      environment={environment} fixedTarget={targetProfileId !== undefined} authType={authType} canBind={workspace.data?.access.canAdmin ?? false} /> : null}
   </Stack>
 }
 
-function VectorForm({ scope, session, deploymentId, targetId, environment, version, authType, canBind }: {
+function VectorForm({ scope, session, deploymentId, targetId, environment, fixedTarget, version, authType, canBind }: {
   scope: string; session: PlatformAuthSessionSummary; deploymentId: string; targetId: string
   environment: string
+  fixedTarget: boolean
   version: DeploymentVersionSummary; authType: 'TOKEN' | 'USERNAME_PASSWORD'; canBind: boolean
 }) {
   const [form, setForm] = useState(emptyForm)
@@ -118,7 +120,8 @@ function VectorForm({ scope, session, deploymentId, targetId, environment, versi
         || identity.authenticationMode !== session.authenticationMode || workspace.deployment.id !== deploymentId
         || workspace.deployment.binding?.customerId !== session.customerId || !workspace.access.canAdmin
         || !targets.some(value => value.id === targetId && value.active && value.environmentName === environment)
-        || connectionEnvironmentSelection(environment, targets, releases.filter(value => value.deploymentId === deploymentId)).targetId !== targetId
+        || !fixedTarget && connectionEnvironmentSelection(environment, targets,
+          releases.filter(value => value.deploymentId === deploymentId)).targetId !== targetId
         || !versions.some(value => value.id === version.id && value.deploymentId === deploymentId && value.status === 'PUBLISHED' && value.configHash === version.configHash)) {
         throw new Error('The customer, target or published version changed. Reopen the connection before binding.')
       }
