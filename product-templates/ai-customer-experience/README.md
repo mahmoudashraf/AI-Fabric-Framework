@@ -45,6 +45,10 @@ and another asked for a technical knowledge domain. Earlier failures are not
 discarded or retried into a pass. The selected 1.4.0 defaults already contain the
 four generic dealership-derived areas above; they remain selected. See
 `verification-support/harbor-brain-creation/2026-11-14-quality-defaults.md`.
+The subsequent full GPT-5.4 model-only comparison also scored4/6 and5/6 and
+retained the contradictory eligibility claim. It improved explicit boundary
+queries but was slower. No model/default promotion is justified by that check;
+see `verification-support/harbor-brain-creation/2026-11-14-stronger-model-comparison.md`.
 
 The builder does not change provider output-token limits, source identities,
 credentials, permissions, approval, action confirmation, shell branding, other

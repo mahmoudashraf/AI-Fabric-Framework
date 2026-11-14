@@ -25,6 +25,11 @@ remain selected. See the
 [recorded results and setup findings](../../verification-support/harbor-brain-creation/2026-11-14-creation-flow-check.md).
 The [full quality/defaults record](../../verification-support/harbor-brain-creation/2026-11-14-quality-defaults.md)
 preserves all intermediate failures and the final decision.
+An additional [full-model comparison](../../verification-support/harbor-brain-creation/2026-11-14-stronger-model-comparison.md)
+retained the same4/6 and5/6 original-question scores and contradictory delivery
+eligibility, so the larger model was not selected as a new default.
+The retained lab has been restored to its previous GPT-5.4-mini configuration;
+native verification passed, both apps remain active and the workspace loads.
 The retained test fixture is separate from your own account setup.
 
 ## 1. Your lab and the result to aim for

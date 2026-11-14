@@ -15823,3 +15823,64 @@ test is being called hosted acceptance. UI extraction remains last.
   2026-11-14-quality-defaults.md; manual guide and creation-flow record updated.
   No active agents; all trial/deploy/audit jobs and browser contexts completed.
   Firewall left as owner authorized; no unrelated worktree changes reverted.
+
+### Harbor Stronger-Model Comparison Completed (2026-11-14, 17:38 UTC)
+
+- Owner accepted the next step: compare a stronger model on the same questions,
+  then promote only qualified settings. Current generic1.4.0/default starter
+  remains unchanged on staging AND production; no new customer/global settings
+  were selected. Generic1.5.0 source fixture still HELD_NOT_QUALIFIED.
+- Changed ONLY providerConfig.openaiModel to gpt-5.4-2026-03-05, after official
+  documentation and actual account model-access checks. Existing Harbor mode
+  TEAM_AUTHORIZED and native LOOMAI_PROVIDER_BUDGET_ENABLEDfalse were already
+  selected; neither was changed. Do not widen/bypass the mini-only funded profile.
+  Same prompts/tools/data/threshold0.3/embeddings/limits/security/confirmation.
+- Full-model ver-95585cd2/rel-218f985a native vrf-07d19625 PASSED30/0/4.
+  Real standalone full-a4/6 (R2 contradictory eligibility, R5 chair clarification),
+  full-b5/6 (R2 contradictory eligibility), same original scores as mini.
+  Extended set improved2/4->4/4. All raw first responses retained, no rewrites or
+  retries into a pass. Natural enquiry clarified after extended context, no write;
+  explicit Confirm delta1/real RECEIVED receipt, lookup delta0/no email/reservation.
+  Reject not reached; do not claim current rejection requalification.
+- Median original-turn latency: mini6.1775sec, full10.2175sec,12 turns/model;
+  this small live sample is not a load-test percentile. Bigger model did not fix
+  the original follow-up and is not justified as a universal default by this test.
+- Read-only sidecar inspected matching framework0.8.52 source at3bfcd272 in
+  ~/.codex/worktrees/managed-task-governed-writes, then closed. Main sibling
+  checkout is older0.8.36; do not mistake it for deployed source. Adapter supports
+  full model/JSON planning/max_completion_tokens; absent purpose overrides inherit
+  primary; reasoning effort unspecified and normal temperature fallback0.3.
+  CONCISE generation can use400 tokens despite provider2048, but no truncation
+  cause was established. No concrete stale-query/number-corruption defect proven.
+- One separate minimal-context full-model diagnostic using the same verified
+  numeric facts correctly said no free delivery/total524. This does NOT replace
+  either failed R2, prove a framework defect or establish a new product quality
+  score. A supplemental mini request lost its response at a private recorder
+  status-property bug, was explicitly excluded and NOT replayed; all actual
+  product benchmark records are intact. Corrected recorder ran only the still
+  unattempted full diagnostic. No hidden model fallback/semantic correction.
+- RESTORED exact pre-comparison mini config through normal version/apply:
+  ver-a328ccdd/rel-3d2911a9, native vrf-6589fdee30PASS/0FAIL/4SKIP.
+  Final audit asserted ALL config objects equal original snapshot; actual running
+  model gpt-5.4-mini-2026-03-17; both original apps ACTIVE/ready/same consumer;
+  starter env lists and published1.4.0 manifests unchanged on both control planes;
+  customer catalogue old generic starter has0 blockers. Fresh browser HTTP200/
+  composer visible/no page errors, no paid query during restoration smoke check.
+- Serving images remain runtime/connector11cb0152d and backends1e4cf3eac;
+  UI unchanged. No framework/runtime/backend product code or image changes in
+  this model-comparison cycle. Unchanged template suites26PASS; diff check clean.
+  No new Kit or infrastructure created, no vector copying or business DB.
+- Private evidence/scripts and consumed full/restore intents:
+  ~/.codex/private/loomai-harbor-model-comparison-20261114/.
+  quality-decision approveDefaultPromotionfalse. Do NOT replay mutation commands
+  or use defaults publish/select/fresh-kit create with these receipts.
+- Next focused proposal: capture actual final-generation messages/options/response
+  on a failing turn with secret/PII redaction, then audit prompt/history and
+  coverage-vs-free-delivery conclusions. No more speculative prompt/model loops,
+  semantic validators, lexical answer stripping or unconfigured second generation.
+  Any framework change still needs owner review. A real business quote API remains
+  a valid integration alternative, not hidden core business arithmetic.
+- Evidence report: verification-support/harbor-brain-creation/
+  2026-11-14-stronger-model-comparison.md. Manual guide, prior reports and generic
+  README updated. No agents, required shell jobs or browser contexts left running;
+  firewall unchanged as owner authorized. Unrelated worktree changes preserved.

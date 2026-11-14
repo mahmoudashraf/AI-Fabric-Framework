@@ -309,6 +309,14 @@ Read [the complete quality/defaults record](./2026-11-14-quality-defaults.md) fo
 all intermediate results, successful retrieval/memory changes and remaining gaps.
 Do not interpret the earlier v5-only results above as the latest live score.
 
+A subsequent [stronger-model comparison](./2026-11-14-stronger-model-comparison.md)
+also scored4/6 and5/6 on the original set. Explicit boundary questions improved,
+but contradictory delivery eligibility persisted. The retained lab is now back
+on the exact pre-comparison mini configuration via `ver-a328ccdd` /
+`rel-3d2911a9`, APPLIED_VERIFIED/PASSED; native `vrf-6589fdee` is
+30 passed/0 failed/4 skipped. Both apps and the original consumer remain active.
+No additional template/default promotion was made.
+
 ## Final Host Snapshot
 
 14 November 2026, 02:51 UTC. These are instantaneous observations, not capacity

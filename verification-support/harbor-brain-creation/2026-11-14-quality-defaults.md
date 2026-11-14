@@ -2,6 +2,12 @@
 
 LoomAI Labs | 14 November 2026 | Additional defaults held, not qualified
 
+Subsequent [full GPT-5.4 comparison](./2026-11-14-stronger-model-comparison.md)
+also scored4/6 and5/6 on the original questions, with the same delivery
+contradiction. Explicit boundary cases improved, but the model was slower.
+That follow-up does not qualify the held candidate or supersede the failures
+recorded below with isolated diagnostic successes.
+
 ## Scope
 
 Owner approved configuration-first quality work and promoting reusable,
