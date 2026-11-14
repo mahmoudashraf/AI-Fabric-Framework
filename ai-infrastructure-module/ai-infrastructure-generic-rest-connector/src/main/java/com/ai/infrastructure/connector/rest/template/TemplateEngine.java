@@ -6,6 +6,8 @@ import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,6 +66,35 @@ public class TemplateEngine {
             return out;
         }
         return template;
+    }
+
+    public String resolvePath(String template, Map<String, Object> context) {
+        if (template == null) {
+            return null;
+        }
+        Matcher matcher = PLACEHOLDER.matcher(template);
+        StringBuffer out = new StringBuffer();
+        while (matcher.find()) {
+            String expr = matcher.group(1);
+            // A route identifier must be supplied, never defaulted or numerically clamped.
+            int pipe = expr.indexOf('|');
+            String source = pipe >= 0 ? expr.substring(0, pipe) : expr;
+            Object value = eval(source, context);
+            if (!(value instanceof String || value instanceof Number || value instanceof Boolean)
+                || !StringUtils.hasText(value.toString())) {
+                throw new IllegalArgumentException("Path placeholder {{" + source + "}} requires a non-null, nonblank scalar value.");
+            }
+            String scalar = value.toString();
+            // Substitutions are data within one segment, not authority to change the fixed route.
+            if (".".equals(scalar) || "..".equals(scalar)) {
+                throw new IllegalArgumentException("Path placeholder {{" + source + "}} must not be a dot segment.");
+            }
+            String encoded = URLEncoder.encode(scalar, StandardCharsets.UTF_8)
+                .replace("+", "%20").replace("*", "%2A");
+            matcher.appendReplacement(out, Matcher.quoteReplacement(encoded));
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
 
     private Object resolveString(String template, Map<String, Object> context) {

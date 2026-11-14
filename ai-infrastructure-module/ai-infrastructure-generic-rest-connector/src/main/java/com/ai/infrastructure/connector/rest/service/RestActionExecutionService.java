@@ -142,6 +142,14 @@ public class RestActionExecutionService {
         boolean projectionRoute = route.getSourceProjection() != null;
         ResolvedUpstream resolved = providerRoute || projectionRoute ? null : resolveUpstream(route);
         Map<String, Object> ctx = templateEngine.contextFor(request, resolved);
+        URI uri = null;
+        if (resolved != null) {
+            try {
+                uri = buildUpstreamUri(resolved, route, ctx);
+            } catch (IllegalArgumentException ex) {
+                return ActionResultDto.failure(ERROR_INVALID_REQUEST, ex.getMessage());
+            }
+        }
         ActionResultDto authzResult = authorizeAction(route, request, ctx);
         if (authzResult != null) {
             return authzResult;
@@ -154,7 +162,6 @@ public class RestActionExecutionService {
             return executeProjectionRoute(route, request, ctx, startMs);
         }
 
-        URI uri = buildUpstreamUri(resolved, route, ctx);
         String method = StringUtils.hasText(route.getMethod()) ? route.getMethod().trim().toUpperCase(Locale.ROOT) : "POST";
 
         int timeoutMs = route.getTimeoutMs() != null
@@ -796,7 +803,9 @@ public class RestActionExecutionService {
 
     private URI buildUpstreamUri(ResolvedUpstream resolved, RestRoutingConfig.ActionRoute route, Map<String, Object> ctx) {
         String baseUrl = resolved.baseUrl;
-        String path = resolved.path;
+        String path = StringUtils.hasText(route.getUrl())
+            ? resolved.path
+            : templateEngine.resolvePath(resolved.path, ctx);
 
         String url = UrlBuilder.join(baseUrl, path);
 
