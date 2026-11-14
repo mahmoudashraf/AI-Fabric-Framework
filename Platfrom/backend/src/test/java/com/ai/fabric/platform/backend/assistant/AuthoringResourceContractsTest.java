@@ -42,5 +42,29 @@ class AuthoringResourceContractsTest {
         assertThat(example.at("/value/response/success-http-status").isArray()).isTrue();
         assertThat(example.at("/value/response/success-http-status/0").asInt()).isEqualTo(200);
         assertThat(example.path("path").asText()).isEqualTo("/routingConfig/actions/lookup_record");
+        assertThat(example.at("/value/response").has("message")).isFalse();
+    }
+    @Test void readMemoryExampleUsesActualRecordIdentityWithoutInventingAnIndex() {
+        var mapper = new ObjectMapper();
+        for (String task : new String[] {"ACTIONS", "CONNECTIONS"}) {
+            var catalogue = mapper.createObjectNode();
+            AuthoringResourceContracts.populate(mapper, catalogue, task);
+            var mapping = catalogue.at("/readResultMemoryExample/response/pinned-targets-from-collection");
+            assertThat(mapping.path("collection-json-pointer").asText()).isEqualTo("/records");
+            assertThat(mapping.path("id-json-pointer").asText()).isEqualTo("/id");
+            assertThat(mapping.has("vector-space")).isFalse();
+            assertThat(mapping.path("max-targets").asInt()).isEqualTo(8);
+            assertThat(mapping.at("/content-fields/name").asText()).isEqualTo("/name");
+            assertThat(catalogue.at("/readResultMemoryExample/llmFacts/lists/0/includeFields/0").asText()).isEqualTo("id");
+            assertThat(catalogue.path("readResultMemoryRules").asText())
+                .contains("authorized READ", "does not grant permission", "Omit vector-space", "not the schematic example");
+        }
+    }
+    @Test void optionalInputsAndFailureNarrationGuidancePreserveTheNativeContract() {
+        var catalogue = new ObjectMapper().createObjectNode();
+        AuthoringResourceContracts.populate(new ObjectMapper(), catalogue, "ACTIONS");
+        assertThat(catalogue.path("parameterRules").asText()).contains("required:false, askUser:true", "trusted runtime-supplied");
+        assertThat(catalogue.path("responseMappingRules").asText())
+            .contains("also used on failures", "null-versus-omission", "path/query/internal parameters must be excluded");
     }
 }
