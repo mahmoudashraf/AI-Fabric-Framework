@@ -313,7 +313,9 @@ public class RestConnectorStartupValidator {
         }
         requireJsonPointer(config.getCollectionJsonPointer(), path + ".collection-json-pointer");
         requireJsonPointer(config.getIdJsonPointer(), path + ".id-json-pointer");
-        requireId(config.getVectorSpace(), path + " vector space");
+        if (StringUtils.hasText(config.getVectorSpace())) {
+            requireId(config.getVectorSpace(), path + " vector space");
+        }
         validateProjectionPointers(config.getContentFields(), path + ".content-fields", 20);
         validateProjectionPointers(config.getMetadataFields(), path + ".metadata-fields", 20);
         if (config.getContentFields().isEmpty() && config.getMetadataFields().isEmpty()) {

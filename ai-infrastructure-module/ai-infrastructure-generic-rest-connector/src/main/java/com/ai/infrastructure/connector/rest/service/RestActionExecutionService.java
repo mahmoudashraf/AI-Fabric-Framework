@@ -707,7 +707,7 @@ public class RestActionExecutionService {
             });
             out.add(new ActionTargetRefDto(
                 idNode.asText().trim(),
-                config.getVectorSpace().trim(),
+                StringUtils.hasText(config.getVectorSpace()) ? config.getVectorSpace().trim() : null,
                 contentText,
                 Collections.unmodifiableMap(metadata)
             ));

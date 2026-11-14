@@ -370,6 +370,10 @@ public class RestRoutingConfig {
     public static class PinnedTargetsFromCollection {
         private String collectionJsonPointer;
         private String idJsonPointer;
+
+        /**
+         * Optional indexed vector space; omitted or blank for non-indexed action records.
+         */
         private String vectorSpace;
         private Map<String, String> contentFields = new LinkedHashMap<>();
         private Map<String, String> metadataFields = new LinkedHashMap<>();

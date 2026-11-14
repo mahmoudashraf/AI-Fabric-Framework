@@ -1,6 +1,9 @@
 package com.ai.infrastructure.connector.rest.config;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -10,6 +13,36 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RestConnectorStartupValidatorTest {
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\t\n", "product-record.v1"})
+    void acceptsCollectionMappingWithOptionalVectorSpace(String vectorSpace) {
+        RestRoutingConfig config = collectionMappingConfig(vectorSpace);
+
+        assertThatCode(() -> new RestConnectorStartupValidator(config, null, new RestConnectorServiceProperties()))
+            .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid label", "../products", "/products", " products "})
+    void rejectsInvalidSuppliedCollectionVectorSpace(String vectorSpace) {
+        RestRoutingConfig config = collectionMappingConfig(vectorSpace);
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, new RestConnectorServiceProperties()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("pinned-targets-from-collection vector space identifier is invalid");
+    }
+
+    @Test
+    void collectionMappingWithoutVectorSpaceStillRequiresIdentityPointer() {
+        RestRoutingConfig config = collectionMappingConfig(null);
+        config.getActions().get("list_products").getResponse().getPinnedTargetsFromCollection().setIdJsonPointer(null);
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, new RestConnectorServiceProperties()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("id-json-pointer must be an absolute JSON Pointer");
+    }
 
     @Test
     void acceptsBoundedDeploymentLocalHttpDataConfiguration() {
@@ -272,6 +305,22 @@ class RestConnectorStartupValidatorTest {
         assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("same protected resource binding");
+    }
+
+    private RestRoutingConfig collectionMappingConfig(String vectorSpace) {
+        RestRoutingConfig config = new RestRoutingConfig();
+        config.getConnector().getInboundAuth().setAllowUnauthenticated(true);
+        config.getConnector().getUpstream().setBaseUrl("https://application.fixture.invalid");
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setPath("/products");
+        RestRoutingConfig.PinnedTargetsFromCollection mapping = new RestRoutingConfig.PinnedTargetsFromCollection();
+        mapping.setCollectionJsonPointer("/products");
+        mapping.setIdJsonPointer("/id");
+        mapping.setVectorSpace(vectorSpace);
+        mapping.setContentFields(Map.of("name", "/name"));
+        route.getResponse().setPinnedTargetsFromCollection(mapping);
+        config.getActions().put("list_products", route);
+        return config;
     }
 
     private RestRoutingConfig config() {
