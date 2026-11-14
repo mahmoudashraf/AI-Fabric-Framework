@@ -19,8 +19,7 @@ public final class DeploymentAiBehaviourProfiles {
     private static final List<String> COMPOSED_KEYS = List.of("answerGenerationPrompt", "retrievalPrompt", "assistantUiPrompt", "intentExtractionPrompt");
     private static final List<String> PROMPT_KEYS = List.of("systemPrompt", "intentExtractionPrompt", "actionSelectionPrompt",
         "clarificationPrompt", "answerGenerationPrompt", "retrievalPrompt", "assistantUiPrompt");
-    private static final Map<String, String> DEFAULTS = Map.of(
-        "tone", "professional", "answerBreadth", "grounded", "answerLength", "balanced", "nextSteps", "off");
+    private static final Map<String, String> DEFAULTS = ManagedBrainQualityDefaults.behaviourSelections();
     private static final List<Group> GROUPS = List.of(
         new Group("tone", "Conversation tone", List.of(
             option("professional", "Professional", "Clear, composed and direct.",

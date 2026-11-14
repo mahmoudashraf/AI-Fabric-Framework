@@ -423,28 +423,28 @@ public final class ManagedDeploymentProfileCatalog {
             case LLM_PROVIDER_ANTHROPIC -> "claude-3-haiku-20240307";
             case LLM_PROVIDER_COHERE -> "command-r7b-12-2024";
             case LLM_PROVIDER_GEMINI -> "gemini-1.5-flash";
-            case LLM_PROVIDER_OPENAI -> "gpt-4o-mini";
-            default -> "gpt-4o-mini";
+            case LLM_PROVIDER_OPENAI -> ManagedBrainQualityDefaults.openAiModel();
+            default -> ManagedBrainQualityDefaults.openAiModel();
         };
     }
 
     public static String recommendedOrchestrationModel(String llmProvider) {
         return switch (normalize(llmProvider)) {
-            case LLM_PROVIDER_OPENAI -> "gpt-5.4-nano";
+            case LLM_PROVIDER_OPENAI -> ManagedBrainQualityDefaults.openAiModel();
             default -> defaultLlmModel(llmProvider);
         };
     }
 
     public static String recommendedGenerationModel(String llmProvider) {
         return switch (normalize(llmProvider)) {
-            case LLM_PROVIDER_OPENAI -> "gpt-5.4-mini";
+            case LLM_PROVIDER_OPENAI -> ManagedBrainQualityDefaults.openAiModel();
             default -> defaultLlmModel(llmProvider);
         };
     }
 
     public static Integer recommendedGenerationMaxTokens(String llmProvider) {
         return switch (normalize(llmProvider)) {
-            case LLM_PROVIDER_OPENAI -> 800;
+            case LLM_PROVIDER_OPENAI -> ManagedBrainQualityDefaults.openAiMaxTokens();
             default -> null;
         };
     }

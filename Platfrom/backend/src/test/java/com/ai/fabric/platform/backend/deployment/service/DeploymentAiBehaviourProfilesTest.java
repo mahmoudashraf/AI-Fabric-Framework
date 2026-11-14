@@ -16,9 +16,10 @@ class DeploymentAiBehaviourProfilesTest {
     private final DeploymentCuratedModuleCatalogService curated = new DeploymentCuratedModuleCatalogService(mapper, new DefaultResourceLoader());
 
     @Test
-    void contextualSuggestionCostIsVisibleAndTheDefaultRemainsOff() {
+    void contextualSuggestionCostIsVisibleAndDefaultMatchesManagedQualityPolicy() {
         JsonNode catalogue = mapper.valueToTree(DeploymentAiBehaviourProfiles.catalogue());
-        assertThat(catalogue.path("defaults").path("nextSteps").asText()).isEqualTo("off");
+        assertThat(catalogue.path("defaults").path("nextSteps").asText()).isEqualTo("contextual");
+        assertThat(catalogue.path("defaults").path("tone").asText()).isEqualTo("consultative");
         JsonNode contextual = null;
         for (JsonNode group : catalogue.path("groups")) {
             if (!"nextSteps".equals(group.path("key").asText())) continue;

@@ -447,10 +447,10 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
         assertThat(ecommerce.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
         assertThat(ecommerce.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
-        assertThat(ecommerce.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-nano");
+        assertThat(ecommerce.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-mini-2026-03-17");
         assertThat(ecommerce.providerConfig().path("generationLlmProvider").asText()).isEqualTo("openai");
-        assertThat(ecommerce.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini");
-        assertThat(ecommerce.providerConfig().path("generationMaxTokens").asInt()).isEqualTo(800);
+        assertThat(ecommerce.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini-2026-03-17");
+        assertThat(ecommerce.providerConfig().path("generationMaxTokens").asInt()).isEqualTo(2048);
         assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
         assertThat(ecommerce.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
@@ -501,10 +501,10 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.providerConfig().path("llmProvider").asText()).isEqualTo("openai");
         assertThat(marketplace.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
         assertThat(marketplace.providerConfig().path("orchestrationEndpointProfile").asText()).isEmpty();
-        assertThat(marketplace.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-nano");
+        assertThat(marketplace.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-mini-2026-03-17");
         assertThat(marketplace.providerConfig().path("generationLlmProvider").asText()).isEqualTo("openai");
         assertThat(marketplace.providerConfig().path("generationEndpointProfile").asText()).isEmpty();
-        assertThat(marketplace.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini");
+        assertThat(marketplace.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini-2026-03-17");
         assertThat(marketplace.providerConfig().path("embeddingProvider").asText()).isEqualTo("openai");
         assertThat(marketplace.providerConfig().path("embeddingEndpointProfile").asText()).isEmpty();
         assertThat(marketplace.providerConfig().path("openaiEmbeddingModel").asText()).isEqualTo("text-embedding-3-small");

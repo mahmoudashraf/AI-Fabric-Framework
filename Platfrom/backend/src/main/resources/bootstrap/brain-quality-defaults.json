@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "loomai-conversational-quality-defaults-v1",
+  "revision": 1,
+  "openaiModel": "gpt-5.4-mini-2026-03-17",
+  "openaiMaxTokens": 2048,
+  "behaviourSelections": {
+    "tone": "consultative",
+    "answerBreadth": "grounded",
+    "answerLength": "balanced",
+    "nextSteps": "contextual"
+  },
+  "promptBudgets": {
+    "ragMaxDocumentsUsedForContext": 8,
+    "ragMaxContextChars": 8000
+  },
+  "knowledgeBaseOverviewEnabled": true,
+  "readActionResolution": {
+    "planningMode": "ITERATIVE",
+    "maxIterations": 2,
+    "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "maxPlannerContextChars": 12000,
+    "maxActionEvidenceCharsPerAction": 8000,
+    "maxActionEvidenceItems": 10
+  },
+  "intentGuidance": "Use authorized conversation context to resolve follow-ups and express a self-contained retrieval query. Extract only parameters present in the request or supported by authorized context; never invent an identifier. For factual, policy and comparison questions, use the authorized READ capabilities and knowledge sources that can answer them. Do not ask the user to choose internal knowledge domains, vector spaces or API tools. Ask a business-facing clarification only when a genuinely necessary fact or trusted target cannot be established. A question about service availability or terms is informational, not authorization to execute a service. Do not classify that factual question out of scope solely because execution of the service is unavailable. Preserve authorization, required action fields and confirmation; unsupported mutations remain unsupported."
+}

@@ -1,80 +1,101 @@
 # AI Customer Experience Quality Defaults
 
-Status: **1.4.0 published and selected; 1.5.0 held, not quality-qualified,
-14 November 2026**. The normal AI Customer Experience Kit setup inherits the
-selected published defaults, not the unpublished candidate. An actual
-customer UI run verified fresh Kit/Brain creation, both Engage channels, response
-controls and branded preview, then removed the configuration-only fixture.
-See `verification-support/ai-behaviour-01063/2026-11-13-generic-kit-default-adoption.md`.
+Status: **Owner-approved selective subset, 14 November 2026; source candidate
+1.5.0, publication not yet claimed.** Fixture revision 3 is
+`OWNER_APPROVED_SELECTIVE_DEFAULTS_20261114`. This approval supersedes the held
+status only for the subset below, not for the earlier experimental bundle or
+its quality claims. The last recorded selected baseline is 1.4.0 through
+`public-knowledge-quality-20261113`; this source change does not publish or
+select its replacement and makes no fresh live-state claim.
 
 This source-only builder prepares `mkp-template-document-knowledge-assistant`
 1.5.0 from the reviewed published 1.4.0 template. Publication and public-starter
 selection are separate explicit operations; source tests alone are not live proof.
 
-The owner approved transferring four generic quality areas from dealership tuning:
+The canonical policy is
+`Platfrom/backend/src/main/resources/bootstrap/brain-quality-defaults.json`.
+`product-templates/shared/conversational-quality-defaults.mjs` reads it directly;
+the local fixture records only template and profile-contract identity, version
+and approval status. Do not maintain a second copy of the policy in the fixture.
 
-- Consultative tone and Balanced answer length.
-- Contextual next-step suggestions.
+The owner-approved selective defaults are:
+
+- Consultative tone, Grounded breadth, Balanced answer length and Contextual
+  next steps, resolved to instructions from the supplied behaviour catalogue.
+- Missing OpenAI model/output-token settings: `gpt-5.4-mini-2026-03-17` and a
+  2,048-token default cap. Explicit existing model and token limits are retained.
+- Missing knowledge-base overview: enabled. An explicit false remains false.
+- Missing generic intent prompt: the `intentExtractionPrompt` from
+  `bootstrap/prompts/default-prompt-config.json`, then two newlines and the
+  canonical `intentGuidance`. These are the same source resources used for
+  default/new Brain composition; no dealership-specific rules are copied.
 - Iterative READ planning, at most two iterations, with
   `RAG_IF_ACTIONS_INSUFFICIENT` cooperation.
 - At least eight retrieval documents/8,000 context characters; READ planning
-  context12,000 characters, per-action evidence8,000 characters and10 items.
+  context 12,000 characters, per-action evidence 8,000 characters and 10 items.
   Existing larger evidence limits are preserved.
 
 Managed instructions come from the actual behaviour catalogue, not copied
-dealership prompts. Existing answer breadth is preserved exactly, including
-custom instructions. Without an explicit profile, the catalogue's current
-default is used; it is Grounded in the qualified catalogue. Contextual next
+dealership prompts. Existing answer breadth and all explicitly Custom profiles
+are preserved exactly, including their instructions. Missing breadth uses the
+canonical Grounded selection, not a dealership or catalogue default. Contextual next
 steps can use the existing additional model-generation call and normal usage
 accounting. This is not public web access or a hidden response rewrite.
 
-The next candidate also supplies missing model/intent/recall defaults: GPT-5.4-mini,
-knowledge-base overview, generic follow-up/information-vs-execution guidance and
-a 0.3 retrieval threshold, plus latest-question/threshold-calculation answer
-guidance. Explicit existing model, prompt, overview and threshold
-choices are preserved. The threshold is a starting recall setting, not a universal
-confidence measure: Harbor's approved relevant policy scores about 0.36 and was
-excluded at both 0.5 and 0.4. Other corpora/providers need their own qualification.
-Existing tuned dealership thresholds are not silently lowered.
+No similarity threshold or `answerGenerationPrompt` is supplied by this subset.
+The earlier calculation/latest-question answer prompt is removed from the
+candidate defaults. Existing thresholds and custom prompts are preserved, not
+rewritten. Corpora/providers still require their own retrieval qualification;
+Harbor's relevant policy scoring about 0.36 does not establish a global threshold.
 
-**Do not publish/select the current candidate.** Harbor's final original-six
-runs were 4/6 and 5/6, below the two-run qualification criterion. Even with the
+**Approval is not a blanket quality guarantee.** The earlier bundle did not
+meet its two-run qualification criterion: v6 scored 3/6 and 4/6, v7 4/6 and 5/6,
+v8 3/6 and 5/6, and final v9 4/6 and 5/6. Even with the
 generic calculation prompt, the model sometimes calls GBP499 eligible for a
 GBP500 free-delivery threshold. An additional exact-boundary query also failed,
 and another asked for a technical knowledge domain. Earlier failures are not
-discarded or retried into a pass. The selected 1.4.0 defaults already contain the
-four generic dealership-derived areas above; they remain selected. See
+discarded or retried into a pass. These trial failures remain failures; this
+narrower approval does not reclassify them. See
 `verification-support/harbor-brain-creation/2026-11-14-quality-defaults.md`.
 The subsequent full GPT-5.4 model-only comparison also scored4/6 and5/6 and
 retained the contradictory eligibility claim. It improved explicit boundary
-queries but was slower. No model/default promotion is justified by that check;
+queries but was slower. That comparison did not qualify a universal stronger
+model or the earlier bundle;
 see `verification-support/harbor-brain-creation/2026-11-14-stronger-model-comparison.md`.
 
-The builder does not change provider output-token limits, source identities,
-credentials, permissions, approval, action confirmation, shell branding, other
+The builder does not replace explicit provider/output-token choices, source identities,
+credentials, permissions, approval, action confirmation, storage, shell branding, other
 orchestration modes or recovery/fanout policy. Required DATA pins remain those
 of the current generic baseline. No
 dealership policy, inventory schema, advertiser connection or demo credential is
-copied. Existing customer drafts and releases are not background-updated.
+copied. No fanout, recovery policy, source, plugin type or defaults service is
+introduced. There is no lexical/semantic matching or hidden answer rewrite.
+Existing customer drafts and releases are not background-updated. Backend Java
+default/new Brain creation and all publication, selection and deployment belong
+to the separate integration work, not this source-only builder.
 
 ```sh
-node scripts/build-quality-template.mjs /private/published-template.json /private/behaviour-catalogue.json
-node --test scripts/build-quality-template.test.mjs
+node product-templates/ai-customer-experience/scripts/build-quality-template.mjs /private/published-template.json /private/behaviour-catalogue.json
+node --test product-templates/shared/conversational-quality-defaults.test.mjs product-templates/ai-customer-experience/scripts/build-quality-template.test.mjs product-templates/dealership-experience/scripts/build-quality-template.test.mjs
 ```
 
 Input may be a manifest or a matching published `{version: {..., manifest}}`
 capture. Output is only the new manifest JSON. The builder performs no network
 request, publication, customer mutation, indexing or provisioning.
 
-The shared managed-profile resolver is also used by the dealership builder.
-Its existing16 tests and the10 generic tests pass, including change scope,
-catalogue identity, breadth/model/threshold preservation, larger budgets,
-malformed inputs and CLI wrapper handling. Test catalogue instructions are
-synthetic and never publication inputs.
+Tests cover canonical-resource consistency, exact bootstrap intent composition,
+change scope, catalogue identity, custom prompt/profile/model/token/threshold
+preservation, minimum and larger budgets, malformed inputs and CLI captures.
+The dealership builder and its shared managed-profile resolver are unchanged;
+its existing tests are included as regressions. Test catalogue instructions are
+synthetic and never publication inputs. Run these commands from the repo root.
 
-The unchanged selected starter is
-`public-knowledge-quality-20261113`. It uses the
-current published generic DATA1.3.0 dependency and already-qualified0.8.52 runtime.
+The recorded 1.4.0 starter uses generic DATA 1.3.0 and framework 0.8.52.
+The earlier fresh Kit/Brain UI check, Engage channels, response controls and
+branded preview are recorded in
+`verification-support/ai-behaviour-01063/2026-11-13-generic-kit-default-adoption.md`;
+that configuration-only fixture was removed. This is historical baseline proof,
+not 1.5.0 inheritance or an answer-quality benchmark.
 The older selected starter referenced TEMPLATE1.2.0/DATA1.2.0 and runtime0.8.41;
 these historical pins were not reused for new setup. No new framework release,
 runtime image or customer infrastructure was created by that 13 November rollout.
@@ -82,7 +103,8 @@ The separate Harbor qualification uses a narrow Platform connector memory fix
 against the unchanged framework 0.8.52. Existing customer resources
 and the dealership/Support starter selections remain unchanged.
 
-For adoption, publish through the normal catalogue workflow, create a new public
+Publication is left to the integration owner. For adoption, use the normal
+catalogue workflow, create a new public
 starter using the current generic dependency pins and already-qualified current
 runtime, then explicitly select it for new setup. Preserve other starter IDs,
 funding/model limits and historical customer grants. Template defaults remain

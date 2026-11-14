@@ -2434,6 +2434,7 @@ public class DeploymentService {
         }
         seedProviderDefaults(root, template);
         seedVectorDefaults(root, deployment, template, effectiveVectorProvisioningMode);
+        ManagedBrainQualityDefaults.seedProviderConfig(root);
         return root;
     }
 
@@ -2535,8 +2536,7 @@ public class DeploymentService {
     }
 
     private JsonNode defaultPromptConfig(String curatedModuleId) {
-        return DeploymentAiBehaviourProfiles.select(deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId),
-            objectMapper.createObjectNode());
+        return ManagedBrainQualityDefaults.promptConfig(deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId));
     }
 
     private String resolveInitialVectorProvisioningMode(DeploymentTemplateSummary template, String requestedMode) {

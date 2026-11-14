@@ -729,7 +729,8 @@ abstract class ProviderUsageAllowanceContract {
     }
 
     @Test void legacyStaffSplitCannotBypassRuntimeConfigurationReview() {
-        versionRows.get("version-deployment").setProviderConfigJson("{}"); service.approveGrant(grant()); authorizeRelease("deployment");
+        // Pin the reviewed legacy model so this case reaches the missing-output-cap guard.
+        versionRows.get("version-deployment").setProviderConfigJson("{\"openaiModel\":\"gpt-4o-mini\"}"); service.approveGrant(grant()); authorizeRelease("deployment");
         assertThatThrownBy(() -> service.allocate(command("deployment", new Limits(7, 1000, 1_234_000)), r7("deployment")))
             .hasMessageContaining("LEGACY_ISSUANCE_UNSUPPORTED");
         assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment")).hasMessageContaining("RUNTIME_OUTPUT_CAP_REQUIRED");

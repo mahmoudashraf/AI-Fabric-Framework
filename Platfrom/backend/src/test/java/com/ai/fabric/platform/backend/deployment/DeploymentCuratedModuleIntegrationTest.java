@@ -116,6 +116,17 @@ class DeploymentCuratedModuleIntegrationTest {
         JsonNode providerConfig = draft.providerConfig();
 
         assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("openaiModel").asText()).isEqualTo("gpt-5.4-mini-2026-03-17");
+        assertThat(providerConfig.path("openaiMaxTokens").asInt()).isEqualTo(2048);
+        assertThat(providerConfig.at("/orchestrationModeOverrides/executor/knowledgeBaseOverviewEnabled").asBoolean()).isTrue();
+        assertThat(providerConfig.at("/orchestrationModeOverrides/executor/readActionResolution/maxIterations").asInt()).isEqualTo(2);
+        assertThat(draft.promptConfig().at("/aiBehaviour/tone/presetId").asText()).isEqualTo("consultative");
+        assertThat(draft.promptConfig().at("/aiBehaviour/nextSteps/presetId").asText()).isEqualTo("contextual");
+        assertThat(draft.promptConfig().path("ragMaxDocumentsUsedForContext").asInt()).isEqualTo(8);
+        assertThat(draft.promptConfig().path("ragMaxContextChars").asInt()).isEqualTo(8000);
+        assertThat(draft.promptConfig().has("ragSimilarityThreshold")).isFalse();
+        assertThat(draft.securityConfig().path("authzMode").asText()).isEqualTo("REMOTE_HTTP");
+        assertThat(draft.securityConfig().path("connectorApiKeyEnabled").asBoolean()).isTrue();
         assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
         assertThat(providerConfig.path("curatedModuleId").asText()).isEqualTo("default");
         assertThat(providerConfig.path("curatedPackId").asText()).isEqualTo("default");

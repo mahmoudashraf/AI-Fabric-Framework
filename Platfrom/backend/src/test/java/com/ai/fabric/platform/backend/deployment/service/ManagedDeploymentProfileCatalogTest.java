@@ -108,9 +108,15 @@ class ManagedDeploymentProfileCatalogTest {
     }
 
     @Test
-    void recommendedOrchestrationModelUsesLatencyOptimizedOpenAiDefault() {
+    void modelRecommendationsUseTheSameManagedQualityDefault() {
+        assertThat(ManagedDeploymentProfileCatalog.defaultLlmModel("openai"))
+            .isEqualTo("gpt-5.4-mini-2026-03-17");
         assertThat(ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("openai"))
-            .isEqualTo("gpt-5.4-nano");
+            .isEqualTo("gpt-5.4-mini-2026-03-17");
+        assertThat(ManagedDeploymentProfileCatalog.recommendedGenerationModel("openai"))
+            .isEqualTo("gpt-5.4-mini-2026-03-17");
+        assertThat(ManagedDeploymentProfileCatalog.recommendedGenerationMaxTokens("openai"))
+            .isEqualTo(2048);
         assertThat(ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("anthropic"))
             .isEqualTo("claude-3-haiku-20240307");
     }

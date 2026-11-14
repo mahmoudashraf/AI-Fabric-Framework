@@ -3,8 +3,13 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveManagedBehaviour } from '../../shared/managed-behaviour.mjs'
+import { readConversationalQualityDefaults } from '../../shared/conversational-quality-defaults.mjs'
 
 const defaults = JSON.parse(readFileSync(new URL('../fixtures/quality-defaults.json', import.meta.url), 'utf8'))
+const quality = readConversationalQualityDefaults()
+const { planningMode, maxIterations, ragCooperationMode,
+  maxPlannerContextChars, maxActionEvidenceCharsPerAction, maxActionEvidenceItems } = quality.readActionResolution
+const readBudgets = { maxPlannerContextChars, maxActionEvidenceCharsPerAction, maxActionEvidenceItems }
 const object = (value, name) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${name} must be an object.`)
   return value
@@ -34,7 +39,7 @@ export function buildCustomerExperienceQualityTemplate(manifest, catalogue) {
   const modes = optional(provider, 'orchestrationModeOverrides')
   const executor = optional(modes, 'executor')
   const reads = optional(executor, 'readActionResolution')
-  const profiles = resolveManagedBehaviour(catalogue, defaults.aiBehaviour)
+  const profiles = resolveManagedBehaviour(catalogue, { ...defaults.aiBehaviour, selections: quality.behaviourSelections })
   if (Object.hasOwn(prompt, 'aiBehaviour')) {
     const existing = object(prompt.aiBehaviour, 'Existing managed profiles')
     if (existing.schemaVersion !== profiles.schemaVersion || existing.revision !== profiles.revision) throw new Error('Unsupported existing managed profiles.')
@@ -43,34 +48,28 @@ export function buildCustomerExperienceQualityTemplate(manifest, catalogue) {
       if (profile.revision !== profiles.revision || typeof profile.presetId !== 'string' || typeof profile.instructions !== 'string') {
         throw new Error('Unsupported existing managed profile contract.')
       }
+      if (key === 'answerBreadth' || profile.presetId === 'custom') profiles[key] = structuredClone(profile)
     }
-    profiles.answerBreadth = structuredClone(existing.answerBreadth)
-  } else {
-    const inherited = resolveManagedBehaviour(catalogue, {
-      ...defaults.aiBehaviour, selections: { answerBreadth: object(catalogue.defaults, 'Catalogue defaults').answerBreadth },
-    })
-    profiles.answerBreadth = inherited.answerBreadth
   }
   const candidate = structuredClone(manifest)
   const next = candidate.contributions.template
   next.promptConfig = {
-    ragSimilarityThreshold: defaults.missingDefaults.ragSimilarityThreshold,
-    intentExtractionPrompt: defaults.missingDefaults.intentExtractionPrompt,
-    answerGenerationPrompt: defaults.missingDefaults.answerGenerationPrompt,
-    ...largerBudgets(structuredClone(prompt), defaults.evidenceBudgets.prompt),
+    intentExtractionPrompt: quality.intentExtractionPrompt,
+    ...largerBudgets(structuredClone(prompt), quality.promptBudgets),
     aiBehaviour: profiles,
   }
   next.providerConfig = {
-    openaiModel: defaults.missingDefaults.openaiModel,
+    openaiModel: quality.openaiModel,
+    openaiMaxTokens: quality.openaiMaxTokens,
     ...structuredClone(provider),
     orchestrationModeOverrides: {
       ...structuredClone(modes),
       executor: {
-        knowledgeBaseOverviewEnabled: defaults.missingDefaults.knowledgeBaseOverviewEnabled,
+        knowledgeBaseOverviewEnabled: quality.knowledgeBaseOverviewEnabled,
         ...structuredClone(executor),
         readActionResolution: {
-          ...largerBudgets(structuredClone(reads), defaults.evidenceBudgets.readActionResolution),
-          ...defaults.readActionResolution,
+          ...largerBudgets(structuredClone(reads), readBudgets),
+          planningMode, maxIterations, ragCooperationMode,
         },
       },
     },
