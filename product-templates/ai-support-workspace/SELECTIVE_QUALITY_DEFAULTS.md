@@ -1,9 +1,12 @@
-# Support 1.3.0 Source Candidates
+# Support 1.3.0 Selective Defaults
 
-14 November 2026: owner-approved selective defaults, **pending main review and
-publication**. These files are not live marketplace versions, selected offers,
-applied releases or new conversational-quality qualification. No live operation
-or commit is part of this source-only change.
+14 November 2026: owner-approved selective defaults, published through the normal
+marketplace workflow on both control planes. Public `1.3.0` version IDs are
+`mkv-eeb331c9` (staging) and `mkv-8c438778` (production); internal versions are
+`mkv-7f8aa17f` and `mkv-d4c5845b`. Public setup selects
+`public-support-quality-20261114`, using the existing qualified framework
+`0.8.52` runtime. This does not reclassify earlier quality failures as passes.
+Existing instance rollout evidence is tracked separately from template publication.
 
 ## Published Baseline
 
@@ -73,9 +76,9 @@ also exercises missing defaults, explicit custom choices, budgets, authority,
 catalogue ambiguity and CLI envelope isolation. Local source tests are not hosted
 quality or marketplace publication proof.
 
-`catalog.json.entries[].currentSourceCandidate` identifies the current pending
-candidate. The top-level `manifest` fields remain historical source references
-for existing tooling, not claims about current live versions. Historical
-`qualityCandidates`, `supportExperienceCandidates` and manifest files are untouched.
-Main must review and use the normal marketplace lifecycle before claiming
-publication or selecting any new offer. Existing Brains and releases are unchanged.
+`catalog.json.entries[].currentRelease` identifies the published selective release.
+Top-level `manifest` fields now select `1.3.0`; `historicalManifest` retains the
+older source references. Historical `qualityCandidates`,
+`supportExperienceCandidates` and manifest files are untouched. Current instances
+adopt selected settings separately via draft, publish, apply and verification;
+template publication never background-overwrites their configuration.

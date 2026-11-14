@@ -51,12 +51,12 @@ test('baseline prompt guidance is retained alongside confirmed ticket receipts a
     assert.doesNotMatch(JSON.stringify(section), /loomai|supabase|s3:\/\/|service_role|secretRef|openaiApiKey/i)
 })
 
-test('candidate quality is not a published default or a historical template rewrite', () => {
+test('historical candidate stays unaccepted while the separate selective release is current', () => {
   const catalog = read('catalog.json')
   const candidate = catalog.supportExperienceCandidates.find(item => item.manifest.endsWith('ai-support-workspace.1.1.0.manifest.json'))
   assert.equal(candidate.publicationScope, 'SOURCE_ONLY')
   assert.equal(candidate.productionDefaultAccepted, false)
   assert.equal(catalog.entries.find(item => item.pluginSlug === 'ai-support-workspace').manifest,
-    'manifests/ai-support-workspace.1.0.1.manifest.json')
+    'manifests/ai-support-workspace.1.3.0.manifest.json')
   assert.equal(read('manifests/ai-support-workspace.1.0.1.manifest.json').contributions.template.providerConfig, undefined)
 })

@@ -1,5 +1,15 @@
 # 010.63 Assisted Customer Setup, AI Behaviour And Dealership Optimization
 
+Latest adoption, 14 November 2026: the owner-approved selective quality defaults
+are applied to current test/product Kits and default/new Brain creation. Generic
+TEMPLATE1.5.0 and public/internal Support1.3.0 are published on both control planes;
+new public setup selects them. Existing calibrated thresholds, custom/domain
+instructions and authority remain. No universal threshold, experimental calculation
+prompt or stronger full model was promoted. Five new runtime applies passed native
+verification; known Harbor arithmetic/source-selection failures remain documented.
+Current evidence is `verification-support/ai-behaviour-01063/2026-11-14-selective-default-adoption.md`.
+The original assessment below is dated history, not the current deployment state.
+
 ## 1. Decision Summary
 
 - Date: 2026-11-06.

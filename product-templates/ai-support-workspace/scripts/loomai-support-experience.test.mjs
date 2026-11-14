@@ -40,15 +40,15 @@ test('exact instance bootstrap pins use existing primitives with no native ticke
   assert.doesNotMatch(JSON.stringify(instance), /MANAGED_DESK_TICKET|service_role|s3:\/\/|SUPPORT_CASE_HOST|spaceId|publishableKey/)
 })
 
-test('internal source candidate neither rewrites public defaults nor changes accepted catalogue entries', () => {
+test('historical internal candidate stays separate from the published selective defaults', () => {
   const catalog = read('catalog.json')
   const candidate = catalog.supportExperienceCandidates.find(value => value.manifest.endsWith('loomai-support-workspace.1.1.0.manifest.json'))
   assert.equal(candidate.publicationScope, 'SOURCE_ONLY')
   assert.equal(candidate.productionDefaultAccepted, false)
   assert.equal(catalog.entries.find(value => value.pluginSlug === 'ai-support-workspace').manifest,
-    'manifests/ai-support-workspace.1.0.1.manifest.json')
+    'manifests/ai-support-workspace.1.3.0.manifest.json')
   assert.equal(catalog.entries.find(value => value.pluginSlug === 'loomai-support-workspace').manifest,
-    'manifests/loomai-support-workspace.manifest.json')
+    'manifests/loomai-support-workspace.1.3.0.manifest.json')
   assert.deepEqual(generic.contributions.template.requiredPluginRefs,
     ['mkp-data-ai-support-documents@1.0.0', 'mkp-action-support-tickets@1.0.0'])
   assert.equal(generic.contributions.template.requiredPluginInstallDefaults['mkp-action-support-tickets@1.0.0']

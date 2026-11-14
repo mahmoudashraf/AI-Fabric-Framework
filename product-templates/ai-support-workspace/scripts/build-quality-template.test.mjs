@@ -205,19 +205,22 @@ test('missing, ambiguous and unsupported catalogue identities are not inferred o
   }
 })
 
-test('current catalogue candidates are explicitly pending publication and do not relabel historical snapshots', () => {
+test('current catalogue records the published selective defaults without relabeling historical snapshots', () => {
   const catalog = read('catalog.json')
   for (const item of fixture.templates) {
-    const entry = catalog.entries.find(entry => entry.currentSourceCandidate?.pluginId === item.pluginId)
+    const entry = catalog.entries.find(entry => entry.currentRelease?.pluginId === item.pluginId)
     assert.ok(entry)
-    assert.equal(entry.currentSourceCandidate.manifest, item.candidateManifest)
-    assert.equal(entry.currentSourceCandidate.version, '1.3.0')
-    assert.equal(entry.currentSourceCandidate.publicationScope, 'SOURCE_ONLY')
-    assert.equal(entry.currentSourceCandidate.publicationStatus, 'PENDING_PUBLICATION')
-    assert.equal(entry.currentSourceCandidate.productionDefaultAccepted, false)
-    assert.equal(entry.currentSourceCandidate.publishedBaselineVersion, item.version)
-    assert.equal(entry.currentSourceCandidate.publishedBaselineVersionId, item.versionId)
-    assert.notEqual(entry.manifest, item.candidateManifest)
+    assert.equal(entry.currentRelease.manifest, item.candidateManifest)
+    assert.equal(entry.currentRelease.version, '1.3.0')
+    assert.equal(entry.currentRelease.publicationScope, 'STAGING_AND_PRODUCTION')
+    assert.equal(entry.currentRelease.publicationStatus, 'PUBLISHED')
+    assert.equal(entry.currentRelease.productionDefaultAccepted, true)
+    assert.equal(entry.currentRelease.qualification, 'OWNER_APPROVED_SELECTIVE_DEFAULTS')
+    assert.deepEqual(Object.keys(entry.currentRelease.versionIds).sort(), ['production', 'staging'])
+    assert.equal(entry.currentRelease.publishedBaselineVersion, item.version)
+    assert.equal(entry.currentRelease.publishedBaselineVersionId, item.versionId)
+    assert.equal(entry.manifest, item.candidateManifest)
+    assert.notEqual(entry.historicalManifest, item.candidateManifest)
   }
   assert.ok(catalog.qualityCandidates.every(candidate => candidate.productionDefaultAccepted === false))
 })

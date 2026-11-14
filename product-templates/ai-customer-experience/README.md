@@ -1,14 +1,16 @@
 # AI Customer Experience Quality Defaults
 
-Status: **Owner-approved selective subset, 14 November 2026; source candidate
-1.5.0, publication not yet claimed.** Fixture revision 3 is
+Status: **1.5.0 published and selected on staging and production, 14 November
+2026; owner-approved selective subset.** Fixture revision 3 is
 `OWNER_APPROVED_SELECTIVE_DEFAULTS_20261114`. This approval supersedes the held
 status only for the subset below, not for the earlier experimental bundle or
-its quality claims. The last recorded selected baseline is 1.4.0 through
-`public-knowledge-quality-20261113`; this source change does not publish or
-select its replacement and makes no fresh live-state claim.
+its quality claims. New setup selects `public-knowledge-quality-20261114`;
+published TEMPLATE versions are `mkv-edbd9a95` (staging) and `mkv-db000e49`
+(production). The prior 1.4.0 starter remains history, not a new-install choice.
+Fresh customer Console creation verified both Engage channels and inherited
+defaults; the resource-free test Kit was removed after verification.
 
-This source-only builder prepares `mkp-template-document-knowledge-assistant`
+The offline builder prepares `mkp-template-document-knowledge-assistant`
 1.5.0 from the reviewed published 1.4.0 template. Publication and public-starter
 selection are separate explicit operations; source tests alone are not live proof.
 
@@ -99,12 +101,12 @@ not 1.5.0 inheritance or an answer-quality benchmark.
 The older selected starter referenced TEMPLATE1.2.0/DATA1.2.0 and runtime0.8.41;
 these historical pins were not reused for new setup. No new framework release,
 runtime image or customer infrastructure was created by that 13 November rollout.
-The separate Harbor qualification uses a narrow Platform connector memory fix
-against the unchanged framework 0.8.52. Existing customer resources
-and the dealership/Support starter selections remain unchanged.
+The separate Harbor qualification used a narrow Platform connector memory fix
+against framework 0.8.52. That earlier qualification did not update current
+instances or the dealership/Support selections. The later selective adoption
+described at the top is a separate owner-approved operation.
 
-Publication is left to the integration owner. For adoption, use the normal
-catalogue workflow, create a new public
+Publication and adoption use the normal catalogue workflow: create a new public
 starter using the current generic dependency pins and already-qualified current
 runtime, then explicitly select it for new setup. Preserve other starter IDs,
 funding/model limits and historical customer grants. Template defaults remain

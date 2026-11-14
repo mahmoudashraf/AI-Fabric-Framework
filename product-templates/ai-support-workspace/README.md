@@ -1,15 +1,16 @@
 # AI Support Workspace
 
-## Current Pending Source
+## Current Defaults
 
-Support TEMPLATE `1.3.0` candidates now exist for both public AI Support and the
-internal LoomAI Support family. They are built from matching **live published
-1.2.0** inventory snapshots, not from the older source manifests below. Both are
-**source-only, pending main review and publication**, not live versions or selected
-customer defaults. See [selective defaults and reproducible evidence](SELECTIVE_QUALITY_DEFAULTS.md).
-The catalogue's `currentSourceCandidate` fields identify them; historical manifest
-references and quality candidates remain intact. Existing Support prompts, domain
-configuration, plugin pins and authority are preserved.
+Support TEMPLATE `1.3.0` is published on staging and production for public AI
+Support and internal LoomAI Support. The public starter is
+`public-support-quality-20261114`. Both were built from matching published
+`1.2.0` inventory snapshots, not the older source manifests below. See
+[selective defaults and reproducible evidence](SELECTIVE_QUALITY_DEFAULTS.md).
+The catalogue's `currentRelease` fields identify the versions; historical
+manifests and failed quality candidates remain intact. Existing Support prompts,
+domain configuration, plugin pins and authority are preserved. This is selective
+owner-approved adoption, not a claim of perfect AI answers.
 
 The following sections describe earlier dated baselines and qualification work;
 their historical version/release statements do not establish the current fleet.

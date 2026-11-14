@@ -15884,3 +15884,75 @@ test is being called hosted acceptance. UI extraction remains last.
   2026-11-14-stronger-model-comparison.md. Manual guide, prior reports and generic
   README updated. No agents, required shell jobs or browser contexts left running;
   firewall unchanged as owner authorized. Unrelated worktree changes preserved.
+
+### Selective Quality Defaults Adopted (2026-11-14, 19:08 UTC)
+
+- Owner explicitly approved applying the narrower recommended subset to CURRENT
+  test/product Kits and default/new Brain creation; there are no real customers
+  yet. This supersedes the earlier hold only for this selected subset. Do NOT
+  reinterpret the old failed Harbor bundle or stronger-model comparison as passes,
+  or reuse their consumed mutation receipts/quality decisions.
+- Canonical source is backend bootstrap/brain-quality-defaults.json, consumed by
+  Java creation and Node template tooling. New OpenAI primary/planning/generation
+  defaults use gpt-5.4-mini-2026-03-17 /2048 tokens; consultative/grounded/balanced/
+  contextual profiles, knowledge overview, iterative READ2 with
+  RAG_IF_ACTIONS_INSUFFICIENT; RAG8docs/8000chars, planner12000/per-action8000/
+  evidence10. Larger budgets/custom breadth/business prompts/credentials/auth/
+  confirmation/recovery/calibrated thresholds remain. Acme Warm tone retained.
+  No global threshold, web search, semantic matching, answer rewriting or hidden
+  second generation. Harbor's known unproven extra answer prompt restored to its
+  preceding exact field; its 0.3 threshold/custom breadth remain.
+- Source commits69c4ce07f and9b1d361ca pushed. Both native-healthy backends now
+  69c4ce07f94731ddb7f75d9d9c8c31608d86f768, digest
+  sha256:ff3bc1531057858c84ed8542eb792e402823748faa9f2812066d4e0c6308f668.
+  UI unchanged. No new framework release or runtime build; existing qualified
+  runtime/connector11cb0152d, FW0.8.52 reused for changed instances.
+- Selected on BOTH CPs: public-knowledge-quality-20261114 (generic TEMPLATE1.5.0),
+  public-support-quality-20261114 (public Support1.3.0), and unchanged
+  public-dealership-quality-20261113 (simulator1.15.0). Internal Support1.3.0 also
+  published. Dealer external1.5.0 and managed-inbox1.11.0 already meet selected
+  defaults. New source catalogue points to published Support1.3; historical source
+  manifests/failed quality candidates stay immutable. Templates remain editable
+  bootstrap choices, not restrictions on subsequent versions.
+- All six current Kit drafts updated/validated; draft-only dep-0fbedfb9 and
+  dep-fb1094af remain unprovisioned. Northfield dep-3c4dbe4f already matched/no-op,
+  both existing releases/consumers intact, native model/health freshly checked.
+- Five new runtime applies all APPLIED_VERIFIED/PASSED,153pass/0fail/20skip:
+  staging Support dep-a9d6d646 ver-d80df238/rel-cca1a85c (vrf-a4b0fee2,31/0/4);
+  Acme dep-b9a09c0a ver-3b9cab2f/rel-4bbde3ee (vrf-ee51466e,30/0/4);
+  production-CP Support dep-79af290c ver-c2e55c97: staging rel-354cef53
+  (vrf-71e4ba4b,31/0/4), production rel-5a2df585 (vrf-10c71f19,31/0/4);
+  Harbor dep-5fbdc125 ver-37a3e010/rel-985259cf (vrf-d3f5af88,30/0/4).
+  Skips cover marketplace sync/separate vectorization-runner workflow; actual
+  document retrieval tested. App-linked consumers advanced only after native
+  verification; all original active apps READY/same IDs/addresses. Acme's old
+  rel-600d63a3 binding caused readiness401; normal revision-checked binding refresh
+  resolved it without auth changes. All scoped infrastructure/provider UUIDs
+  unchanged; no business DB, vector copying, new managed service or data migration.
+- Fresh raw Brain creation passed on BOTH CPs; real customer Console wizard
+  generic Kit/both channels and customer API Support1.3 inheritance passed. All
+  four resource-free fixtures removed through normal APIs. Native audit PASS for
+  seven running targets, all exact selected model/healthy, approved config retained.
+- First-response checks: internal Support3 useful document answers each on
+  staging+production. Unsupported production edit declined in production; staging
+  proposed confirmation-gated ticket, naturally cancelled without execution. Acme
+  actual Supabase -> distinct runtime token -> canonical conversation message
+  returned useful approved-document onboarding answer. Private helper's retired
+  legacy query request410 corrected before any model response; no auth fallback.
+- Harbor current browser original5/6, extended2/4: known contradictory delivery
+  math (R2/E1) and technical-domain clarification(E2) remain FAILURES, not rewritten
+  or retried. Natural enquiry asks product ID; explicit Confirm creates one
+  fictional enquiry; real RECEIVED receipt lookup passes/no email/reservation/
+  purchase. Reject not reached, no new rejection qualification claimed. No extra
+  framework/prompt optimization added to conceal these limitations.
+- Local focused backend suites passed; exact quota/Desk suite233PASS. Hosted quota
+  run43626092564 hit Docker client API1.32 < runner minimum1.40 before PostgreSQL
+  startup; not a model/default assertion failure. Backend image CI43626092581PASS.
+  Combined source/template83PASS, diff check clean. No verification weakened.
+- Current evidence: verification-support/ai-behaviour-01063/
+  2026-11-14-selective-default-adoption.md. Private root
+  ~/.codex/private/loomai-selective-defaults-20261114/ contains final-audit PASS,
+  snapshots, consumed operation intents, native proofs, first responses and
+  cleanup receipts. Never replay mutation commands. All agents closed; firewall
+  unchanged as owner authorized. Unrelated .gitignore/UI buildinfo/artifacts left
+  untouched. Further Harbor reasoning/source-selection fixes require owner review.
