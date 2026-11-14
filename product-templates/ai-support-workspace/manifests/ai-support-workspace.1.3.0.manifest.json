@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-ai-support-workspace",
+  "version": "1.3.0",
+  "pluginType": "TEMPLATE",
+  "displayName": "AI Support Experience",
+  "description": "Technical Support preset using your approved knowledge, optional tracked requests and independently configured human handover.",
+  "compatibility": {
+    "requiredCapabilities": [
+      "templates"
+    ]
+  },
+  "pricing": {
+    "pricingModel": "FREE"
+  },
+  "permissions": {
+    "contributesTemplate": true,
+    "contributesShellPresentation": true
+  },
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "curatedModuleId": "default",
+      "requiredPluginRefs": [
+        "mkp-data-ai-support-documents@1.1.0",
+        "mkp-action-support-tickets@1.0.0"
+      ],
+      "requiredPluginInstallDefaults": {
+        "mkp-action-support-tickets@1.0.0": {
+          "config": {
+            "ticketCommandsUrl": "${MANAGED_DESK_TICKET_COMMANDS_URL}"
+          },
+          "secretRefs": {
+            "ticketConnectorKey": "MANAGED_DESK_TICKET_CONNECTOR_KEY"
+          }
+        }
+      },
+      "recommendedPluginIds": [
+        "mkp-action-support-tickets",
+        "mkp-integration-loomai-desk",
+        "mkp-action-conversation-handover"
+      ],
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "requiredRuntimeCapabilityIds": [
+          "ai-fabric-core",
+          "ai-fabric-chat-session",
+          "standalone-conversation-control"
+        ],
+        "verificationPackIds": [
+          "conversational-behavior-v1"
+        ],
+        "allowedChannelBindings": [
+          "BACKEND_API",
+          "DOCKED_COMPOSER",
+          "MAX_MODE",
+          "INLINE_ASSISTANT",
+          "QUERY_ONCE"
+        ],
+        "allowedExecutionExtensions": [
+          "SPECIALIST_ASSISTANCE",
+          "CONVERSATION_HANDOVER"
+        ],
+        "defaultExecutionExtensions": [],
+        "specialistAssistance": {
+          "enabled": false,
+          "areas": [
+            {
+              "id": "product-setup",
+              "name": "Product setup",
+              "purpose": "Explain documented setup, connections and customer-facing workspace configuration.",
+              "instructions": "Use approved setup guides to suggest the next diagnostic step. Distinguish documentation from current observations. Ask for missing non-secret details. Never request passwords, access keys, session tokens or raw environment files. Do not claim that configuration was changed.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": []
+            },
+            {
+              "id": "service-policy",
+              "name": "Service and support policy",
+              "purpose": "Explain approved service procedures, support boundaries and escalation options.",
+              "instructions": "Answer from the installed company's approved policy documents. Do not invent entitlements, service guarantees, refunds or human availability. Explain which facts remain unverified. A human handover is an outer conversation operation, never a specialist chain handoff.",
+              "vectorSpaces": [
+                "document"
+              ],
+              "readActions": []
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "setup-and-support",
+              "name": "Setup and support investigation",
+              "objective": "Combine relevant setup guidance and service policy only when both are needed. Clarify missing facts and separate supported steps from unverified assumptions.",
+              "areaIds": [
+                "product-setup",
+                "service-policy"
+              ],
+              "allowParallel": false
+            }
+          ],
+          "limits": {
+            "maxDecisions": 4,
+            "maxWorkerInvocations": 2,
+            "maxParallelWorkers": 2,
+            "deadlineSeconds": 75
+          }
+        }
+      },
+      "shell": {
+        "greeting": {
+          "title": "How can we help?",
+          "message": "Ask about setup or approved support policies."
+        },
+        "enabledModuleIds": [
+          "support",
+          "docs"
+        ],
+        "starterPrompts": [
+          {
+            "id": "setup-help",
+            "label": "Setup help",
+            "query": "Help me understand the documented setup steps. Ask what you need to know."
+          },
+          {
+            "id": "support-options",
+            "label": "Support options",
+            "query": "What support options are described in the approved documentation?"
+          }
+        ],
+        "defaultConversationMode": "executor"
+      },
+      "providerConfig": {
+        "openaiMaxTokens": 2048,
+        "canonicalConversationsEnabled": true,
+        "openaiModel": "gpt-5.4-mini-2026-03-17",
+        "orchestrationModeOverrides": {
+          "executor": {
+            "knowledgeBaseOverviewEnabled": true,
+            "readActionResolution": {
+              "planningMode": "ITERATIVE",
+              "maxIterations": 2,
+              "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+              "maxPlannerContextChars": 12000,
+              "maxActionEvidenceCharsPerAction": 8000,
+              "maxActionEvidenceItems": 10
+            },
+            "semanticRecovery": {
+              "missingVectorSpace": "BOUNDED_ALLOWED_FAN_OUT"
+            },
+            "rag": {
+              "fanoutEnabled": true,
+              "maxSpaces": 1
+            }
+          }
+        }
+      },
+      "promptConfig": {
+        "intentExtractionPrompt": "Classify each request carefully as informational, action-oriented, or clarification-needed. Extract only parameters that are explicitly present or strongly implied by the user request. Set requiresTargetResolution only when the current message indirectly refers to previously selected or returned items. Do not mark requiresTargetResolution for broad new discovery or when the current message already contains an explicit item name or identifier.\n\nClassify requests for explanations and documented how-to guidance as INFORMATION when the configured knowledge supports them, even when the corresponding operation is not an available action. Only select an execution action when the user actually requests that operation. Retain the specific subjects of follow-up references from the conversation; an omitted internal source name is not a reason to mark a support question OUT_OF_SCOPE. Follow each registered tool parameter contract rather than inventing required inputs for parameterless reads.",
+        "systemPrompt": "You are the AI assistant for this deployment. Prefer grounded answers from configured knowledge and live action results. Do not invent customer data, policy outcomes, or action success.\n\nProvide product support from the configured approved knowledge and authorized observations. Explaining a documented setup, indexing, refresh or troubleshooting procedure is informational help, not an instruction to perform a write. A missing execution tool or declined private diagnostics must not make documented guidance out of scope. Keep documentation, live observations and proposed next steps distinct; never imply an unexecuted change or an unprobed source was checked.\n\nProvide support using this company's approved knowledge and explicitly authorized action results. Distinguish documented guidance, current observations, proposed next steps and completed operations. Explain unavailable evidence without inventing policy, human availability or successful changes. Ask targeted non-secret questions; never request passwords, access keys or session tokens. Requests for documented how-to guidance do not require a diagnostic action or a specialist. Keep the subject and ordering of follow-up questions grounded in the supplied conversation. Do not ask users to name internal knowledge domains. Create a tracked request only through the installed confirmed ticket action when the user actually asks to submit one. Ordinary questions do not create tickets. Report a ticket reference only from a successful provider receipt; an unavailable or uncertain result is not success. Ticket resolution does not prove that the underlying problem was fixed. Human handover is independent of ticket status and available only when configured; never claim a human has joined from a ticket receipt.",
+        "actionSelectionPrompt": "Prefer read-only actions when they can answer factual questions from live systems. Do not choose mutating actions unless the request is clearly operational and the required parameters are present.\n\nPrefer direct approved knowledge retrieval for straightforward documented guidance. Use specialist assistance when distinct expertise or multiple authorized checks materially help; do not require a specialist or a private diagnostic read merely to explain documentation. If diagnostics are unavailable or not consented, continue with clearly attributed approved knowledge and disclose which live checks could not run. Do not invent required attachments or identifiers for parameterless read tools; the backend enforces their actual target and authorization contract.",
+        "clarificationPrompt": "Ask the shortest useful follow-up question when required details are missing. Do not ask for information that is already available from the request, context, or live system.\n\nDo not ask the user to name an internal knowledge domain, vector space, collection or source identifier. Resolve the subject from the request and conversation using the configured knowledge catalogue and authorized tools. Ask only for genuinely missing customer-facing details; if evidence is unavailable, state the uncertainty.",
+        "answerGenerationPrompt": "Respond with concise grounded answers. Summarize the relevant evidence first, then state the outcome clearly. If evidence is weak or missing, say so directly.\n\nResolve the current question against the supplied conversation before answering. Preserve the originating user's issue order and do not replace a referenced issue with a more prominent topic. Distinguish optional features and their conditional prerequisites from mandatory setup. Keep documented instructions, completed observations, clarification requests and proposed next steps separate. A specialist clarification is not a completed diagnosis; use approved documentation when relevant and disclose missing checks.",
+        "retrievalPrompt": "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, and policy-safe context over generic model knowledge.\n\nUse evidence for the exact subject the user means, including conversational follow-ups. Do not treat a custom-feature setup guide as a requirement for every delivery option. Compare relevant approved guides when their scope differs; do not infer a prerequisite just because the question presupposes one.",
+        "assistantUiPrompt": "Write in a clear operator-friendly style suitable for product UIs. Keep formatting compact and easy to scan.",
+        "ragMaxDocumentsUsedForContext": 8,
+        "ragMaxContextChars": 8000,
+        "aiBehaviour": {
+          "schemaVersion": "loomai-ai-behaviour-v1",
+          "revision": 1,
+          "tone": {
+            "presetId": "consultative",
+            "revision": 1,
+            "instructions": "Explain relevant trade-offs and help the user decide. Ask a useful question only when it advances their goal; do not force a question after every answer."
+          },
+          "answerBreadth": {
+            "presetId": "grounded",
+            "revision": 1,
+            "instructions": "Answer business questions from approved documents and authorized live facts. Explain supported conclusions and missing evidence. Do not introduce unsupported outside recommendations. Language and reasoning may organize the evidence without claiming new facts."
+          },
+          "answerLength": {
+            "presetId": "balanced",
+            "revision": 1,
+            "instructions": "Use a balanced answer length. Give the direct answer, useful supporting detail and relevant limitations without repeating the same facts."
+          },
+          "nextSteps": {
+            "presetId": "contextual",
+            "revision": 1,
+            "instructions": "When helpful, suggest up to two relevant next steps grounded in the current conversation and eligible capabilities. Zero suggestions is valid. Use the framework's structured next-step field when available. Never pad with generic closers, promise an unavailable capability, imply a write is confirmed, or compete with pending confirmation or human control."
+          }
+        }
+      }
+    }
+  }
+}

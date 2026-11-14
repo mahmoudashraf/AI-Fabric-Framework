@@ -1,5 +1,19 @@
 # AI Support Workspace
 
+## Current Pending Source
+
+Support TEMPLATE `1.3.0` candidates now exist for both public AI Support and the
+internal LoomAI Support family. They are built from matching **live published
+1.2.0** inventory snapshots, not from the older source manifests below. Both are
+**source-only, pending main review and publication**, not live versions or selected
+customer defaults. See [selective defaults and reproducible evidence](SELECTIVE_QUALITY_DEFAULTS.md).
+The catalogue's `currentSourceCandidate` fields identify them; historical manifest
+references and quality candidates remain intact. Existing Support prompts, domain
+configuration, plugin pins and authority are preserved.
+
+The following sections describe earlier dated baselines and qualification work;
+their historical version/release statements do not establish the current fleet.
+
 ## 010.57 Support Experience Source
 
 The source catalogue now also includes Support TEMPLATE `1.1.0`, ticket ACTION
