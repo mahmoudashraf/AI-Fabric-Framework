@@ -2,7 +2,7 @@ import type { AssistantEditorContext, AssistantScope, AssistantSection, Assistan
 
 type Page = { title: string; command: string; welcome: string }
 export const assistantPages: Record<AssistantSection, Page> = {
-  ACTIONS: { title: 'Actions', command: 'Prepare actions', welcome: 'Share API documentation to prepare actions, parameters and endpoint routing. Add a hint to focus on part of the API.' },
+  ACTIONS: { title: 'AI capabilities', command: 'Prepare capabilities', welcome: 'Share API documentation. I can prepare customer capabilities, their inputs and connection settings.' },
   CONNECTIONS: { title: 'Connections', command: 'Prepare connections', welcome: 'Share connection documentation to prepare endpoints and existing secure binding references. Keep credentials in the secure connection form.' },
   KNOWLEDGE: { title: 'Knowledge', command: 'Prepare knowledge', welcome: 'Share source documentation to prepare this Brain\'s knowledge settings. Discovery, indexing and approval stay separate.' },
   DOCUMENTS: { title: 'Documents', command: 'Prepare document sources', welcome: 'Share document-source requirements to prepare source settings. Imported references do not become indexed knowledge.' },

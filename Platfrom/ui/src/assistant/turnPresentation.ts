@@ -1,5 +1,13 @@
 import { isExactNumber, stringifyExactJson } from '../lib/losslessJson'
 
+const turnLabels: Record<string, string> = {
+  SAVED: 'Saved to draft', PREVIEW: 'Preview', NEEDS_INPUT: 'Needs your input',
+  EXPLAIN: 'Guidance', UNSUPPORTED: 'Not supported', INVALID: 'Needs correction',
+  FAILED: 'Could not finish', CANCELLED: 'Cancelled', RUNNING: 'Preparing',
+  UNDONE: 'Change undone', READY: 'Ready for review',
+}
+export function turnStatusLabel(status: string): string { return turnLabels[status] ?? status }
+
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && !isExactNumber(value)
 }

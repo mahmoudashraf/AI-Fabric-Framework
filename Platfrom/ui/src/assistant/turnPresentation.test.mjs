@@ -13,8 +13,16 @@ async function load(path, dependencies = {}) {
   return exports
 }
 const exact = await load('../lib/losslessJson.ts')
-const { changedFields, validationSummary } = await load('./turnPresentation.ts', { '../lib/losslessJson': exact })
+const { changedFields, validationSummary, turnStatusLabel } = await load('./turnPresentation.ts', { '../lib/losslessJson': exact })
 const diff = (before, after, rest = {}) => [{ path: '/configuration', before, after, ...rest }]
+
+test('human status labels use exact protocol states, never the model message', () => {
+  assert.equal(turnStatusLabel('SAVED'), 'Saved to draft')
+  assert.equal(turnStatusLabel('INVALID'), 'Needs correction')
+  assert.equal(turnStatusLabel('EXPLAIN'), 'Guidance')
+  assert.equal(turnStatusLabel('UNDONE'), 'Change undone')
+  assert.equal(turnStatusLabel('SAVED but not really'), 'SAVED but not really')
+})
 
 test('invalid saved result is attention regardless of successful message or status', () => {
   const result = validationSummary({ status: 'SAVED', message: 'All valid and connected', findings: { valid: false, connectionTested: false, issues: [{ path: '/manifest', code: 'INVALID', message: 'Missing source mapping' }] } })

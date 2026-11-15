@@ -23,6 +23,9 @@ export function AssistantSources({ controller: c, scope, sourceIds, setSourceIds
   const [reusable, setReusable] = useState<ReusableSource[]>([]), [reuseIndex, setReuseIndex] = useState(''), [reuseLoading, setReuseLoading] = useState(false)
   const [removing, setRemoving] = useState<{ id: string; title: string } | null>(null)
   const [review, setReview] = useState<{ id: string; title: string } | null>(null), [reviewContent, setReviewContent] = useState(''), [reviewError, setReviewError] = useState(''), [reviewLoading, setReviewLoading] = useState(false)
+  const selectedSources = c.session?.sources.filter(source => sourceIds.includes(source.id)) ?? []
+  const availableOperations = new Set(selectedSources.flatMap(source => source.operations.map(operation).filter(Boolean).map(item => item!.id)))
+  const selectedOperations = operationIds.filter(id => availableOperations.has(id))
   useEffect(() => {
     if (!review || !c.session) return
     let current = true
@@ -62,16 +65,17 @@ export function AssistantSources({ controller: c, scope, sourceIds, setSourceIds
     finally { setLoading(false) }
   }
   return <>
-    <Stack direction="row" gap={1} flexWrap="wrap" sx={{ flexShrink: 0 }}>
+    <Stack direction="row" gap={1} flexWrap="wrap" sx={{ flexShrink: 0, pt: .5, borderTop: 1, borderColor: 'divider' }}>
       <Button size="small" startIcon={<AttachFileOutlined />} onClick={() => { setMode('file'); setOpen(true) }} disabled={!c.session || c.busy}>Add source</Button>
       <Button size="small" startIcon={<LibraryBooksOutlined />} onClick={() => { setMode('reuse'); setOpen(true) }} disabled={!c.session || c.busy}>{scope.resourceKind === 'DEPLOYMENT_DRAFT' ? 'Brain documents' : 'Resource documents'}</Button>
     </Stack>
     <Box component="section" aria-label="Selected documents" sx={{ my: .5, maxHeight: 80, overflowY: 'auto', flexShrink: 0 }}>
-      <Stack direction="row" gap={.5} flexWrap="wrap">{c.session?.sources.filter(source => sourceIds.includes(source.id)).map(source => <Chip key={source.id} size="small" variant="outlined" icon={<DescriptionOutlined />}
+      <Stack direction="row" gap={.5} flexWrap="wrap">{selectedSources.map(source => <Chip key={source.id} size="small" variant="outlined" icon={<DescriptionOutlined />}
         label={source.title} onClick={() => setReview({ id: source.id, title: source.title })} title={`Review ${source.title}`} sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', py: .25 } }} />)}
         {!sourceIds.length && <Typography variant="caption" color="text.secondary">No documents selected</Typography>}
       </Stack>
     </Box>
+    {availableOperations.size > 0 && <Typography variant="caption" color="text.secondary" sx={{ mb: .5, flexShrink: 0 }}>{operationIds.length ? `${selectedOperations.length} operations selected` : `All ${availableOperations.size} operations in selected documents`}</Typography>}
     {Boolean(c.session?.sources.length) && <Box component="details" sx={{ fontSize: 12, py: .5, borderBottom: 1, borderColor: 'divider', maxHeight: '20dvh', overflow: 'auto', flexShrink: 0 }}>
       <summary>Sources ({sourceIds.length} selected) / {operationIds.length ? `${operationIds.length} selected operations` : 'all operations in selected sources'}</summary>
       {c.session?.sources.map(source => <Box key={source.id} sx={{ py: 1 }}>

@@ -233,6 +233,12 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
           <AssistantWorkspace scope={assistantScope} initiallyOpen visibilityKey={JSON.stringify([session?.actorId, session?.customerId, brainId])}
             editorBusy={manualBusy} onBusyChange={setAssistantBusy}
             guideOnly={assistantScope?.task === 'KIT' || section === 'action-reviews'}
+            setupLinks={section === '' ? [
+              { label: 'Add your documents', href: href('knowledge/documents') },
+              { label: 'Connect your tools', href: href('capabilities') },
+              { label: 'Shape its answers', href: href('responses') },
+            ] : undefined}
+            reviewHref={href('updates')}
             readOnlyReason={workspace.workspace?.access.canEdit === false ? 'You do not have draft editing access.' : undefined}
             onSaved={async () => { await queryClient.invalidateQueries({ predicate: query => query.queryKey.includes(brainId)
               || query.queryKey[0] === 'customer-specialist-assistance' && query.queryKey[1] === JSON.stringify([session?.actorId, session?.customerId, session?.authenticationMode, brainId]) }, { throwOnError: true }) }}>

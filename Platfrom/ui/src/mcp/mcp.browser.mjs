@@ -119,7 +119,7 @@ async function run(name, work, options = {}) {
     }
     return send({ message: `Unexpected API: ${method} ${path}` }, 404)
   })
-  const goto = async (query = '?targetProfileId=stage&view=mcp') => { await page.goto(`${base}/smart-brains/brain-a/capabilities${query}`); await page.getByRole('heading', { name: /Connected tools|What your AI can do/ }).waitFor() }
+  const goto = async (query = '?targetProfileId=stage&view=mcp') => { await page.goto(`${base}/smart-brains/brain-a/capabilities${query}`); await page.getByRole('heading', { name: /Connected tools|What should your AI help customers do/ }).waitFor() }
   try {
     await work({ page, calls, state, goto })
     assert.deepEqual(errors, [], 'no browser runtime errors')

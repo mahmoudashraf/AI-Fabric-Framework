@@ -18,12 +18,13 @@ import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{bra
 import{KitAssistantGuide}from'/src/assistant/KitAssistantGuide.tsx';
 import{PluginLibraryPage}from'/src/pluginLibrary/PluginLibraryPage.tsx';
 import{SmartBrainShell}from'/src/brain/SmartBrainShell.tsx';import{BrainModelsPage}from'/src/brain/BrainSettingsPage.tsx';
+import{BrainCapabilitiesPage}from'/src/brain/BrainCapabilitiesPage.tsx';
 import{BrainHumanSupportPage}from'/src/brain/BrainExperiencePages.tsx';import{BrainActionReviewsPage}from'/src/brain/BrainActionReviewsPage.tsx';
 import{ExperienceKitOverview}from'/src/components/kits/ExperienceKitOverview.tsx';import'/src/pages/ExperienceKits.css';
 import{setPlatformAccessTokenProvider,platformRequest}from'/src/api/platformApi.ts';setPlatformAccessTokenProvider(async()=> 'assistant-fixture-token');
 function Editor(){const[value,setValue]=useState('Saved manual value');const[other,setOther]=useState('Keep this manual value');const[real]=useState(()=>new URLSearchParams(window.location.search).has('real'));
  const location=useLocation();const{brainId}=useParams();const params=new URLSearchParams(location.search);const kind=params.get('kind');
- if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:<BrainModelsPage/>}</SmartBrainShell>;
+ if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:location.pathname.includes('/capabilities')?<BrainCapabilitiesPage/>:<BrainModelsPage/>}</SmartBrainShell>;
  const defaultOpen=params.has('defaultOpen');
  const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:(defaultOpen?brainPageAssistantScope:brainAssistantScope)(location.pathname,location.search,brainId??'brain-37');
  return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} initiallyOpen={defaultOpen} visibilityKey={defaultOpen?brainId:undefined} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
@@ -87,8 +88,9 @@ async function run(name, work, options = {}) {
     if (path.endsWith('/document-storage-bindings')) return send([])
     if (path.endsWith('/target-profiles')) return send([{ id: 'target-stage', name: 'Customer staging', environmentName: 'staging', active: true }])
     if (path.endsWith('/releases') || path.endsWith('/versions')) return send([])
+    if (path === '/api/deployments/brain-37/marketplace-installs') return send([])
     if (path === '/api/deployments/brain-37/workspace') return send({ deployment: { id: 'brain-37', name: 'Customer knowledge', behaviorType: 'CONVERSATIONAL', binding: { customerId: 'customer-37' } }, access: { canEdit: true }, template: {} })
-    if (path === '/api/deployments/brain-37/draft') return send({ id: 'draft-same', deploymentId: 'brain-37', revisionNumber: 1, entityConfig: {}, providerConfig: { llmProvider: 'openai', embeddingProvider: 'openai', openaiModel: model }, behaviorConfig: { type: 'CONVERSATIONAL', executionExtensions: [], specialistAssistance: { enabled: false, areas: [], resolutions: [], limits: { maxDecisions: 4, maxWorkerInvocations: 2, maxParallelWorkers: 2, deadlineSeconds: 75 } } } })
+    if (path === '/api/deployments/brain-37/draft') return send({ id: 'draft-same', deploymentId: 'brain-37', revisionNumber: 1, entityConfig: {}, actionsConfig: options.aiWorkspace ? { actions: complete && session?.turns.at(-1)?.status === 'SAVED' ? options.aiWorkspace : [] } : undefined, providerConfig: { llmProvider: 'openai', embeddingProvider: 'openai', openaiModel: model }, behaviorConfig: { type: 'CONVERSATIONAL', executionExtensions: [], specialistAssistance: { enabled: false, areas: [], resolutions: [], limits: { maxDecisions: 4, maxWorkerInvocations: 2, maxParallelWorkers: 2, deadlineSeconds: 75 } } } })
     if (path.endsWith('/secret-usage')) return send({ secrets: [] })
     if (path.endsWith('/provider-connectivity')) return send({ managedVectorTargets: [], probes: [], effectiveSecretResolutions: [] })
     if (path === '/api/customer/plugin-library') return send({ customerId: 'customer-37', canManage: true, plugins: [currentPlugin] })
@@ -205,7 +207,7 @@ async function resizeWorkspace(page, viewport) {
 }
 async function latestSaved(page) {
   await turnOptions(page, false)
-  const status = panel(page).getByRole('article', { name: 'Assistant', exact: true }).last().getByText('SAVED', { exact: true })
+  const status = panel(page).getByRole('article', { name: 'Assistant', exact: true }).last().locator('[data-assistant-turn-status="SAVED"]')
   await status.waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await status.scrollIntoViewIfNeeded()
   assert.equal(await status.evaluate(node => {
     const rect = node.getBoundingClientRect(), log = node.closest('[role="log"]').getBoundingClientRect()
@@ -223,6 +225,38 @@ async function importDocumentation(page, mode = 'paste', title = 'API reference'
 }
 try {
   browser = await chromium.launch({ headless: true })
+  const preparedCapabilities = [
+    { name: 'read_catalogue', displayName: 'Find products', description: 'Search the catalogue.', accessMode: 'READ', anonymousAllowed: true, requiresConfirmation: false },
+    { name: 'submit_enquiry', displayName: 'Request support', description: 'Submit an authorized enquiry.', accessMode: 'WRITE_ONLY', anonymousAllowed: false, requiresConfirmation: true },
+  ]
+  await run('AI-first journey keeps task guidance, actual saved capabilities and review in one workspace', async ({ page, calls, finish }) => {
+    await open(page, false)
+    await panel(page).getByRole('navigation', { name: 'AI setup steps' }).getByRole('link', { name: 'Connect your tools', exact: true }).click()
+    await page.getByRole('heading', { name: 'What should your AI help customers do?', exact: true }).waitFor()
+    await open(page, false)
+    await importDocumentation(page, 'paste', 'Customer API.yaml')
+    const p = panel(page)
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
+    await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).click(); finish()
+    await p.locator('[data-assistant-turn-status="SAVED"]').waitFor()
+    await p.getByText('Saved to draft · Not published', { exact: true }).waitFor()
+    const table = page.getByRole('table', { name: 'Your capabilities', exact: true })
+    await table.getByRole('link', { name: 'Find products', exact: true }).waitFor()
+    await table.getByRole('link', { name: 'Request support', exact: true }).waitFor()
+    const review = p.getByRole('link', { name: 'Review draft', exact: true })
+    assert.equal(new URL(await review.getAttribute('href'), base).searchParams.get('targetProfileId'), 'target-stage')
+    const changes = p.getByRole('region', { name: 'Saved changes', exact: true })
+    assert.equal(await changes.locator('details').first().getAttribute('open'), null)
+    await changes.locator('summary').filter({ hasText: 'See what changed' }).click()
+    assert.ok(await changes.getByRole('listitem').count() > 0)
+    await changes.locator('summary').filter({ hasText: 'See what changed' }).click()
+    await page.screenshot({ path: join(evidence, 'ai-first-capabilities-workspace.png'), fullPage: true })
+    await review.click()
+    await page.waitForURL(url => url.pathname.endsWith('/updates'))
+    assert.equal(calls.filter(call => /\/publish|\/apply$/.test(call.path)).length, 0, 'Review never publishes or deploys')
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
+  }, { path: '/smart-brains/brain-37/?real&targetProfileId=target-stage', aiWorkspace: preparedCapabilities,
+    diff: [{ path: '/actionsConfig/actions', before: [], after: preparedCapabilities }], findings: { valid: true, connectionTested: false } })
   await run('Build with AI is prominent with bounded motion and a reduced-motion alternative', async ({ page, calls }) => {
     await open(page, false)
     const button = page.getByRole('button', { name: 'Build with AI', exact: true })
@@ -289,14 +323,14 @@ try {
       assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0, 'Open and import do not invoke AI')
       assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
       await page.screenshot({ path: join(evidence, `page-aware-${mode}-ready.png`) })
-      await p.getByRole('button', { name: 'Prepare actions', exact: true }).click()
-      await p.getByText('RUNNING', { exact: true }).waitFor()
+      await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).click()
+      await p.locator('[data-assistant-turn-status="RUNNING"]').waitFor()
       const input = calls.find(call => call.path.endsWith('/turns')).input
       assert.deepEqual(input, { query: '', command: 'PREPARE', editorContext: { section: 'ACTIONS' }, previewOnly: false, sourceIds: ['source-1'], operationIds: [], validationFeedback: { enabled: true, maxCorrections: 2 } })
       assert.equal((await p.innerText()).includes('Registered server intent'), false)
-      assert.equal(await p.getByRole('article', { name: 'You', exact: true }).getByText('Prepare actions', { exact: true }).count(), 1)
+      assert.equal(await p.getByRole('article', { name: 'You', exact: true }).getByText('Prepare capabilities', { exact: true }).count(), 1)
       finish(); await latestSaved(page)
-      assert.equal(await p.getByRole('button', { name: 'Prepare actions', exact: true }).count(), 0, 'Initial preparation collapses after the first turn')
+      assert.equal(await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).count(), 0, 'Initial preparation collapses after the first turn')
       assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
       assert.equal(calls.filter(call => /publish|activate|\/apply$|index/.test(call.path)).length, 0)
       await page.screenshot({ path: join(evidence, `page-aware-${mode}-saved.png`) })
@@ -307,15 +341,15 @@ try {
     const p = panel(page)
     await p.locator('summary').filter({ hasText: 'Sources (' }).click(); await p.getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).check()
     await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Catalogue reads only')
-    await p.getByRole('button', { name: 'Prepare actions', exact: true }).click(); finish()
-    await p.getByText('NEEDS INPUT', { exact: true }).waitFor()
+    await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).click(); finish()
+    await p.locator('[data-assistant-turn-status="NEEDS_INPUT"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
-    assert.equal(await p.getByRole('button', { name: 'Prepare actions', exact: true }).count(), 0)
+    assert.equal(await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).count(), 0)
     await p.getByText('Answer the question, then Send.', { exact: true }).waitFor()
     assert.equal(await p.getByRole('region', { name: 'Page guidance', exact: true }).getByText('Share API documentation', { exact: false }).count(), 0)
     const first = calls.find(call => call.path.endsWith('/turns')).input
     assert.equal(first.query, 'Catalogue reads only'); assert.deepEqual(first.operationIds, ['catalogue'])
-    assert.ok((await p.getByRole('article', { name: 'You', exact: true }).innerText()).includes('Prepare actions\nCatalogue reads only'))
+    assert.ok((await p.getByRole('article', { name: 'You', exact: true }).innerText()).includes('Prepare capabilities\nCatalogue reads only'))
     await send(page, 'Use the accountId field'); await latestSaved(page)
     const second = calls.filter(call => call.path.endsWith('/turns'))[1].input
     assert.equal(second.query, 'Use the accountId field'); assert.equal(second.command, undefined)
@@ -343,15 +377,17 @@ try {
   await run('page aware registered subpages show refreshed guidance and exact definition hints', async ({ page, calls, finish }) => {
     await open(page, false); const p = panel(page)
     let task = 'BEHAVIOUR'
-    for (const [link, command, nextTask] of [['Instructions context', 'Prepare instructions', 'BEHAVIOUR'], ['Documents context', 'Prepare document sources', 'KNOWLEDGE'], ['Live data context', 'Prepare live data', 'KNOWLEDGE'], ['Storage context', 'Prepare storage', 'KNOWLEDGE'], ['Selected action context', 'Prepare actions', 'ACTIONS']]) {
+    for (const [link, command, nextTask] of [['Instructions context', 'Prepare instructions', 'BEHAVIOUR'], ['Documents context', 'Prepare document sources', 'KNOWLEDGE'], ['Live data context', 'Prepare live data', 'KNOWLEDGE'], ['Storage context', 'Prepare storage', 'KNOWLEDGE'], ['Selected action context', 'Prepare capabilities', 'ACTIONS']]) {
       await page.getByRole('link', { name: link, exact: true }).click()
       if (task !== nextTask) { await page.waitForFunction(() => document.querySelector('[data-assistant-workspace]')?.getAttribute('data-assistant-open') === 'false'); await open(page, false) }
       task = nextTask
       await p.getByRole('button', { name: command, exact: true }).waitFor()
       assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
     }
+    await p.getByRole('button', { name: 'Assistant session options' }).click()
     await p.getByText('Selected: read', { exact: true }).waitFor()
-    await p.getByRole('button', { name: 'Prepare actions', exact: true }).click(); finish(); await latestSaved(page)
+    await p.getByRole('button', { name: 'Assistant session options' }).click()
+    await p.getByRole('button', { name: 'Prepare capabilities', exact: true }).click(); finish(); await latestSaved(page)
     assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.editorContext, { section: 'ACTIONS', selectedDefinitionIds: ['read'] })
     assert.ok(calls.some(call => call.path.endsWith('/sessions') && call.input?.task === 'KNOWLEDGE'))
   }, { path: '/smart-brains/brain-37/responses?contextTest' })
@@ -377,7 +413,7 @@ try {
     await run(`page aware ${section} command is guidance only without a hint`, async ({ page, calls, finish }) => {
       await open(page, false); const p = panel(page)
       await p.getByText('Guidance only. No draft changes.', { exact: true }).waitFor()
-      await p.getByRole('button', { name: command, exact: true }).click(); finish(); await p.getByText('EXPLAIN', { exact: true }).waitFor()
+      await p.getByRole('button', { name: command, exact: true }).click(); finish(); await p.locator('[data-assistant-turn-status="EXPLAIN"]').waitFor()
       const input = calls.find(call => call.path.endsWith('/turns')).input
       assert.equal(input.query, ''); assert.equal(input.previewOnly, true)
       assert.deepEqual(input.editorContext, { section }); assert.deepEqual(input.validationFeedback, { enabled: false, maxCorrections: 0 })
@@ -386,7 +422,7 @@ try {
   }
   await run('page aware active Engage prepares preview only with no draft save', async ({ page, calls, finish }) => {
     await open(page, false); const p = panel(page)
-    await p.getByRole('button', { name: 'Prepare appearance (preview)', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    await p.getByRole('button', { name: 'Prepare appearance (preview)', exact: true }).click(); finish(); await p.locator('[data-assistant-turn-status="PREVIEW"]').waitFor()
     const input = calls.find(call => call.path.endsWith('/turns')).input
     assert.equal(input.command, 'PREPARE'); assert.equal(input.previewOnly, true); assert.deepEqual(input.editorContext, { section: 'ENGAGE' })
     assert.equal(await p.getByRole('button', { name: 'Save preview to draft' }).isDisabled(), true)
@@ -395,23 +431,23 @@ try {
   }, { path: '/smart-brains/brain-37/channels?kind=ENGAGE_APP&active', active: true, viewport: { width: 390, height: 844 } })
   await run('page aware preview and Explain only retain their existing nonmutating contracts', async ({ page, calls, finish }) => {
     await open(page); const p = panel(page)
-    await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('button', { name: 'Prepare actions (preview)', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('button', { name: 'Prepare capabilities (preview)', exact: true }).click(); finish(); await p.locator('[data-assistant-turn-status="PREVIEW"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
     await p.getByRole('checkbox', { name: 'Explain only' }).check(); await p.getByRole('button', { name: 'New preparation', exact: true }).click()
-    assert.equal(await p.getByRole('button', { name: 'Prepare actions (preview)', exact: true }).isDisabled(), true)
+    assert.equal(await p.getByRole('button', { name: 'Prepare capabilities (preview)', exact: true }).isDisabled(), true)
     await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Explain the current source mapping'); await p.getByRole('button', { name: 'Explain', exact: true }).click()
-    await p.getByRole('article', { name: 'Assistant', exact: true }).nth(1).getByText('PREVIEW', { exact: true }).waitFor()
+    await p.getByRole('article', { name: 'Assistant', exact: true }).nth(1).locator('[data-assistant-turn-status="PREVIEW"]').waitFor()
     const second = calls.filter(call => call.path.endsWith('/turns'))[1].input
     assert.equal(second.command, undefined); assert.equal(second.previewOnly, true); assert.ok(second.query.startsWith('Explain only;'))
     assert.deepEqual(second.validationFeedback, { enabled: false, maxCorrections: 0 })
     assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
   }, { path: '/smart-brains/brain-37/capabilities/actions' })
   await run('page aware preparation hint bound does not reduce normal typed request capacity', async ({ page, calls }) => {
-    await open(page, false); const p = panel(page), message = p.getByRole('textbox', { name: 'Message', exact: true }), prepare = p.getByRole('button', { name: 'Prepare actions', exact: true })
+    await open(page, false); const p = panel(page), message = p.getByRole('textbox', { name: 'Message', exact: true }), prepare = p.getByRole('button', { name: 'Prepare capabilities', exact: true })
     await message.fill('x'.repeat(6000)); assert.equal(await prepare.isEnabled(), true)
     await message.fill('x'.repeat(6001)); assert.equal(await prepare.isDisabled(), true)
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
-    await message.fill('x'.repeat(7000)); await p.getByRole('button', { name: 'Send', exact: true }).click(); await p.getByText('RUNNING', { exact: true }).waitFor()
+    await message.fill('x'.repeat(7000)); await p.getByRole('button', { name: 'Send', exact: true }).click(); await p.locator('[data-assistant-turn-status="RUNNING"]').waitFor()
     const input = calls.find(call => call.path.endsWith('/turns')).input
     assert.equal(input.query.length, 7000); assert.equal(input.command, undefined)
   }, { path: '/smart-brains/brain-37/capabilities/actions' })
@@ -425,7 +461,7 @@ try {
     await p.getByText('Attempt 1 of 2', { exact: true }).waitFor()
     assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.validationFeedback, { enabled: true, maxCorrections: 1 })
     assert.equal(await toggle.isDisabled(), true); assert.equal(await limit.isDisabled(), true)
-    await p.getByRole('button', { name: 'Cancel', exact: true }).click(); await p.getByText('CANCELLED', { exact: true }).waitFor()
+    await p.getByRole('button', { name: 'Cancel', exact: true }).click(); await p.locator('[data-assistant-turn-status="CANCELLED"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     await toggle.uncheck(); assert.equal(await limit.isDisabled(), true)
     await send(page, 'Make this change without corrections')
@@ -444,7 +480,7 @@ try {
   await run('validation feedback absent capability disables correction and sends zero', async ({ page, calls }) => {
     await open(page); const p = panel(page), toggle = p.getByRole('checkbox', { name: 'Let AI fix validation errors' })
     assert.equal(await toggle.isChecked(), false); assert.equal(await toggle.isDisabled(), true)
-    await send(page); await p.getByText('RUNNING', { exact: true }).waitFor()
+    await send(page); await p.locator('[data-assistant-turn-status="RUNNING"]').waitFor()
     assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.validationFeedback, { enabled: false, maxCorrections: 0 })
   }, { validationFeedback: null })
   await run('validation feedback shows running correction history without saving intermediates', async ({ page, calls, finish }) => {
@@ -456,7 +492,7 @@ try {
     await article.getByText('AI is correcting the reported validation errors.', { exact: true }).waitFor()
     await page.screenshot({ path: join(evidence, 'validation-feedback-running-desktop.png') })
     assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
-    assert.equal(await article.getByText('SAVED', { exact: true }).count(), 0)
+    assert.equal(await article.locator('[data-assistant-turn-status="SAVED"]').count(), 0)
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'Unsaved manual buffer')
     await article.getByText('Validation feedback (2 attempts)', { exact: true }).click()
     await article.getByText('Attempt 1 / VALIDATION_ERRORS', { exact: true }).waitFor()
@@ -481,13 +517,13 @@ try {
       await page.getByLabel('Manual value', { exact: true }).fill('Manual buffer survives failure')
       await open(page); await send(page); const p = panel(page), article = p.getByRole('article', { name: 'Assistant', exact: true })
       await article.getByText('Attempt 2 of 3', { exact: true }).waitFor(); finish()
-      await article.getByText(result, { exact: true }).waitFor()
+      await article.locator('[data-assistant-turn-status="' + result + '"]').waitFor()
       await article.getByText(result === 'INVALID' ? 'Correction limit reached. Review the remaining findings or continue manually.' : 'Correction stopped. Review the failure and retained attempt history.', { exact: true }).waitFor()
       await article.getByText('Validation feedback (2 attempts)', { exact: true }).click()
       await article.getByText('Attempt 1 / VALIDATION_ERRORS', { exact: true }).waitFor(); await article.getByText('Attempt 2 / RUNNING', { exact: true }).waitFor(); await article.getByText('Not completed', { exact: true }).waitFor()
       await article.getByText('Attempt findings', { exact: true }).click(); await article.getByText('Missing source mapping.', { exact: false }).waitFor()
       assert.equal(await article.getByText('Attempt 2 of 3', { exact: true }).count(), 0, 'Terminal turns do not show stale active progress')
-      assert.equal(await article.getByText('SAVED', { exact: true }).count(), 0)
+      assert.equal(await article.locator('[data-assistant-turn-status="SAVED"]').count(), 0)
       assert.equal(await article.getByRole('region', { name: 'Saved changes', exact: true }).count(), 0)
       assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
       assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
@@ -502,12 +538,12 @@ try {
   }
   await run('validation feedback exhausted invalid attempts stay unsaved and inspectable', async ({ page, calls, finish }) => {
     await open(page); await send(page); finish(); const p = panel(page), article = p.getByRole('article', { name: 'Assistant', exact: true })
-    await article.getByText('INVALID', { exact: true }).waitFor()
+    await article.locator('[data-assistant-turn-status="INVALID"]').waitFor()
     await article.getByText('Correction limit reached. Review the remaining findings or continue manually.', { exact: true }).waitFor()
     await article.getByText('Validation feedback (3 attempts)', { exact: true }).click()
     for (const number of [1, 2, 3]) await article.getByText(`Attempt ${number} / VALIDATION_ERRORS`, { exact: true }).waitFor()
     assert.equal(await article.getByText('Not completed', { exact: true }).count(), 0)
-    assert.equal(await article.getByText('SAVED', { exact: true }).count(), 0)
+    assert.equal(await article.locator('[data-assistant-turn-status="SAVED"]').count(), 0)
     assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
   }, { result: 'INVALID', finalAttempts: [1, 2, 3].map(number => ({ ...invalidAttempt, number })), feedbackStopReason: 'CORRECTION_LIMIT_REACHED', findings: { valid: false } })
@@ -516,7 +552,7 @@ try {
     await article.getByText('Draft saved. Needs attention.', { exact: true }).waitFor()
     await article.getByText('Correction limit reached. Review the remaining findings or continue manually.', { exact: true }).waitFor()
     assert.equal(await article.getByText('Draft saved. Configuration validation passed.', { exact: true }).count(), 0)
-    assert.equal(await article.getByText('SAVED', { exact: true }).evaluate(node => node.closest('.MuiChip-root').classList.contains('MuiChip-colorSuccess')), false)
+    assert.equal(await article.locator('[data-assistant-turn-status="SAVED"]').evaluate(node => node.closest('.MuiChip-root').classList.contains('MuiChip-colorSuccess')), false)
     await article.getByText('Validation feedback (2 attempts)', { exact: true }).click()
     await article.getByText('Attempt 1 / INVALID_OUTPUT', { exact: true }).waitFor()
     await article.getByText('Structured output rejected.', { exact: true }).waitFor()
@@ -532,7 +568,7 @@ try {
     await first.getByText('Draft saved. Needs attention.', { exact: true }).waitFor()
     await first.getByText('The saved manifest requires a source mapping.', { exact: true }).waitFor()
     await first.getByText('Connection not tested.', { exact: true }).waitFor()
-    assert.equal(await first.getByText('SAVED', { exact: true }).evaluate(node => node.closest('.MuiChip-root').classList.contains('MuiChip-colorSuccess')), false)
+    assert.equal(await first.locator('[data-assistant-turn-status="SAVED"]').evaluate(node => node.closest('.MuiChip-root').classList.contains('MuiChip-colorSuccess')), false)
     assert.equal(await first.locator('details[open]').count(), 0, 'Validation is visible without expanding raw JSON')
     await page.screenshot({ path: join(evidence, 'saved-invalid-validation-desktop.png') })
     dataValidation.valid = true; dataValidation.revision = 3; dataValidation.issues = []
@@ -552,6 +588,7 @@ try {
     await article.getByText('Draft saved. Configuration validation passed.', { exact: true }).waitFor()
     await article.getByText('0 validation errors; 4 warnings', { exact: true }).waitFor()
     const summary = article.getByRole('region', { name: 'Saved changes', exact: true })
+    await summary.locator('summary').filter({ hasText: 'See what changed' }).click()
     await summary.getByText(longPath, { exact: true }).waitFor()
     assert.equal(await summary.getByRole('listitem').count(), 1)
     assert.equal((await summary.innerText()).includes('unchanged-description'), false)
@@ -581,7 +618,7 @@ try {
     assert.deepEqual(creation.input, { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'BEHAVIOUR' })
     assert.ok(calls.find(call => call.path.endsWith('/turns')).key)
     assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.sourceIds, [], 'No implicit source sharing')
-    finish(); await panel(page).getByText('SAVED', { exact: true }).waitFor()
+    finish(); await panel(page).locator('[data-assistant-turn-status="SAVED"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'AI saved value')
     assert.equal(await page.getByLabel('Unrelated value', { exact: true }).inputValue(), 'Unrelated unsaved value')
@@ -593,7 +630,7 @@ try {
     assert.equal(calls.filter(call => /publish|activate|disable|index/.test(call.path)).length, 0)
     await latestSaved(page)
     await page.screenshot({ path: join(evidence, 'saved-dark-desktop.png') })
-    await panel(page).getByRole('button', { name: 'Undo saved change' }).click(); await panel(page).getByText('UNDONE', { exact: true }).waitFor()
+    await panel(page).getByRole('button', { name: 'Undo saved change' }).click(); await panel(page).locator('[data-assistant-turn-status="UNDONE"]').waitFor()
     await page.waitForFunction(() => document.querySelector('input[aria-label]')?.value !== 'AI saved value')
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'Restored manual value')
     await panel(page).getByText('Undo receipt', { exact: true }).click()
@@ -612,7 +649,7 @@ try {
     await review(page); assert.equal(calls.find(call => call.path.endsWith('/sources')).input.mediaType, 'application/yaml')
     await panel(page).locator('summary').filter({ hasText: 'Sources (' }).click()
     await panel(page).getByRole('checkbox', { name: 'API guide', exact: true }).check(); await panel(page).getByRole('checkbox', { name: 'GET /catalogue List catalogue' }).check()
-    await send(page); finish(); await panel(page).getByText('SAVED', { exact: true }).waitFor()
+    await send(page); finish(); await panel(page).locator('[data-assistant-turn-status="SAVED"]').waitFor()
     const turn = calls.find(call => call.path.endsWith('/turns'))
     assert.deepEqual(turn.input.sourceIds, ['source-1']); assert.deepEqual(turn.input.operationIds, ['catalogue'])
     assert.deepEqual(turn.input.validationFeedback, { enabled: true, maxCorrections: 2 }, 'Feedback preserves explicit source and operation choices')
@@ -648,7 +685,7 @@ try {
   await run('active Engage has preview authority only, with check but no apply or lifecycle calls', async ({ page, calls, finish }) => {
     await open(page); const p = panel(page)
     assert.equal(await p.getByRole('checkbox', { name: 'Preview only' }).isChecked(), true)
-    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Change the workspace title'); await p.getByRole('button', { name: 'Preview', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Change the workspace title'); await p.getByRole('button', { name: 'Preview', exact: true }).click(); finish(); await p.locator('[data-assistant-turn-status="PREVIEW"]').waitFor()
     await p.getByRole('button', { name: 'Check preview' }).click()
     assert.equal(await p.getByRole('button', { name: 'Save preview to draft' }).isDisabled(), true)
     assert.equal(calls.find(call => call.path.endsWith('/turns')).input.previewOnly, true)
@@ -660,9 +697,9 @@ try {
   }, { active: true, path: '/smart-brains/brain-37/channels?kind=ENGAGE_APP&active', dark: false, viewport: { width: 390, height: 844 } })
   await run('preview remains unsaved until an explicit apply, and explain always sends previewOnly', async ({ page, calls, finish }) => {
     await open(page); const p = panel(page)
-    await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Suggest a model'); await p.getByRole('button', { name: 'Preview', exact: true }).click(); finish(); await p.getByText('PREVIEW', { exact: true }).waitFor()
+    await p.getByRole('checkbox', { name: 'Preview only' }).check(); await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Suggest a model'); await p.getByRole('button', { name: 'Preview', exact: true }).click(); finish(); await p.locator('[data-assistant-turn-status="PREVIEW"]').waitFor()
     assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
-    await p.getByRole('button', { name: 'Save preview to draft' }).click(); await p.getByText('SAVED', { exact: true }).waitFor()
+    await p.getByRole('button', { name: 'Save preview to draft' }).click(); await p.locator('[data-assistant-turn-status="SAVED"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     await p.getByRole('checkbox', { name: 'Explain only' }).check()
     assert.equal(await p.getByRole('checkbox', { name: 'Let AI fix validation errors' }).isDisabled(), true)
@@ -680,7 +717,7 @@ try {
     await page.waitForFunction(() => document.querySelector('textarea[aria-label="Message"]').disabled)
     const attempts = calls.filter(call => call.path.endsWith('/turns')); assert.equal(attempts.length, 2); assert.equal(attempts[0].key, attempts[1].key)
     assert.deepEqual(attempts[0].input.validationFeedback, attempts[1].input.validationFeedback, 'Explicit transport retry retains the original turn policy')
-    await panel(page).getByRole('button', { name: 'Cancel', exact: true }).click(); await panel(page).getByText('CANCELLED', { exact: true }).waitFor()
+    await panel(page).getByRole('button', { name: 'Cancel', exact: true }).click(); await panel(page).locator('[data-assistant-turn-status="CANCELLED"]').waitFor()
     assert.equal(cancelled(), true); assert.equal(calls.filter(call => call.path === '/api/editor').length, 0)
   }, { loseResponse: true })
   await run('unavailable and rejected turns show actual errors without fabricated replies', async ({ page, calls }) => {
@@ -697,12 +734,12 @@ try {
     await open(page); await send(page); finish()
     await panel(page).getByRole('alert').filter({ hasText: 'Draft changes were saved, but the editor could not be reloaded.' }).waitFor()
     assert.equal(await page.getByLabel('Manual value', { exact: true }).isDisabled(), true)
-    allowReload(); await panel(page).getByRole('button', { name: 'Refresh assistant session' }).click()
+    allowReload(); await panel(page).getByRole('button', { name: 'Assistant session options' }).click(); await panel(page).getByRole('button', { name: 'Refresh assistant session' }).click()
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'AI saved value')
   }, { reloadError: true })
   await run('saved private plugin reloads its real editor without publishing a version', async ({ page, calls, finish }) => {
-    await page.getByLabel('Display name', { exact: true }).fill('Manual plugin value'); await open(page); await send(page, 'Name this private source'); finish(); await panel(page).getByText('SAVED', { exact: true }).waitFor()
+    await page.getByLabel('Display name', { exact: true }).fill('Manual plugin value'); await open(page); await send(page, 'Name this private source'); finish(); await panel(page).locator('[data-assistant-turn-status="SAVED"]').waitFor()
     await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset').disabled)
     assert.equal(await page.getByLabel('Display name', { exact: true }).inputValue(), 'AI private source')
     assert.deepEqual(calls.find(call => call.path.endsWith('/sessions')).input, { resourceKind: 'PRIVATE_DATA_PLUGIN', resourceId: 'plugin-37', task: 'DATA_PLUGIN' })
@@ -779,7 +816,7 @@ try {
     const before = await p.boundingBox(); await page.getByRole('separator', { name: 'Resize assistant' }).focus(); await page.keyboard.press('ArrowLeft'); const after = await p.boundingBox(); assert.ok(after.width > before.width)
     await p.getByRole('button', { name: 'Close assistant' }).click(); await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained question')
     await p.getByRole('textbox', { name: 'Message', exact: true }).press('Shift+Enter'); assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained question\n')
-    await p.getByRole('textbox', { name: 'Message', exact: true }).press('Enter'); finish(); await p.getByText('SAVED', { exact: true }).waitFor()
+    await p.getByRole('textbox', { name: 'Message', exact: true }).press('Enter'); finish(); await p.locator('[data-assistant-turn-status="SAVED"]').waitFor()
     await resizeWorkspace(page, { width: 320, height: 740 }); assert.ok((await p.boundingBox()).width <= 320)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     await latestSaved(page)
@@ -795,7 +832,7 @@ try {
     assert.equal(await blocked.getByRole('button', { name: 'Discard & leave' }).count(), 0)
     await blocked.getByRole('button', { name: 'Keep editing' }).click()
     assert.equal(calls.filter(call => /publish|\/apply$/.test(call.path)).length, 0)
-    finish(); await panel(page).getByText('SAVED', { exact: true }).waitFor()
+    finish(); await panel(page).locator('[data-assistant-turn-status="SAVED"]').waitFor()
     await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'ai-model'))
     assert.equal(await field.inputValue(), 'ai-model'); assert.equal(await page.getByRole('dialog').count(), 0, 'No conflict approval')
     assert.ok(calls.filter(call => call.path === '/api/deployments/brain-37/draft').length >= 2)

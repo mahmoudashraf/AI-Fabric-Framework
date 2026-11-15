@@ -1,6 +1,7 @@
 import { deploymentTerm } from '../../deploymentTerminology'
 import { useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Divider, Drawer, IconButton, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import DnsOutlined from '@mui/icons-material/DnsOutlined'
 import WidgetsOutlined from '@mui/icons-material/WidgetsOutlined'
@@ -11,8 +12,8 @@ import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
 import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
 import LinkRounded from '@mui/icons-material/LinkRounded'
-import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
-import { appResource, deploymentResource, releaseEnvironment, releaseIssues, resourceReleaseSelection, safeCustomerAppUrl, type CustomerResource } from './customerResourceModels'
+import { fetchDeploymentReleases, fetchDeploymentTargetOptions, type AIWorkspaceInstallationSummary, type CustomerDeploymentSummary, type CustomerOfferSummary, type DeploymentReleaseSummary } from '../../api/platformApi'
+import { appResource, brainLibraryEnvironment, brainLibraryQueryEvidence, brainLibraryState, deploymentResource, releaseEnvironment, releaseIssues, resourceReleaseSelection, safeCustomerAppUrl, type BrainLibraryFilter, type BrainReleaseEvidence, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
 import { CustomerProductHome } from './CustomerProductHome'
@@ -24,6 +25,8 @@ import { CustomerDeskLink } from './CustomerDeskLink'
 import { CustomerEnvironmentQuota } from './CustomerEnvironmentQuota'
 import { brainPath } from '../../brain/brainNavigation'
 import { BuildWithAIButton } from '../../assistant/BuildWithAIButton'
+import { BrainLibrary } from './BrainLibrary'
+import { BrainLibraryInspector } from './BrainLibraryInspector'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -49,6 +52,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const navigate = useNavigate()
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
   const [search, setSearch] = useState('')
+  const [brainFilter, setBrainFilter] = useState<BrainLibraryFilter>('all')
+  const brainLibrary = props.mode === 'deployments'
   const params = new URLSearchParams(location.search)
   const id = params.get('resourceId')
   const kind = params.get('resourceKind')
@@ -65,6 +70,29 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     ? props.releases.find(item => item.id === assignedApp?.releaseId) : selectedRelease
   const releaseSelection = resourceReleaseSelection(selected, props.releases, props.apps, selectedReleaseId)
   const visibleReleases = releaseSelection.visible
+  const releaseEvidence: BrainReleaseEvidence = props.releaseLoading ? 'loading' : props.releaseError ? 'error' : 'ready'
+  const libraryReleaseReads = useQueries({ queries: brainLibrary ? props.deployments.map(deployment => ({
+    queryKey: ['deployment-releases', deployment.deploymentId], queryFn: () => fetchDeploymentReleases(deployment.deploymentId),
+    enabled: !props.loading && brainFilter === 'live' && selected?.deploymentId !== deployment.deploymentId,
+    staleTime: 60_000, retry: false, refetchOnWindowFocus: false,
+  })) : [] })
+  const libraryProfileReads = useQueries({ queries: brainLibrary ? props.deployments.map(deployment => ({
+    queryKey: ['brain-target-options', deployment.deploymentId, 'CUSTOMER_ADMIN'], queryFn: () => fetchDeploymentTargetOptions(deployment.deploymentId),
+    enabled: !props.loading && (brainFilter === 'live' || selected?.deploymentId === deployment.deploymentId),
+    staleTime: 60_000, retry: false, refetchOnWindowFocus: false,
+  })) : [] })
+  const selectedProfileRead = libraryProfileReads[props.deployments.findIndex(deployment => deployment.deploymentId === selected?.deploymentId)]
+  const selectedProfiles = selectedProfileRead?.data ?? []
+  const profileEvidence = brainLibraryQueryEvidence(selectedProfileRead)
+  const brainRows = props.deployments.map((deployment, index) => ({ resource: deploymentCards[index], state: brainLibraryState(
+    deployment, props.apps, selected?.deploymentId === deployment.deploymentId ? props.releases : libraryReleaseReads[index]?.data ?? [],
+    libraryProfileReads[index]?.data,
+    selected?.deploymentId === deployment.deploymentId ? releaseEvidence : brainLibraryQueryEvidence(libraryReleaseReads[index]),
+    !props.loading && !props.errors.length, brainLibraryQueryEvidence(libraryProfileReads[index]),
+  ) }))
+  const selectedBrainState = brainRows.find(row => row.resource.id === selected?.id)?.state
+  const resourceEnvironment = (release: DeploymentReleaseSummary) => brainLibrary && selected?.kind === 'deployment'
+    ? brainLibraryEnvironment(release, selectedProfiles) : releaseEnvironment(release, offer)
   const open = (resource: CustomerResource) => {
     const next = new URLSearchParams(location.search)
     next.set('resourceKind', resource.kind); next.set('resourceId', resource.id); next.delete('releaseId')
@@ -95,23 +123,15 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const cards = props.mode === 'home' ? allResources : props.mode === 'apps' ? appCards : deploymentCards
   const filtered = cards.filter(item => item.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
   const setupPath = props.mode === 'apps' ? '/ai-workspaces?view=manage' : '/deployments?view=setup&step=template'
-  const resourceNotices = selected ? <Stack spacing={1}>
+  const resourceNotices = selected ? <Stack spacing={1} sx={brainLibrary ? { '&:empty': { display: 'none' } } : undefined}>
     {selected.issues.map(issue => <Alert key={issue.code} severity={issue.severity}>{issue.message}</Alert>)}
     {props.releaseError ? <Alert severity="error">Release details could not be loaded: {props.releaseError}</Alert> : null}
     {!props.releaseLoading && !props.releaseError && releaseSelection.missingAssignmentIds.length ? <Alert severity="warning">An app's assigned release details are unavailable. No different release was substituted.</Alert> : null}
-    {visibleReleases.flatMap(release => releaseIssues(release).map(issue => <Alert key={`${release.id}:${issue.code}`} severity={issue.severity}>{releaseEnvironment(release, offer)}: {issue.message}</Alert>))}
+    {visibleReleases.flatMap(release => releaseIssues(release).map(issue => <Alert key={`${release.id}:${issue.code}`} severity={issue.severity}>{resourceEnvironment(release)}: {issue.message}</Alert>))}
     {selectedReleaseId && !props.releaseLoading && !props.releaseError && !selectedRelease ? <Alert severity="error">The requested release is not available for this resource. No alternative release was selected.</Alert> : null}
   </Stack> : null
-  const inspector = selected ? <Box component="aside" aria-label={`${selected.name} details`} sx={{ width: compact ? '100%' : 425, minWidth: 0, bgcolor: 'background.paper', height: '100%', overflowY: 'auto' }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, pt: 2, pb: 1 }}>
-      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>
-      <Tooltip title="Close details"><IconButton aria-label="Close resource details" onClick={close}><CloseRounded fontSize="small" /></IconButton></Tooltip>
-    </Stack>
-    <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
-      <Box><Typography variant="h5" sx={{ overflowWrap: 'anywhere' }}>{selected.name}</Typography><Stack direction="row" gap={1} alignItems="center" sx={{ mt: 1 }}><Chip size="small" color={selected.severity} label={selected.status || 'Unknown'} /><Typography color="text.secondary" variant="caption" sx={{ overflowWrap: 'anywhere' }}>{selected.subtitle}</Typography></Stack></Box>
-      {resourceNotices}
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        {selected.kind === 'deployment' ? <BuildWithAIButton fullWidth onClick={() => openConfiguration()} />
+  const resourceActions = selected ? <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        {selected.kind === 'deployment' ? !brainLibrary ? <BuildWithAIButton fullWidth onClick={() => openConfiguration()} /> : null
           : <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>}
         <Button component={RouterLink} startIcon={<LinkRounded />} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage',
           ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
@@ -130,43 +150,57 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         </Button> : null}
         {selected.deploymentId && deskRelease?.targetProfileId ? <CustomerDeskLink target={{ deploymentId: selected.deploymentId,
           targetProfileId: deskRelease.targetProfileId, releaseId: deskRelease.id }} /> : null}
-      </Stack>
-      <CustomerDetailSections key={`${selected.kind}:${selected.id}`} preferenceKey={selected.kind}
-        overview={<Stack spacing={2.5}>
+      </Stack> : null
+  const overview = selected ? <Stack spacing={2.5}>
       <ResourceFacts facts={selected.facts} />
       {selected.kind === 'deployment' && offer && !props.releaseLoading && !props.releaseError ? <CustomerProductTasks
         deploymentId={selected.id} offer={offer} releases={props.releases} selectedReleaseId={selectedReleaseId}
         onSelectRelease={releaseId => { const next = new URLSearchParams(location.search); if (releaseId) next.set('releaseId', releaseId); else next.delete('releaseId'); navigate({ pathname: location.pathname, search: next.toString() }) }} /> : null}
       <Box><Typography fontWeight={600} sx={{ mb: 1.5 }}>{selectedReleaseId ? 'Selected release' : releaseSelection.assigned ? 'App-assigned releases' : 'Target releases'}</Typography>
         {props.releaseLoading ? <CircularProgress size={20} aria-label="Loading target releases" /> : visibleReleases.length ? <Stack spacing={1.5}>{visibleReleases.map(release => <Box key={release.id} sx={{ borderLeft: 2, borderColor: 'divider', pl: 1.5 }}>
-          <Typography variant="body2" fontWeight={600}>{releaseEnvironment(release, offer)}</Typography><Typography variant="caption" color="text.secondary">{release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
+          <Typography variant="body2" fontWeight={600}>{resourceEnvironment(release)}</Typography><Typography variant="caption" color="text.secondary">{release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
           <Typography variant="caption" display="block" color="text.secondary">{release.updatedAt ? new Date(release.updatedAt).toLocaleString() : 'No observation time'}</Typography>
-        </Box>)}</Stack> : !props.releaseError ? <Typography variant="body2" color="text.secondary">No target release is recorded.</Typography> : null}
+        </Box>)}</Stack> : !props.releaseError ? <Typography variant="body2" color="text.secondary">{brainLibrary && (releaseSelection.missingAssignmentIds.length || selectedReleaseId) ? 'Release details unavailable.' : 'No target release is recorded.'}</Typography> : null}
       </Box>
       {selected.kind === 'deployment' ? <Box><Typography fontWeight={600} sx={{ mb: 1.5 }}>Connected Engage apps</Typography><Stack spacing={1}>{appCards.filter(app => app.deploymentId === selected.id).map(app => <Button key={app.id} variant="outlined" onClick={() => open(app)} endIcon={<ArrowForwardRounded />}>{app.name}</Button>)}</Stack></Box> : null}
-        </Stack>}
-        configuration={<Stack spacing={2.5}><ResourceFacts facts={selected.configurationFacts} /><Button variant="outlined" onClick={() => openConfiguration()}>Edit configuration</Button></Stack>}
-        advanced={<Stack spacing={2.5}><ResourceFacts facts={selected.advancedFacts} />
+        </Stack> : null
+  const configurationDetails = selected ? <Stack spacing={2.5}><ResourceFacts facts={selected.configurationFacts} /><Button variant="outlined" onClick={() => openConfiguration()}>Edit configuration</Button></Stack> : null
+  const advancedDetails = selected ? <Stack spacing={2.5}><ResourceFacts facts={selected.advancedFacts} />
           {selected.kind === 'deployment' ? <CustomerDeploymentAdvancedLinks deploymentId={selected.id} targetProfileId={selectedRelease?.targetProfileId} /> : null}
-          <Box><Typography fontWeight={600}>Release references</Typography>{visibleReleases.map(release => <Typography key={release.id} variant="caption" color="text.secondary" display="block" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{releaseEnvironment(release, offer)} / {release.id}</Typography>)}</Box>
+          <Box><Typography fontWeight={600}>Release references</Typography>{visibleReleases.map(release => <Typography key={release.id} variant="caption" color="text.secondary" display="block" sx={{ mt: 1, overflowWrap: 'anywhere' }}>{resourceEnvironment(release)} / {release.id}</Typography>)}</Box>
           {releaseSelection.history.length ? <Box component="details"><Typography component="summary" fontWeight={600} sx={{ cursor: 'pointer' }}>Other release history ({releaseSelection.history.length})</Typography>
             <Stack spacing={1.5} sx={{ mt: 1.5 }}>{releaseSelection.history.map(release => <Box key={release.id}>
-              <Typography variant="body2">{releaseEnvironment(release, offer)}: {release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
+              <Typography variant="body2">{resourceEnvironment(release)}: {release.status} / {release.verificationStatus || 'Unknown verification'}</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{release.id}</Typography>
               {releaseIssues(release).map(issue => <Alert key={issue.code} severity={issue.severity} sx={{ mt: 1 }}>{issue.message}</Alert>)}
             </Box>)}</Stack>
           </Box> : null}
           <Button variant="outlined" onClick={() => openConfiguration('advanced')}>Open advanced settings</Button>
-        </Stack>} />
+        </Stack> : null
+  const inspector = selected ? brainLibrary && selected.kind === 'deployment' && selectedBrainState
+    ? <BrainLibraryInspector key={selected.id} resource={selected} state={selectedBrainState} targetProfileId={selectedRelease?.targetProfileId}
+      apps={props.apps} releases={props.releases} profiles={selectedProfiles} evidence={releaseEvidence} profileEvidence={profileEvidence} resourcesAvailable={!props.loading && !props.errors.length}
+      selectedReleaseId={selectedReleaseId} notices={resourceNotices} onBuild={() => openConfiguration()} onClose={close}
+      onInspectApp={appId => { const app = appCards.find(item => item.id === appId); if (app) open(app) }}
+      technicalDetails={<>{resourceActions}{overview}{configurationDetails}{advancedDetails}</>} />
+    : <Box component="aside" aria-label={`${selected.name} details`} sx={{ width: compact ? '100%' : 425, minWidth: 0, bgcolor: 'background.paper', height: '100%', overflowY: 'auto' }}>
+    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, pt: 2, pb: 1 }}>
+      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>
+      <Tooltip title="Close details"><IconButton aria-label="Close resource details" onClick={close}><CloseRounded fontSize="small" /></IconButton></Tooltip>
+    </Stack>
+    <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
+      <Box><Typography variant="h5" sx={{ overflowWrap: 'anywhere' }}>{selected.name}</Typography><Stack direction="row" gap={1} alignItems="center" sx={{ mt: 1 }}><Chip size="small" color={selected.severity} label={selected.status || 'Unknown'} /><Typography color="text.secondary" variant="caption" sx={{ overflowWrap: 'anywhere' }}>{selected.subtitle}</Typography></Stack></Box>
+      {resourceNotices}{resourceActions}
+      <CustomerDetailSections key={`${selected.kind}:${selected.id}`} preferenceKey={selected.kind} overview={overview} configuration={configurationDetails} advanced={advancedDetails} />
     </Stack>
   </Box> : null
   return <Box sx={{ display: 'flex', m: { xs: -2, md: -3.5 }, minHeight: 'calc(100vh - 62px)' }}>
     <Box sx={{ p: { xs: 2, md: 3.5 }, flex: 1, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box><Typography variant="h4">{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : `Your ${deploymentTerm.lowercase} configurations and verified target releases.`}</Typography></Box>
+        <Box><Typography variant="h4" sx={brainLibrary ? { fontSize: 32, fontWeight: 700 } : undefined}>{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Build AI that knows your business and helps your customers.'}</Typography></Box>
         {props.mode !== 'home' ? <Button component={RouterLink} to={developer && props.mode === 'deployments' ? '/kits' : setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : `Create ${deploymentTerm.lowercase}`}</Button> : null}
       </Stack>
-      {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota /></Box> : null}
+      {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota compact={brainLibrary} /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
       {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
@@ -175,7 +209,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
           {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
         </>}
-      </Box> : <>
+      </Box> : brainLibrary ? <BrainLibrary rows={brainRows} search={search} onSearch={setSearch} filter={brainFilter} onFilter={setBrainFilter}
+        selectedId={selected?.kind === 'deployment' ? selected.id : undefined} onInspect={open} /> : <>
         <TextField size="small" placeholder="Find a resource..." inputProps={{ 'aria-label': 'Find a customer resource' }} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 2.5, maxWidth: 300 }} />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selected ? '1fr' : 'repeat(2,minmax(0,1fr))' }, gap: 2 }}>
           {filtered.map(resource => <Card key={`${resource.kind}:${resource.id}`} sx={{ borderColor: selected?.id === resource.id ? 'primary.main' : 'divider' }}><CardActionArea onClick={() => open(resource)}>
@@ -190,7 +225,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       </>}
       {props.dataObservedAt ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>Resource data loaded {new Date(props.dataObservedAt).toLocaleTimeString()}. This is not a runtime health probe.</Typography> : null}
     </Box>
-    {compact ? <Drawer anchor="right" open={Boolean(selected)} onClose={close} PaperProps={{ sx: { width: '100%' } }}>{inspector}</Drawer> : selected ? <Box sx={{ width: 425, borderLeft: 1, borderColor: 'divider', flexShrink: 0, position: 'sticky', top: 62, height: 'calc(100vh - 62px)' }}>{inspector}</Box> : null}
+    {compact ? <Drawer anchor="right" open={Boolean(selected)} onClose={close} PaperProps={{ sx: { width: '100%' } }}>{inspector}</Drawer> : selected ? <Box sx={{ width: brainLibrary && selected.kind === 'deployment' ? { md: 425, xl: 495 } : 425, borderLeft: 1, borderColor: 'divider', flexShrink: 0, position: 'sticky', top: 62, height: 'calc(100vh - 62px)' }}>{inspector}</Box> : null}
     <CustomerConfigurationPanel open={Boolean(selected && props.configuration && params.get('editor') === 'configuration')} scopeKey={selected ? `${selected.kind}:${selected.id}` : ''} title={selected ? `${selected.name} / Configuration` : 'Configuration'} initialSection={params.get('editorSection') === 'advanced' ? 'advanced' : 'configuration'} notices={resourceNotices ? <Box sx={{ mb: 2 }}>{resourceNotices}</Box> : null} onClose={closeConfiguration}
       deploymentId={selected?.kind === 'deployment' ? selected.id : undefined}>{props.configuration}</CustomerConfigurationPanel>
   </Box>

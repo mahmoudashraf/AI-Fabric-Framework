@@ -40,8 +40,41 @@ The shared Build with AI entry is a prominent contained button in the Brain
 workspace and selected-Brain resource inspector. Its short entry animation stops
 after three cycles and respects reduced-motion preferences. The inspector entry
 opens the existing Brain workspace/assistant; it does not create a second
-assistant or submit an AI request. Broader AI-first resource-list and right-panel
-mockups remain proposals until explicitly approved.
+assistant or submit an AI request.
+
+## AI-First Brain Workspace - Owner Approval, 15 November 2026
+
+The owner approved the two AI-first mockups for the Brain library, its guided
+inspector, and the contextual configuration assistant/capability workspace.
+This is scoped approval, not restoration of the rejected 010.65 global redesign.
+Home, Kits, Engage configuration, account pages and the global customer shell
+keep their existing layouts and all existing routes/permissions.
+
+Brain library rows are compact, with plain-language saved/live state, separate
+Engage connection information, search and All/Drafts/Live filtering. Missing or
+failed release/profile reads are unknown, not zero or a verified live state.
+Publication alone is never deployment verification; old passing release history
+must not conceal a newer failed target. An app's exact assigned release remains
+its authority. Original template/offer targets are bootstrap defaults, not limits
+on identifying later production upgrades. Keep the environment allowance compact
+here while preserving its full explanation and infrastructure list on expansion.
+
+The selected-Brain inspector starts with Build with AI and clear setup choices:
+documents, tools and answers, then testing, Engage and publishing. Existing
+configuration facts, release history, notices and operational actions stay in
+Technical details. Setup links reuse canonical Brain pages; they do not create
+another configuration layer. Do not claim a live Brain lacks knowledge when its
+source configuration has not been read.
+
+The assistant is page-aware and shows selected reference documents, real draft
+save results and inspectable diffs. Review draft opens the existing Updates
+workflow with the selected target preserved; it never publishes or applies.
+Source import alone does not invoke AI or index customer knowledge. Actual
+validation warnings/failures remain visible even if a candidate was saved.
+Keep model text intact; human status labels use exact protocol states only.
+Session management and raw references belong under session options/Advanced.
+Manual action/plugin editors remain the single editable implementation, opened
+explicitly from the outcome table rather than automatically mounting on entry.
 
 Connection testing has one aggregate entry at Smart Brain -> Updates -> Check
 setup, combining existing draft validation with safe service checks. Saving a

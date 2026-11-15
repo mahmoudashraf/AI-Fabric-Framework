@@ -44,6 +44,14 @@ broaden authority or copy conversations between tasks. Other resource editors
 retain their existing opening behavior. On narrower screens it uses the same
 closable drawer, not a second mobile implementation.
 
+The Brain library uses a compact list and guided inspector; technical facts and
+existing manual links remain under Technical details. The root Brain assistant
+links to the existing documents, capabilities and response editors. On the
+capabilities page, the outcome table refreshes from the saved draft. Access and
+confirmation labels come from declared policy fields; missing optional fields
+are not a new execution gate. Opening the list does not mount a dirty action
+editor or select a capability automatically.
+
 Turns save editable drafts without per-turn approval. The selected editor and
 footer are disabled/inert while a request runs; modal command buttons also use
 the busy state. Successful SAVED receipts invalidate resource queries and reload
@@ -77,6 +85,14 @@ answers use the ordinary message composer. Preview, guide-only, bounded feedback
 save and undo still use the same controller. Turn options disclose correction,
 preview and explanation settings without crowding the default composer.
 
+Task guidance collapses after the first turn. Session controls and raw resource
+identifiers are under Session options. Human-readable status labels use exact
+server statuses, never model prose. A SAVED receipt exposes Not published and
+an expandable structured diff, plus a Review draft link to the existing Updates
+page. Errors, validation findings and the original model message remain visible.
+The shared controlled conversation's optional submitContent and placeholder
+props change presentation only; other consumers retain their existing defaults.
+
 ## Verification
 
 From `Platfrom/ui`:
@@ -95,3 +111,15 @@ locking, plugin immutability, and actual Specialist/Kit route entry points.
 Screenshot paths are printed by the suite; ASSISTANT_EVIDENCE_DIR can set their
 destination. No hosted rollout, real-provider quality or cross-tenant backend
 qualification is implied by these local UI tests.
+
+`hosted.journey.browser.mjs` is a separately opted-in real-provider UI proof. It
+requires a fresh, owned, configuration-only Brain and a public GET-only OpenAPI
+fixture. It signs in normally, imports the reference without inference, starts
+an explicit preparation turn, checks the real draft receipt and outcome table,
+inspects the diff and navigates to review without publishing or provisioning.
+It also checks the narrow-screen assistant and close/reopen behavior. Set
+`ALLOW_ASSISTANT_DRAFT_WRITE=1` and the documented environment names at the top
+of that runner only for a disposable authorized fixture. Credentials, sources,
+session IDs and evidence are kept outside the repository. Clean up that exact
+fixture and its sessions afterward; this test is not an infrastructure or
+runtime-chat qualification.

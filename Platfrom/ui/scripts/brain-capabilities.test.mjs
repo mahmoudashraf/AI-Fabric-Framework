@@ -18,6 +18,7 @@ async function load(path, extra = '') {
   return exports
 }
 const page = await load('../src/brain/BrainCapabilitiesPage.tsx')
+const presentation = await load('../src/brain/capabilityPresentation.ts')
 const marketplace = await load('../src/pages/MarketplacePage.tsx', 'exports.updateField = updateInstallFieldValue; exports.readField = readInstallFieldValue;')
 const actions = await load('../src/pages/ActionsPage.tsx', 'exports.toggleAnonymous = updateActionAnonymousAllowed; exports.routes = resolvedRouteRecordForAction;')
 const install = (overrides = {}) => ({ id: 'install/one', pluginId: 'support', pluginDisplayName: 'Service desk', pluginType: 'ACTION', contributions: { actionIds: ['open_ticket', 'read_ticket'] }, ...overrides })
@@ -72,6 +73,49 @@ test('customer input projection retains declared types and requiredness without 
     { name: 'accountId', type: '', description: '', required: true },
   ])
   assert.deepEqual(action, before)
+})
+
+test('access labels use only explicit boolean policies, never names, descriptions, HTTP methods or tool hints', () => {
+  const unconfigured = { name: 'public_read_only', description: 'Public read-only action with confirmation',
+    method: 'GET', annotations: { readOnlyHint: true }, accessMode: 'public' }
+  assert.deepEqual(presentation.capabilityAccess(unconfigured), { signIn: 'Not declared', confirmation: 'Confirmation not declared' })
+  assert.equal(presentation.capabilityMode(unconfigured), 'Access mode not declared')
+  for (const value of [undefined, null, 'true', 'false', 0, 1]) {
+    assert.equal(presentation.capabilityAccess({ anonymousAllowed: value }).signIn, 'Not declared')
+    assert.equal(presentation.capabilityAccess({ requiresConfirmation: value }).confirmation, 'Confirmation not declared')
+  }
+  assert.deepEqual(presentation.capabilityAccess({ anonymousAllowed: true, requiresConfirmation: true }), {
+    signIn: 'Anonymous allowed', confirmation: 'Confirmation required',
+  })
+  assert.deepEqual(presentation.capabilityAccess({ anonymousAllowed: false, requiresConfirmation: false }), {
+    signIn: 'Sign-in required', confirmation: 'Confirmation not required',
+  })
+  assert.equal(presentation.capabilityAccess(null).signIn, 'Not declared')
+  assert.equal(presentation.capabilityMode({ accessMode: 'READ' }), 'Read-only')
+  assert.equal(presentation.capabilityMode({ accessMode: 'READ_WRITE' }), 'Read and write')
+  assert.equal(presentation.capabilityMode({ accessMode: 'WRITE_ONLY' }), 'Write')
+})
+
+test('draft labels report saved definitions and actual install state, not new additions or AI authorship', () => {
+  const action = { name: 'lookup', accessMode: 'READ', anonymousAllowed: false, requiresConfirmation: true, futurePolicy: { retain: true } }
+  const before = structuredClone(action)
+  const row = page.capabilityRows([], { actions: [action] })[0]
+  assert.deepEqual(presentation.capabilityDraftStatus(row), { label: 'Saved', attention: false })
+  for (const missing of ['accessMode', 'anonymousAllowed', 'requiresConfirmation']) {
+    const incomplete = { ...action }; delete incomplete[missing]
+    assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: incomplete }), { label: 'Saved', attention: false })
+  }
+  const undeclared = { name: 'lookup' }
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: undeclared }), { label: 'Saved', attention: false })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: undeclared, install: { status: 'ENABLED', readinessStatus: 'READY' } }), { label: 'Saved', attention: false })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: undeclared, install: { status: 'ENABLED', readinessStatus: 'MISSING_CONFIG' } }), { label: 'MISSING CONFIG', attention: true })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: { name: 'lookup', accessMode: 'UNRECOGNIZED' } }), { label: 'Saved', attention: false })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: null }), { label: 'Definition unavailable', attention: true })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, action: { ...action, enabled: false } }), { label: 'Disabled', attention: true })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, install: { status: 'DISABLED', readinessStatus: 'READY' } }), { label: 'DISABLED', attention: true })
+  assert.deepEqual(presentation.capabilityDraftStatus({ ...row, install: { status: 'ENABLED', readinessStatus: 'MISSING_CONFIG' } }), { label: 'MISSING CONFIG', attention: true })
+  presentation.capabilityAccess(action); presentation.capabilityMode(action)
+  assert.deepEqual(action, before, 'presentation preserves selected policies and unknown fields')
 })
 
 test('typed install field changes preserve unknown configuration and reference fields', () => {

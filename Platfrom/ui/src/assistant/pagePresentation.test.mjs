@@ -27,9 +27,9 @@ test('same task can present response models and embedding/search without mutatin
 })
 test('PREPARE transcript shows registered command plus redacted hint, not server intent', () => {
   const turn = { command: 'PREPARE', query: 'Server-owned long instructions must not appear', hint: 'Only catalogue reads', editorContext: { section: 'ACTIONS' } }
-  assert.equal(userTurnText(turn, scope), 'Prepare actions\nOnly catalogue reads')
-  assert.equal(userTurnText({ ...turn, hint: '' }, scope), 'Prepare actions')
-  assert.equal(userTurnText({ ...turn, hint: undefined }, scope), 'Prepare actions')
+  assert.equal(userTurnText(turn, scope), 'Prepare capabilities\nOnly catalogue reads')
+  assert.equal(userTurnText({ ...turn, hint: '' }, scope), 'Prepare capabilities')
+  assert.equal(userTurnText({ ...turn, hint: undefined }, scope), 'Prepare capabilities')
 })
 test('ordinary user text is never interpreted or rewritten for display', () => {
   const query = '  PREPARE actions?\nKeep all punctuation.  '

@@ -28,6 +28,7 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
         import { BrainWorkspaceContext, BrainEditorContext } from '/src/brain/BrainWorkspaceContext.tsx';
         import { BrainCapabilitiesPage } from '/src/brain/BrainCapabilitiesPage.tsx';
         setPlatformAccessTokenProvider(async () => 'local-fixture');
+        const constrained = new URLSearchParams(window.location.search).has('fixtureAside');
         const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } }); window.__client = client;
         function App() {
           const [editor, setEditor] = useState(null); const register = useCallback(value => setEditor(value), []);
@@ -36,12 +37,19 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
           const href = section => '/smart-brains/' + brainId + (section ? '/' + section : '') + '?targetProfileId=' + encodeURIComponent(targetProfileId);
           return <BrainWorkspaceContext.Provider value={{ brainId, targetProfileId, href, target: null, release: null, targetProfile: null }}><BrainEditorContext.Provider value={register}>
             <Box sx={{ height: { lg: '100dvh' }, minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+              {constrained && <Box component='nav' aria-label='Workspace navigation fixture' sx={{ width: 210, flexShrink: 0, borderRight: 1, borderColor: 'divider', display: { xs: 'none', lg: 'block' }, p: 2 }}>AI capabilities</Box>}
+              <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
+              {constrained && <Box sx={{ minHeight: 64, borderBottom: 1, borderColor: 'divider', p: 2 }}>Staging / Shared Brain draft</Box>}
               <Box component='main' sx={{ flex: 1, minHeight: 0, p: 3, overflow: { lg: 'hidden' } }}><BrainCapabilitiesPage /></Box>
               <Box component='footer' sx={{ minHeight: 64, borderTop: 1, borderColor: 'divider', p: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span data-testid='editor-state'>{editor?.dirty ? 'Unsaved changes' : editor?.message ?? 'Shared draft'}</span>
                 {editor?.error && <span role='alert'>{editor.error}</span>}
                 {editor?.discard && <Button onClick={editor.discard}>Discard</Button>}
                 {editor?.save && <Button variant='contained' disabled={editor.busy || editor.canSave === false} onClick={() => void editor.save()}>{editor.primaryLabel ?? 'Save draft'}</Button>}
+              </Box>
+              </Box>
+              {constrained && <Box component='aside' aria-label='420px assistant fixture' sx={{ width: 420, flexShrink: 0, borderLeft: 1, borderColor: 'divider', display: { xs: 'none', lg: 'block' }, p: 3 }}>Build with AI</Box>}
               </Box>
             </Box>
           </BrainEditorContext.Provider></BrainWorkspaceContext.Provider>;
@@ -77,6 +85,11 @@ async function run(name, callback, options = {}) {
   page.setDefaultTimeout(15000)
   const requests = [], errors = [], unexpected = []
   let state = draft(), installs = options.empty ? [] : [installed()], failSave = false
+  const failRead = options.failRead
+  let readsRemaining = options.failRead ? 1 : 0
+  if (options.empty) state.actionsConfig.actions = []
+  if (options.missingDefinition) state.actionsConfig.actions.shift()
+  if (options.many) state.actionsConfig.actions.push(...Array.from({ length: 10 }, (_, i) => ({ name: `extra_${i}`, displayName: `Extra outcome ${i}`, accessMode: 'READ', anonymousAllowed: false, requiresConfirmation: false })))
   if (options.longLabels) state.actionsConfig.actions[0].displayName = 'AnExtremelyLongCapabilityNameWithoutSpacesThatMustRemainReadable'
   page.on('pageerror', error => errors.push(error.message))
   await page.route('**/*', route => new URL(route.request().url()).origin === baseUrl ? route.continue() : (unexpected.push(route.request().url()), route.abort()))
@@ -85,6 +98,8 @@ async function run(name, callback, options = {}) {
     const body = request.postDataJSON()
     requests.push({ path, method, body })
     const send = (value, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
+    if (path.endsWith('/' + failRead) && readsRemaining-- > 0) return send({ message: 'Capability data unavailable.' }, 503)
+    if (options.delay && path.endsWith('/draft')) await new Promise(resolve => setTimeout(resolve, options.delay))
     if (path === '/api/marketplace/plugins') return send([plugin(), plugin('shipping'), { ...plugin('model'), pluginType: 'INFERENCE_PROFILE', displayName: 'Model profile' }, ...(options.catalogue ? [
       { ...plugin('documents'), pluginType: 'DATA', displayName: 'Approved documents', catalogueFamily: 'DOCUMENT_STORAGE', catalogueAudience: 'CUSTOMER' },
       { ...plugin('docs-specialized'), pluginType: 'DATA', displayName: 'Operations documents', catalogueFamily: 'DOCUMENT_STORAGE', catalogueAudience: 'CUSTOMER' },
@@ -97,7 +112,7 @@ async function run(name, callback, options = {}) {
         manifest: options.manifest ?? {},
         installForm: options.installFields ?? [{ id: 'endpoint', label: 'Service endpoint', type: 'url', required: true, description: 'Base address from your API provider, without the record route.' }, { id: 'token', label: 'API key reference', type: 'secretRef', required: false }, ...(options.guidance ? [{ id: 'includeArchived', label: 'Include archived records', type: 'boolean', required: false, description: 'Read archived records only when the source allows it.' }] : [])], contributions }] })
     }
-    if (path === '/api/deployments/brain-a/workspace') return send({ deployment: { name: 'Service AI', runtimeBaseUrl: options.runtime ? 'https://runtime.example.test' : null }, access: { canEdit: !options.readonly, canOperate: !options.readonly }, template: { name: 'Support' } })
+    if (path === '/api/deployments/brain-a/workspace') return send({ deployment: { name: 'Service AI', runtimeBaseUrl: options.runtime ? 'https://runtime.example.test' : null }, access: { canEdit: !options.readonly, canAdmin: !options.readonly, canOperate: !options.readonly }, template: { name: 'Support' } })
     if (path === '/api/deployments/brain-a/document-storage-bindings') return send(options.storageBindings ?? [])
     if (path === '/api/deployments/brain-a/draft') return send(state)
     if (path === '/api/deployments/brain-a/setup-checks') return send({ deploymentId: 'brain-a', draftId: state.id,
@@ -124,7 +139,7 @@ async function run(name, callback, options = {}) {
   })
   const path = options.path ?? 'capabilities'
   try {
-    await page.goto(`${baseUrl}/smart-brains/brain-a/${path}${path.includes('?') ? '&' : '?'}targetProfileId=target-exact${options.dark ? '&theme=dark' : ''}`)
+    await page.goto(`${baseUrl}/smart-brains/brain-a/${path}${path.includes('?') ? '&' : '?'}targetProfileId=target-exact${options.dark ? '&theme=dark' : ''}${options.aside ? '&fixtureAside=true' : ''}`)
     await callback({ page, requests, failNextSave: () => { failSave = true }, conflict: () => { state.revisionNumber += 1 },
       connectionConflict: () => { installs[0] = { ...installs[0], config: { ...installs[0].config, endpoint: 'https://current.example.test' }, updatedAt: '2026-11-07T02:00:00Z' } }, state: () => state })
     assert.deepEqual(errors, [], 'No browser errors')
@@ -149,6 +164,11 @@ const actionJson = async page => {
   return editor
 }
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+const connectionEditor = async page => {
+  await page.getByRole('table', { name: 'Your capabilities' }).waitFor()
+  await page.getByRole('link', { name: 'Open a support request', exact: true }).click()
+  await page.getByRole('link', { name: 'View connection', exact: true }).click()
+}
 const reviewConnection = async page => page.getByRole('navigation', { name: 'Connection setup steps' }).getByRole('button', { name: '3 Review' }).click()
 const setupPath = 'capabilities/add?pluginId=shipping&view=setup'
 const choose = async (page, name, value) => {
@@ -327,11 +347,18 @@ try {
     assert.match(new URL(creator, baseUrl).searchParams.get('returnTo'), /targetProfileId=target-exact/)
     assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
   }, { catalogue: true, path: 'capabilities/add?type=DATA' })
-  await run('generic master/detail, stable deep links, search and close', async ({ page, requests }) => {
+  await run('outcome table defaults to no selection, opens explicit details and preserves deep links and search', async ({ page, requests }) => {
+    await page.getByRole('table', { name: 'Your capabilities' }).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)
+    assert.equal(await page.getByRole('textbox', { name: 'Actions JSON configuration', includeHidden: true }).count(), 0)
+    assert.equal(await page.getByTestId('editor-state').textContent(), 'Shared draft')
+    assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).count(), 0)
+    await page.getByRole('link', { name: 'Open a support request', exact: true }).click()
     await page.getByRole('heading', { name: 'Open a support request' }).waitFor()
     await page.getByText('Required before execution.', { exact: true }).waitFor()
     await page.getByText('email (required)', { exact: true }).waitFor()
-    await page.getByRole('link', { name: /Track a request Read/ }).click()
+    await page.getByRole('link', { name: 'Close details' }).click()
+    await page.getByRole('link', { name: 'Track a request', exact: true }).click()
     assert.match(page.url(), /install%3Ainstall-a%3Aaction%3Aread_ticket/)
     assert.match(page.url(), /targetProfileId=target-exact/)
     await page.reload(); await page.getByRole('heading', { name: 'Track a request' }).waitFor()
@@ -339,7 +366,8 @@ try {
     await page.getByRole('region', { name: 'Capability details' }).waitFor({ state: 'hidden' })
     assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)
     await page.getByRole('textbox', { name: 'Find a capability' }).fill('lookup')
-    assert.equal(await page.getByRole('list', { name: 'Connected capabilities' }).getByRole('link').count(), 1)
+    assert.equal(await page.getByRole('table', { name: 'Your capabilities' }).getByRole('link').count(), 1)
+    assert.equal(await page.getByTestId('editor-state').textContent(), 'Shared draft')
     assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
   })
   await run('new install saves once through existing server command, not a fake second draft save', async ({ page, requests }) => {
@@ -359,7 +387,7 @@ try {
     assert.equal(await page.getByText('Model profile', { exact: true }).count(), 0)
   })
   await run('connection update failure retains inputs, retry round-trips unknown fields and refs', async ({ page, requests, failNextSave }) => {
-    await page.getByRole('link', { name: 'View connection' }).click()
+    await connectionEditor(page)
     await page.getByRole('textbox', { name: 'Service endpoint' }).fill('https://new.example.test')
     await reviewConnection(page)
     failNextSave(); await page.getByRole('button', { name: 'Save connection' }).click()
@@ -409,7 +437,7 @@ try {
     assert.equal(JSON.parse(await editor.inputValue()).custom, undefined)
   }, { path: 'capabilities/actions' })
   await run('read-only connection has disabled inputs and no save command', async ({ page, requests }) => {
-    await page.getByRole('link', { name: 'View connection' }).click()
+    await connectionEditor(page)
     await page.getByRole('textbox', { name: 'Service endpoint' }).waitFor()
     assert.equal(await page.getByRole('textbox', { name: 'Service endpoint' }).isDisabled(), true)
     assert.equal(await page.getByRole('button', { name: 'Save connection' }).count(), 0)
@@ -438,7 +466,7 @@ try {
     assert.equal(requests.filter(item => item.method === 'PUT').length, 0)
   }, { path: 'capabilities/actions' })
   await run('connection conflict retains edits and discard loads the current server version', async ({ page, requests, connectionConflict }) => {
-    await page.getByRole('link', { name: 'View connection' }).click()
+    await connectionEditor(page)
     const input = page.getByRole('textbox', { name: 'Service endpoint' }); await input.fill('https://local.example.test')
     connectionConflict()
     await reviewConnection(page)
@@ -451,7 +479,7 @@ try {
     assert.equal(await input.inputValue(), 'https://current.example.test')
   })
   await run('connection lifecycle retains existing enable, recompile and confirmed removal commands', async ({ page, requests }) => {
-    await page.getByRole('link', { name: 'View connection' }).click()
+    await connectionEditor(page)
     await page.getByRole('button', { name: 'Technical connection settings' }).click()
     await page.getByRole('button', { name: 'Disable', exact: true }).click()
     await page.getByRole('button', { name: 'Enable', exact: true }).waitFor()
@@ -478,19 +506,89 @@ try {
     await page.getByText(/This capability is not available in this Brain/).waitFor()
     assert.equal(await page.getByRole('heading', { name: 'Open a support request' }).count(), 0)
   }, { path: 'capabilities/unknown-id' })
+  await run('saved policy and shared draft scope stay factual with canonical review and definition links', async ({ page, requests }) => {
+    const table = page.getByRole('table', { name: 'Your capabilities' })
+    await table.waitFor()
+    assert.deepEqual(await table.getByRole('columnheader').allTextContents(), ['Customer outcome', 'Access', 'Draft status'])
+    const support = table.getByRole('row').filter({ hasText: 'Open a support request' })
+    await support.getByText('Sign-in required', { exact: true }).waitFor()
+    await support.getByText('Confirmation required', { exact: true }).waitFor()
+    await support.getByText('Saved', { exact: true }).waitFor()
+    const lookup = table.getByRole('row').filter({ hasText: 'lookup order' })
+    await lookup.getByText('Not declared', { exact: true }).waitFor()
+    await lookup.getByText('Saved', { exact: true }).waitFor()
+    await page.getByText('Shared Brain draft r3', { exact: true }).waitFor()
+    for (const [name, destination] of [['Review draft', 'updates'], ['View definitions', 'capabilities/actions']]) {
+      assert.equal(await page.getByRole('link', { name, exact: true }).getAttribute('href'), `/smart-brains/brain-a/${destination}?targetProfileId=target-exact`)
+    }
+    assert.doesNotMatch(await page.getByRole('main').innerText(), /added.*to.*draft|authored by AI|not published|live.*unchanged/i)
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  })
+  await run('pagination and search operate on saved outcomes without losing the selected target', async ({ page, requests }) => {
+    const table = page.getByRole('table', { name: 'Your capabilities' })
+    await table.waitFor()
+    assert.equal(await table.getByRole('link').count(), 8)
+    await page.getByRole('button', { name: 'Go to page 2', exact: true }).click()
+    assert.equal(await table.getByRole('link').count(), 5)
+    await page.getByRole('textbox', { name: 'Find a capability' }).fill('Extra outcome 9')
+    assert.equal(await table.getByRole('link').count(), 1)
+    await table.getByRole('link', { name: 'Extra outcome 9', exact: true }).click()
+    await page.getByRole('heading', { name: 'Extra outcome 9', exact: true }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('targetProfileId'), 'target-exact')
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  }, { many: true })
+  await run('missing definition cannot mount an unrelated action editor', async ({ page, requests }) => {
+    await page.getByRole('tab', { name: 'Technical', exact: true }).click()
+    await page.getByText('This action definition is unavailable in the saved draft.', { exact: false }).waitFor()
+    assert.equal(await page.getByRole('textbox', { name: 'Actions JSON configuration', includeHidden: true }).count(), 0)
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  }, { missingDefinition: true, path: 'capabilities/install%3Ainstall-a%3Aaction%3Aopen_ticket' })
+  for (const failRead of ['workspace', 'draft', 'marketplace-installs']) await run(`failed ${failRead} read is visible and retry recovers without writes`, async ({ page, requests }) => {
+    await page.getByRole('alert').filter({ hasText: 'Capability data unavailable.' }).waitFor()
+    assert.equal(await page.getByRole('table', { name: 'Your capabilities' }).count(), 0)
+    await page.getByRole('button', { name: 'Retry', exact: true }).click()
+    await page.getByRole('table', { name: 'Your capabilities' }).waitFor()
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  }, { failRead })
+  await run('empty saved draft and loading state remain distinct', async ({ page, requests }) => {
+    await page.getByText('Loading capabilities...', { exact: true }).waitFor()
+    assert.equal(await page.getByText('No capabilities have been configured.', { exact: true }).count(), 0)
+    await page.getByText('No capabilities have been configured.', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)
+    assert.equal(requests.filter(item => item.method !== 'GET').length, 0)
+  }, { empty: true, delay: 1000 })
   await run('mobile detail deep link uses a full-width task and contains long metadata labels', async ({ page }) => {
     await page.getByRole('heading', { name: /AnExtremelyLongCapabilityName/ }).waitFor()
     assert.equal(await noOverflow(page), true)
-    assert.equal(await page.getByRole('list', { name: 'Connected capabilities' }).isVisible(), false)
+    assert.equal(await page.getByRole('table', { name: 'Your capabilities' }).isVisible(), false)
     await page.screenshot({ path: join(screenshots, '320-detail.png'), fullPage: true })
   }, { viewport: { width: 320, height: 844 }, path: 'capabilities/install%3Ainstall-a%3Aaction%3Aopen_ticket', longLabels: true })
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 844 }]) {
     for (const dark of [false, true]) await run(`layout ${viewport.width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
-      await page.getByRole('heading', { name: 'Open a support request' }).waitFor()
+      await page.getByRole('table', { name: 'Your capabilities' }).waitFor()
+      assert.equal(await page.getByRole('region', { name: 'Capability details' }).count(), 0)
       assert.equal(await noOverflow(page), true)
+      assert.deepEqual(await page.getByRole('table', { name: 'Your capabilities' }).locator('.MuiChip-label').evaluateAll(labels => labels.filter(label => label.scrollWidth > label.clientWidth + 1).map(label => label.textContent)), [], 'status labels are not clipped')
+      assert.deepEqual(await page.getByRole('table', { name: 'Your capabilities' }).locator('td:nth-child(2) .MuiTypography-root').evaluateAll(labels => labels.flatMap(label => {
+        const node = label.firstChild
+        if (!node || node.nodeType !== Node.TEXT_NODE) return []
+        return [...node.textContent.matchAll(/\S+/g)].filter(match => {
+          const range = document.createRange(); range.setStart(node, match.index); range.setEnd(node, match.index + match[0].length)
+          return range.getClientRects().length > 1
+        }).map(match => match[0])
+      })), [], 'access policy words wrap only at word boundaries')
       if (viewport.width >= 1200) assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true)
+      if (viewport.width >= 1200) assert.equal(Math.round((await page.getByRole('complementary', { name: '420px assistant fixture' }).boundingBox()).width), 420)
       await page.screenshot({ path: join(screenshots, `${viewport.width}-${dark ? 'dark' : 'light'}.png`), fullPage: true })
-    }, { viewport, dark })
+      await page.getByRole('link', { name: 'Open a support request', exact: true }).click()
+      await page.getByRole('region', { name: 'Capability details' }).waitFor()
+      assert.equal(await noOverflow(page), true)
+      if (viewport.width >= 1200) {
+        const main = await page.getByRole('main').boundingBox(), details = await page.getByRole('region', { name: 'Capability details' }).boundingBox()
+        assert.equal(Math.round(main.width - details.width), 48, 'detail uses the entire central content width')
+      }
+      await page.screenshot({ path: join(screenshots, `${viewport.width}-${dark ? 'dark' : 'light'}-detail.png`), fullPage: true })
+    }, { viewport, dark, aside: true })
   }
   console.log(`${passed} browser scenarios passed. Screenshots: ${screenshots}`)
 } finally {

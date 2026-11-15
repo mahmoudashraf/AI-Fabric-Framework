@@ -102,7 +102,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Open Smart Brain navigation', exact: true }).click()
   await page.getByRole('navigation', { name: 'Smart Brain navigation' }).getByText('AI capabilities', { exact: true }).click()
-  await page.getByRole('heading', { name: 'What your AI can do' }).waitFor()
+  await page.getByRole('heading', { name: 'What should your AI help customers do?' }).waitFor()
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), 'Mobile horizontal fit')
   await page.screenshot({ path: new URL('capabilities-mobile.png', output).pathname })
   assert.deepEqual(writes, [], 'No live resource writes or provider calls during visual verification')

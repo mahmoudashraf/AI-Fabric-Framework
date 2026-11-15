@@ -33,15 +33,18 @@ function FieldChange({ change }: { change: ChangedField }) {
   </Box>
 }
 
-export function ChangeSummary({ turn }: { turn: AssistantTurn }) {
+export function ChangeSummary({ turn, compact = false }: { turn: AssistantTurn; compact?: boolean }) {
   if (!Array.isArray(turn.diff)) return null
   const fields = changedFields(turn.diff)
   const title = turn.status === 'SAVED' ? 'Saved changes' : turn.status === 'UNDONE' ? 'Original saved changes' : 'Proposed changes'
-  return <Box component="section" aria-label={title} sx={{ mt: 1, minWidth: 0, whiteSpace: 'normal' }}>
-    <Typography fontSize={13} fontWeight={600}>{title}</Typography>
-    {fields.length ? <>
+  const changes = fields.length ? <>
       <Box component="ul" sx={{ p: 0, m: 0 }}>{fields.slice(0, 6).map((change, index) => <FieldChange key={index} change={change} />)}</Box>
       {fields.length > 6 && <Box component="details" sx={{ fontSize: 12, mt: .75 }}><summary>{fields.length - 6} more changed fields</summary><Box component="ul" sx={{ p: 0, m: 0 }}>{fields.slice(6).map((change, index) => <FieldChange key={index} change={change} />)}</Box></Box>}
-    </> : <Typography variant="caption" color="text.secondary">{turn.diff.length ? 'No comparable value changes reported.' : 'No changed fields reported.'}</Typography>}
+    </> : <Typography variant="caption" color="text.secondary">{turn.diff.length ? 'No comparable value changes reported.' : 'No changed fields reported.'}</Typography>
+  return <Box component="section" aria-label={title} sx={{ mt: 1, minWidth: 0, whiteSpace: 'normal' }}>
+    {compact && fields.length ? <Box component="details" sx={{ fontSize: 13 }}>
+      <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, py: .5 }}>See what changed ({fields.length})</Box>
+      <Typography fontSize={13} fontWeight={600} sx={{ mt: .5 }}>{title}</Typography>{changes}
+    </Box> : <><Typography fontSize={13} fontWeight={600}>{title}</Typography>{changes}</>}
   </Box>
 }

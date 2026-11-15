@@ -18,6 +18,8 @@ export type ControlledConversationProps<T extends ControlledConversationMessage>
   renderMessage?: (message: T) => ReactNode;
   composerExtras?: ReactNode;
   submitLabel?: string;
+  submitContent?: ReactNode;
+  placeholder?: string;
   className?: string;
   style?: CSSProperties;
 };
@@ -25,7 +27,7 @@ export type ControlledConversationProps<T extends ControlledConversationMessage>
 // Transport, persistence and trusted rich-message rendering belong to the host.
 export function ControlledConversation<T extends ControlledConversationMessage>({
   messages, value, onValueChange, onSubmit, onCancel, busy, disabled, error,
-  renderMessage, composerExtras, submitLabel = 'Send', className, style,
+  renderMessage, composerExtras, submitLabel = 'Send', submitContent, placeholder, className, style,
 }: ControlledConversationProps<T>) {
   const log = useRef<HTMLDivElement>(null);
   const end = messages[messages.length - 1];
@@ -45,12 +47,12 @@ export function ControlledConversation<T extends ControlledConversationMessage>(
     {error && <div role="alert" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: '8px 0' }}>{error}</div>}
     <form onSubmit={event => { event.preventDefault(); submit(); }} style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12 }}>
       {composerExtras}
-      <textarea aria-label="Message" value={value} onChange={event => onValueChange(event.target.value)} disabled={busy || disabled} rows={3}
+      <textarea aria-label="Message" placeholder={placeholder} value={value} onChange={event => onValueChange(event.target.value)} disabled={busy || disabled} rows={3}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}
         style={{ resize: 'vertical', minHeight: 64, maxHeight: 180, width: '100%', boxSizing: 'border-box', font: 'inherit', color: 'inherit', background: 'transparent', border: '1px solid currentColor', borderRadius: 4, padding: 10 }} />
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         {busy && onCancel && <button type="button" onClick={onCancel}>Cancel</button>}
-        <button type="submit" disabled={busy || disabled || !value.trim()}>{submitLabel}</button>
+        <button type="submit" aria-label={submitLabel} title={submitLabel} disabled={busy || disabled || !value.trim()}>{submitContent ?? submitLabel}</button>
       </div>
     </form>
   </section>;

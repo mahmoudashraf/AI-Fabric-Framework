@@ -1,5 +1,5 @@
 import { deploymentTerm } from '../../deploymentTerminology'
-import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary } from '../../api/platformApi'
+import type { AIWorkspaceInstallationSummary, CustomerDeploymentSummary, CustomerOfferSummary, DeploymentReleaseSummary, DeploymentTargetProfileSummary } from '../../api/platformApi'
 
 export type CustomerResourceIssue = { code: string; message: string; severity: 'error' | 'warning' | 'info' }
 export type CustomerResource = {
@@ -94,4 +94,100 @@ export function safeCustomerAppUrl(value: string | null): string | null {
     const url = new URL(value)
     return url.protocol === 'https:' && !url.username && !url.password ? url.href : null
   } catch { return null }
+}
+
+export type BrainLibraryFilter = 'all' | 'drafts' | 'live'
+export type BrainReleaseEvidence = 'unavailable' | 'loading' | 'error' | 'ready'
+export function brainLibraryQueryEvidence(query: { isError: boolean; isFetching: boolean; data?: unknown } | undefined): BrainReleaseEvidence {
+  return !query ? 'unavailable' : query.isError ? 'error' : query.isFetching ? 'loading' : query.data !== undefined ? 'ready' : 'unavailable'
+}
+
+export type BrainLibraryState = {
+  label: string
+  color: CustomerResource['severity']
+  draft: boolean
+  live: boolean
+  liveUnknown: boolean
+  liveEvidence: BrainReleaseEvidence
+  liveLabel: string
+  connectionLabel: string
+}
+
+export function brainLibraryLatestRelease(releases: DeploymentReleaseSummary[], deploymentId: string, targetProfileId: string): DeploymentReleaseSummary | null {
+  return releases.filter(release => release.deploymentId === deploymentId && release.targetProfileId === targetProfileId)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0] ?? null
+}
+
+export function brainLibraryState(deployment: CustomerDeploymentSummary, apps: AIWorkspaceInstallationSummary[],
+  releases: DeploymentReleaseSummary[], profiles: DeploymentTargetProfileSummary[] | undefined, evidence: BrainReleaseEvidence,
+  appsAvailable = true, profileEvidence: BrainReleaseEvidence = profiles ? 'ready' : 'unavailable'): BrainLibraryState {
+  const connected = apps.filter(app => app.deploymentId === deployment.deploymentId)
+  const active = connected.filter(app => app.status === 'ACTIVE')
+  const relevant = releases.filter(release => release.deploymentId === deployment.deploymentId)
+  const liveEvidence = evidence === 'error' || profileEvidence === 'error' ? 'error'
+    : evidence === 'loading' || profileEvidence === 'loading' ? 'loading'
+      : evidence === 'ready' && profileEvidence === 'ready' ? 'ready' : 'unavailable'
+  const production = (profiles ?? []).filter(profile => profile.environmentName === 'production')
+  // Select before checking status: a newer failed or inactive record must not inherit a historical pass.
+  const live = liveEvidence === 'ready' && production.some(profile => {
+    const latest = brainLibraryLatestRelease(relevant, deployment.deploymentId, profile.id)
+    return latest && brainLibraryReleaseVerified(latest)
+  })
+  const unknownEnvironment = relevant.some(release => !profiles?.some(target => target.id === release.targetProfileId))
+  const unknownRelease = relevant.some(release => brainLibraryReleaseLabel(release) === 'Release status unavailable')
+  const uncertain = liveEvidence !== 'ready' || unknownEnvironment || unknownRelease
+  const draft = ['DRAFT', 'CONFIGURATION_ONLY'].includes(deployment.status) && !live
+  const configuration: Record<string, [string, CustomerResource['severity']]> = {
+    DRAFT: ['Draft', 'warning'], CONFIGURATION_ONLY: ['Draft', 'warning'],
+    VERSION_PUBLISHED: ['Version saved', 'success'], ACTIVE: ['Version applied', 'info'],
+    APPLY_REQUESTED: ['Updating', 'info'], PROVISIONING: ['Updating', 'info'],
+    APPLY_FAILED: ['Update failed', 'error'], ARCHIVED: ['Archived', 'default'],
+  }
+  const [label, color] = live ? ['Production verified', 'success'] as const : configuration[deployment.status] ?? ['Status unavailable', 'default']
+  return {
+    label, color, draft, live, liveUnknown: !live && uncertain, liveEvidence,
+    liveLabel: live ? 'Production verified' : liveEvidence === 'loading' ? 'Loading live status'
+      : liveEvidence === 'error' ? 'Live status could not be loaded' : uncertain ? 'Live status unavailable' : 'Not live',
+    connectionLabel: !appsAvailable ? 'Engage unavailable' : active.some(app => app.releaseId) ? 'Engage connected'
+      : connected.some(app => app.status !== 'DISABLED') ? 'Engage not assigned' : connected.length ? 'Engage inactive' : 'Engage not connected',
+  }
+}
+
+export function brainLibraryReleaseVerified(release: DeploymentReleaseSummary): boolean {
+  return release.status === 'APPLIED_VERIFIED' && release.provisioningStatus === 'ACTIVE'
+    && release.verificationStatus === 'PASSED' && !release.errorMessage
+}
+
+export function brainLibraryEnvironment(release: DeploymentReleaseSummary, profiles: DeploymentTargetProfileSummary[]): string {
+  const environment = profiles.find(profile => profile.id === release.targetProfileId)?.environmentName
+  return environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Environment unavailable'
+}
+
+export function brainLibraryAppState(app: AIWorkspaceInstallationSummary, releases: DeploymentReleaseSummary[],
+  profiles: DeploymentTargetProfileSummary[], evidence: BrainReleaseEvidence, profileEvidence: BrainReleaseEvidence) {
+  if (app.status !== 'ACTIVE') return { live: false, label: app.status === 'DISABLED' ? 'Disabled app' : app.status === 'DRAFT' ? 'Draft app' : 'App status unavailable' }
+  if (!app.ready) return { live: false, label: 'App needs attention' }
+  const release = releases.find(item => item.id === app.releaseId && item.deploymentId === app.deploymentId)
+  if (evidence !== 'ready' || !release || brainLibraryReleaseLabel(release) === 'Release status unavailable') return { live: false, label: 'Experience status unavailable' }
+  if (!brainLibraryReleaseVerified(release)) return { live: false, label: 'Experience not live' }
+  if (profileEvidence !== 'ready') return { live: false, label: 'Experience status unavailable' }
+  const environment = brainLibraryEnvironment(release, profiles)
+  return { live: environment === 'Production', label: environment === 'Production' ? 'Live experience'
+    : environment === 'Staging' ? 'Staging experience' : 'Experience status unavailable' }
+}
+
+export function brainLibraryReleaseLabel(release: DeploymentReleaseSummary): string {
+  if (['DELETED', 'STOPPED'].includes(release.provisioningStatus)) return 'Infrastructure inactive'
+  if (release.errorMessage || ['FAILED', 'PRE_APPLY_BLOCKED'].includes(release.status)) return 'Release needs attention'
+  if (release.verificationStatus === 'FAILED' || release.status === 'APPLIED_VERIFICATION_FAILED') return 'Verification failed'
+  if (release.status === 'VERIFYING' || release.verificationStatus === 'RUNNING') return 'Verification in progress'
+  if (['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING'].includes(release.status)) return 'Release in progress'
+  if (brainLibraryReleaseVerified(release)) return 'Verified release'
+  return 'Release status unavailable'
+}
+
+export function filterBrainLibrary<T extends { resource: CustomerResource; state: BrainLibraryState }>(rows: T[], search: string, filter: BrainLibraryFilter): T[] {
+  const term = search.trim().toLocaleLowerCase()
+  return rows.filter(({ resource, state }) => resource.name.toLocaleLowerCase().includes(term)
+    && (filter === 'all' || (filter === 'drafts' ? state.draft : state.live)))
 }
