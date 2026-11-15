@@ -160,10 +160,10 @@ try {
   }
   await run('both: preview and each delivery editor retain their own installation and Kit origin', async ({ page, panel }) => {
     for (const [name, parameter, installationId] of [
-      ['Preview workspace', 'previewInstallationId', 'awi-a'],
+      ['Preview workspace', 'resourceId', 'awi-a'],
       ['Configure standalone app', 'resourceId', 'awi-a'],
       ['Configure website embed', 'resourceId', 'awi-embed'],
-      ['See your customer experience', 'previewInstallationId', 'awi-a'],
+      ['See your customer experience', 'resourceId', 'awi-a'],
     ]) {
       const link = (name === 'Preview workspace' ? page : panel).getByRole('link', { name, exact: true })
       const target = new URL(await link.getAttribute('href'), baseUrl)

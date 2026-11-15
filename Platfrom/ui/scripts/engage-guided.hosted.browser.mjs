@@ -13,6 +13,10 @@ page.on('request', request => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && /\/api\/(?:deployments|customer-experience-kits|platform\/customers\/[^/]+\/ai-workspace-installations|configuration-assistant\/.*\/(?:turns|sources))/.test(new URL(request.url()).pathname)) writes.push(new URL(request.url()).pathname)
 })
 const panel = () => page.getByRole('complementary')
+async function unifiedEngage() {
+  assert.equal(await page.locator('[aria-label="Engage apps"]').count(), 1, 'The customer library stays mounted under setup')
+  assert.equal(await page.locator('table').count(), 0, 'Customer setup never mounts the legacy management table')
+}
 async function backToKit() {
   await page.getByRole('link', { name: 'Back to Kit', exact: true }).last().click()
   const confirm = page.getByRole('dialog', { name: 'Close configuration?', exact: true })
@@ -32,6 +36,7 @@ try {
   await page.waitForFunction(() => document.activeElement?.matches('.ek-inspector'))
   await page.getByRole('link', { name: 'Configure workspace', exact: true }).click()
   await page.getByRole('button', { name: 'Close configuration', exact: true }).waitFor()
+  await unifiedEngage()
   assert.equal(new URL(page.url()).searchParams.get('resourceId'), KIT_APP_ID)
   assert.equal(new URL(page.url()).searchParams.get('kitId'), KIT_ID)
   await page.screenshot({ path: join(EVIDENCE_DIR, 'kit-configure-return.png'), animations: 'disabled' })
@@ -40,6 +45,7 @@ try {
   const preview = page.getByRole('dialog', { name: 'Appearance & preview', exact: true })
   await preview.getByRole('link', { name: 'Back to Kit', exact: true }).waitFor()
   await preview.getByRole('textbox', { name: 'Workspace name', exact: true }).waitFor()
+  await unifiedEngage()
   await page.screenshot({ path: join(EVIDENCE_DIR, 'kit-brand-preview.png'), animations: 'disabled' })
   await backToKit()
   await page.goto(`${CONSOLE_URL}/ai-workspaces?${new URLSearchParams({ resourceKind: 'app', resourceId: APP_ID, deploymentId: BRAIN_ID })}`)
@@ -55,6 +61,18 @@ try {
   await page.getByRole('dialog', { name: 'Appearance & preview', exact: true }).getByRole('link', { name: 'Back to Engage apps', exact: true }).click()
   await panel().getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
   assert.equal(new URL(page.url()).searchParams.get('resourceId'), APP_ID)
+  for (const [key, title] of [['connectInstallationId', 'Connect smart brain'], ['previewInstallationId', 'Appearance & preview']]) {
+    await page.goto(`${CONSOLE_URL}/ai-workspaces?${new URLSearchParams({ view: 'manage', [key]: APP_ID })}`)
+    const tool = page.getByRole('dialog', { name: title, exact: true })
+    await tool.waitFor()
+    await unifiedEngage()
+    assert.equal(new URL(page.url()).searchParams.has('view'), false)
+    await tool.getByRole('button', { name: /^(Cancel|Close preview)$/ }).click()
+    await page.waitForURL(url => !url.searchParams.has('appTool') && url.searchParams.get('resourceId') === APP_ID)
+    await panel().getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
+    await unifiedEngage()
+  }
+  await page.screenshot({ path: join(EVIDENCE_DIR, 'unified-engage-legacy-return.png'), animations: 'disabled' })
   await page.goto(`${CONSOLE_URL}/deployments?${new URLSearchParams({ resourceKind: 'deployment', resourceId: BRAIN_ID, deploymentId: BRAIN_ID, releaseId: RELEASE_ID })}`)
   await panel().getByRole('button', { name: APP_NAME, exact: true }).first().click()
   await page.waitForURL(url => url.searchParams.get('resourceId') === APP_ID && url.searchParams.get('resourceKind') === 'app')
@@ -77,7 +95,8 @@ try {
   await page.screenshot({ path: join(EVIDENCE_DIR, 'engage-mobile.png'), animations: 'disabled' })
   assert.deepEqual(errors, []); assert.deepEqual(writes, [])
   const result = { status: 'PASS', origin: new URL(CONSOLE_URL).origin, kitId: KIT_ID, kitAppId: KIT_APP_ID, appId: APP_ID, brainId: BRAIN_ID,
-    desktop: true, mobile: true, kitConfigureReturn: true, kitPreviewReturn: true, directEngageReturn: true, launchChecksFocus: true, brainPreviewReturn: true, headerFocus: true, configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
+    desktop: true, mobile: true, kitConfigureReturn: true, kitPreviewReturn: true, directEngageReturn: true, launchChecksFocus: true, brainPreviewReturn: true, headerFocus: true,
+    unifiedCustomerPage: true, legacyLinkCancelReturn: true, legacyTableMounted: false, configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
   await writeFile(join(EVIDENCE_DIR, 'result.private.json'), JSON.stringify(result, null, 2), { mode: 0o600 })
   console.log(JSON.stringify(result))
 } catch (error) {

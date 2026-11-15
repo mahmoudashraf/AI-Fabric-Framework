@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
 const source = await readFile(new URL('../src/components/customer/engagePresentation.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-const { engageState, engageNextStep, engageCheckStep, engageStepPath } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
+const { engageState, engageNextStep, engageCheckStep, engageStepPath, normalizeLegacyEngageRoute, closeEngageToolRoute } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const app = overrides => ({ installationId: 'app-a', deploymentId: 'brain-a', releaseId: 'release-a', status: 'DRAFT', ready: false, readinessChecks: [], domains: [], ...overrides })
 test('saved, active and ready are distinct presentation states', () => {
   assert.equal(engageState(app()).label, 'Setup needed')
@@ -37,7 +37,32 @@ test('step links reuse existing editors and retain only supported origin identif
     assert.equal(url.pathname, '/ai-workspaces'); assert.equal(url.searchParams.get('kitId'), 'kit-a')
     assert.equal(url.searchParams.get('fromBrainId'), 'brain-a'); assert.equal(url.searchParams.has('returnUrl'), false)
     assert.equal(url.searchParams.has('customerId'), false)
-    assert.equal(url.searchParams.get(step === 'connection' ? 'connectInstallationId' : step === 'appearance' ? 'previewInstallationId' : 'resourceId'), 'app-a')
+    assert.equal(url.searchParams.get('resourceId'), 'app-a')
+    assert.equal(url.searchParams.has('view'), false)
+    if (step === 'connection' || step === 'appearance') assert.equal(url.searchParams.get('appTool'), step)
     if (step === 'delivery' || step === 'readiness') assert.equal(url.searchParams.get('appSection'), step)
   }
+})
+test('legacy customer setup URLs select a tool on the canonical app surface, not another management page', () => {
+  for (const [query, action, id] of [
+    ['view=manage&previewInstallationId=a&kitId=k', 'appearance', 'a'],
+    ['view=manage&connectInstallationId=b', 'connection', 'b'],
+    ['view=setup&sourceInstallationId=c&delivery=embedded', 'create', 'c'],
+    ['view=manage', 'create', null],
+    ['view=manage&connectDeploymentId=brain-a', 'connection', null],
+  ]) {
+    const route = normalizeLegacyEngageRoute(new URLSearchParams(query))
+    assert.equal(route.has('view'), false); assert.equal(route.get('appTool'), action)
+    assert.equal(route.get('resourceId'), id)
+    assert.equal(route.has('previewInstallationId'), false); assert.equal(route.has('connectInstallationId'), false)
+  }
+  assert.equal(normalizeLegacyEngageRoute(new URLSearchParams('resourceKind=app&resourceId=a&appTool=appearance')), null)
+})
+test('closing setup preserves the exact selection/context and removes transient tool parameters', () => {
+  const params = new URLSearchParams('resourceKind=app&resourceId=app-a&appTool=appearance&kitId=k&fromBrainId=brain-a&fromBrainReleaseId=release-a')
+  const closed = closeEngageToolRoute(params)
+  assert.equal(closed.get('resourceId'), 'app-a'); assert.equal(closed.get('kitId'), 'k'); assert.equal(closed.get('fromBrainReleaseId'), 'release-a')
+  assert.equal(closed.has('appTool'), false)
+  const created = closeEngageToolRoute(params, app({ installationId: 'new-app', deploymentId: 'other-brain' }))
+  assert.equal(created.get('resourceId'), 'new-app'); assert.equal(created.has('kitId'), false); assert.equal(created.has('fromBrainId'), false)
 })

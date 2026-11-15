@@ -25,7 +25,7 @@ export function EngageInspector({ app, source, navigation, notices, technicalDet
   const commands = { connection: 'Connect your Brain', appearance: 'Customize your workspace', delivery: embedded ? 'Set up website installation' : 'Set up app address', readiness: 'Review launch checks' }
   const outstanding = app.readinessChecks.filter(check => check.status !== 'PASSED')
   const appUrl = safeCustomerAppUrl(app.appUrl)
-  const alternate = new URLSearchParams({ view: 'manage', sourceInstallationId: app.installationId, delivery: embedded ? 'standalone' : 'embedded' })
+  const alternate = new URLSearchParams({ appTool: 'create', resourceKind: 'app', resourceId: app.installationId, sourceInstallationId: app.installationId, delivery: embedded ? 'standalone' : 'embedded' })
   for (const key of ['kitId', 'fromBrainId', 'fromBrainReleaseId']) { const value = source.get(key); if (value) alternate.set(key, value) }
   return <Box component="aside" aria-label={`${app.displayName} details`} sx={{ bgcolor: 'background.paper', height: '100%', overflowY: 'auto', minWidth: 0 }}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ px: 3, pt: 2 }}>

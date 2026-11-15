@@ -1,10 +1,9 @@
-import { Alert, Box } from '@mui/material'
-import type { ReactNode } from 'react'
+import { Alert } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
-import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, type PlatformAuthSessionSummary } from '../api/platformApi'
+import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, type AIWorkspaceInstallationSummary, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerDeploymentConsole } from '../components/customer/CustomerDeploymentConsole'
 import { CustomerResourceSurface } from '../components/customer/CustomerResourceSurface'
 import { CustomerSetupNavigationGuard } from '../components/customer/CustomerSetupNavigationGuard'
@@ -13,6 +12,7 @@ import { CustomerReleaseSetupRedirect } from '../components/customer/CustomerRel
 import { CustomerBrainManageRedirect } from '../components/customer/CustomerBrainManageRedirect'
 import { AIWorkspacesPage } from './AIWorkspacesPage'
 import { EngageReturnNavigation } from '../components/customer/EngageReturnNavigation'
+import { closeEngageToolRoute, normalizeLegacyEngageRoute } from '../components/customer/engagePresentation'
 
 export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' | 'apps' }) {
   const { session } = usePlatformAuth()
@@ -24,6 +24,8 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
   const params = new URLSearchParams(location.search)
   const setupStep = params.get('step')
   const setupBrainId = params.get('deploymentId')
+  const engageRoute = mode === 'apps' ? normalizeLegacyEngageRoute(params) : null
+  if (engageRoute) return <Navigate to={{ pathname: location.pathname, search: engageRoute.toString() }} replace state={location.state} />
   if (mode !== 'apps' && view === 'manage') {
     return setupBrainId ? <CustomerBrainManageRedirect customerId={session.customerId!} brainId={setupBrainId} />
       : <Navigate to="/deployments" replace />
@@ -31,33 +33,16 @@ export function CustomerResourcesPage({ mode }: { mode: 'home' | 'deployments' |
   if (mode !== 'apps' && view === 'setup' && setupBrainId && (setupStep === 'staging' || setupStep === 'production')) {
     return <CustomerReleaseSetupRedirect customerId={session.customerId!} brainId={setupBrainId} step={setupStep} />
   }
-  if (view === 'manage' || view === 'setup') {
-    if (mode === 'apps') {
-      return <CustomerEngageEditor key={location.search} customerId={session.customerId!} />
-    }
+  if (mode !== 'apps' && (view === 'manage' || view === 'setup')) {
     return <CustomerSetupNavigationGuard><CustomerEditorSections scopeKey={`setup:${session.customerId}`} showDepthSwitch={false}><CustomerDeploymentConsole session={session} guided /></CustomerEditorSections></CustomerSetupNavigationGuard>
   }
   return <CustomerResourceReads mode={mode} session={session} />
 }
 
-function CustomerEngageEditor({ customerId }: { customerId: string }) {
-  const params = new URLSearchParams(useLocation().search), delivery = params.get('delivery')
-  const appId = params.get('previewInstallationId') ?? params.get('connectInstallationId') ?? params.get('sourceInstallationId')
-  const apps = useQuery({ queryKey: ['ai-workspace-installations', customerId], queryFn: () => fetchAIWorkspaceInstallations(customerId), enabled: Boolean(appId) })
-  const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio, enabled: Boolean(appId) })
-  const app = apps.data?.find(item => item.installationId === appId && item.customerId === customerId)
-  const navigation: ReactNode = app ? <EngageReturnNavigation app={app} deployments={portfolio.data ?? []} /> : null
-  return <CustomerEditorSections scopeKey={`engage:${customerId}`}><Box sx={{ mb: app ? 1 : 0 }}>{navigation}</Box><AIWorkspacesPage initialConsumerId={params.get('consumerId') ?? undefined}
-        initialInstallationId={params.get('previewInstallationId') ?? undefined} autoPreview={Boolean(params.get('previewInstallationId'))}
-        sourceInstallationId={params.get('sourceInstallationId') ?? undefined}
-        connectDeploymentId={params.get('connectDeploymentId') ?? undefined}
-        connectInstallationId={params.get('connectInstallationId') ?? undefined}
-        navigation={navigation} initialDeliveryMode={delivery === 'embedded' || delivery === 'standalone' ? delivery : undefined} /></CustomerEditorSections>
-}
-
 function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments' | 'apps'; session: PlatformAuthSessionSummary }) {
   const customerId = session.customerId!
   const location = useLocation()
+  const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
   const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio })
   const offers = useQuery({ queryKey: ['customer-self-service-catalogue', customerId], queryFn: fetchCustomerSelfServiceCatalogue })
@@ -77,15 +62,43 @@ function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments'
   if (configurationScopeMismatch) errors.push('Configuration scope does not match the inspected resource. Close the resource and reopen its configuration; no editor or command was opened.')
   const configuration = configurationRequested && !configurationScopeMismatch
     ? selectedApp ? <AIWorkspacesPage key={`${customerId}:${selectedApp.installationId}`} initialInstallationId={selectedApp.installationId}
+      presentation="details"
       initialDetailsSection={params.get('appSection') === 'delivery' ? 'delivery' : params.get('appSection') === 'readiness' ? 'readiness' : undefined}
       navigation={<EngageReturnNavigation app={selectedApp} deployments={portfolio.data ?? []} />} />
       : resourceKind === 'deployment' && deploymentId ? <CustomerDeploymentConsole key={`${customerId}:${deploymentId}`} session={session} guided /> : null
     : null
+  const tool = params.get('appTool')
+  const sourceAppId = params.get('sourceInstallationId')
+  const closeTool = (saved?: AIWorkspaceInstallationSummary) => {
+    if (saved && saved.customerId !== customerId) throw new Error('The saved app does not belong to the current workspace.')
+    navigate({ pathname: location.pathname, search: closeEngageToolRoute(params, saved).toString() }, { replace: true, state: location.state })
+  }
+  const toolsReady = mode === 'apps' && !configurationRequested && portfolio.isSuccess && installations.isSuccess
+  const requestedAppAvailable = !resourceId || Boolean(selectedApp)
+  const knownTool = ['connection', 'appearance', 'create'].includes(tool ?? '')
+  const connectionSourceAvailable = tool !== 'connection' || Boolean(selectedApp || params.get('connectDeploymentId'))
+  if (tool && !knownTool) errors.push('This Engage setup action is unavailable. Select your app and choose a setup step.')
+  if (tool === 'appearance' && !resourceId) errors.push('Select an Engage app before opening its appearance.')
+  if (!connectionSourceAvailable) errors.push('Select an Engage app or Smart Brain before opening its connection.')
+  if (sourceAppId && sourceAppId !== selectedApp?.installationId && installations.isSuccess) errors.push('The source app does not match the selected app. No configuration was opened.')
+  const tools = toolsReady && knownTool && requestedAppAvailable && connectionSourceAvailable && (!sourceAppId || sourceAppId === selectedApp?.installationId)
+    && (tool !== 'appearance' || selectedApp)
+    ? <CustomerEditorSections scopeKey={`engage-tool:${customerId}:${tool}:${resourceId ?? ''}`} showDepthSwitch={false}>
+      <AIWorkspacesPage key={`${tool}:${resourceId ?? ''}:${params.get('connectDeploymentId') ?? ''}`} presentation="tools"
+        initialInstallationId={selectedApp?.installationId} initialConsumerId={params.get('consumerId') ?? undefined}
+        sourceInstallationId={tool === 'create' ? sourceAppId ?? undefined : undefined}
+        autoCreate={tool === 'create'} autoPreview={tool === 'appearance'}
+        connectDeploymentId={tool === 'connection' ? params.get('connectDeploymentId') ?? undefined : undefined}
+        connectInstallationId={tool === 'connection' ? selectedApp?.installationId : undefined}
+        initialDeliveryMode={params.get('delivery') === 'embedded' ? 'embedded' : params.get('delivery') === 'standalone' ? 'standalone' : undefined}
+        onToolClose={closeTool}
+        navigation={selectedApp ? <EngageReturnNavigation app={selectedApp} deployments={portfolio.data ?? []} /> : undefined} />
+    </CustomerEditorSections> : null
   return <CustomerResourceSurface mode={mode} deployments={portfolio.data ?? []} apps={apps}
     offers={(offers.data ?? []).filter(offer => offer.entitlement.customerId === customerId)}
     releases={releases.data ?? []} releaseLoading={Boolean(deploymentId) && releases.isPending}
     releaseError={releases.isError ? (releases.error instanceof Error ? releases.error.message : 'Release read failed.') : null}
     loading={portfolio.isPending || offers.isPending || installations.isPending} errors={errors}
-    configuration={configuration}
+    configuration={configuration} tools={tools}
     dataObservedAt={Math.min(portfolio.dataUpdatedAt || Infinity, offers.dataUpdatedAt || Infinity, installations.dataUpdatedAt || Infinity) === Infinity ? null : Math.min(portfolio.dataUpdatedAt || Infinity, offers.dataUpdatedAt || Infinity, installations.dataUpdatedAt || Infinity)} />
 }

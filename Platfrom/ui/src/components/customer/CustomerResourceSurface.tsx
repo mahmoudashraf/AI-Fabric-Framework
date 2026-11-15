@@ -30,7 +30,7 @@ import { BrainLibraryInspector } from './BrainLibraryInspector'
 import { EngageLibrary } from './EngageLibrary'
 import { EngageInspector } from './EngageInspector'
 import { EngageReturnNavigation } from './EngageReturnNavigation'
-import { type EngageFilter, engageStepPath } from './engagePresentation'
+import { type EngageFilter, closeEngageToolRoute, engageStepPath } from './engagePresentation'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -48,6 +48,7 @@ export type CustomerResourceSurfaceProps = {
   releaseError?: string | null
   dataObservedAt: number | null
   configuration?: ReactNode
+  tools?: ReactNode
 }
 
 export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
@@ -101,7 +102,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const resourceEnvironment = (release: DeploymentReleaseSummary) => brainLibrary && selected?.kind === 'deployment'
     ? brainLibraryEnvironment(release, selectedProfiles) : releaseEnvironment(release, offer)
   const open = (resource: CustomerResource, releaseId?: string | null) => {
-    const next = new URLSearchParams(location.search)
+    const next = closeEngageToolRoute(new URLSearchParams(location.search))
     next.set('resourceKind', resource.kind); next.set('resourceId', resource.id); next.delete('releaseId')
     if (resource.kind === 'deployment' && releaseId) next.set('releaseId', releaseId)
     if (resource.deploymentId) next.set('deploymentId', resource.deploymentId)
@@ -114,7 +115,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     navigate({ pathname: location.pathname, search: next.toString() }, { state: origin ? { brainPanelOrigin: origin } : null })
   }
   const close = () => {
-    const next = new URLSearchParams(location.search)
+    const next = closeEngageToolRoute(new URLSearchParams(location.search))
     next.delete('resourceKind'); next.delete('resourceId'); next.delete('releaseId'); next.delete('editorSection')
     next.delete('fromBrainId'); next.delete('fromBrainReleaseId'); next.delete('kitId')
     navigate({ pathname: location.pathname, search: next.toString() })
@@ -136,7 +137,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   }
   const cards = props.mode === 'home' ? allResources : props.mode === 'apps' ? appCards : deploymentCards
   const filtered = cards.filter(item => item.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-  const setupPath = props.mode === 'apps' ? '/ai-workspaces?view=manage' : '/deployments?view=setup&step=template'
+  const setupPath = props.mode === 'apps' ? '/ai-workspaces?appTool=create' : '/deployments?view=setup&step=template'
   const resourceNotices = selected ? <Stack spacing={1} sx={brainLibrary ? { '&:empty': { display: 'none' } } : undefined}>
     {selected.issues.map(issue => <Alert key={issue.code} severity={issue.severity}>{issue.message}</Alert>)}
     {props.releaseError ? <Alert severity="error">Release details could not be loaded: {props.releaseError}</Alert> : null}
@@ -147,8 +148,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const resourceActions = selected ? <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         {selected.kind === 'deployment' ? !brainLibrary ? <BuildWithAIButton fullWidth onClick={() => openConfiguration()} /> : null
           : <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>}
-        <Button component={RouterLink} startIcon={<LinkRounded />} to={assignedApp ? engageStepPath(assignedApp, 'connection', params) : `/ai-workspaces?${new URLSearchParams({ view: 'manage',
-          ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
+        <Button component={RouterLink} startIcon={<LinkRounded />} to={assignedApp ? engageStepPath(assignedApp, 'connection', params) : `/ai-workspaces?${new URLSearchParams({ appTool: 'connection',
+          ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id, fromBrainId: selected.id, ...(selectedReleaseId ? { fromBrainReleaseId: selectedReleaseId } : {}) } : {}),
         })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : `Change ${deploymentTerm.lowercase}`}</Button>
         {assignedApp ? <Button component={RouterLink} startIcon={<PaletteOutlined />}
           to={engageStepPath(assignedApp, 'appearance', params)}>Appearance & preview</Button> : null}
@@ -225,6 +226,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       </Stack>
       {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota compact={brainLibrary} /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
+      {props.tools}
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
       {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : props.mode !== 'apps' && !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>{developer ? 'Choose a developer starter' : 'Choose a starting template'}</Typography>

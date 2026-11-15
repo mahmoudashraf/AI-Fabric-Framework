@@ -46,7 +46,7 @@ function Fixture() {
     { ...release, id: 'release-stage', targetProfileId: 'stage' },
     { ...release, id: 'release-old-failed', status: 'FAILED', verificationStatus: 'FAILED', errorMessage: 'Historical failure', createdAt: '2026-11-15T10:00:00Z' },
   ].map(item => scenario === 'failed' && item.id === release.id ? { ...item, status: 'APPLIED_VERIFICATION_FAILED', verificationStatus: 'FAILED', errorMessage: 'Recorded verification failure' } : item) : []
-  const destination = location.pathname.startsWith('/smart-brains/') || params.get('view') === 'manage'
+  const destination = location.pathname.startsWith('/smart-brains/') || params.get('view') === 'manage' || params.has('appTool')
   return <ThemeProvider theme={createConsoleTheme(params.get('theme') === 'dark' ? 'dark' : 'light')}><CssBaseline />
     {destination ? <Box role="status" sx={{ p: 3 }}>Canonical destination: {location.pathname + location.search}</Box> :
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pt: '62px', pl: { xs: 0, md: '218px' } }}>
@@ -361,9 +361,9 @@ try {
     await aside.getByRole('button', { name: 'Configure', exact: true }).waitFor()
     assert.equal(await page.getByRole('group', { name: 'Filter Smart Brains' }).count(), 0)
     assert.equal(await aside.getByText('Your next step').count(), 0)
-    assert.equal(await aside.getByRole('link', { name: 'Appearance & preview' }).getAttribute('href'), '/ai-workspaces?view=manage&previewInstallationId=app-support')
+    assert.equal(await aside.getByRole('link', { name: 'Appearance & preview' }).getAttribute('href'), '/ai-workspaces?resourceKind=app&resourceId=app-support&deploymentId=brain-support&appTool=appearance')
     assert.equal(await aside.getByRole('link', { name: 'Open app', exact: true }).getAttribute('href'), 'https://support.example.com/')
-    assert.equal(await aside.getByRole('link', { name: 'Add standalone app' }).getAttribute('href'), '/ai-workspaces?view=manage&sourceInstallationId=app-support&delivery=standalone')
+    assert.equal(await aside.getByRole('link', { name: 'Add standalone app' }).getAttribute('href'), '/ai-workspaces?appTool=create&resourceKind=app&resourceId=app-support&sourceInstallationId=app-support&delivery=standalone')
     await aside.getByRole('button', { name: 'Installation script' }).click()
     await page.getByText('Existing app configuration', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Close configuration', exact: true }).click()
@@ -377,10 +377,10 @@ try {
     const aside = page.getByRole('complementary')
     await aside.locator('summary').filter({ hasText: 'Technical details' }).click()
     await aside.getByRole('link', { name: 'Add website widget', exact: true }).waitFor()
-    assert.equal(await aside.getByRole('link', { name: 'Add website widget' }).getAttribute('href'), '/ai-workspaces?view=manage&sourceInstallationId=app-support&delivery=embedded')
-    assert.equal(await aside.getByRole('link', { name: 'Change smart brain' }).getAttribute('href'), '/ai-workspaces?view=manage&connectInstallationId=app-support')
+    assert.equal(await aside.getByRole('link', { name: 'Add website widget' }).getAttribute('href'), '/ai-workspaces?appTool=create&resourceKind=app&resourceId=app-support&sourceInstallationId=app-support&delivery=embedded')
+    assert.equal(await aside.getByRole('link', { name: 'Change smart brain' }).getAttribute('href'), '/ai-workspaces?resourceKind=app&resourceId=app-support&deploymentId=brain-support&appTool=connection')
     await aside.getByRole('link', { name: 'Appearance & preview' }).click()
-    await page.waitForURL('**/ai-workspaces?view=manage&previewInstallationId=app-support')
+    await page.waitForURL('**/ai-workspaces?resourceKind=app&resourceId=app-support&deploymentId=brain-support&appTool=appearance')
   })
   await run('home retains the full quota and existing resource view', async (page, reads) => {
     await page.goto(base + '/home')

@@ -150,12 +150,14 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId, initialDetailsSection, navigation }: {
+export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId, initialDetailsSection, navigation, presentation = 'page', autoCreate = false, onToolClose }: {
   initialCustomerId?: string; initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
   initialDeliveryMode?: 'embedded' | 'standalone'
   autoPreview?: boolean
   connectDeploymentId?: string; connectInstallationId?: string
   initialDetailsSection?: 'delivery' | 'readiness'; navigation?: ReactNode
+  presentation?: 'page' | 'tools' | 'details'; autoCreate?: boolean
+  onToolClose?: (installation?: AIWorkspaceInstallationSummary) => void
 } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -323,6 +325,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       setEditing(null)
       setSelected(installation)
       await invalidate()
+      if (presentation === 'tools') onToolClose?.(installation)
     },
   })
 
@@ -397,6 +400,14 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
     }
     openCreate(source)
   }, [sourceInstallationId, initialDeliveryMode, customerId, Boolean(customer), catalog?.assetsReady, installationsQuery.isSuccess])
+
+  useEffect(() => {
+    if (!autoCreate || sourceInstallationId || !customer || !catalog?.assetsReady || !installationsQuery.isSuccess) return
+    const request = JSON.stringify([customerId, 'new', initialDeliveryMode])
+    if (initialCreate.current === request) return
+    initialCreate.current = request
+    openCreate()
+  }, [autoCreate, sourceInstallationId, customerId, Boolean(customer), catalog?.assetsReady, installationsQuery.isSuccess, initialDeliveryMode])
 
   useEffect(() => {
     if ((!connectDeploymentId && !connectInstallationId) || !customerScopeLocked || !customer
@@ -599,6 +610,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
     && item.customerId === customerId && item.rowVersion === pendingDestructive.installation.rowVersion
     && item.status === pendingDestructive.installation.status)
   const pendingCurrent = Boolean(pendingInstallation && pendingDestructive?.actorId === auth.session?.actorId)
+  const closeEditor = () => { setEditing(null); if (presentation === 'tools') onToolClose?.(editing && editing !== 'new' ? editing : selected ?? undefined) }
   const installationActions = (installation: AIWorkspaceInstallationSummary) => <>
     <Tooltip title="Build with AI"><span><IconButton aria-label="Build app with AI" size="small" disabled={appCommandPending} onClick={() => { setAssistantInitiallyOpen(true); openEdit(installation) }}><AutoAwesomeOutlined /></IconButton></span></Tooltip>
     <Tooltip title="Edit"><span><IconButton aria-label="Edit app" size="small" disabled={appCommandPending || installation.status === 'ACTIVE'} onClick={() => openEdit(installation)}><EditRoundedIcon /></IconButton></span></Tooltip>
@@ -610,7 +622,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
 
   return (
     <Stack spacing={3}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+      {presentation === 'page' && <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>Engage apps</Typography>
           <Typography color="text.secondary">
@@ -636,7 +648,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
             Create Engage app
           </Button> : null}
         </Stack>
-      </Stack>
+      </Stack>}
 
       {notice && <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert>}
       {selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
@@ -644,8 +656,8 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       {operationError && !(editing != null && operationError === saveMutation.error) && <Alert severity="error">{errorText(operationError)}</Alert>}
       {catalog && !catalog.assetsReady && <Alert severity="warning">Workspace assets are not release-ready: {catalog.assetStatus}</Alert>}
 
-      {focused && selected ? <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}><Typography fontWeight={600}>{selected.displayName}</Typography><Box>{installationActions(selected)}</Box></Stack> : null}
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, display: focused ? 'none' : undefined }}>
+      {presentation !== 'tools' && focused && selected ? <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}><Typography fontWeight={600}>{selected.displayName}</Typography><Box>{installationActions(selected)}</Box></Stack> : null}
+      {presentation === 'page' && <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, display: focused ? 'none' : undefined }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -704,16 +716,16 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+      </TableContainer>}
 
-      {selected && <WorkspaceDetails installation={selected} refresh={invalidate}
+      {presentation !== 'tools' && selected && <WorkspaceDetails installation={selected} refresh={invalidate}
         initialSection={initialDetailsSection}
         customize={() => openEdit(selected)}
         deploymentName={portfolioQuery.data?.find(item => item.deploymentId === selected.deploymentId)?.name}
         connect={customerScopeLocked ? () => setConnectionPanel({ fromEditor: false, deploymentId: selected.deploymentId ?? undefined, consumerId: selected.consumerId ?? undefined, app: selected }) : undefined}
         addDelivery={(mode) => openCreate(selected, mode)} addDeliveryDisabled={appCommandPending || !catalog?.assetsReady} />}
 
-      <Dialog open={editing != null} onClose={appCommandPending ? undefined : () => setEditing(null)} maxWidth={false} fullWidth
+      <Dialog open={editing != null} onClose={appCommandPending ? undefined : closeEditor} maxWidth={false} fullWidth
         PaperProps={{ sx: { width: 'min(1440px, calc(100vw - 32px))', maxWidth: 'none', m: 2, height: 'calc(100dvh - 32px)' } }}>
         {navigation && <Box sx={{ px: 3, pt: 1 }}>{navigation}</Box>}
         <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Appearance & preview'}</DialogTitle>
@@ -932,7 +944,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
         <DialogActions>
           {editingActive ? <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', px: 1 }}>Preview only. Your active app is unchanged.</Typography> : null}
           {editingActive && editing ? <Button color="warning" disabled={appCommandPending} onClick={() => requestDestructive('disable', editing)}>Disable for editing</Button> : null}
-          <Button disabled={appCommandPending} onClick={() => setEditing(null)}>{editingActive ? 'Close preview' : 'Cancel'}</Button>
+          <Button disabled={appCommandPending} onClick={closeEditor}>{editingActive ? 'Close preview' : 'Cancel'}</Button>
           <Button variant="contained" onClick={submit} disabled={appCommandPending || editingActive || Boolean(appearanceError) || !form.displayName.trim() || !form.consumerId
             || (effectiveDeliveryMode === 'standalone' && !form.appSlug.trim())
             || (effectiveDeliveryMode === 'embedded' && lines(form.origins).length === 0)
@@ -944,7 +956,11 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
                   || (!form.supabaseEmailPassword && !form.supabaseMagicLink))))}>Save draft</Button>
         </DialogActions>
       </Dialog>
-      {customerScopeLocked ? <CustomerEngageConnectionPanel open={Boolean(connectionPanel)} onClose={() => setConnectionPanel(null)}
+      {customerScopeLocked ? <CustomerEngageConnectionPanel open={Boolean(connectionPanel)} onClose={() => {
+        const nested = connectionPanel?.fromEditor
+        setConnectionPanel(null)
+        if (presentation === 'tools' && !nested && !editing) onToolClose?.(selected ?? undefined)
+      }}
         customerId={customerId} actorId={auth.session?.actorId} deployments={portfolioQuery.data ?? []}
         consumers={customer?.consumers ?? []} apps={installations}
         initialDeploymentId={connectionPanel?.deploymentId} currentConsumerId={connectionPanel?.consumerId}

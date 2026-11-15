@@ -20,6 +20,7 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
       import { PlatformAuthProvider } from '/src/auth/PlatformAuthProvider.tsx';
       import { createConsoleTheme } from '/src/theme/consoleTheme.ts';
       import { CustomerResourcesPage } from '/src/pages/CustomerResourcesPage.tsx';
+      import { AIWorkspacesPage } from '/src/pages/AIWorkspacesPage.tsx';
       import { ExperienceKitOverview } from '/src/components/kits/ExperienceKitOverview.tsx';
       import '/src/pages/ExperienceKits.css';
       const theme = new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light';
@@ -28,11 +29,12 @@ const server = await createServer({ root, cacheDir, configFile: false, envFile: 
         <ThemeProvider theme={createConsoleTheme(theme)}><CssBaseline/><RouterProvider router={createBrowserRouter([
           {path:'/ai-workspaces',element:<Frame><CustomerResourcesPage mode="apps"/></Frame>},
           {path:'/deployments',element:<Frame><CustomerResourcesPage mode="deployments"/></Frame>},
+          {path:'/staff-workspaces',element:<Frame><AIWorkspacesPage initialCustomerId="customer"/></Frame>},
           {path:'/kits/kit-a',element:<Frame><div className="ek-page" data-kit-theme={theme}><ExperienceKitOverview customerId="customer" id="kit-a"/></div></Frame>},
         ])}/></ThemeProvider></PlatformAuthProvider></QueryClientProvider>);
     `, 'guided-entry.tsx', { loader: 'tsx', jsx: 'automatic' }) },
     configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
-      if (!/^\/(ai-workspaces|deployments|kits\/kit-a)(\?|$)/.test(req.url)) return next()
+      if (!/^\/(ai-workspaces|staff-workspaces|deployments|kits\/kit-a)(\?|$)/.test(req.url)) return next()
       res.setHeader('Content-Type', 'text/html'); res.end(await vite.transformIndexHtml('/', '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script>window.__PLATFORM_RUNTIME_CONFIG__={apiBaseUrl:location.origin,environment:"staging"}</script><script type="module" src="/guided-entry.tsx"></script></body></html>'))
     }) },
   }] })
@@ -55,11 +57,12 @@ const kit = { id: 'kit-a', kitCode: 'ai-customer-experience', kitVersion: '1.0.0
   installationId: 'a', deliveryMode: 'standalone', workspace: draft, embeddedWorkspace: null, embeddedInstallationId: null, revision: 1, humanSupportEnabled: false, updatedAt: '2026-11-15T10:00:00Z' }
 await server.listen()
 const base = `http://127.0.0.1:${server.httpServer.address().port}`, browser = await chromium.launch({ headless: true })
-let count = 0
-async function run(name, fn, { width = 1440, theme = 'light', ready = false, invalidKit = false, unknownCheck = false } = {}) {
+let count = 0, fixtureCreates = 0
+async function run(name, fn, { width = 1440, theme = 'light', ready = false, invalidKit = false, unknownCheck = false, staff = false, createApp = false } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' })
   page.setDefaultTimeout(20000)
   const errors = [], writes = [], unexpected = []
+  let created = null
   const current = ready ? { ...draft, releaseId: 'rel-stage', ready: true, readinessChecks: [{ code: 'ASSIGNMENT', status: 'PASSED', message: 'Verified.' }], domains: [] }
     : unknownCheck ? { ...draft, readinessChecks: [...draft.readinessChecks, { code: 'FUTURE_CHECK', status: 'WARNING', message: 'Provider needs review, not an assumed success.' }] } : draft
   page.on('pageerror', error => errors.push(error.message))
@@ -67,15 +70,21 @@ async function run(name, fn, { width = 1440, theme = 'light', ready = false, inv
     const req = route.request(), url = new URL(req.url()), path = url.pathname
     if (url.origin !== base) { unexpected.push('External request'); return route.abort() }
     if (!path.startsWith('/api/')) return route.continue()
+    if (createApp && path === '/api/platform/customers/customer/ai-workspace-installations' && req.method() === 'POST') {
+      assert.ok(req.headers()['idempotency-key'])
+      fixtureCreates++
+      created = { ...draft, ...req.postDataJSON(), installationId: 'created', id: 'created' }
+      return route.fulfill({ status: 201, json: created })
+    }
     if (req.method() !== 'GET') { writes.push(path); return route.fulfill({ status: 500, json: { message: 'This navigation test never executes writes' } }) }
     const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/api/platform/auth/session') return json({ enabled: true, authenticated: true, actorId: 'owner', role: 'CUSTOMER_ADMIN', customerId: 'customer', authenticationMode: 'SESSION' })
+    if (path === '/api/platform/auth/session') return json({ enabled: true, authenticated: true, actorId: 'owner', role: staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN', customerId: staff ? null : 'customer', authenticationMode: 'SESSION' })
     if (path === '/api/platform/auth/customer-config') return json({ enabled: false })
     if (path === '/api/customer-self-service/deployments') return json([brain])
     if (path === '/api/customer-self-service/catalogue') return json([offer])
     if (path === '/api/customer-self-service/catalogue/offer-a') return json(offer)
     if (path === '/api/platform/customers') return json([{ id: 'customer', name: 'Company', consumers: [current, active].map(app => ({ consumerId: app.consumerId, customerId: 'customer', status: 'ACTIVE', displayName: app.displayName, boundDeploymentId: 'brain-a', boundTargetProfileId: 'stage', boundReleaseId: app.releaseId, bindingRevision: 1 })) }])
-    if (path === '/api/platform/customers/customer/ai-workspace-installations') return json([current, active])
+    if (path === '/api/platform/customers/customer/ai-workspace-installations') return json([current, active, ...(created ? [created] : [])])
     if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, experiencePacks: [{ code: 'generic-workspace', version: '1.0.0', name: 'Generic', enabled: true }], connectionProfiles: [{ code: 'runtime-anonymous-direct', version: '1.0.0', mode: 'public-runtime-anonymous', name: 'Anonymous', enabled: true }], authenticationProfiles: [] })
     if (/\/preview-capabilities$/.test(path)) return json({ runtimeConfigured: false, handover: { enabled: false, userCanCancelPending: false, userCanResumeAi: false } })
     if (path === '/api/deployments/brain-a/releases') return json([release])
@@ -88,6 +97,7 @@ async function run(name, fn, { width = 1440, theme = 'light', ready = false, inv
   })
   try {
     await fn(page, theme)
+    if (createApp) assert.equal(created?.displayName, 'Fresh customer workspace')
     assert.deepEqual(errors, []); assert.deepEqual(writes, []); assert.deepEqual(unexpected, [])
     console.log(`PASS ${name}`); count++
   } catch (error) {
@@ -100,6 +110,15 @@ const appPath = '/ai-workspaces?resourceKind=app&resourceId=a&deploymentId=brain
 async function closeConfiguration(page) {
   await page.getByRole('button', { name: 'Close configuration', exact: true }).click()
   await page.getByRole('dialog', { name: 'Close configuration?', exact: true }).getByRole('button', { name: 'Close panel', exact: true }).click()
+}
+async function unifiedPageMounted(page) {
+  assert.equal(await page.locator('[aria-label="Engage apps"]').count(), 1, 'The compact customer list stays mounted under the tool')
+  assert.equal(await page.locator('table').count(), 0, 'No legacy app table is mounted for customer setup')
+}
+async function selectedAppRestored(page, id) {
+  await page.waitForURL(url => !url.searchParams.has('appTool') && url.searchParams.get('resourceId') === id)
+  await page.getByRole('complementary').getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
+  await unifiedPageMounted(page)
 }
 try {
   for (const [width, theme] of [[1440, 'light'], [1440, 'dark'], [390, 'dark'], [320, 'light']]) {
@@ -128,6 +147,7 @@ try {
     await page.getByRole('link', { name: 'Configure workspace', exact: true }).click()
     await page.getByRole('button', { name: 'Close configuration', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Activate app', exact: true }).waitFor()
+    await unifiedPageMounted(page)
     const back = page.getByRole('link', { name: 'Back to Kit', exact: true }).filter({ visible: true }).last()
     await back.click()
     await page.getByRole('dialog', { name: 'Close configuration?', exact: true }).getByRole('button', { name: 'Close panel', exact: true }).click()
@@ -156,7 +176,90 @@ try {
     await page.goto(base + appPath)
     await page.getByRole('complementary').getByRole('link', { name: 'Connect your Brain', exact: true }).click()
     await page.getByRole('dialog', { name: 'Connect smart brain', exact: true }).waitFor()
+    await unifiedPageMounted(page)
+    await page.getByRole('dialog', { name: 'Connect smart brain', exact: true }).getByRole('button', { name: 'Cancel', exact: true }).click()
+    await selectedAppRestored(page, 'a')
   })
+  await run('legacy connection URL opens over one customer list and cancels back to the exact app', async page => {
+    await page.goto(`${base}/ai-workspaces?view=manage&connectInstallationId=b`)
+    const dialog = page.getByRole('dialog', { name: 'Connect smart brain', exact: true })
+    await dialog.waitFor(); await unifiedPageMounted(page)
+    assert.equal(new URL(page.url()).searchParams.has('view'), false)
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await selectedAppRestored(page, 'b')
+    await page.getByRole('complementary').getByRole('heading', { name: 'Website assistant', exact: true }).waitFor()
+  })
+  await run('legacy appearance URL cancels to its original app without the management table', async page => {
+    await page.goto(`${base}/ai-workspaces?view=manage&previewInstallationId=a`)
+    const dialog = page.getByRole('dialog', { name: 'Appearance & preview', exact: true })
+    await dialog.getByRole('textbox', { name: 'Workspace name', exact: true }).waitFor()
+    await unifiedPageMounted(page)
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await selectedAppRestored(page, 'a')
+  })
+  await run('create opens in context and cancel restores the filtered library', async page => {
+    await page.goto(`${base}/ai-workspaces`)
+    await page.getByRole('textbox', { name: 'Search Engage apps' }).fill('company')
+    await page.getByRole('link', { name: 'Create Engage app', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create Engage app', exact: true })
+    await dialog.waitFor(); await unifiedPageMounted(page)
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.waitForURL(url => !url.searchParams.has('appTool'))
+    assert.equal(await page.getByRole('textbox', { name: 'Search Engage apps' }).inputValue(), 'company')
+    assert.equal(await page.getByRole('list', { name: 'Engage apps' }).getByRole('button').count(), 1)
+  })
+  await run('alternate delivery opens the native create form and cancels back to its source app', async page => {
+    await page.goto(`${base}/ai-workspaces?view=manage&sourceInstallationId=b&delivery=standalone`)
+    const dialog = page.getByRole('dialog', { name: 'Create Engage app', exact: true })
+    await dialog.getByRole('textbox', { name: 'Workspace name', exact: true }).waitFor()
+    await unifiedPageMounted(page)
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await selectedAppRestored(page, 'b')
+  })
+  await run('nested connection cancellation preserves the outer manual form', async page => {
+    await page.goto(`${base}${appPath}&appTool=appearance`)
+    const dialog = page.getByRole('dialog', { name: 'Appearance & preview', exact: true })
+    const name = dialog.getByRole('textbox', { name: 'Workspace name', exact: true })
+    await name.fill('Unsaved brand name')
+    await dialog.getByRole('button', { name: /Change.*brain/i }).click()
+    const connection = page.getByRole('dialog', { name: 'Connect smart brain', exact: true })
+    await connection.getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(await name.inputValue(), 'Unsaved brand name')
+    assert.equal(new URL(page.url()).searchParams.get('appTool'), 'appearance')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await selectedAppRestored(page, 'a')
+  })
+  await run('explicit create saves through the canonical API and selects the new app in the unified list', async page => {
+    await page.goto(`${base}/ai-workspaces?appTool=create&consumerId=consumer-a`)
+    const dialog = page.getByRole('dialog', { name: 'Create Engage app', exact: true })
+    await dialog.getByRole('textbox', { name: 'Workspace name', exact: true }).fill('Fresh customer workspace')
+    await dialog.getByRole('textbox', { name: 'App slug', exact: true }).fill('fresh-workspace')
+    await unifiedPageMounted(page)
+    await dialog.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await selectedAppRestored(page, 'created')
+    await page.getByRole('complementary').getByRole('heading', { name: 'Fresh customer workspace', exact: true }).waitFor()
+  }, { createApp: true })
+  await run('Brain-origin connection picker stays in the unified app page', async page => {
+    await page.goto(`${base}/ai-workspaces?view=manage&connectDeploymentId=brain-a`)
+    const dialog = page.getByRole('dialog', { name: 'Connect smart brain', exact: true })
+    await dialog.getByRole('combobox', { name: /^Engage app/ }).waitFor()
+    await unifiedPageMounted(page)
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.waitForURL(url => !url.searchParams.has('appTool'))
+    await unifiedPageMounted(page)
+  })
+  await run('unavailable legacy app never substitutes another owned app', async page => {
+    await page.goto(`${base}/ai-workspaces?view=manage&previewInstallationId=foreign-app`)
+    await page.getByRole('list', { name: 'Engage apps' }).waitFor()
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.equal(new URL(page.url()).searchParams.get('resourceId'), 'foreign-app')
+    await unifiedPageMounted(page)
+  })
+  await run('staff management retains its existing table', async page => {
+    await page.goto(`${base}/staff-workspaces`)
+    await page.getByRole('cell').filter({ has: page.getByText('Your company AI', { exact: true }) }).waitFor()
+    assert.equal(await page.getByRole('table').count(), 1)
+  }, { staff: true })
   await run('direct Engage setup returns to the selected app without requiring Kit or Brain origin', async page => {
     await page.goto(base + appPath)
     await page.getByRole('navigation', { name: 'Engage setup steps' }).getByRole('link', { name: /2\. Brand your workspace/ }).click()
@@ -180,5 +283,5 @@ try {
     const activate = page.getByRole('button', { name: 'Activate app', exact: true })
     await activate.waitFor(); assert.equal(await activate.isEnabled(), true)
   }, { ready: true })
-  console.log(JSON.stringify({ passed: count, screenshots: shots, inference: 0, configurationWrites: 0 }))
+  console.log(JSON.stringify({ passed: count, screenshots: shots, inference: 0, fixtureCreateWrites: fixtureCreates, unexpectedWrites: 0 }))
 } finally { await browser.close(); await server.close(); await rm(cacheDir, { recursive: true, force: true }) }

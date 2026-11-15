@@ -92,6 +92,17 @@ never trust an arbitrary return URL. Retain existing close/discard protection.
 Setup entered directly from Engage uses Back to Engage apps, restoring the exact
 selected app rather than stranding the customer in the legacy setup view.
 
+Customers have one Engage library and inspector, not a second management page.
+Legacy `/ai-workspaces?view=manage` and `view=setup` links adapt to the requested
+tool on that same library. Connection, appearance and creation reuse the existing
+dialogs in tools-only presentation; delivery and launch use details-only
+presentation in the existing configuration drawer. Neither mounts the old app
+table or duplicate page heading. The default staff administration table remains
+unchanged. Cancel/close restores the exact selected app and library filters;
+successful creation selects the saved new app. Preserve validated Kit/Brain
+origin when it still matches the result, nested manual form buffers and all
+existing busy/close protections. Opening these tools never saves or invokes AI.
+
 Kit product headings reveal and focus their inspector even on repeated selection
 and narrow screens. The workspace card's Configure workspace action opens the
 existing editor instead of re-selecting an already open panel. Preview and both
