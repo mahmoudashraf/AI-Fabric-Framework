@@ -15956,3 +15956,35 @@ test is being called hosted acceptance. UI extraction remains last.
   cleanup receipts. Never replay mutation commands. All agents closed; firewall
   unchanged as owner authorized. Unrelated .gitignore/UI buildinfo/artifacts left
   untouched. Further Harbor reasoning/source-selection fixes require owner review.
+
+## 2026-11-15 Build With AI Visible Across Smart Brain Pages
+
+- UI image 88c9a42b4fa8a36887c447a3a6f73655a4cb6b35 deployed and native
+  source/digest/health verified on BOTH Console frontends. Shared digest
+  sha256:f428c7d97f63916bda208975d8157d693fadfed0a78086cf9f873217fa44165e;
+  image CI43718665524 PASS. Backend, runtime and framework unchanged.
+- Brain entry opens the existing assistant; close/reopen remains available.
+  Visibility is actor/workspace/Brain-visit scoped, separate from resource/task
+  sessions. Same-Brain page changes respect dismissal; another Brain/fresh visit
+  reopens it. Operational pages use existing KIT guidance-only authority, never
+  new write paths. Existing non-Brain editors retain their opening behavior.
+- MCP Help configure now attaches selected owned metadata to the same panel,
+  without a duplicate drawer/controller or automatic provider submission.
+- Live navigation exposed a stale Discard & leave handler. It now uses current
+  blocker/editor/busy state and proceeds before discarding can reset the blocker.
+  Explicit consent and running-operation protection remain; no guard bypass.
+- Local verification: 86 unit tests, 46 assistant browser groups, 20 MCP browser
+  scenarios and production build PASS. Real customer staging dep-a9d6d646 and
+  production-CP Harbor dep-5fbdc125 desktop/390px checks PASS: default opening,
+  dismissal across pages, reopening, fresh-visit opening and guidance-only pages;
+  zero inference/source-sharing calls, draft writes or page errors in final runs.
+- Existing capabilities form can report unsaved state without test edits. This
+  false-dirty warning remains; tests explicitly discard only their local buffer,
+  await modal detachment and editor readiness. No saved configuration changed.
+  Earlier live attempts/errors are not counted as passing evidence.
+- Reproducible hosted runner: Platfrom/ui/src/assistant/hosted.visibility.browser.mjs;
+  credentials supplied only through environment variables/private wrapper.
+  Private evidence ~/.codex/private/brain-assistant-visibility-20261115/;
+  normal deploy receipts remain in ~/.codex/private/loomai-feedback-loop-20261110/.
+  UI rules updated in PLATFORM_UI_PROFILES.md and assistant/README.md. Unrelated
+  .gitignore/buildinfo/artifacts preserved; Hetzner firewall settings unchanged.

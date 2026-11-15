@@ -29,6 +29,7 @@ try {
   await page.waitForURL(url => !url.pathname.startsWith('/sign-in'), { timeout: 60000 })
   await page.goto(`${origin}/smart-brains/${encodeURIComponent(BRAIN_ID)}/models`)
   await panel().getByRole('textbox', { name: 'Message', exact: true }).waitFor({ timeout: 60000 })
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]')?.disabled && !document.querySelector('[data-assistant-workspace] fieldset')?.disabled)
   assert.equal(await button().getAttribute('aria-expanded'), 'true')
   assert.equal(await page.locator('[id="configuration-assistant-panel"]').count(), 1)
   await page.screenshot({ path: join(evidence, 'desktop-open.png') })
@@ -44,7 +45,9 @@ try {
       await discard.waitFor({ state: 'detached' })
     }
     await page.waitForURL(url => url.pathname === `/smart-brains/${encodeURIComponent(BRAIN_ID)}/${section}`)
+    await page.waitForFunction(expected => document.querySelector('nav[aria-label="Smart Brain navigation"] a[aria-current="page"]')?.pathname === expected, `/smart-brains/${encodeURIComponent(BRAIN_ID)}/${section}`)
     await page.waitForFunction(() => document.querySelector('[data-assistant-workspace]')?.getAttribute('data-assistant-open') === 'false')
+    await page.waitForFunction(() => !document.querySelector('[data-assistant-workspace] fieldset')?.disabled)
     await button().waitFor({ state: 'visible' })
     assert.equal(await button().isVisible(), true, `${label} retains the reopen control`)
   }
@@ -53,6 +56,7 @@ try {
   await panel().getByRole('button', { name: 'Close assistant' }).click()
   await page.reload()
   await panel().getByRole('textbox', { name: 'Message', exact: true }).waitFor({ timeout: 60000 })
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]')?.disabled && !document.querySelector('[data-assistant-workspace] fieldset')?.disabled)
   assert.equal(await button().getAttribute('aria-expanded'), 'true', 'A fresh visit opens assistance again')
   await page.setViewportSize({ width: 390, height: 844 })
   await panel().waitFor()
