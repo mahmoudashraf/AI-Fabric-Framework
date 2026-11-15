@@ -15988,3 +15988,30 @@ test is being called hosted acceptance. UI extraction remains last.
   normal deploy receipts remain in ~/.codex/private/loomai-feedback-loop-20261110/.
   UI rules updated in PLATFORM_UI_PROFILES.md and assistant/README.md. Unrelated
   .gitignore/buildinfo/artifacts preserved; Hetzner firewall settings unchanged.
+
+## 2026-11-15 Prominent AI Entry And Layout Proposals
+
+- UI ef68e56e235890944e91dbf603dea443326cc77b now native healthy on both
+  frontends, digest4491db2b1c153faeec534fe7e6fec6aa4cbf33ff9dee71c7f521b79762bd3bc2;
+  image CI43727270118 PASS/backend skipped. No backend/runtime/framework changes.
+- Shared BuildWithAIButton is contained, 38px minimum height, short three-cycle
+  pulse/spark motion, reduced-motion aware. Used by the existing Brain assistant
+  opener and selected-Brain inspector (replacing Configure there only). Same
+  canonical Brain navigation/assistant, no duplicate editor or implicit AI turn.
+- Local motion/reduced-motion and actual desktop/mobile Brain checks3PASS;
+  production build PASS. Signed-in entry-only checks PASS on BOTH CPs: library
+  button -> Brain assistant, header/reopen, fresh visit, guide-only and390px;
+  zero inference/source-sharing calls, draft writes or page errors.
+- Broader staging navigation check still intermittently times out leaving
+  Responses after the existing false-dirty discard flow, with no JS page error.
+  NOT declared fixed/green by this styling work. Full-mode assertions remain;
+  focused entry mode explicitly reports crossPageNavigation:false. Original
+  failure retained separately from passing entry proofs in private evidence
+  ~/.codex/private/brain-ai-entry-20261115/{staging,staging-entry,production-entry}.
+- Two generated light-mode mockups show an AI-first compact Brain library,
+  guided inspector and contextual assistant with actual draft receipts. They
+  are PROPOSALS ONLY, not implemented/approved broader layouts. They remain in
+  ~/.codex/generated_images/019e89af-863e-7b33-a460-4a9b6e3b63a0/ as
+  exec-de88e379-8d6d-4348-b49d-967a7c9922ce.png and
+  exec-4d15773f-50a3-43fb-9fd3-9050a7e200a1.png. Reuse existing editors/APIs if
+  approved; never fabricate setup progress or treat draft saves as live releases.

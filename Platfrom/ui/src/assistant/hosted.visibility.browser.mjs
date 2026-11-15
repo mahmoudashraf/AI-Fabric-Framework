@@ -7,6 +7,8 @@ import { chromium } from 'playwright'
 const { CONSOLE_URL, CONSOLE_EMAIL, CONSOLE_PASSWORD, BRAIN_ID } = process.env
 assert.ok(CONSOLE_URL && CONSOLE_EMAIL && CONSOLE_PASSWORD && BRAIN_ID, 'Provide an existing test account and Brain through environment variables')
 const origin = new URL(CONSOLE_URL).origin
+const checkScope = process.env.ASSISTANT_CHECK_SCOPE || 'full'
+assert.ok(['full', 'entry'].includes(checkScope))
 const evidence = process.env.ASSISTANT_EVIDENCE_DIR || join(tmpdir(), `brain-assistant-live-${Date.now()}`)
 await mkdir(evidence, { recursive: true })
 const browser = await chromium.launch({ headless: true })
@@ -44,7 +46,7 @@ try {
   await page.screenshot({ path: join(evidence, 'desktop-open.png') })
   await panel().getByRole('button', { name: 'Close assistant' }).click()
   await panel().waitFor({ state: 'hidden' })
-  for (const [label, section] of [['Knowledge', 'knowledge'], ['AI capabilities', 'capabilities'], ['Responses', 'responses'], ['Updates', 'updates'], ['Keys & secrets', 'secrets']]) {
+  for (const [label, section] of checkScope === 'full' ? [['Knowledge', 'knowledge'], ['AI capabilities', 'capabilities'], ['Responses', 'responses'], ['Updates', 'updates'], ['Keys & secrets', 'secrets']] : []) {
     await page.getByRole('navigation', { name: 'Smart Brain navigation' }).getByRole('link', { name: label, exact: true }).click()
     await page.waitForFunction(expected => location.pathname === expected || [...document.querySelectorAll('[role="dialog"]')].some(node => node.textContent.includes('Leave unsaved changes?')), `/smart-brains/${encodeURIComponent(BRAIN_ID)}/${section}`)
     const discard = page.getByRole('dialog', { name: 'Leave unsaved changes?', includeHidden: true })
@@ -60,7 +62,10 @@ try {
     await button().waitFor({ state: 'visible' })
     assert.equal(await button().isVisible(), true, `${label} retains the reopen control`)
   }
-  await button().click()
+  if (checkScope === 'entry') {
+    await page.goto(`${origin}/smart-brains/${encodeURIComponent(BRAIN_ID)}`)
+    await panel().getByRole('textbox', { name: 'Message', exact: true }).waitFor({ timeout: 60000 })
+  } else await button().click()
   await panel().getByText('Guide only.', { exact: false }).waitFor()
   await panel().getByRole('button', { name: 'Close assistant' }).click()
   await page.reload()
@@ -78,7 +83,7 @@ try {
   assert.deepEqual(errors, [])
   assert.deepEqual(writes, [], 'Visibility checks never save or release a draft')
   assert.equal(assistantCalls.filter(call => /\/turns|\/sources/.test(call.path)).length, 0, 'No inference or document sharing on open/navigation')
-  const report = { status: 'PASS', origin, brainId: BRAIN_ID, desktop: true, mobile: true, guidanceOnly: true, dismissAndReopen: true, inferenceCalls: 0, draftWrites: 0, pageErrors: errors, navigationConfirmations, at: new Date().toISOString() }
+  const report = { status: 'PASS', checkScope, crossPageNavigation: checkScope === 'full', origin, brainId: BRAIN_ID, desktop: true, mobile: true, guidanceOnly: true, dismissAndReopen: true, inferenceCalls: 0, draftWrites: 0, pageErrors: errors, navigationConfirmations, at: new Date().toISOString() }
   await writeFile(join(evidence, 'result.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify({ ...report, evidence }))
 } catch (error) {
