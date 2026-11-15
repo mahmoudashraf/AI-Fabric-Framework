@@ -16015,3 +16015,60 @@ test is being called hosted acceptance. UI extraction remains last.
   exec-de88e379-8d6d-4348-b49d-967a7c9922ce.png and
   exec-4d15773f-50a3-43fb-9fd3-9050a7e200a1.png. Reuse existing editors/APIs if
   approved; never fabricate setup progress or treat draft saves as live releases.
+
+## 2026-11-15 Approved AI-First Brain Workspace Implemented And Live
+
+- Owner approved both preceding mockups. This entry supersedes their earlier
+  proposal-only status, NOT the rejection of the global 010.65 customer redesign.
+  Scope: Brain library/selected inspector, capability outcome table and shared
+  configuration assistant. Home, Kits, Engage and account shells remain unchanged.
+- UI application source d91c74111bd3769390811370b5d49929e3d72772 is native
+  source/digest/health verified on BOTH staging and production frontends.
+  Shared digest sha256:e05cbd668ac1182676d658c314564cba49d0d0dca1709bcd2823d44b8e2bcd24;
+  image CI43738500056 PASS. The shared controlled-conversation presentation props
+  also triggered a backend image build, but ONLY UI was deployed. Backend remains
+  69c4ce07f94731ddb7f75d9d9c8c31608d86f768; no runtime/framework release.
+- Compact All/Drafts/Live library, guided inspector and compact quota preserve
+  the existing technical controls. Actual current target metadata, latest exact
+  target releases and exact app assignments determine live labels; original offer
+  pins or an older successful release never substitute for unavailable evidence.
+  API-only Brains do not require Engage. Live reads are lazy/cached, not polling.
+- Build with AI remains closable/default-open on Brain visits. Page guidance,
+  selected references and preparation are prominent; raw IDs/session controls and
+  turn options are disclosed progressively. Actual server SAVED receipts refresh
+  the outcome table, show Not published, expose structured diffs and link to the
+  existing Updates page. Original model output, validation warnings and uncertainty
+  remain visible. No inference/import/indexing/publishing occurs on navigation.
+  Existing manual action/plugin editors and their authority are reused.
+- Local checks PASS: 114 unit regressions, 48 assistant browser groups, 20 MCP
+  browser scenarios, 23 library scenarios, 42 capability scenarios, production
+  build and diff checks. Light/dark, long names, narrow layouts, optional fields,
+  exact failed assignments, error/unknown statuses and preserved manual links
+  included. Do not treat absent optional policy fields as new execution gates.
+- Hosted real-provider proof PASS on BOTH control planes: reference import ->
+  explicit Prepare capabilities -> three public READ definitions/routes saved in
+  one turn -> real receipt/refetched draft/table/diff -> Review draft/Updates,
+  close/reopen and390px. No publish/apply/provisioning or business writes.
+  Production used one normally bootstrapped customer Brain dep-c24ec15a for the
+  complete library-to-review journey. Staging has no customer starter catalogue;
+  its existing owned library Brain dep-a9d6d646 and isolated draft dep-4a480212
+  are explicitly reported as split proof, not a single-Brain customer bootstrap.
+  Initial low-level fixture missing from the portfolio was a test-setup mismatch,
+  retained as a failed attempt, not bypassed with fabricated list/access data.
+- Resource-free fixtures dep-4a480212, dep-baa76711 and dep-c24ec15a all removed
+  via normal archive/deletion APIs; their captured assistant sessions removed.
+  Existing customer apps/Brains/infrastructure unchanged. Final no-write390px
+  production check on Harbor passed with settled drawer screenshots, no inference
+  or draft writes. First unsettled screenshot/bounds attempts are not pass evidence.
+- Known unrelated limits remain: CI43738500105 quota/Desk test job fails before
+  PostgreSQL starts because Docker client API1.32 < runner minimum1.40 (221 tests,
+  zero assertion failures, one infrastructure error, six skipped). No bypass/fix
+  included. Earlier broader Responses false-dirty/navigation issue is not declared
+  solved by the scoped capabilities-to-Updates proof. This is UI/configuration
+  qualification, not a new deployment/runtime-chat or integration-execution test.
+- Reproducible hosted runner: ui/src/assistant/hosted.journey.browser.mjs, with
+  explicit draft-write opt-in. Private evidence and cleanup receipts live under
+  ~/.codex/private/brain-ai-journey-20261115/; native deploy receipts under the
+  existing loomai-feedback-loop-20261110 directory. Test-only/docs follow-up commits
+  do not change the application source above. UI contract/assistant README updated.
+  Unrelated .gitignore/buildinfo/artifacts preserved; firewall settings unchanged.

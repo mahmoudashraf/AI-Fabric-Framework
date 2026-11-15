@@ -7,6 +7,7 @@ const { CONSOLE_URL, CONSOLE_EMAIL, CONSOLE_PASSWORD, BRAIN_ID, ASSISTANT_SPEC_F
 assert.equal(process.env.ALLOW_ASSISTANT_DRAFT_WRITE, '1', 'This test starts paid inference and saves only the explicitly supplied fixture draft')
 assert.ok(CONSOLE_URL && CONSOLE_EMAIL && CONSOLE_PASSWORD && BRAIN_ID && ASSISTANT_SPEC_FILE && ASSISTANT_EVIDENCE_DIR)
 const origin = new URL(CONSOLE_URL).origin
+const libraryBrainId = process.env.LIBRARY_BRAIN_ID || BRAIN_ID
 const spec = JSON.parse(await readFile(ASSISTANT_SPEC_FILE, 'utf8'))
 assert.ok(Object.values(spec.paths).every(path => Object.keys(path).every(method => method === 'get')), 'Use a public read-only fixture specification')
 await mkdir(ASSISTANT_EVIDENCE_DIR, { recursive: true })
@@ -56,11 +57,15 @@ try {
   await page.getByLabel(/^Password/).fill(CONSOLE_PASSWORD)
   await page.locator('form').filter({ has: page.getByLabel(/^Password/) }).locator('button[type="submit"]').click()
   await page.waitForURL(url => !url.pathname.startsWith('/sign-in'), { timeout: 60000 })
-  await page.goto(`${origin}/deployments?${new URLSearchParams({ resourceKind: 'deployment', resourceId: BRAIN_ID, deploymentId: BRAIN_ID })}`)
+  await page.goto(`${origin}/deployments?${new URLSearchParams({ resourceKind: 'deployment', resourceId: libraryBrainId, deploymentId: libraryBrainId })}`)
   const details = page.getByRole('complementary').filter({ has: page.getByRole('button', { name: 'Build with AI', exact: true }) })
   await details.getByRole('button', { name: 'Build with AI', exact: true }).waitFor({ timeout: 60000 })
-  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'library.png') })
+  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'library.png'), animations: 'disabled' })
   await details.getByRole('button', { name: 'Build with AI', exact: true }).click()
+  if (libraryBrainId !== BRAIN_ID) {
+    await panel().waitFor()
+    await page.goto(`${origin}/smart-brains/${encodeURIComponent(BRAIN_ID)}`)
+  }
   await panel().getByRole('navigation', { name: 'AI setup steps' }).getByRole('link', { name: 'Connect your tools', exact: true }).click()
   await page.getByRole('heading', { name: 'What should your AI help customers do?', exact: true }).waitFor()
   await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]')?.disabled)
@@ -99,11 +104,11 @@ try {
     assert.ok(action.displayName || action.name)
     await table.getByRole('link', { name: action.displayName || action.name.replace(/[_-]/g, ' '), exact: true }).waitFor()
   }
-  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'saved-capabilities.png') })
+  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'saved-capabilities.png'), animations: 'disabled' })
   const changes = panel().getByRole('region', { name: 'Saved changes', exact: true }).last()
   await changes.locator('summary').filter({ hasText: 'See what changed' }).click()
   assert.ok(await changes.getByRole('listitem').count() > 0)
-  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'actual-diff.png') })
+  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'actual-diff.png'), animations: 'disabled' })
   const turnCount = turns.length
   await panel().getByRole('button', { name: 'Close assistant', exact: true }).click()
   await panel().waitFor({ state: 'hidden' })
@@ -111,11 +116,17 @@ try {
   await panel().getByText('Saved to draft · Not published', { exact: true }).last().waitFor()
   await page.setViewportSize({ width: 390, height: 844 })
   await panel().getByRole('button', { name: 'Close assistant', exact: true }).waitFor()
+  await page.waitForFunction(() => {
+    const bounds = document.querySelector('#configuration-assistant-panel button[aria-label="Close assistant"]')?.getBoundingClientRect()
+    return bounds && bounds.x >= 0 && bounds.right <= innerWidth + 1
+  })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'The narrow-screen drawer must not overflow the viewport')
-  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'mobile-assistant.png') })
+  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'mobile-assistant.png'), animations: 'disabled' })
   await panel().getByRole('button', { name: 'Close assistant', exact: true }).click()
   await panel().waitFor({ state: 'hidden' })
-  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'mobile-capabilities.png') })
+  await page.waitForFunction(() => ![...document.querySelectorAll('.MuiDrawer-root')].some(element =>
+    element.querySelector('#configuration-assistant-panel') && getComputedStyle(element).visibility !== 'hidden'))
+  await page.screenshot({ path: join(ASSISTANT_EVIDENCE_DIR, 'mobile-capabilities.png'), animations: 'disabled' })
   await page.setViewportSize({ width: 1600, height: 1060 })
   await page.getByRole('button', { name: 'Build with AI', exact: true }).click()
   await panel().getByText('Saved to draft · Not published', { exact: true }).last().waitFor()
@@ -124,7 +135,7 @@ try {
   await page.waitForURL(url => url.pathname.endsWith('/updates'))
   assert.deepEqual(forbidden, [])
   assert.deepEqual(errors, [])
-  const report = { status: 'PASS', origin, brainId: BRAIN_ID, firstStatus, finalStatus: status, turns: turns.length, capabilities: actions.map(action => ({ name: action.name, displayName: action.displayName, accessMode: action.accessMode })), receipt, closeReopen: true, narrowScreen: true, liveChanged: false, provisioned: false, pageErrors: errors, at: new Date().toISOString() }
+  const report = { status: 'PASS', origin, brainId: BRAIN_ID, libraryBrainId, singleBrainJourney: libraryBrainId === BRAIN_ID, firstStatus, finalStatus: status, turns: turns.length, capabilities: actions.map(action => ({ name: action.name, displayName: action.displayName, accessMode: action.accessMode })), receipt, closeReopen: true, narrowScreen: true, liveChanged: false, provisioned: false, pageErrors: errors, at: new Date().toISOString() }
   await save('journey-result.private.json', report)
   console.log(JSON.stringify(report))
 } catch (error) {

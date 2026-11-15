@@ -123,3 +123,10 @@ of that runner only for a disposable authorized fixture. Credentials, sources,
 session IDs and evidence are kept outside the repository. Clean up that exact
 fixture and its sessions afterward; this test is not an infrastructure or
 runtime-chat qualification.
+
+Where a staging control plane has no enabled customer starters, an explicit
+`LIBRARY_BRAIN_ID` can qualify library entry on an existing owned Brain before
+testing the isolated draft editor. Reports mark that split proof with
+`singleBrainJourney:false`; it is not a substitute for the single-Brain customer
+journey on the production control plane. Mobile evidence waits for the drawer
+transition to settle rather than capturing a closing panel.
