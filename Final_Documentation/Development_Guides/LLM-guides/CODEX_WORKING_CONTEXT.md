@@ -16174,3 +16174,44 @@ test is being called hosted acceptance. UI extraction remains last.
   rejected010.65 or verification of activation/DNS/runtime chat. The unrelated
   global Support startup presentation remains outside this change. Unrelated
   .gitignore/buildinfo/artifacts and firewall settings are preserved.
+
+## 2026-11-15 Engage Records - Operational Context And Feature Parity
+
+- Owner requested restoring useful old-record information without restoring a
+  duplicate customer page. UI source42a6869efbc0358881935f8e6b8199f9d7b39ada is
+  native source/digest/health verified on BOTH frontends; digest
+  sha256:1096e1eade3b9148de05a3caaed90a7db6e279827ad0c73350ba913472f4e1ec.
+  Image CI43761497251 PASS/backend skipped. No backend/framework/runtime changes.
+- App records retain name/state, delivery/address or website count, owned Brain,
+  exact assigned environment and readiness with the actual leading blocker plus
+  remaining-issue count. Information wraps on narrow screens rather than being
+  removed. Inspector has the same compact context and visible App controls,
+  opening the existing Advanced editor at its controls, not scrolled past them.
+- Environment uses the existing customer connection summary, matched by customer,
+  connection, Brain and assigned release. No release means Not assigned; failed,
+  missing or mismatched evidence remains Unavailable. Brain bootstrap environment
+  is never substituted. The Brain-origin inspector can use its already loaded
+  exact release/target profile. There are no per-row API calls or mutations.
+- Kept canonical connection/reassignment, branding/preview/AI editing, website
+  installation/copy, origins, domains, readiness refresh/deployment-update and
+  activation workflows. Existing disable/delete controls, permissions and
+  destructive confirmation remain; staff table is unchanged. Details also retain
+  allowed websites for standalone apps and raw connection/profile/release refs.
+  PLATFORM_UI_PROFILES.md records this preservation checklist for future sessions.
+- Local65 unit checks,32 integrated Engage browser scenarios,27 Brain library
+  regressions, TypeScript/build/diff checks PASS. Added light/dark320/390px record
+  checks, long names, actual-environment versus bootstrap, read errors, mismatched
+  assignment, control visibility and delete/disable confirmation cancellation.
+- BOTH normal-customer hosted desktop/mobile journeys PASS on the exact image:
+  staging Support and production Harbor. Rendered record metadata matches normal
+  authenticated customer API reads. App controls, Kit/Brain returns, selected-app
+  restoration, launch focus and absence of the legacy table pass. Zero config
+  writes, inference, page errors or new resources. Actual destructive execution,
+  activation, DNS changes and runtime chat were not repeated for this UI change.
+- The first staging verification attempt failed in the checker while capturing
+  a response body across navigation. Replaced that capture with explicit reads
+  using the UI's normal customer authorization; rerun PASS before production.
+  Failed attempt is not pass evidence. Follow-up test/docs commits do not change
+  the deployed application source above. Reproducible runner and private evidence
+  remain in the existing engage-guided paths. Unrelated local files and firewall
+  settings are unchanged; global Support startup presentation stays out of scope.

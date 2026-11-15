@@ -7,16 +7,14 @@ assert.ok(CONSOLE_URL && CONSOLE_EMAIL && CONSOLE_PASSWORD && KIT_ID && KIT_APP_
 await mkdir(EVIDENCE_DIR, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, reducedMotion: 'reduce' })
-const errors = [], writes = [], reads = new Map()
+const errors = [], writes = []
+let apiRequest
 page.on('pageerror', error => errors.push(error.message))
-page.on('response', async response => {
-  const path = new URL(response.url()).pathname
-  if (response.ok() && (path === '/api/platform/customers' || path === '/api/customer-self-service/deployments'
-    || /^\/api\/platform\/customers\/[^/]+\/ai-workspace-installations$/.test(path))) {
-    reads.set(path, await response.json())
-  }
-})
 page.on('request', request => {
+  if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/customer-self-service/deployments') {
+    const authorization = request.headers().authorization
+    apiRequest = { origin: new URL(request.url()).origin, headers: authorization ? { authorization } : {} }
+  }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && /\/api\/(?:deployments|customer-experience-kits|platform\/customers\/[^/]+\/ai-workspace-installations|configuration-assistant\/.*\/(?:turns|sources))/.test(new URL(request.url()).pathname)) writes.push(new URL(request.url()).pathname)
 })
 const panel = () => page.getByRole('complementary')
@@ -25,10 +23,18 @@ async function unifiedEngage() {
   assert.equal(await page.locator('table').count(), 0, 'Customer setup never mounts the legacy management table')
 }
 async function appRecordContext() {
-  const apps = [...reads.entries()].find(([path]) => /^\/api\/platform\/customers\/[^/]+\/ai-workspace-installations$/.test(path))?.[1]
-  const app = apps?.find(item => item.installationId === APP_ID)
-  const brain = reads.get('/api/customer-self-service/deployments')?.find(item => item.deploymentId === BRAIN_ID)
-  const connection = reads.get('/api/platform/customers')?.find(item => item.id === app?.customerId)?.consumers
+  assert.ok(apiRequest, 'Use the same API origin and normal signed-in customer authorization as the UI')
+  const read = async path => {
+    const response = await page.request.get(`${apiRequest.origin}${path}`, { headers: apiRequest.headers })
+    assert.equal(response.ok(), true, `Customer read failed: ${path} (${response.status()})`)
+    return response.json()
+  }
+  const actor = await read('/api/platform/auth/session')
+  assert.equal(actor.role, 'CUSTOMER_ADMIN')
+  const apps = await read(`/api/platform/customers/${actor.customerId}/ai-workspace-installations`)
+  const brain = (await read('/api/customer-self-service/deployments')).find(item => item.deploymentId === BRAIN_ID)
+  const app = apps.find(item => item.installationId === APP_ID)
+  const connection = (await read('/api/platform/customers')).find(item => item.id === app?.customerId)?.consumers
     .find(item => item.consumerId === app.consumerId && item.boundDeploymentId === app.deploymentId && item.boundReleaseId === app.releaseId)
   assert.ok(app && brain)
   const environment = !app.releaseId ? 'Not assigned' : connection?.boundDeploymentEnvironment === 'staging' ? 'Staging'
