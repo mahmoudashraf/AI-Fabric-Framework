@@ -6,7 +6,7 @@ import { withDeploymentTerminology } from './deployment-terminology-test-support
 
 const source = await readFile(new URL('../src/components/customer/customerResourceModels.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(withDeploymentTerminology(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-const { deploymentResource, resourceReleaseSelection, releaseIssues } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
+const { deploymentResource, appResource, resourceReleaseSelection, releaseIssues } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const deployment = { deploymentId: 'dep-owned', name: 'Owned deployment', status: 'DRAFT', environmentName: 'Staging' }
 const app = (releaseId, overrides = {}) => ({ installationId: 'app-owned', deploymentId: deployment.deploymentId, status: 'ACTIVE', releaseId, ...overrides })
 const release = (id, overrides = {}) => ({ id, deploymentId: deployment.deploymentId, status: 'APPLIED_VERIFIED', verificationStatus: 'PASSED', ...overrides })
@@ -50,4 +50,17 @@ test('app inspector uses only that exact app assignment, not another app on the 
 test('setup without any active assignment retains target-release visibility', () => {
   const selection = resourceReleaseSelection(deploymentResource(deployment), [release('first')], [], null)
   assert.deepEqual(selection.visible.map(item => item.id), ['first'])
+})
+test('Engage details retain allowed websites for both delivery modes and raw connection references', () => {
+  for (const deliveryMode of ['standalone', 'embedded']) {
+    const result = appResource({ ...app('current'), consumerId: 'consumer-owned', displayName: 'Customer workspace', deliveryMode,
+      domains: [], readinessChecks: [], allowedOrigins: ['https://company.test'], appUrl: 'https://ai.company.test',
+      connectionMode: 'public-runtime-authenticated', connectionProfileCode: 'authenticated', connectionProfileVersion: '1.0', interactionPolicy: 'login-required' })
+    assert.ok(result.facts.some(([key, value]) => key === 'Allowed websites' && value === 'https://company.test'))
+    assert.ok(result.facts.some(([key, value]) => key === 'Connection' && value === 'public-runtime-authenticated'))
+    assert.ok(result.facts.some(([key, value]) => key === 'Visitor access' && value === 'login-required'))
+    assert.ok(result.advancedFacts.some(([key, value]) => key === 'Connection ID' && value === 'consumer-owned'))
+    assert.ok(result.advancedFacts.some(([key, value]) => key === 'Assigned release' && value === 'current'))
+    if (deliveryMode === 'standalone') assert.ok(result.facts.some(([key, value]) => key === 'App address' && value === 'https://ai.company.test'))
+  }
 })

@@ -103,6 +103,26 @@ successful creation selects the saved new app. Preserve validated Kit/Brain
 origin when it still matches the result, nested manual form buffers and all
 existing busy/close protections. Opening these tools never saves or invokes AI.
 
+Keep operational context visible in Engage records: app name/state, delivery and
+address or website count, connected Brain, assigned environment, readiness and
+the actual leading blocker. Additional issues are counted, not silently dropped;
+the inspector retains every original message. Environment comes from the exact
+customer/connection/Brain/release assignment, never the Brain's initial environment
+or another app. Missing or failed reads remain unavailable. A draft with no
+release has no assigned runtime environment; readiness is recorded checks, not a
+live health guarantee. Responsive rows wrap this information instead of hiding it.
+
+Engage redesign parity: connection/reassignment stays in Connect your Brain;
+branding, preview and existing AI-assisted editing stay in their canonical
+editors; website script/copy, origins and domain verification stay in delivery;
+readiness refresh, required deployment update and activation stay in launch
+checks. App controls exposes the existing Advanced editor for AI/edit, disable
+and inactive-app deletion, retaining authorization and destructive confirmation.
+Technical details retains connection mode, visitor access, allowed websites,
+connection/profile/version and release references. Standalone apps must retain
+their allowed websites too. Do not replace this functionality with an inert
+summary or restore the duplicate management page to surface these facts.
+
 Kit product headings reveal and focus their inspector even on repeated selection
 and narrow screens. The workspace card's Configure workspace action opens the
 existing editor instead of re-selecting an already open panel. Preview and both

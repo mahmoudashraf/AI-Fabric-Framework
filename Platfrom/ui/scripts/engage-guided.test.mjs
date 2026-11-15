@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
 const source = await readFile(new URL('../src/components/customer/engagePresentation.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-const { engageState, engageNextStep, engageCheckStep, engageStepPath, normalizeLegacyEngageRoute, closeEngageToolRoute } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
+const { engageState, engageNextStep, engageCheckStep, engageStepPath, normalizeLegacyEngageRoute, closeEngageToolRoute, engageConnectionInfo, engageReadinessInfo } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`)
 const app = overrides => ({ installationId: 'app-a', deploymentId: 'brain-a', releaseId: 'release-a', status: 'DRAFT', ready: false, readinessChecks: [], domains: [], ...overrides })
 test('saved, active and ready are distinct presentation states', () => {
   assert.equal(engageState(app()).label, 'Setup needed')
@@ -65,4 +65,35 @@ test('closing setup preserves the exact selection/context and removes transient 
   assert.equal(closed.has('appTool'), false)
   const created = closeEngageToolRoute(params, app({ installationId: 'new-app', deploymentId: 'other-brain' }))
   assert.equal(created.get('resourceId'), 'new-app'); assert.equal(created.has('kitId'), false); assert.equal(created.has('fromBrainId'), false)
+})
+const connectedApp = app({ customerId: 'customer-a', consumerId: 'consumer-a' })
+const brains = [{ deploymentId: 'brain-a', name: 'Customer service Brain', environmentName: 'staging' }]
+const connection = { customerId: 'customer-a', consumerId: 'consumer-a', boundDeploymentId: 'brain-a', boundReleaseId: 'release-a', boundDeploymentEnvironment: 'production' }
+test('app environment comes from its exact assigned connection, not the Brain bootstrap or another app', () => {
+  assert.deepEqual(engageConnectionInfo(connectedApp, brains, [connection], 'ready'), { brainLabel: 'Customer service Brain', environmentLabel: 'Production' })
+  assert.equal(engageConnectionInfo(connectedApp, brains, [{ ...connection, boundDeploymentEnvironment: 'staging' }], 'ready').environmentLabel, 'Staging')
+  for (const changed of [{ customerId: 'foreign' }, { consumerId: 'other' }, { boundDeploymentId: 'other' }, { boundReleaseId: 'newer-release' }, { boundDeploymentEnvironment: 'unknown' }]) {
+    assert.equal(engageConnectionInfo(connectedApp, brains, [{ ...connection, ...changed }], 'ready').environmentLabel, 'Unavailable')
+  }
+})
+test('draft, missing and failed connection reads stay distinct from a production assignment', () => {
+  assert.equal(engageConnectionInfo({ ...connectedApp, releaseId: null }, brains, [connection], 'ready').environmentLabel, 'Not assigned')
+  assert.equal(engageConnectionInfo({ ...connectedApp, deploymentId: null }, brains).brainLabel, 'Not connected')
+  assert.equal(engageConnectionInfo(connectedApp, []).brainLabel, 'Brain unavailable')
+  for (const evidence of ['loading', 'error', 'unavailable']) {
+    assert.equal(engageConnectionInfo(connectedApp, brains, [connection], evidence).environmentLabel, evidence === 'loading' ? 'Loading...' : 'Unavailable')
+  }
+})
+test('row readiness preserves the actual blocking reason and remaining issue count', () => {
+  const result = engageReadinessInfo(app({ ready: true, readinessChecks: [
+    { code: 'WARNING', status: 'WARNING', message: 'Review authentication' },
+    { code: 'ASSIGNMENT', status: 'BLOCKED', message: 'Connect a verified release' },
+  ], domains: [{ hostname: 'ai.example.test', lastVerificationError: 'HTTPS pending' }] }))
+  assert.deepEqual(result, { label: 'Blocked', color: 'warning', reason: 'Connect a verified release', additional: 2 })
+  assert.equal(engageReadinessInfo(app({ readinessChecks: [{ code: 'NEW', status: 'WARNING', message: 'New provider condition' }] })).reason, 'New provider condition')
+})
+test('domain errors and missing readiness are never presented as ready', () => {
+  assert.equal(engageReadinessInfo(app({ ready: true, domains: [{ hostname: 'ai.test', lastVerificationError: 'Pending HTTPS' }] })).reason, 'ai.test: Pending HTTPS')
+  assert.equal(engageReadinessInfo(app()).label, 'Not ready')
+  assert.equal(engageReadinessInfo(app({ ready: true })).label, 'Ready')
 })

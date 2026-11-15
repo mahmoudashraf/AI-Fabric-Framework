@@ -64,13 +64,13 @@ export function appResource(app: AIWorkspaceInstallationSummary): CustomerResour
     status: app.status, severity: app.status === 'DISABLED' ? 'default' : issues.length ? 'warning' : app.ready ? 'success' : 'info',
     issues, deploymentId: app.deploymentId, releaseId: app.releaseId, updatedAt: app.updatedAt,
     facts: [['Installation state', app.status], ['Readiness', app.ready ? 'Passed recorded checks' : 'Not ready'],
-      app.deliveryMode === 'embedded' ? ['Website origins', app.allowedOrigins.join(', ') || 'Not configured']
-        : ['App address', app.appUrl ?? 'Not configured'], ['Connection', app.connectionMode],
+      ...(app.deliveryMode === 'standalone' ? [['App address', app.appUrl ?? 'Not configured'] as [string, string]] : []),
+      ['Allowed websites', app.allowedOrigins.join(', ') || 'Not configured'], ['Connection', app.connectionMode],
       ['Visitor access', app.interactionPolicy]],
     configurationFacts: [['Delivery', app.deliveryMode], ['Experience', app.experiencePackCode], ['Visitor access', app.interactionPolicy]],
     advancedFacts: [['Installation ID', app.installationId], ['Experience version', app.experiencePackVersion],
       ['Connection profile', app.connectionProfileCode], ['Connection version', app.connectionProfileVersion],
-      ['Assigned release', app.releaseId ?? 'Not assigned']],
+      ['Connection ID', app.consumerId ?? 'Not connected'], ['Assigned release', app.releaseId ?? 'Not assigned']],
   }
 }
 

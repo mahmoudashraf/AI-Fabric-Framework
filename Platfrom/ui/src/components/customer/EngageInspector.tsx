@@ -8,14 +8,18 @@ import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
 import LanguageRounded from '@mui/icons-material/LanguageRounded'
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import type { AIWorkspaceInstallationSummary } from '../../api/platformApi'
-import { engageCheckStep, engageNextStep, engageState, engageStepPath, type EngageStep } from './engagePresentation'
+import { engageCheckStep, engageNextStep, engageState, engageStepPath, engageReadinessInfo, type engageConnectionInfo, type EngageStep } from './engagePresentation'
 import { safeCustomerAppUrl } from './customerResourceModels'
+import { deploymentTerm } from '../../deploymentTerminology'
 
-export function EngageInspector({ app, source, navigation, notices, technicalDetails, onClose }: {
+export function EngageInspector({ app, source, connection, navigation, notices, technicalDetails, onClose }: {
   app: AIWorkspaceInstallationSummary; source: URLSearchParams; navigation?: ReactNode; notices?: ReactNode; technicalDetails: ReactNode; onClose: () => void
+  connection: ReturnType<typeof engageConnectionInfo>
 }) {
   const state = engageState(app), next = engageNextStep(app), embedded = app.deliveryMode === 'embedded'
+  const readiness = engageReadinessInfo(app)
   const steps = [
     { id: 'connection', label: 'Connect your Brain', Icon: LinkRounded, description: app.releaseId ? 'Review the assigned AI release' : 'Choose a tested AI release' },
     { id: 'appearance', label: 'Brand your workspace', Icon: PaletteOutlined, description: 'Name, logo, colors and customer preview' },
@@ -25,6 +29,8 @@ export function EngageInspector({ app, source, navigation, notices, technicalDet
   const commands = { connection: 'Connect your Brain', appearance: 'Customize your workspace', delivery: embedded ? 'Set up website installation' : 'Set up app address', readiness: 'Review launch checks' }
   const outstanding = app.readinessChecks.filter(check => check.status !== 'PASSED')
   const appUrl = safeCustomerAppUrl(app.appUrl)
+  const controls = new URL(engageStepPath(app, 'readiness', source), 'https://console.invalid')
+  controls.searchParams.delete('appSection'); controls.searchParams.set('editorSection', 'advanced')
   const alternate = new URLSearchParams({ appTool: 'create', resourceKind: 'app', resourceId: app.installationId, sourceInstallationId: app.installationId, delivery: embedded ? 'standalone' : 'embedded' })
   for (const key of ['kitId', 'fromBrainId', 'fromBrainReleaseId']) { const value = source.get(key); if (value) alternate.set(key, value) }
   return <Box component="aside" aria-label={`${app.displayName} details`} sx={{ bgcolor: 'background.paper', height: '100%', overflowY: 'auto', minWidth: 0 }}>
@@ -35,6 +41,12 @@ export function EngageInspector({ app, source, navigation, notices, technicalDet
     <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
       <Box><Typography component="h2" fontSize={24} fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{app.displayName}</Typography>
         <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 1 }}><Chip size="small" label={state.label} color={state.color} /><Typography variant="body2" color="text.secondary">{embedded ? 'Website widget' : 'Standalone app'}</Typography></Stack>
+      </Box>
+      <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', columnGap: 2, rowGap: 1,
+        '& dt': { color: 'text.secondary' }, '& dd': { m: 0, textAlign: 'right', overflowWrap: 'anywhere' } }}>
+        <Typography component="dt" variant="body2">{deploymentTerm.singular}</Typography><Typography component="dd" variant="body2" fontWeight={600}>{connection.brainLabel}</Typography>
+        <Typography component="dt" variant="body2">Environment</Typography><Typography component="dd" variant="body2">{connection.environmentLabel}</Typography>
+        <Typography component="dt" variant="body2">Readiness</Typography><Typography component="dd" variant="body2" color={`${readiness.color}.main`}>{readiness.label}</Typography>
       </Box>
       {notices}
       <Box><Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{state.label === 'Active' ? 'Your customer experience' : 'Your next step'}</Typography>
@@ -51,6 +63,7 @@ export function EngageInspector({ app, source, navigation, notices, technicalDet
       </Stack>
       <Button component={RouterLink} to={`/ai-workspaces?${alternate}`} startIcon={embedded ? <OpenInNewRounded /> : <LanguageRounded />}>{embedded ? 'Add standalone app' : 'Add website widget'}</Button>
       {app.status === 'ACTIVE' && appUrl && <Button component="a" href={appUrl} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button>}
+      <Button component={RouterLink} to={`${controls.pathname}${controls.search}`} startIcon={<SettingsOutlined />}>App controls</Button>
       <Divider />
       <Box component="details"><Typography component="summary" fontWeight={650} sx={{ cursor: 'pointer', minHeight: 34 }}>Technical details</Typography><Stack spacing={2.5} sx={{ pt: 2 }}>{technicalDetails}</Stack></Box>
     </Stack>

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { isCustomerSession } from '../auth/customerSession'
-import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, type AIWorkspaceInstallationSummary, type PlatformAuthSessionSummary } from '../api/platformApi'
+import { fetchAIWorkspaceInstallations, fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceCatalogue, fetchDeploymentReleases, fetchPlatformCustomers, type AIWorkspaceInstallationSummary, type PlatformAuthSessionSummary } from '../api/platformApi'
 import { CustomerDeploymentConsole } from '../components/customer/CustomerDeploymentConsole'
 import { CustomerResourceSurface } from '../components/customer/CustomerResourceSurface'
 import { CustomerSetupNavigationGuard } from '../components/customer/CustomerSetupNavigationGuard'
@@ -47,6 +47,7 @@ function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments'
   const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio })
   const offers = useQuery({ queryKey: ['customer-self-service-catalogue', customerId], queryFn: fetchCustomerSelfServiceCatalogue })
   const installations = useQuery({ queryKey: ['ai-workspace-installations', customerId], queryFn: () => fetchAIWorkspaceInstallations(customerId) })
+  const customers = useQuery({ queryKey: ['platform-customers'], queryFn: fetchPlatformCustomers, enabled: mode === 'apps' })
   const apps = (installations.data ?? []).filter(app => app.customerId === customerId)
   const resourceId = params.get('resourceId')
   const resourceKind = params.get('resourceKind')
@@ -56,6 +57,7 @@ function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments'
     queryKey: ['deployment-releases', deploymentId], queryFn: () => fetchDeploymentReleases(deploymentId!), enabled: Boolean(deploymentId),
   })
   const errors = [portfolio, offers, installations].flatMap(query => query.isError ? [query.error instanceof Error ? query.error.message : 'Resource data could not be loaded.'] : [])
+  if (mode === 'apps' && customers.isError) errors.push('App connection details could not be loaded. Environment information is unavailable.')
   const selectedApp = resourceKind === 'app' ? apps.find(app => app.installationId === resourceId) : null
   const configurationRequested = params.get('editor') === 'configuration'
   const configurationScopeMismatch = Boolean(configurationRequested && deploymentId && params.get('deploymentId') !== deploymentId)
@@ -95,6 +97,8 @@ function CustomerResourceReads({ mode, session }: { mode: 'home' | 'deployments'
         navigation={selectedApp ? <EngageReturnNavigation app={selectedApp} deployments={portfolio.data ?? []} /> : undefined} />
     </CustomerEditorSections> : null
   return <CustomerResourceSurface mode={mode} deployments={portfolio.data ?? []} apps={apps}
+    appConnections={customers.data?.find(customer => customer.id === customerId)?.consumers}
+    appConnectionEvidence={customers.isError ? 'error' : customers.data ? 'ready' : mode === 'apps' && customers.isPending ? 'loading' : 'unavailable'}
     offers={(offers.data ?? []).filter(offer => offer.entitlement.customerId === customerId)}
     releases={releases.data ?? []} releaseLoading={Boolean(deploymentId) && releases.isPending}
     releaseError={releases.isError ? (releases.error instanceof Error ? releases.error.message : 'Release read failed.') : null}

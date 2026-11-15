@@ -12,7 +12,7 @@ import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
 import PaletteOutlined from '@mui/icons-material/PaletteOutlined'
 import LinkRounded from '@mui/icons-material/LinkRounded'
-import { fetchDeploymentReleases, fetchDeploymentTargetOptions, type AIWorkspaceInstallationSummary, type CustomerDeploymentSummary, type CustomerOfferSummary, type DeploymentReleaseSummary } from '../../api/platformApi'
+import { fetchDeploymentReleases, fetchDeploymentTargetOptions, type AIWorkspaceInstallationSummary, type CustomerDeploymentSummary, type CustomerOfferSummary, type DeploymentReleaseSummary, type PlatformConsumerSummary } from '../../api/platformApi'
 import { appResource, brainLibraryEnvironment, brainLibraryQueryEvidence, brainLibraryState, deploymentResource, releaseEnvironment, releaseIssues, resourceReleaseSelection, safeCustomerAppUrl, type BrainLibraryFilter, type BrainReleaseEvidence, type CustomerResource } from './customerResourceModels'
 import { CustomerConfigurationPanel } from './CustomerConfigurationPanel'
 import { CustomerDetailSections, type CustomerEditorSection } from './CustomerDetailSections'
@@ -30,7 +30,7 @@ import { BrainLibraryInspector } from './BrainLibraryInspector'
 import { EngageLibrary } from './EngageLibrary'
 import { EngageInspector } from './EngageInspector'
 import { EngageReturnNavigation } from './EngageReturnNavigation'
-import { type EngageFilter, closeEngageToolRoute, engageStepPath } from './engagePresentation'
+import { type EngageFilter, type EngageConnectionEvidence, closeEngageToolRoute, engageStepPath, engageConnectionInfo } from './engagePresentation'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -49,6 +49,8 @@ export type CustomerResourceSurfaceProps = {
   dataObservedAt: number | null
   configuration?: ReactNode
   tools?: ReactNode
+  appConnections?: PlatformConsumerSummary[]
+  appConnectionEvidence?: EngageConnectionEvidence
 }
 
 export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
@@ -74,6 +76,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const selectedReleaseId = params.get('releaseId')
   const selectedRelease = props.releases.find(item => item.id === selectedReleaseId && item.deploymentId === selected?.deploymentId)
   const assignedApp = selected?.kind === 'app' ? props.apps.find(item => item.installationId === selected.id) : null
+  const appConnection = assignedApp ? engageConnectionInfo(assignedApp, props.deployments, props.appConnections, props.appConnectionEvidence) : null
   const deskRelease = selected?.kind === 'app'
     ? props.releases.find(item => item.id === assignedApp?.releaseId) : selectedRelease
   const releaseSelection = resourceReleaseSelection(selected, props.releases, props.apps, selectedReleaseId)
@@ -194,6 +197,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
         </Stack> : null
   const appNavigation = assignedApp ? <EngageReturnNavigation app={assignedApp} deployments={props.deployments} brainLibrary={brainLibrary}
     onBrainReturn={brainLibrary && parentBrain ? releaseId => open(parentBrain, releaseId) : undefined} fallbackLabel /> : null
+  const inspectedAppRelease = brainLibrary && assignedApp && releaseEvidence === 'ready' && profileEvidence === 'ready'
+    ? props.releases.find(release => release.id === assignedApp.releaseId && release.deploymentId === assignedApp.deploymentId) : null
   const inspector = selected ? brainLibrary && selected.kind === 'deployment' && selectedBrainState
     ? <BrainLibraryInspector key={selected.id} resource={selected} state={selectedBrainState} targetProfileId={selectedRelease?.targetProfileId}
       apps={props.apps} releases={props.releases} profiles={selectedProfiles} evidence={releaseEvidence} profileEvidence={profileEvidence} resourcesAvailable={!props.loading && !props.errors.length}
@@ -201,6 +206,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       onInspectApp={appId => { const app = appCards.find(item => item.id === appId); if (app) open(app) }}
       technicalDetails={<>{resourceActions}{overview}{configurationDetails}{advancedDetails}</>} />
     : guidedApp && assignedApp ? <EngageInspector key={assignedApp.installationId} app={assignedApp} source={params} navigation={appNavigation} onClose={close}
+      connection={inspectedAppRelease ? { ...appConnection!, environmentLabel: brainLibraryEnvironment(inspectedAppRelease, selectedProfiles) } : appConnection!}
       notices={<Stack spacing={1}>
         {props.releaseError && <Alert severity="error">Release details could not be loaded: {props.releaseError}</Alert>}
         {!props.releaseLoading && !props.releaseError && releaseSelection.missingAssignmentIds.length > 0 && <Alert severity="warning">The app's assigned release is unavailable. No different release was selected.</Alert>}
@@ -235,6 +241,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
           {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
         </>}
       </Box> : props.mode === 'apps' ? <EngageLibrary apps={props.apps} search={search} onSearch={setSearch} filter={appFilter} onFilter={setAppFilter}
+        brains={props.deployments} connections={props.appConnections} connectionEvidence={props.appConnectionEvidence}
         loading={props.loading} unavailable={Boolean(props.errors.length)}
         selectedId={selected?.kind === 'app' ? selected.id : undefined} onInspect={appId => { const app = appCards.find(item => item.id === appId); if (app) open(app) }} />
       : brainLibrary ? <BrainLibrary rows={brainRows} search={search} onSearch={setSearch} filter={brainFilter} onFilter={setBrainFilter}

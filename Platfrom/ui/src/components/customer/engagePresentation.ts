@@ -1,4 +1,30 @@
-import type { AIWorkspaceInstallationSummary as App, AIWorkspaceReadinessCheck } from '../../api/platformApi'
+import type { AIWorkspaceInstallationSummary as App, AIWorkspaceReadinessCheck, CustomerDeploymentSummary, PlatformConsumerSummary } from '../../api/platformApi'
+
+export type EngageConnectionEvidence = 'loading' | 'error' | 'ready' | 'unavailable'
+export function engageConnectionInfo(app: App, brains: CustomerDeploymentSummary[], connections: PlatformConsumerSummary[] = [], evidence: EngageConnectionEvidence = 'unavailable') {
+  const brainLabel = app.deploymentId ? brains.find(brain => brain.deploymentId === app.deploymentId)?.name ?? 'Brain unavailable' : 'Not connected'
+  const connection = connections.find(item => item.customerId === app.customerId && item.consumerId === app.consumerId)
+  // Only the exact assigned release identifies the environment; never use the Brain's bootstrap environment.
+  const matching = evidence === 'ready' && connection?.boundDeploymentId === app.deploymentId && connection?.boundReleaseId === app.releaseId
+  const environmentLabel = !app.deploymentId || !app.releaseId ? 'Not assigned'
+    : evidence === 'loading' ? 'Loading...'
+      : !matching ? 'Unavailable'
+        : connection?.boundDeploymentEnvironment === 'staging' ? 'Staging'
+          : connection?.boundDeploymentEnvironment === 'production' ? 'Production' : 'Unavailable'
+  return { brainLabel, environmentLabel }
+}
+
+export function engageReadinessInfo(app: App) {
+  const checks = app.readinessChecks.filter(check => check.status !== 'PASSED')
+  const domainErrors = app.domains.filter(domain => domain.lastVerificationError)
+  const first = checks.find(check => check.status === 'BLOCKED') ?? checks[0]
+  if (first) return { label: first.status === 'BLOCKED' ? 'Blocked' : 'Needs review', color: 'warning' as const,
+    reason: first.message, additional: checks.length + domainErrors.length - 1 }
+  if (domainErrors.length) return { label: 'Needs attention', color: 'warning' as const,
+    reason: `${domainErrors[0].hostname}: ${domainErrors[0].lastVerificationError}`, additional: domainErrors.length - 1 }
+  return app.ready ? { label: 'Ready', color: 'success' as const, reason: 'Recorded checks passed', additional: 0 }
+    : { label: 'Not ready', color: 'warning' as const, reason: 'Review launch checks for this app', additional: 0 }
+}
 
 export type EngageStep = 'connection' | 'appearance' | 'delivery' | 'readiness'
 export type EngageFilter = 'all' | 'setup' | 'active'

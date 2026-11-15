@@ -7,8 +7,15 @@ assert.ok(CONSOLE_URL && CONSOLE_EMAIL && CONSOLE_PASSWORD && KIT_ID && KIT_APP_
 await mkdir(EVIDENCE_DIR, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, reducedMotion: 'reduce' })
-const errors = [], writes = []
+const errors = [], writes = [], reads = new Map()
 page.on('pageerror', error => errors.push(error.message))
+page.on('response', async response => {
+  const path = new URL(response.url()).pathname
+  if (response.ok() && (path === '/api/platform/customers' || path === '/api/customer-self-service/deployments'
+    || /^\/api\/platform\/customers\/[^/]+\/ai-workspace-installations$/.test(path))) {
+    reads.set(path, await response.json())
+  }
+})
 page.on('request', request => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && /\/api\/(?:deployments|customer-experience-kits|platform\/customers\/[^/]+\/ai-workspace-installations|configuration-assistant\/.*\/(?:turns|sources))/.test(new URL(request.url()).pathname)) writes.push(new URL(request.url()).pathname)
 })
@@ -16,6 +23,24 @@ const panel = () => page.getByRole('complementary')
 async function unifiedEngage() {
   assert.equal(await page.locator('[aria-label="Engage apps"]').count(), 1, 'The customer library stays mounted under setup')
   assert.equal(await page.locator('table').count(), 0, 'Customer setup never mounts the legacy management table')
+}
+async function appRecordContext() {
+  const apps = [...reads.entries()].find(([path]) => /^\/api\/platform\/customers\/[^/]+\/ai-workspace-installations$/.test(path))?.[1]
+  const app = apps?.find(item => item.installationId === APP_ID)
+  const brain = reads.get('/api/customer-self-service/deployments')?.find(item => item.deploymentId === BRAIN_ID)
+  const connection = reads.get('/api/platform/customers')?.find(item => item.id === app?.customerId)?.consumers
+    .find(item => item.consumerId === app.consumerId && item.boundDeploymentId === app.deploymentId && item.boundReleaseId === app.releaseId)
+  assert.ok(app && brain)
+  const environment = !app.releaseId ? 'Not assigned' : connection?.boundDeploymentEnvironment === 'staging' ? 'Staging'
+    : connection?.boundDeploymentEnvironment === 'production' ? 'Production' : 'Unavailable'
+  const row = page.getByRole('list', { name: 'Engage apps' }).getByRole('button', { pressed: true })
+  await row.getByText(brain.name, { exact: true }).waitFor()
+  await row.getByText(environment, { exact: true }).waitFor()
+  await row.getByText('Readiness', { exact: true }).waitFor()
+  const blocked = app.readinessChecks.find(item => item.status === 'BLOCKED') ?? app.readinessChecks.find(item => item.status !== 'PASSED')
+  if (blocked) await row.getByText(blocked.message, { exact: true }).waitFor()
+  else if (app.ready && !app.domains.some(item => item.lastVerificationError)) await row.getByText('Recorded checks passed', { exact: true }).waitFor()
+  await panel().getByRole('link', { name: 'App controls', exact: true }).waitFor()
 }
 async function backToKit() {
   await page.getByRole('link', { name: 'Back to Kit', exact: true }).last().click()
@@ -50,6 +75,7 @@ try {
   await backToKit()
   await page.goto(`${CONSOLE_URL}/ai-workspaces?${new URLSearchParams({ resourceKind: 'app', resourceId: APP_ID, deploymentId: BRAIN_ID })}`)
   await panel().getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
+  await appRecordContext()
   await page.screenshot({ path: join(EVIDENCE_DIR, 'engage-desktop.png'), animations: 'disabled' })
   await panel().getByRole('navigation', { name: 'Engage setup steps' }).getByRole('link', { name: /4\. Check and activate/ }).click()
   const checks = page.locator('[aria-label="App launch checks"]')
@@ -73,6 +99,11 @@ try {
     await unifiedEngage()
   }
   await page.screenshot({ path: join(EVIDENCE_DIR, 'unified-engage-legacy-return.png'), animations: 'disabled' })
+  await panel().getByRole('link', { name: 'App controls', exact: true }).click()
+  await page.getByRole('button', { name: 'Build app with AI', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Edit app', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Close configuration', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Close configuration?', exact: true }).getByRole('button', { name: 'Close panel', exact: true }).click()
   await page.goto(`${CONSOLE_URL}/deployments?${new URLSearchParams({ resourceKind: 'deployment', resourceId: BRAIN_ID, deploymentId: BRAIN_ID, releaseId: RELEASE_ID })}`)
   await panel().getByRole('button', { name: APP_NAME, exact: true }).first().click()
   await page.waitForURL(url => url.searchParams.get('resourceId') === APP_ID && url.searchParams.get('resourceKind') === 'app')
@@ -93,10 +124,16 @@ try {
   await page.waitForFunction(() => Math.abs(document.querySelector('.MuiDrawer-paper').getBoundingClientRect().left) < 1)
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
   await page.screenshot({ path: join(EVIDENCE_DIR, 'engage-mobile.png'), animations: 'disabled' })
+  await panel().getByRole('button', { name: 'Close resource details', exact: true }).click()
+  const mobileRow = page.getByRole('list', { name: 'Engage apps' }).getByRole('button').first()
+  await mobileRow.getByText('Readiness', { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+  await page.screenshot({ path: join(EVIDENCE_DIR, 'engage-mobile-records.png'), animations: 'disabled' })
   assert.deepEqual(errors, []); assert.deepEqual(writes, [])
   const result = { status: 'PASS', origin: new URL(CONSOLE_URL).origin, kitId: KIT_ID, kitAppId: KIT_APP_ID, appId: APP_ID, brainId: BRAIN_ID,
     desktop: true, mobile: true, kitConfigureReturn: true, kitPreviewReturn: true, directEngageReturn: true, launchChecksFocus: true, brainPreviewReturn: true, headerFocus: true,
-    unifiedCustomerPage: true, legacyLinkCancelReturn: true, legacyTableMounted: false, configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
+    unifiedCustomerPage: true, legacyLinkCancelReturn: true, legacyTableMounted: false, recordContextMatchesApi: true, appControlsReachable: true,
+    configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
   await writeFile(join(EVIDENCE_DIR, 'result.private.json'), JSON.stringify(result, null, 2), { mode: 0o600 })
   console.log(JSON.stringify(result))
 } catch (error) {

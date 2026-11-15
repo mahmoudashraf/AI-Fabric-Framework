@@ -58,7 +58,7 @@ const kit = { id: 'kit-a', kitCode: 'ai-customer-experience', kitVersion: '1.0.0
 await server.listen()
 const base = `http://127.0.0.1:${server.httpServer.address().port}`, browser = await chromium.launch({ headless: true })
 let count = 0, fixtureCreates = 0
-async function run(name, fn, { width = 1440, theme = 'light', ready = false, invalidKit = false, unknownCheck = false, staff = false, createApp = false } = {}) {
+async function run(name, fn, { width = 1440, theme = 'light', ready = false, invalidKit = false, unknownCheck = false, staff = false, createApp = false, connectionState = 'ready', longName = false } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' })
   page.setDefaultTimeout(20000)
   const errors = [], writes = [], unexpected = []
@@ -80,10 +80,14 @@ async function run(name, fn, { width = 1440, theme = 'light', ready = false, inv
     const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
     if (path === '/api/platform/auth/session') return json({ enabled: true, authenticated: true, actorId: 'owner', role: staff ? 'PLATFORM_ADMIN' : 'CUSTOMER_ADMIN', customerId: staff ? null : 'customer', authenticationMode: 'SESSION' })
     if (path === '/api/platform/auth/customer-config') return json({ enabled: false })
-    if (path === '/api/customer-self-service/deployments') return json([brain])
+    if (path === '/api/customer-self-service/deployments') return json([{ ...brain, ...(longName ? { name: 'InternationalCustomerSupportBrainForEveryBranchAndSalesTeam' } : {}) }])
     if (path === '/api/customer-self-service/catalogue') return json([offer])
     if (path === '/api/customer-self-service/catalogue/offer-a') return json(offer)
-    if (path === '/api/platform/customers') return json([{ id: 'customer', name: 'Company', consumers: [current, active].map(app => ({ consumerId: app.consumerId, customerId: 'customer', status: 'ACTIVE', displayName: app.displayName, boundDeploymentId: 'brain-a', boundTargetProfileId: 'stage', boundReleaseId: app.releaseId, bindingRevision: 1 })) }])
+    if (path === '/api/platform/customers') return connectionState === 'error'
+      ? route.fulfill({ status: 503, json: { message: 'Connection catalogue unavailable' } })
+      : json([{ id: 'customer', name: 'Company', consumers: [current, active].map(app => ({ consumerId: app.consumerId, customerId: 'customer', status: 'ACTIVE', displayName: app.displayName,
+        boundDeploymentId: 'brain-a', boundTargetProfileId: 'stage', boundReleaseId: connectionState === 'mismatch' ? 'other-release' : app.releaseId,
+        boundDeploymentEnvironment: connectionState === 'production' ? 'production' : 'staging', bindingRevision: 1 })) }])
     if (path === '/api/platform/customers/customer/ai-workspace-installations') return json([current, active, ...(created ? [created] : [])])
     if (path === '/api/platform/ai-workspaces/catalog') return json({ assetsReady: true, experiencePacks: [{ code: 'generic-workspace', version: '1.0.0', name: 'Generic', enabled: true }], connectionProfiles: [{ code: 'runtime-anonymous-direct', version: '1.0.0', mode: 'public-runtime-anonymous', name: 'Anonymous', enabled: true }], authenticationProfiles: [] })
     if (/\/preview-capabilities$/.test(path)) return json({ runtimeConfigured: false, handover: { enabled: false, userCanCancelPending: false, userCanResumeAi: false } })
@@ -141,6 +145,51 @@ try {
       await page.getByRole('textbox', { name: 'Search Engage apps' }).fill('company')
       assert.equal(await page.getByRole('list', { name: 'Engage apps' }).getByRole('button').count(), 1)
     }, { width, theme })
+  }
+  for (const [width, theme] of [[1600, 'light'], [1440, 'dark'], [390, 'dark'], [320, 'light']]) {
+    await run(`${width} ${theme}: rows retain Brain, exact environment, delivery, status and blocker`, async page => {
+      await page.goto(`${base}/ai-workspaces?theme=${theme}`)
+      const list = page.getByRole('list', { name: 'Engage apps' })
+      const draftRow = list.getByRole('button', { name: 'Inspect Your company AI', exact: true })
+      const activeRow = list.getByRole('button', { name: 'Inspect Website assistant', exact: true })
+      await activeRow.getByText('Staging', { exact: true }).waitFor()
+      for (const row of [draftRow, activeRow]) await row.getByText('Company Brain', { exact: true }).waitFor()
+      await draftRow.getByText('Not assigned', { exact: true }).waitFor()
+      await draftRow.getByText('A verified release binding is required.', { exact: true }).waitFor()
+      await draftRow.getByText('+2 more to review', { exact: true }).waitFor()
+      await activeRow.getByText('Recorded checks passed', { exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+      for (const row of [draftRow, activeRow]) assert.equal(await row.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true)
+      await page.screenshot({ path: join(shots, `${theme}-${width}-record-details.png`), animations: 'disabled' })
+    }, { width, theme })
+  }
+  await run('production assignment is not labelled with the Brain bootstrap staging environment', async page => {
+    await page.goto(`${base}/ai-workspaces`)
+    await page.getByRole('button', { name: 'Inspect Website assistant', exact: true }).getByText('Production', { exact: true }).waitFor()
+  }, { connectionState: 'production' })
+  for (const connectionState of ['error', 'mismatch']) await run(`${connectionState}: environment stays unavailable rather than guessing`, async page => {
+    await page.goto(`${base}/ai-workspaces`)
+    await page.getByRole('button', { name: 'Inspect Website assistant', exact: true }).getByText('Unavailable', { exact: true }).waitFor()
+  }, { connectionState })
+  await run('long Brain names wrap without removing metadata or widening a phone page', async page => {
+    await page.goto(`${base}/ai-workspaces`)
+    await page.getByRole('list', { name: 'Engage apps' }).getByText('InternationalCustomerSupportBrainForEveryBranchAndSalesTeam', { exact: true }).first().waitFor()
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+  }, { width: 320, longName: true })
+  for (const [id, command, confirmation] of [['a', 'Delete draft app', 'Delete draft app?'], ['b', 'Disable app', 'Disable app?']]) {
+    await run(`${command}: existing controls, AI editing and confirmation remain reachable without writes`, async page => {
+      await page.goto(`${base}/ai-workspaces?resourceKind=app&resourceId=${id}&deploymentId=brain-a`)
+      await page.getByRole('complementary').getByRole('link', { name: 'App controls', exact: true }).click()
+      const aiButton = page.getByRole('button', { name: 'Build app with AI', exact: true })
+      await aiButton.waitFor()
+      const bounds = await aiButton.boundingBox()
+      assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= page.viewportSize().height, 'App controls open at the controls, not a scrolled-away section')
+      await page.getByRole('button', { name: 'Edit app', exact: true }).waitFor()
+      await page.getByRole('button', { name: command, exact: true }).click()
+      const confirm = page.getByRole('dialog', { name: confirmation, exact: true })
+      await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await closeConfiguration(page)
+    })
   }
   await run('Kit Configure workspace opens actual editor; return is visible and keeps close confirmation', async page => {
     await page.goto(`${base}/kits/kit-a`)
