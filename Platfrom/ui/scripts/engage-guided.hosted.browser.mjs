@@ -16,6 +16,7 @@ const panel = () => page.getByRole('complementary')
 async function backToKit() {
   await page.getByRole('link', { name: 'Back to Kit', exact: true }).last().click()
   const confirm = page.getByRole('dialog', { name: 'Close configuration?', exact: true })
+  await Promise.race([page.waitForURL(url => url.pathname === `/kits/${KIT_ID}`), confirm.waitFor()])
   if (await confirm.isVisible()) await confirm.getByRole('button', { name: 'Close panel', exact: true }).click()
   await page.waitForURL(url => url.pathname === `/kits/${KIT_ID}`)
 }
@@ -50,6 +51,10 @@ try {
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'App launch checks')
   await page.getByRole('button', { name: 'Close configuration', exact: true }).click()
   await page.getByRole('dialog', { name: 'Close configuration?', exact: true }).getByRole('button', { name: 'Close panel', exact: true }).click()
+  await panel().getByRole('navigation', { name: 'Engage setup steps' }).getByRole('link', { name: /2\. Brand your workspace/ }).click()
+  await page.getByRole('dialog', { name: 'Appearance & preview', exact: true }).getByRole('link', { name: 'Back to Engage apps', exact: true }).click()
+  await panel().getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
+  assert.equal(new URL(page.url()).searchParams.get('resourceId'), APP_ID)
   await page.goto(`${CONSOLE_URL}/deployments?${new URLSearchParams({ resourceKind: 'deployment', resourceId: BRAIN_ID, deploymentId: BRAIN_ID, releaseId: RELEASE_ID })}`)
   await panel().getByRole('button', { name: APP_NAME, exact: true }).first().click()
   await page.waitForURL(url => url.searchParams.get('resourceId') === APP_ID && url.searchParams.get('resourceKind') === 'app')
@@ -72,7 +77,7 @@ try {
   await page.screenshot({ path: join(EVIDENCE_DIR, 'engage-mobile.png'), animations: 'disabled' })
   assert.deepEqual(errors, []); assert.deepEqual(writes, [])
   const result = { status: 'PASS', origin: new URL(CONSOLE_URL).origin, kitId: KIT_ID, kitAppId: KIT_APP_ID, appId: APP_ID, brainId: BRAIN_ID,
-    desktop: true, mobile: true, kitConfigureReturn: true, kitPreviewReturn: true, launchChecksFocus: true, brainPreviewReturn: true, headerFocus: true, configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
+    desktop: true, mobile: true, kitConfigureReturn: true, kitPreviewReturn: true, directEngageReturn: true, launchChecksFocus: true, brainPreviewReturn: true, headerFocus: true, configurationWrites: 0, inferenceCalls: 0, pageErrors: errors, at: new Date().toISOString() }
   await writeFile(join(EVIDENCE_DIR, 'result.private.json'), JSON.stringify(result, null, 2), { mode: 0o600 })
   console.log(JSON.stringify(result))
 } catch (error) {

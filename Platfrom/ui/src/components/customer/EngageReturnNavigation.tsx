@@ -35,5 +35,8 @@ export function EngageReturnNavigation({ app, deployments, brainLibrary, onBrain
     return onBrainReturn ? <Button startIcon={<ArrowBackRounded />} onClick={() => onBrainReturn(typeof releaseId === 'string' ? releaseId : null)} sx={{ px: 0 }}>Back to {deploymentTerm.singular}</Button>
       : <Button component={RouterLink} to={`/deployments?${target}`} startIcon={<ArrowBackRounded />} sx={{ px: 0 }}>Back to {deploymentTerm.singular}</Button>
   }
-  return fallbackLabel ? <Typography variant="overline" color="text.secondary">Engage app</Typography> : null
+  const appTarget = new URLSearchParams({ resourceKind: 'app', resourceId: app.installationId })
+  if (app.deploymentId) appTarget.set('deploymentId', app.deploymentId)
+  return fallbackLabel ? <Typography variant="overline" color="text.secondary">Engage app</Typography>
+    : <Button component={RouterLink} to={`/ai-workspaces?${appTarget}`} startIcon={<ArrowBackRounded />} sx={{ px: 0 }}>Back to Engage apps</Button>
 }

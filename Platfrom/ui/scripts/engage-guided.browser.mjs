@@ -157,6 +157,14 @@ try {
     await page.getByRole('complementary').getByRole('link', { name: 'Connect your Brain', exact: true }).click()
     await page.getByRole('dialog', { name: 'Connect smart brain', exact: true }).waitFor()
   })
+  await run('direct Engage setup returns to the selected app without requiring Kit or Brain origin', async page => {
+    await page.goto(base + appPath)
+    await page.getByRole('navigation', { name: 'Engage setup steps' }).getByRole('link', { name: /2\. Brand your workspace/ }).click()
+    await page.getByRole('dialog', { name: 'Appearance & preview', exact: true }).getByRole('link', { name: 'Back to Engage apps', exact: true }).click()
+    await page.getByRole('complementary').getByRole('navigation', { name: 'Engage setup steps' }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('resourceId'), 'a')
+    assert.equal(new URL(page.url()).searchParams.has('view'), false)
+  })
   await run('unrelated Kit origin is warned about, never offered as a valid return', async page => {
     await page.goto(`${base}${appPath}&kitId=kit-a`)
     await page.getByText('The original Kit is unavailable for this app.', { exact: false }).waitFor()

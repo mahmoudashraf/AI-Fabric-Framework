@@ -89,6 +89,8 @@ instructions and launch controls; there is no duplicate app editor. Preserve
 Kit/Brain origin identifiers through those routes. Back to Kit is offered only
 after the owned Kit, app and Brain relationship has been loaded and matched;
 never trust an arbitrary return URL. Retain existing close/discard protection.
+Setup entered directly from Engage uses Back to Engage apps, restoring the exact
+selected app rather than stranding the customer in the legacy setup view.
 
 Kit product headings reveal and focus their inspector even on repeated selection
 and narrow screens. The workspace card's Configure workspace action opens the
