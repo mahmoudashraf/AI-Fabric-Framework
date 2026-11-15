@@ -38,9 +38,10 @@ function Fixture() {
   const location = useLocation(), params = new URLSearchParams(location.search), scenario = params.get('case') || 'default'
   const mode = location.pathname === '/home' ? 'home' : location.pathname === '/ai-workspaces' ? 'apps' : 'deployments'
   const selectedId = params.get('resourceKind') === 'app' ? 'brain-support' : params.get('resourceId')
-  const connected = ['connected', 'missing', 'failed', 'error', 'loading', 'long', 'embedded', 'resources-error', 'inactive-app', 'assigned-failed', 'no-staging'].includes(scenario) || mode === 'apps'
+  const connected = ['connected', 'draft-app', 'missing', 'failed', 'error', 'loading', 'long', 'embedded', 'resources-error', 'inactive-app', 'assigned-failed', 'no-staging'].includes(scenario) || mode === 'apps'
   const apps = connected ? [{ ...app, ...(scenario === 'embedded' ? { deliveryMode: 'embedded', allowedOrigins: ['https://www.example.com'] } : {}),
-    ...(scenario === 'inactive-app' ? { status: 'DISABLED' } : {}), ...(scenario === 'assigned-failed' ? { releaseId: 'release-old-failed' } : {}) }] : []
+    ...(scenario === 'inactive-app' ? { status: 'DISABLED' } : {}), ...(scenario === 'assigned-failed' ? { releaseId: 'release-old-failed' } : {}),
+    ...(scenario === 'draft-app' ? { status: 'DRAFT', ready: false, releaseId: null } : {}) }] : []
   const releases = selectedId === 'brain-support' && (connected || scenario === 'api') && scenario !== 'missing' ? [release,
     { ...release, id: 'release-stage', targetProfileId: 'stage' },
     { ...release, id: 'release-old-failed', status: 'FAILED', verificationStatus: 'FAILED', errorMessage: 'Historical failure', createdAt: '2026-11-15T10:00:00Z' },
@@ -313,6 +314,14 @@ try {
     await page.getByRole('complementary').getByRole('button', { name: 'Build with AI', exact: true }).waitFor()
     assert.equal(new URL(page.url()).searchParams.get('resourceId'), 'brain-support')
     assert.equal(new URL(page.url()).searchParams.has('releaseId'), false)
+  })
+  await run('a draft Engage app with no assigned release still returns to its Brain', async page => {
+    await page.goto(base + inspect('brain-support', '&case=draft-app'))
+    await page.getByRole('complementary').getByText('Draft app · No release assigned', { exact: true }).waitFor()
+    await page.getByRole('complementary').getByRole('button', { name: 'Support app', exact: true }).first().click()
+    await page.getByRole('complementary').getByRole('button', { name: 'Back to Smart Brain', exact: true }).click()
+    await page.getByRole('complementary').getByRole('button', { name: 'Build with AI', exact: true }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('resourceId'), 'brain-support')
   })
   for (const [scenario, label] of [['missing', "An app's assigned release details are unavailable."], ['error', 'Release details could not be loaded: Release service unavailable'], ['loading', 'Loading release details...'], ['failed', 'Recorded verification failure']]) {
     await run(`${scenario} release evidence stays visible and is never reported live`, async page => {

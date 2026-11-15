@@ -16072,3 +16072,25 @@ test is being called hosted acceptance. UI extraction remains last.
   existing loomai-feedback-loop-20261110 directory. Test-only/docs follow-up commits
   do not change the application source above. UI contract/assistant README updated.
   Unrelated .gitignore/buildinfo/artifacts preserved; firewall settings unchanged.
+
+## 2026-11-15 Connected App Inspector Return Navigation
+
+- UI application 07ea0c246a6187a899776801c6c376d3325b7a6d is native healthy
+  on BOTH frontends, digest
+  sha256:665d42de0a48ac2a61ba8df6b26d6baf369743b45916299bd2c6eb49b30e9efa.
+  Image CI43743893398 PASS; backend image skipped. No backend/runtime change.
+- Following Connected Engage apps now exposes Back to Smart Brain in the app
+  inspector. Existing route state retains the owned parent and selected release;
+  returning preserves library search/filter state. Refreshing the app panel also
+  retains its return release. Direct app inspection can return only to its owned
+  linked Brain, not an arbitrary resource. Draft apps need no assigned release.
+- Local 17 unit checks, 27 browser scenarios, production build, final TypeScript
+  check and diff check PASS. Hosted normal customer desktop/390px round trips
+  PASS on BOTH CPs, including search preservation and return after reload:
+  staging dep-a9d6d646/rel-5ca4039d; production Harbor dep-5fbdc125/rel-3d2911a9.
+  Zero inference, configuration writes or page errors; existing resources unchanged.
+- Reproducible hosted runner: Platfrom/ui/scripts/brain-panel-return.hosted.browser.mjs.
+  Private screenshots/results: ~/.codex/private/brain-ai-journey-20261115/
+  {staging,production}-panel-return/. UI contract updated; test/docs follow-up
+  commits do not alter the deployed application above. Earlier unrelated limits
+  remain as recorded. Unrelated worktree changes and firewall settings preserved.
