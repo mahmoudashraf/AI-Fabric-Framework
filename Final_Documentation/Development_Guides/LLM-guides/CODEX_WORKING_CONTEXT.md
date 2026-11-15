@@ -16094,3 +16094,48 @@ test is being called hosted acceptance. UI extraction remains last.
   {staging,production}-panel-return/. UI contract updated; test/docs follow-up
   commits do not alter the deployed application above. Earlier unrelated limits
   remain as recorded. Unrelated worktree changes and firewall settings preserved.
+
+## 2026-11-15 Guided Engage Setup And Kit Navigation Live
+
+- Owner approved the scoped Engage follow-up: compact app rows, All / Setup needed /
+  Active filters, guided app inspector, actionable readiness messages and retained
+  technical controls. Existing connection, branding/preview, delivery/domain and
+  activation implementations are reused. No new editor, backend or framework work.
+- Final UI application f626e127d9db59b0c059a2938290096ba447cbee is native
+  source/digest/health verified on BOTH frontends; digest
+  sha256:077d4b136804d8f42f93858cd8efb3dd7a517d6c89db2216161cc81f5314c684.
+  UI image CI43749442422 PASS/backend skipped. Base implementation7d0243f4e and
+  document-storage CI43748761381 PASS. Only UI was deployed; backend/runtime unchanged.
+- Actual server check codes place remaining messages beside connection, delivery
+  or launch steps. Unknown messages remain visible. Recorded Active is not a live
+  health claim; contradictory checks/domain errors keep attention visible. Opening
+  setup never activates, changes binding, verifies DNS or submits an AI request.
+- Kit's inert View details became Configure workspace. Repeated product-heading
+  selection reveals/focuses its existing inspector, including on mobile. Both
+  delivery channels and preview retain the exact Kit origin. Return navigation
+  validates the owned Kit/app/Brain relationship; no arbitrary return URL is used.
+  Back to Kit, Back to Smart Brain and Back to Engage apps cover the three entry
+  paths. Original Brain release is retained; existing close confirmation remains.
+- Local58 unit checks,13 integrated Engage browser scenarios,27 Brain library
+  regressions,9 Kit scenarios,2 customer create/retry-save groups, TypeScript,
+  production build and diff checks PASS. Light/dark,320/390px, blocked/unknown
+  checks, missing workspace and unrelated Kit origin are included. One bounded
+  Kit worker completed, was reviewed and closed; shared integration stayed main.
+- BOTH hosted normal-customer journeys PASS on final image: Kit -> actual app
+  configuration -> Kit; Kit -> branded preview -> Kit; direct Engage setup ->
+  selected app; launch-check focus; Brain -> preview -> original release; Kit
+  inspector focus and390px. Staging Kit f03664cc.../dep-a9d6d646; production Harbor
+  Kit84aa674b.../dep-5fbdc125. Zero configuration writes, inference or page errors;
+  no resources created, no cleanup or data migration needed. Actual activation,
+  DNS changes, runtime chat and the unrelated global Support startup state were
+  NOT requalified by this navigation test.
+- Initial hosted helper checked the close dialog too early; corrected to await
+  the actual confirmation/navigation outcome. No close guard was bypassed and
+  the failed attempt is not counted as a pass. First staging image7d0243f4e was
+  superseded by the final direct-Engage return correction before production.
+- Reproducible runner: Platfrom/ui/scripts/engage-guided.hosted.browser.mjs.
+  Private reports/screenshots: ~/.codex/private/brain-ai-journey-20261115/
+  {staging,production}-engage-guided/. Native receipts remain in the existing
+  loomai-feedback-loop-20261110 directory. PLATFORM_UI_PROFILES.md holds the
+  approved contract; no global010.65 restoration. Historical broader warnings
+  remain separate. Unrelated .gitignore/buildinfo/artifacts and firewall preserved.
