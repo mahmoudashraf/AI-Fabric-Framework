@@ -108,6 +108,19 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
       && editor.retainedNavigationPaths.includes(nextLocation.pathname)) return false
     return true
   })
+  const navigationState = useRef({ blocker, editor, busy })
+  navigationState.current = { blocker, editor, busy }
+  const keepEditing = () => {
+    const current = navigationState.current.blocker
+    if (current.state === 'blocked') current.reset()
+  }
+  const discardAndLeave = () => {
+    const current = navigationState.current
+    if (current.busy || current.blocker.state !== 'blocked') return
+    // Continue the current transition before discarding can reset its blocker.
+    current.blocker.proceed()
+    current.editor?.discard?.()
+  }
 
   useEffect(() => {
     const footer = footerRef.current
@@ -261,11 +274,11 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
       </Box>
       {customer && <CustomerSupportAssistant bottomOffset={footerHeight} initiallyMinimized />}
     </Box>
-    <Dialog open={blocker.state === 'blocked'} onClose={() => blocker.state === 'blocked' && blocker.reset()} maxWidth="xs" fullWidth>
+    <Dialog open={blocker.state === 'blocked'} onClose={keepEditing} maxWidth="xs" fullWidth>
       <DialogTitle>{busy ? 'An operation is in progress' : 'Leave unsaved changes?'}</DialogTitle>
       <DialogContent>{busy ? 'Wait for the current operation to finish before changing the workspace.' : 'Unsaved input will be discarded. Saved configuration is unchanged.'}</DialogContent>
-      <DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button>
-        {!busy && <Button color="warning" onClick={() => { editor?.discard?.(); if (blocker.state === 'blocked') blocker.proceed() }}>Discard & leave</Button>}</DialogActions>
+      <DialogActions><Button onClick={keepEditing}>Keep editing</Button>
+        {!busy && <Button color="warning" onClick={discardAndLeave}>Discard & leave</Button>}</DialogActions>
     </Dialog>
   </BrainEditorContext.Provider></BrainWorkspaceContext.Provider>
 }

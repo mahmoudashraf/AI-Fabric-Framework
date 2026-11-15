@@ -12,7 +12,7 @@ await mkdir(evidence, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
 const page = await context.newPage()
-const errors = [], assistantCalls = [], writes = []
+const errors = [], assistantCalls = [], writes = [], navigationConfirmations = []
 page.on('pageerror', error => errors.push(error.message))
 page.on('request', request => {
   const { pathname } = new URL(request.url())
@@ -36,8 +36,16 @@ try {
   await panel().waitFor({ state: 'hidden' })
   for (const [label, section] of [['Knowledge', 'knowledge'], ['AI capabilities', 'capabilities'], ['Responses', 'responses'], ['Updates', 'updates'], ['Keys & secrets', 'secrets']]) {
     await page.getByRole('navigation', { name: 'Smart Brain navigation' }).getByRole('link', { name: label, exact: true }).click()
+    await page.waitForFunction(expected => location.pathname === expected || [...document.querySelectorAll('[role="dialog"]')].some(node => node.textContent.includes('Leave unsaved changes?')), `/smart-brains/${encodeURIComponent(BRAIN_ID)}/${section}`)
+    const discard = page.getByRole('dialog', { name: 'Leave unsaved changes?', includeHidden: true })
+    if (await discard.isVisible()) {
+      navigationConfirmations.push({ destination: section, reason: 'Editor reported unsaved state without test edits; explicitly discarded only its local buffer.' })
+      await discard.getByRole('button', { name: 'Discard & leave', exact: true }).click()
+      await discard.waitFor({ state: 'detached' })
+    }
     await page.waitForURL(url => url.pathname === `/smart-brains/${encodeURIComponent(BRAIN_ID)}/${section}`)
     await page.waitForFunction(() => document.querySelector('[data-assistant-workspace]')?.getAttribute('data-assistant-open') === 'false')
+    await button().waitFor({ state: 'visible' })
     assert.equal(await button().isVisible(), true, `${label} retains the reopen control`)
   }
   await button().click()
@@ -57,7 +65,7 @@ try {
   assert.deepEqual(errors, [])
   assert.deepEqual(writes, [], 'Visibility checks never save or release a draft')
   assert.equal(assistantCalls.filter(call => /\/turns|\/sources/.test(call.path)).length, 0, 'No inference or document sharing on open/navigation')
-  const report = { status: 'PASS', origin, brainId: BRAIN_ID, desktop: true, mobile: true, guidanceOnly: true, dismissAndReopen: true, inferenceCalls: 0, draftWrites: 0, pageErrors: errors, at: new Date().toISOString() }
+  const report = { status: 'PASS', origin, brainId: BRAIN_ID, desktop: true, mobile: true, guidanceOnly: true, dismissAndReopen: true, inferenceCalls: 0, draftWrites: 0, pageErrors: errors, navigationConfirmations, at: new Date().toISOString() }
   await writeFile(join(evidence, 'result.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify({ ...report, evidence }))
 } catch (error) {
