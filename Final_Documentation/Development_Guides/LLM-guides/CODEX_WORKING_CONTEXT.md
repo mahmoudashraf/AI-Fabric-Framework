@@ -16215,3 +16215,68 @@ test is being called hosted acceptance. UI extraction remains last.
   the deployed application source above. Reproducible runner and private evidence
   remain in the existing engage-guided paths. Unrelated local files and firewall
   settings are unchanged; global Support startup presentation stays out of scope.
+
+## 2026-11-15 Broader Real-Kit Customer Journey - Issues Found, No Fixes Applied
+
+- Owner requested real live Kit/configuration verification, not another fixture-only
+  navigation pass. Used normal CUSTOMER_ADMIN sign-in on production Console, the
+  existing Harbor AI Customer Experience Kit and its real staging-backed runtime,
+  plus a fresh dealership Kit created through the public catalogue/detail/install
+  journey. This is not a new application deployment or a fully green acceptance.
+- Passed real UI creation with both standalone + embedded delivery, branded name,
+  color, address preview and optional human support. Created configuration only;
+  customer infrastructure usage stayed1/2. Kit branding update persisted to both
+  apps and survived reload. Brain Warm/Brief presets saved/reloaded; an unused
+  dummy integration key was created and deleted through customer UI. Actual saved
+  Engage preview used the updated branding;390px rows retained context/no overflow.
+- Existing Kit -> Brain navigation covered Overview, Knowledge, AI capabilities,
+  Responses, AI models, Managed Tasks, Channels, Human support, Action reviews,
+  Keys & secrets, Updates and Try it. Real indexed returns-policy source, five
+  HTTP capabilities and saved release comparisons were present. No JS page errors
+  or horizontal page overflow observed. Disabled Human Review returned400 with an
+  explicit not-enabled UI message; this was not classified as an auth failure.
+- Confirmed blockers/findings, left unfixed for review:
+  1. Response-preset numeric round trip: exact draft decimal0.4 was sent to behaviour
+     compose as {value:"0.4",isLosslessNumber:true}, then persisted as an object.
+     Check setup rejected ragSimilarityThreshold. fetchDeploymentDraft parses exact
+     JSON; composeDeploymentAiBehaviour in ui/src/api/platformApi.ts still uses
+     JSON.stringify(payload). The test draft shows the bad stored shape; existing
+     Harbor draft remains a normal numeric0.3. Fix serialization, not the numeric
+     validator, prompts or model semantics. No framework change is implied.
+  2. Try it -> Load workspace is blank. The real standalone URL returns HTTP200
+     with X-Frame-Options:DENY, so Chromium loads an error frame. Open app separately
+     works. Review a specifically scoped Console framing policy or an honest
+     external-open path; never globally remove clickjacking protection.
+  3. Fresh Kit selected dtp-coolify-staging-behavior but first Brain entry selected
+     dtp-coolify-staging. kitDeploymentPath drops target context; SmartBrainShell
+     chooses a default when there is no applied release. Preserve the validated
+     Kit target rather than silently choosing another staging destination.
+  4. Edit your experience saves HTTP200 but stays open without save confirmation.
+     KitEditForm is keyed by kit revision: setQueryData remounts it before its old
+     mounted guard reaches onSaved(). Saved data is not lost; completion feedback
+     and close behavior are wrong. See ExperienceKitOverview.tsx.
+  5. Real customer AI: an available adjustable-desk query correctly used the live
+     READ tool and returned GBP499/stock8. The natural delivery follow-up quoted
+     free delivery from GBP500 and GBP25 standard delivery, but incorrectly said
+     the GBP499 desk qualified for free delivery. Explicit user correction then
+     yielded GBP524. HTTP200/tool success are not semantic-quality pass evidence.
+     Retrieved facts were correct; the answer contradicted them. Do not hide this
+     using text matching, canned answer replacement or unapproved regeneration.
+- Minor observed friction: Channels' Branding & preview link opens the app
+  inspector, requiring another branding click. Existing Kit installation copy
+  still asks to activate an already active website app. Neither is a data-loss
+  issue. One APP_DELIVERY readiness warning occurred while direct URL stayed200;
+  explicit readiness refresh recovered both original apps to ready=true.
+- All temporary resource records removed: dealership Kit/Brain/two apps/consumer
+  and dummy key. Standard customer cleanup required deleting apps/unbinding before
+  archive/deletion; the initially reversed order returned409 and was not bypassed.
+  Deletion del-01d32016 SUCCEEDED, no managed vector resources or document bindings.
+  Admin access was used only to read that final cleanup receipt, not to pass any
+  customer test. Final customer inventory: original Kit1, Brain1, active ready apps2,
+  infrastructure1/2. Original settings/assignment/releases were not changed.
+- Private step screenshots, saved-config readbacks, three real runtime turns,
+  observations and cleanup receipts: ~/.codex/private/kit-customer-journey-20261115/.
+  Published/applied configuration, new runtime provisioning, production promotion,
+  new document upload/indexing and real handover were NOT requalified in this run.
+  New-Kit setup validation stops the full deployment journey; do not call it closed.
+  No application fixes/releases were made. Unrelated local changes/firewall intact.
