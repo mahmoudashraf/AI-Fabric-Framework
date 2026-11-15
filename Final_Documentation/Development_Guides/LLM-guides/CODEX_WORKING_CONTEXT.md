@@ -16139,3 +16139,38 @@ test is being called hosted acceptance. UI extraction remains last.
   loomai-feedback-loop-20261110 directory. PLATFORM_UI_PROFILES.md holds the
   approved contract; no global010.65 restoration. Historical broader warnings
   remain separate. Unrelated .gitignore/buildinfo/artifacts and firewall preserved.
+
+## 2026-11-15 Single Customer Engage Page - Live Correction
+
+- Owner requested removal of the duplicate customer Engage management page.
+  UI source97221cd55a514771103360817e3f7f95f6cfda0f is native source/digest/health
+  verified on BOTH frontends; digest
+  sha256:c07c39c18067ab10a16473a6a860287871958110213d33f5744e4778b494d248.
+  UI image CI43757205010 PASS; backend image skipped. Backend/runtime unchanged.
+- Customer view=manage/setup links now adapt to one compact library/inspector.
+  Existing connection, appearance and creation dialogs use tools-only presentation;
+  delivery/launch use details-only presentation in the existing configuration
+  drawer. Neither mounts the old page header/table. Default staff table remains.
+  Cancel/close restores the exact app and filters; successful creation selects
+  the saved new app. Valid Kit/Brain context, nested manual form contents,
+  current authorization, mutation handlers and busy/close guards are preserved.
+- Local60 unit checks,22 integrated Engage browser scenarios,27 Brain library
+  scenarios,9 Kit scenarios and2 existing create/retry-save groups PASS. Engage
+  includes one explicit mock-API creation/save, legacy URL cancellation, alternate
+  delivery, nested connection cancellation and unchanged staff table. Unknown or
+  unavailable app IDs never substitute another owned app. Build/diff checks PASS.
+- BOTH hosted normal-customer desktop/mobile journeys PASS on the exact image:
+  staging Support Kit f03664cc.../dep-a9d6d646 and production Harbor Kit84aa674b.../
+  dep-5fbdc125. Kit configuration/preview return, Brain return with release,
+  launch-check focus and legacy connect/preview -> cancel -> exact selected app
+  all pass. Zero configuration writes, AI queries, page errors or new resources.
+  Tests explicitly assert the compact library remains mounted and the legacy
+  table is absent, covering the duplication missed by earlier navigation checks.
+- Reproducible runner remains ui/scripts/engage-guided.hosted.browser.mjs;
+  private reports/screenshots under ~/.codex/private/brain-ai-journey-20261115/
+  {staging,production}-engage-guided/. Native rollout receipts are in the existing
+  loomai-feedback-loop-20261110 directory. PLATFORM_UI_PROFILES.md records the
+  single-page contract. This is scoped Engage navigation, not restoration of
+  rejected010.65 or verification of activation/DNS/runtime chat. The unrelated
+  global Support startup presentation remains outside this change. Unrelated
+  .gitignore/buildinfo/artifacts and firewall settings are preserved.
