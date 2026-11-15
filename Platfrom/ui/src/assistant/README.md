@@ -19,8 +19,12 @@ COPY support that source boundary in clean builds.
   guide-only mode and cannot make live review decisions.
 - `human-support/specialists` -> SPECIALISTS. The Shell renders the existing
   customer specialist form on this wildcard route; it does not duplicate it.
-- Brain overview/configuration JSON -> KIT, guide-only. No assistant entry on
-  runtime/recovery/diagnostics, publication, Try it or capability installation.
+- Brain overview/configuration JSON -> KIT, guide-only. Other Brain pages,
+  including Updates, Try it, Tasks, secrets and runtime/recovery/diagnostics,
+  offer the same guide-only assistance without new editing authority. Secret
+  values are never added to assistant context.
+- MCP setup uses the shared ACTIONS panel. Explicit Help configure attaches
+  only the selected owned catalogue metadata; there is no second assistant.
 - Saved private plugin editor -> PRIVATE_DATA_PLUGIN / pluginId / DATA_PLUGIN.
   New unsaved definitions and immutable versions have no assistant entry.
 - Saved Engage installation -> ENGAGE_APP / installationId / ENGAGE. Active
@@ -30,6 +34,15 @@ COPY support that source boundary in clean builds.
   fourth integration explicitly requested after the original three-file scope.
 
 ## Behavior
+
+Build with AI opens on entry to a Smart Brain. It is closable and the header
+button remains available to reopen it. Visibility belongs to the current
+actor/workspace/Brain visit, so dismissal survives subpage/task changes. A new
+Brain or a fresh visit opens it again. Assistant sessions, inputs and operation
+state still use their existing resource/task identities; visibility does not
+broaden authority or copy conversations between tasks. Other resource editors
+retain their existing opening behavior. On narrower screens it uses the same
+closable drawer, not a second mobile implementation.
 
 Turns save editable drafts without per-turn approval. The selected editor and
 footer are disabled/inert while a request runs; modal command buttons also use

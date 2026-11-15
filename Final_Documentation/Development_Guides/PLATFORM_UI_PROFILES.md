@@ -29,6 +29,13 @@ read back or sent to configuration assistance; only scoped references are used.
 Target-specific storage/vector bindings remain with their existing workflows.
 See `verification-support/customer-secrets/README.md`.
 
+Build with AI is available across the Smart Brain workspace and opens on entry.
+Keep its close control and persistent reopen button. Respect dismissal while
+moving between the same Brain's pages; a new visit/Brain opens it again. Editing
+pages retain their existing task scopes. Operational pages offer guidance only,
+with no new mutation authority, automatic inference or source sharing. MCP's
+explicit Help configure uses that same panel, not a parallel assistant drawer.
+
 Connection testing has one aggregate entry at Smart Brain -> Updates -> Check
 setup, combining existing draft validation with safe service checks. Saving a
 connection runs only changed/new checks and shows a compact shared summary;

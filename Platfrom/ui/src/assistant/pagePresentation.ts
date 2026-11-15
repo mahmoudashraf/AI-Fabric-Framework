@@ -15,7 +15,7 @@ export const assistantPages: Record<AssistantSection, Page> = {
   HUMAN_SUPPORT: { title: 'Human support', command: 'Prepare handover', welcome: 'Prepare supported handover settings using this Brain\'s installed capabilities. Agent assignments stay separate.' },
   ACTION_REVIEWS: { title: 'Action reviews', command: 'Explain action reviews', welcome: 'Get guidance on this Brain\'s action-review setup. Review decisions and live configuration are not changed here.' },
   SPECIALISTS: { title: 'Specialists', command: 'Prepare specialists', welcome: 'Prepare supported specialist settings using installed workers and their declared contracts. No new worker code is created.' },
-  KIT: { title: 'Kit setup', command: 'Explain Kit setup', welcome: 'Get the next setup steps for this Kit and its Brain. Open the linked resource editors when you are ready to make changes.' },
+  KIT: { title: 'Setup guidance', command: 'Explain setup', welcome: 'Get help with your Smart Brain and connected products. Open the relevant configuration page when you are ready to make changes.' },
   DATA_PLUGIN: { title: 'Data plugin', command: 'Prepare Data plugin', welcome: 'Share source documentation or examples to prepare this private plugin\'s mappings and schema. Publishing and installation stay separate.' },
   ENGAGE: { title: 'Engage appearance', command: 'Prepare appearance', welcome: 'Share brand or workspace requirements to prepare supported app settings. Active apps remain preview-only until explicitly edited.' },
 }

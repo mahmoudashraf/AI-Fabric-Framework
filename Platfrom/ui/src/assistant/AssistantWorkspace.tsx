@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
@@ -14,7 +14,7 @@ import { stringifyExactJson } from '../lib/losslessJson'
 import { AssistantSources } from './AssistantSources'
 import { operation, scopeIdentity } from './scope'
 import { useAssistant, type AssistantController } from './useAssistant'
-import type { AssistantScope, AssistantTurn, ValidationFeedbackPolicy } from './types'
+import type { AssistantScope, AssistantSession, AssistantTurn, ValidationFeedbackPolicy } from './types'
 import { ChangeSummary, ValidationOutcome } from './TurnDetails'
 import { validationSummary } from './turnPresentation'
 import { feedbackCeiling, feedbackPolicy, feedbackProgress, feedbackReason } from './validationFeedback'
@@ -28,15 +28,30 @@ type Props = {
   editorBusy?: boolean
   readOnlyReason?: string
   initiallyOpen?: boolean
+  visibilityKey?: string
   guideOnly?: boolean
   links?: { label: string; href: string }[]
 }
 
-export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, guideOnly, links }: Props) {
+type SourceRequest = { notice: string; load: (sessionId: string) => Promise<AssistantSession> }
+type PendingSource = SourceRequest & { id: number; identity: string }
+const AssistantSourceContext = createContext<((request: SourceRequest) => void) | null>(null)
+export const useAssistantSource = () => useContext(AssistantSourceContext)
+
+export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, visibilityKey, guideOnly, links }: Props) {
   const identity = scope ? scopeIdentity(scope) : null
-  const [visibility, setVisibility] = useState({ identity, open: initiallyOpen, activated: initiallyOpen })
-  const current = visibility.identity === identity ? visibility : { identity, open: initiallyOpen, activated: initiallyOpen }
+  const visibilityIdentity = visibilityKey ?? identity
+  const [visibility, setVisibility] = useState({ identity: visibilityIdentity, open: initiallyOpen, activated: initiallyOpen })
+  const current = visibility.identity === visibilityIdentity ? visibility : { identity: visibilityIdentity, open: initiallyOpen, activated: initiallyOpen }
   const open = Boolean(scope && current.open)
+  const [sourceRequest, setSourceRequest] = useState<PendingSource | null>(null)
+  const sourceSequence = useRef(0)
+  useEffect(() => { setSourceRequest(null) }, [identity])
+  const requestSource = useCallback((request: SourceRequest) => {
+    if (!identity) return
+    setVisibility({ identity: visibilityIdentity, open: true, activated: true })
+    setSourceRequest({ ...request, id: ++sourceSequence.current, identity })
+  }, [identity, visibilityIdentity])
   const [activity, setActivity] = useState({ identity, busy: false })
   const busy = activity.identity === identity && activity.busy
   const [revision, setRevision] = useState(0)
@@ -54,10 +69,10 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
     return () => node.removeAttribute('inert')
   }, [busy])
   const close = () => { setVisibility({ ...current, open: false }); requestAnimationFrame(() => opener.current?.focus()) }
-  return <Box data-assistant-workspace data-assistant-open={open} sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
+  return <AssistantSourceContext.Provider value={scope ? requestSource : null}><Box data-assistant-workspace data-assistant-open={open} sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
     {scope && <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
       {busy && <Typography role="status" variant="caption" sx={{ mr: 'auto' }}>AI is updating this editor</Typography>}
-      <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity, activated: true, open: !open })}>Build with AI</Button>
+      <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity: visibilityIdentity, activated: true, open: !open })}>Build with AI</Button>
     </Stack>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
       {/* Scope changes reset the assistant, never an editor's retained manual buffer. */}
@@ -68,9 +83,10 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
         {busy && <Box sx={{ position: 'absolute', inset: 0, zIndex: 5, cursor: 'wait' }} />}
       </Box>
       {scope && <ScopedAssistant key={identity} scope={scope} enabled={current.activated} open={open} onSaved={refreshEditor} onBusyChange={reportActivity}
+        sourceRequest={sourceRequest?.identity === identity ? sourceRequest : null}
         onClose={close} editorBusy={editorBusy} readOnlyReason={readOnlyReason} guideOnly={guideOnly} links={links} />}
     </Box>
-  </Box>
+  </Box></AssistantSourceContext.Provider>
 }
 
 export function useAssistantPanelInputs() {
@@ -81,16 +97,44 @@ export function useAssistantPanelInputs() {
   return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference, optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen }
 }
 
-function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller' | 'inputs'> & {
-  enabled: boolean; open: boolean; onSaved: () => Promise<void>; onBusyChange: (busy: boolean) => void
+function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, sourceRequest, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller' | 'inputs'> & {
+  enabled: boolean; open: boolean; onSaved: () => Promise<void>; onBusyChange: (busy: boolean) => void; sourceRequest: PendingSource | null
 }) {
   const controller = useAssistant(scope, enabled, onSaved)
   // This scope-keyed owner survives the desktop/Drawer panel remount.
   const inputs = useAssistantPanelInputs()
+  const [attaching, setAttaching] = useState(false), [sourceError, setSourceError] = useState('')
+  const attemptedSource = useRef<number | null>(null), live = useRef(true)
+  useEffect(() => { live.current = true; return () => { live.current = false } }, [])
+  const attachSource = async () => {
+    if (!sourceRequest || !controller.session || controller.busy || attaching) return
+    attemptedSource.current = sourceRequest.id; setAttaching(true); setSourceError('')
+    try {
+      const before = new Set(controller.session.sources.map(source => source.id))
+      const session = await sourceRequest.load(controller.session.id)
+      if (!live.current) return
+      if (!await controller.refresh()) throw new Error('The source was attached, but the assistant session could not be refreshed. Retry to review it.')
+      if (!live.current) return
+      const added = session.sources.filter(source => !before.has(source.id))
+      inputs.setSourceIds(current => [...new Set([...current, ...added.map(source => source.id)])])
+      inputs.setOperationIds(current => [...new Set([...current, ...added.flatMap(source => source.operations.map(operation).filter(Boolean).map(item => item!.id))])])
+    } catch (failure) { if (live.current) setSourceError(failure instanceof Error ? failure.message : 'The source could not be attached.') }
+    finally { if (live.current) setAttaching(false) }
+  }
+  useEffect(() => {
+    if (sourceRequest && attemptedSource.current !== sourceRequest.id) void attachSource()
+  }, [sourceRequest, controller.session, controller.busy, attaching])
   const [width, setWidth] = useState(420)
   const theme = useTheme(), narrow = useMediaQuery(theme.breakpoints.down('lg'))
-  useLayoutEffect(() => { onBusyChange(controller.busy); return () => onBusyChange(false) }, [controller.busy, onBusyChange])
-  const panel = <AssistantPanel controller={controller} inputs={inputs} scope={scope} {...panelProps} />
+  useLayoutEffect(() => { onBusyChange(controller.busy || attaching); return () => onBusyChange(false) }, [controller.busy, attaching, onBusyChange])
+  const panel = <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+    {sourceRequest && <Box sx={{ p: 2, pb: 0 }}><Alert severity="info">{sourceRequest.notice}</Alert>
+      {attaching && <Alert severity="info" sx={{ mt: 1 }}>Attaching selected source metadata. No model request has started.</Alert>}
+      {sourceError && <Alert severity="error" sx={{ mt: 1 }} action={<Button disabled={controller.busy || attaching} onClick={() => void attachSource()}>Retry</Button>}>{sourceError}</Alert>}
+    </Box>}
+    <AssistantPanel controller={{ ...controller, pending: controller.pending || attaching, busy: controller.busy || attaching }} inputs={inputs} scope={scope}
+      {...panelProps} editorBusy={panelProps.editorBusy || attaching || Boolean(sourceError)} />
+  </Box>
   if (narrow) return <Drawer anchor="right" open={open} onClose={panelProps.onClose} ModalProps={{ keepMounted: true }} sx={{ '& .MuiDrawer-paper': { width: 'min(100%, 520px)', height: '100dvh' } }}>{panel}</Drawer>
   return <Box sx={{ display: open ? 'flex' : 'none', flexShrink: 0, width: `min(${width}px, 50%)`, minWidth: 310, borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
     <Box role="separator" aria-label="Resize assistant" aria-orientation="vertical" aria-valuenow={width} aria-valuemin={320} aria-valuemax={680} tabIndex={0}

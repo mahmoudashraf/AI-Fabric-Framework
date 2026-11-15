@@ -193,8 +193,10 @@ test('MCP operations use an explicit MCP label without changing HTTP operations'
   assert.equal(operation({ kind: 'MCP_TOOL', toolName: 'no-server-id' }), null)
 })
 
-test('the explicit snapshot-aware Help configure owns the MCP assistant, without a duplicate outer panel', () => {
-  for (const search of ['?view=mcp', '?mcp=connect', '?view=mcp&mcp=connection-a']) assert.equal(brainAssistantScope('/smart-brains/brain-a/capabilities', search, 'brain-a'), null)
+test('MCP setup shares the existing Actions assistant scope; Help configure attaches explicit metadata', () => {
+  for (const search of ['?view=mcp', '?mcp=connect', '?view=mcp&mcp=connection-a']) assert.deepEqual(brainAssistantScope('/smart-brains/brain-a/capabilities', search, 'brain-a'), {
+    resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-a', task: 'ACTIONS', editorContext: { section: 'ACTIONS' },
+  })
   assert.equal(brainAssistantScope('/smart-brains/brain-a/capabilities', '', 'brain-a').task, 'ACTIONS')
 })
 

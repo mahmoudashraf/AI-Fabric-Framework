@@ -15,7 +15,7 @@ import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, Dial
 import { BrainPageHeader, brainPaneSx } from '../brain/BrainPageLayout'
 import { mcpApi } from './api'
 import { compareMcpTools, connectionEnabledInTarget, emptyConnection, existingToolPolicies, safeAuthorizationUrl, transportLabel } from './model'
-import { McpAssistant } from './McpAssistant'
+import { useAssistantSource } from '../assistant/AssistantWorkspace'
 import { McpConnectionForm } from './McpConnectionForm'
 import { McpToolPicker } from './McpToolPicker'
 import { McpImportReview } from './McpImportReview'
@@ -47,7 +47,7 @@ export function McpConnections({ brainId, targetProfileId, canManage, canImport,
   const [authError, setAuthError] = useState('')
   const [authorizing, setAuthorizing] = useState(false)
   const [authorization, setAuthorization] = useState<{ url: string; expiresAt: string; popup: Window | null } | null>(null)
-  const [help, setHelp] = useState<string[] | null>(null)
+  const requestAssistantSource = useAssistantSource()
   const live = useRef(true)
   const receiptElement = useRef<HTMLDivElement>(null)
   useEffect(() => { live.current = true; return () => { live.current = false } }, [])
@@ -94,7 +94,7 @@ export function McpConnections({ brainId, targetProfileId, canManage, canImport,
     },
   })
   useEffect(() => {
-    setEditing(null); setSnapshot(null); setReceipt(null); setDisconnecting(false); setBindingChange(null); setNotice(''); setAuthError(''); setAuthorization(null); setHelp(null); command.reset()
+    setEditing(null); setSnapshot(null); setReceipt(null); setDisconnecting(false); setBindingChange(null); setNotice(''); setAuthError(''); setAuthorization(null); command.reset()
   }, [selectedId])
 
   // OAuth state is verified by the backend. A callback query parameter alone is not a successful grant.
@@ -204,7 +204,10 @@ export function McpConnections({ brainId, targetProfileId, canManage, canImport,
             </Alert> : null}
             {observed && !currentSnapshot ? <Alert severity="warning">The connection changed after discovery. Refresh tools before importing; the old snapshot is not used.</Alert> : null}
             {savedSnapshot.isError && !snapshot ? <Alert severity="warning">The saved tool snapshot is not available. Refresh tools to obtain current metadata. {savedSnapshot.error.message}</Alert> : null}
-            {currentSnapshot ? <McpToolPicker key={currentSnapshot.id} snapshot={currentSnapshot} comparison={actionsConfig === undefined ? undefined : compareMcpTools(currentSnapshot, actionsConfig)} existingPolicies={existingToolPolicies(actionsConfig, selected.id)} busy={busy} canImport={canImport} onImport={input => command.mutate({ kind: 'import', connection: selected, input })} onHelp={setHelp} />
+            {currentSnapshot ? <McpToolPicker key={currentSnapshot.id} snapshot={currentSnapshot} comparison={actionsConfig === undefined ? undefined : compareMcpTools(currentSnapshot, actionsConfig)} existingPolicies={existingToolPolicies(actionsConfig, selected.id)} busy={busy} canImport={canImport} onImport={input => command.mutate({ kind: 'import', connection: selected, input })} onHelp={toolNames => requestAssistantSource?.({
+              notice: 'Optional help with descriptions, customer inputs and workflow guidance. Sending a request shares selected tool metadata with your configured AI provider, never credentials. The core tool import does not use AI.',
+              load: sessionId => mcpApi.assistantSource(sessionId, selected.id, currentSnapshot.id, toolNames),
+            })} />
               : !command.isPending && !savedSnapshot.isFetching ? <Typography variant="body2" color="text.secondary">{selected.status === 'DISCONNECTED' ? 'Edit and save this connection to enable it again.' : selected.lastDiscoveryId ? 'A previous discovery is recorded. Refresh tools to review a current snapshot before importing.' : 'Discover tools to see what this service offers, including schemas and compatibility.'}</Typography> : <CircularProgress size={22} aria-label="Loading tool metadata" />}
           </> : connections.isPending ? <CircularProgress size={24} aria-label="Loading connection" /> : connections.isError ? <Alert severity="error">Connection details could not be loaded. Retry the connection list.</Alert> : <Alert severity="warning">This connection is not available in the selected Brain environment.</Alert>}
       </Stack> : null}
@@ -220,6 +223,5 @@ export function McpConnections({ brainId, targetProfileId, canManage, canImport,
       </Stack></DialogContent>
       <DialogActions><Button disabled={busy} onClick={() => setBindingChange(null)}>Cancel</Button><Button variant="contained" color={bindingChange ? 'primary' : 'error'} disabled={busy || !selected} onClick={() => selected && bindingChange !== null && command.mutate({ kind: 'binding', connection: selected, enabled: bindingChange })}>{busy ? 'Saving...' : bindingChange ? 'Enable connection here' : 'Disable connection here'}</Button></DialogActions>
     </Dialog>
-    {help && currentSnapshot && selected ? <McpAssistant brainId={brainId} connectionId={selected.id} snapshotId={currentSnapshot.id} toolNames={help} onClose={() => setHelp(null)} onSaved={refreshDraft} /> : null}
   </Box>
 }

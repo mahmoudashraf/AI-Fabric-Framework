@@ -16,12 +16,13 @@ import React from 'react';import{createRoot}from'react-dom/client';
 import{BrowserRouter,Link,useLocation,useParams}from'react-router-dom';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';
 import{Box,Stack,Typography}from'@mui/material';import{CustomerConsoleTheme}from'/src/theme/CustomerConsoleTheme.tsx';
 import{BrainWorkspaceContext}from'/src/brain/BrainWorkspaceContext.tsx';import{BrainCapabilitiesPage}from'/src/brain/BrainCapabilitiesPage.tsx';
+import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{brainPageAssistantScope}from'/src/assistant/scope.ts';
 import{setPlatformAccessTokenProvider}from'/src/api/platformApi.ts';setPlatformAccessTokenProvider(async()=> 'fixture-console-token');
 function App(){const location=useLocation();const brainId='brain-a';const targetProfileId=new URLSearchParams(location.search).get('targetProfileId')??'stage';
  const href=(section='')=>'/smart-brains/'+brainId+'/'+section+'?'+new URLSearchParams({targetProfileId});
  return <BrainWorkspaceContext.Provider value={{brainId,targetProfileId,href,targetProfile:null,release:null,target:null}}><Box sx={{height:'100dvh',display:'flex',flexDirection:'column',minWidth:0}}>
  <Stack direction="row" gap={2} sx={{px:3,py:2,borderBottom:1,borderColor:'divider',flexWrap:'wrap'}}><Typography fontWeight={650}>Example Smart Brain</Typography><Link to="/smart-brains/brain-a/capabilities?view=mcp&targetProfileId=stage">Staging</Link><Link to="/smart-brains/brain-a/capabilities?view=mcp&targetProfileId=prod">Production</Link></Stack>
- <Box sx={{p:{xs:2,lg:3},display:'flex',flex:1,minWidth:0,minHeight:0}}><BrainCapabilitiesPage/></Box></Box></BrainWorkspaceContext.Provider>}
+ <AssistantWorkspace scope={brainPageAssistantScope(location.pathname,location.search,brainId)} visibilityKey={brainId} onSaved={async()=>{}}><Box sx={{p:{xs:2,lg:3},display:'flex',flex:1,minWidth:0,minHeight:0}}><BrainCapabilitiesPage/></Box></AssistantWorkspace></Box></BrainWorkspaceContext.Provider>}
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false,refetchOnWindowFocus:false},mutations:{retry:false}}})}><BrowserRouter><CustomerConsoleTheme><App/></CustomerConsoleTheme></BrowserRouter></QueryClientProvider>);
 `
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, logLevel: 'error', server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
@@ -420,6 +421,7 @@ try {
     await page.getByRole('button', { name: 'Help configure', exact: true }).click()
     const panel = page.getByRole('complementary', { name: 'Build with AI' })
     await panel.getByRole('button', { name: 'Selected MCP tools', exact: true }).waitFor()
+    assert.equal(await page.locator('[id="configuration-assistant-panel"]').count(), 1, 'MCP uses the shared Brain panel, not a second assistant')
     const attach = calls.find(call => call.path.endsWith('/sources/mcp'))
     assert.deepEqual(attach.input, { connectionId: 'conn-a', snapshotId: 'snapshot-a', toolNames: ['search_docs'] })
     assert.equal(calls.some(call => call.path.endsWith('/turns')), false)
@@ -427,6 +429,9 @@ try {
     await panel.getByRole('checkbox', { name: 'MCP \u00b7 search_docs \u00b7 Tool from the owned catalogue', exact: true }).waitFor()
     await panel.getByRole('button', { name: 'Close assistant', exact: true }).click()
     assert.equal(await page.getByRole('button', { name: 'Add 1 tool to draft', exact: true }).isEnabled(), true)
+    await page.getByRole('button', { name: 'Build with AI', exact: true }).click()
+    await panel.getByRole('button', { name: 'Selected MCP tools', exact: true }).waitFor()
+    assert.equal(calls.filter(call => call.path.endsWith('/sources/mcp')).length, 1, 'Reopening retains metadata without sharing it again')
   }, { connections: [connection()] })
   for (const [width, dark] of [[1440, false], [390, true], [320, false]]) await run(`layout ${width} ${dark ? 'dark' : 'light'}`, async ({ page, goto }) => {
     await goto('?targetProfileId=stage&view=mcp&mcp=conn-a')

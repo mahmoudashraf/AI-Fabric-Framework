@@ -26,8 +26,6 @@ export function brainAssistantScope(pathname: string, search: string, brainId: s
   const path = pathname.slice(root.length).replace(/^\//, '').replace(/\/$/, '')
   const params = new URLSearchParams(search)
   const parts = path.split('/')
-  // MCP's explicit Help configure attaches the selected owned snapshot to the same assistant.
-  if (parts[0] === 'capabilities' && (params.get('view') === 'mcp' || params.has('mcp'))) return null
   let section = sections[path]
   let selectedId = ''
   if (path === 'capabilities' && params.get('view') === 'connection') section = 'CONNECTIONS'
@@ -47,6 +45,15 @@ export function brainAssistantScope(pathname: string, search: string, brainId: s
   const task = sectionTasks[section]
   return { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task,
     editorContext: { section, ...(selectedId && selectedId.length <= 256 ? { selectedDefinitionIds: [selectedId] } : {}) } }
+}
+
+export function brainPageAssistantScope(pathname: string, search: string, brainId: string): AssistantScope | null {
+  const scope = brainAssistantScope(pathname, search, brainId)
+  if (scope) return scope
+  const root = `/smart-brains/${encodeURIComponent(brainId)}`
+  if (!brainId || (pathname !== root && !pathname.startsWith(`${root}/`))) return null
+  // Operational pages offer guidance, without adding a new draft-editing task.
+  return { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: brainId, task: 'KIT', editorContext: { section: 'KIT' } }
 }
 
 export function scopeIdentity(scope: AssistantScope) { return `${scope.resourceKind}:${scope.resourceId}:${scope.task}` }

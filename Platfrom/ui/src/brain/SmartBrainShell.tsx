@@ -37,7 +37,7 @@ import { accountPath } from '../account/accountNavigation'
 import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
 import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
-import { brainAssistantScope } from '../assistant/scope'
+import { brainPageAssistantScope } from '../assistant/scope'
 import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpecialistAssistance'
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
@@ -95,7 +95,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const specialistRoute = location.pathname === `/smart-brains/${encodeURIComponent(brainId)}/human-support/specialists`
   const manualBusy = Boolean(editor?.busy) || specialistRoute && mutations > 0
   const busy = manualBusy || assistantBusy
-  const assistantScope = valid ? brainAssistantScope(location.pathname, location.search, brainId) : null
+  const assistantScope = valid ? brainPageAssistantScope(location.pathname, location.search, brainId) : null
   const editingRelease = useRef<{ scope: string; release: typeof candidateRelease } | null>(null)
   editingRelease.current = retainEditingRelease(editingRelease.current, `${brainId}:${targetProfileId}`, candidateRelease, dirty || busy)
   const release = editingRelease.current.release
@@ -217,7 +217,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
         <Drawer variant={compact ? 'temporary' : 'permanent'} open={!compact || menuOpen} onClose={() => setMenuOpen(false)}
           sx={{ width: compact ? 0 : 210, flexShrink: 0, '& .MuiDrawer-paper': { width: 210, position: compact ? 'fixed' : 'relative', height: '100%', bgcolor: 'background.paper', boxSizing: 'border-box' } }}>{nav}</Drawer>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <AssistantWorkspace scope={assistantScope} editorBusy={manualBusy} onBusyChange={setAssistantBusy}
+          <AssistantWorkspace scope={assistantScope} initiallyOpen visibilityKey={JSON.stringify([session?.actorId, session?.customerId, brainId])}
+            editorBusy={manualBusy} onBusyChange={setAssistantBusy}
             guideOnly={assistantScope?.task === 'KIT' || section === 'action-reviews'}
             readOnlyReason={workspace.workspace?.access.canEdit === false ? 'You do not have draft editing access.' : undefined}
             onSaved={async () => { await queryClient.invalidateQueries({ predicate: query => query.queryKey.includes(brainId)

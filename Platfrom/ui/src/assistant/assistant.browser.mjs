@@ -14,7 +14,7 @@ const harness = `
 import React,{useState} from 'react';import{createRoot}from'react-dom/client';
 import{createBrowserRouter,RouterProvider,Link,useLocation,useParams}from'react-router-dom';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';
 import{Box,TextField}from'@mui/material';import{CustomerConsoleTheme}from'/src/theme/CustomerConsoleTheme.tsx';
-import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{brainAssistantScope}from'/src/assistant/scope.ts';
+import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{brainAssistantScope,brainPageAssistantScope}from'/src/assistant/scope.ts';
 import{KitAssistantGuide}from'/src/assistant/KitAssistantGuide.tsx';
 import{PluginLibraryPage}from'/src/pluginLibrary/PluginLibraryPage.tsx';
 import{SmartBrainShell}from'/src/brain/SmartBrainShell.tsx';import{BrainModelsPage}from'/src/brain/BrainSettingsPage.tsx';
@@ -24,11 +24,13 @@ import{setPlatformAccessTokenProvider,platformRequest}from'/src/api/platformApi.
 function Editor(){const[value,setValue]=useState('Saved manual value');const[other,setOther]=useState('Keep this manual value');const[real]=useState(()=>new URLSearchParams(window.location.search).has('real'));
  const location=useLocation();const{brainId}=useParams();const params=new URLSearchParams(location.search);const kind=params.get('kind');
  if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:<BrainModelsPage/>}</SmartBrainShell>;
- const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:brainAssistantScope(location.pathname,location.search,brainId??'brain-37');
- return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
+ const defaultOpen=params.has('defaultOpen');
+ const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:(defaultOpen?brainPageAssistantScope:brainAssistantScope)(location.pathname,location.search,brainId??'brain-37');
+ return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} initiallyOpen={defaultOpen} visibilityKey={defaultOpen?brainId:undefined} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
  onSaved={async()=>{const saved=await platformRequest('/api/editor');setValue(saved.value)}}>
  <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/>
  {params.has('scopeTest')&&<><Link to="/smart-brains/brain-37/models?scopeTest">Select Models task</Link><Link to="/smart-brains/brain-38/models?scopeTest">Select another Brain</Link></>}
+ {defaultOpen&&<><Link to="/smart-brains/brain-37/models?defaultOpen">Select Models task</Link><Link to="/smart-brains/brain-37/updates?defaultOpen">Select Updates guidance</Link><Link to="/smart-brains/brain-38/models?defaultOpen">Select another Brain</Link></>}
  {params.has('contextTest')&&[['models','Models context'],['knowledge/search','Search context'],['responses','Behaviour context'],['responses/instructions','Instructions context'],['knowledge/documents','Documents context'],['knowledge/connections/source-1','Live data context'],['knowledge/storage','Storage context'],['capabilities/action%3Aread','Selected action context']].map(([path,label])=><Link key={path} to={'/smart-brains/brain-37/'+path+'?contextTest'}>{label}</Link>)}</Box>
  </AssistantWorkspace></Box>}
 function KitGuideFixture(){const[brainId,setBrainId]=useState('brain-37');return <><button onClick={()=>setBrainId('brain-38')}>Select another Kit Brain</button><KitAssistantGuide brainId={brainId}/></>}
@@ -161,7 +163,7 @@ async function run(name, work, options = {}) {
   finally { await page.close() }
 }
 async function turnOptions(page, visible = true) { const toggle = panel(page).getByRole('button', { name: 'Turn options', exact: true }); if (await toggle.getAttribute('aria-expanded') !== String(visible)) await toggle.click() }
-async function open(page, optionsVisible = true) { await page.getByRole('button', { name: 'Build with AI', exact: true }).click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await turnOptions(page, optionsVisible) }
+async function open(page, optionsVisible = true) { const button = page.getByRole('button', { name: 'Build with AI', exact: true }); if (await button.getAttribute('aria-expanded') !== 'true') await button.click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await turnOptions(page, optionsVisible) }
 async function send(page, text = 'Use a concise response style') { await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill(text); await panel(page).getByRole('button', { name: 'Send', exact: true }).click() }
 async function review(page) { await panel(page).getByRole('region', { name: 'Selected documents', exact: true }).getByRole('button').last().click(); const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
 async function addResizeSource(page) {
@@ -221,6 +223,37 @@ async function importDocumentation(page, mode = 'paste', title = 'API reference'
 }
 try {
   browser = await chromium.launch({ headless: true })
+  await run('Brain entry opens assistance; dismissal survives page changes and another Brain opens afresh', async ({ page, calls }) => {
+    await open(page, false)
+    assert.equal(await panel(page).isVisible(), true)
+    await page.getByLabel('Manual value', { exact: true }).fill('Retained manual edit')
+    await panel(page).getByRole('button', { name: 'Close assistant' }).click()
+    await page.getByRole('link', { name: 'Select Models task' }).click()
+    assert.equal(await page.getByRole('button', { name: 'Build with AI', exact: true }).getAttribute('aria-expanded'), 'false')
+    assert.equal(await page.getByLabel('Manual value', { exact: true }).inputValue(), 'Retained manual edit')
+    await open(page, false)
+    await page.getByRole('link', { name: 'Select Updates guidance' }).click()
+    await panel(page).getByText('Guide only.', { exact: false }).waitFor()
+    await panel(page).getByRole('button', { name: 'Explain setup', exact: true }).waitFor()
+    await panel(page).getByRole('button', { name: 'Close assistant' }).click()
+    await page.getByRole('link', { name: 'Select another Brain' }).click()
+    await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Build with AI', exact: true }).getAttribute('aria-expanded'), 'true')
+    assert.equal(calls.filter(call => /\/turns|\/apply|\/publish|\/sources/.test(call.path)).length, 0, 'Opening and navigation perform no inference, source sharing or saves')
+  }, { path: '/smart-brains/brain-37/responses?defaultOpen' })
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    await run(`Brain shell opens its closable panel at ${viewport.width}px`, async ({ page, calls }) => {
+      await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
+      assert.equal(await panel(page).isVisible(), true, 'Actual Brain shell opens without clicking the entry button')
+      assert.equal(await page.locator('[id="configuration-assistant-panel"]').count(), 1)
+      await page.screenshot({ path: join(evidence, `brain-assistant-${viewport.width}.png`), fullPage: true })
+      await panel(page).getByRole('button', { name: 'Close assistant' }).click()
+      await panel(page).waitFor({ state: 'hidden' })
+      await open(page, false)
+      assert.equal(await panel(page).isVisible(), true)
+      assert.equal(calls.filter(call => /\/turns|\/apply|\/publish/.test(call.path)).length, 0)
+    }, { path: '/smart-brains/brain-37/models?real', viewport, dark: viewport.width === 1440 })
+  }
   for (const mode of ['paste', 'file', 'url']) {
     await run(`page aware ${mode} documentation prepares actions with no hint and no inference on import`, async ({ page, calls, finish }) => {
       await open(page, false); const p = panel(page)
@@ -317,7 +350,7 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
     assert.equal(calls.filter(call => call.path.endsWith('/content')).length, 0)
   }, { existingReuse: true, path: '/smart-brains/brain-37/capabilities/actions' })
-  for (const [path, command, section] of [['/smart-brains/brain-37/action-reviews', 'Explain action reviews', 'ACTION_REVIEWS'], ['/smart-brains/brain-37/', 'Explain Kit setup', 'KIT']]) {
+  for (const [path, command, section] of [['/smart-brains/brain-37/action-reviews', 'Explain action reviews', 'ACTION_REVIEWS'], ['/smart-brains/brain-37/', 'Explain setup', 'KIT']]) {
     await run(`page aware ${section} command is guidance only without a hint`, async ({ page, calls, finish }) => {
       await open(page, false); const p = panel(page)
       await p.getByText('Guidance only. No draft changes.', { exact: true }).waitFor()
@@ -686,6 +719,7 @@ try {
     await page.getByLabel('Manual value', { exact: true }).fill('Retain the manual editor buffer')
     await open(page); await enterPanelInputs(page, 'Old task query')
     const assertReset = async () => {
+      await panel(page).waitFor({ state: 'hidden' })
       await open(page); const p = panel(page)
       assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), '')
       assert.equal(await p.getByRole('checkbox', { name: 'Preview only' }).isChecked(), false)
@@ -746,14 +780,17 @@ try {
     await page.screenshot({ path: join(evidence, 'real-brain-same-revision-dark.png') })
   }, { path: '/smart-brains/brain-37/models?real&targetProfileId=target-stage' })
   await run('actual Human support links bind Specialists and reviews with their own draft/guide scopes', async ({ page, calls }) => {
+    await open(page, false)
+    assert.equal(calls.find(call => call.path.endsWith('/sessions')).input.task, 'HUMAN_SUPPORT')
     await page.getByRole('navigation', { name: 'Human support tasks' }).getByRole('link', { name: 'Specialists', exact: true }).click()
     await page.getByRole('heading', { name: 'Specialists', exact: true }).waitFor(); await page.getByRole('checkbox', { name: 'Specialist assistance' }).waitFor()
-    await open(page); assert.equal(calls.find(call => call.path.endsWith('/sessions')).input.task, 'SPECIALISTS')
+    await open(page); assert.equal(calls.filter(call => call.path.endsWith('/sessions')).at(-1).input.task, 'SPECIALISTS')
     await panel(page).getByRole('button', { name: 'Close assistant' }).click()
     await page.getByRole('navigation', { name: 'Human support tasks' }).getByRole('link', { name: 'Action reviews', exact: true }).click(); await open(page)
-    assert.equal(calls.filter(call => call.path.endsWith('/sessions')).at(-1).input.task, 'HUMAN_SUPPORT')
+    await panel(page).getByText('Guide only.', { exact: false }).waitFor()
     await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill('Explain review setup'); await panel(page).getByRole('button', { name: 'Explain', exact: true }).click()
     assert.equal(calls.find(call => call.path.endsWith('/turns')).input.previewOnly, true)
+    assert.equal(calls.find(call => call.path.endsWith('/turns')).path, '/api/configuration-assistant/sessions/session-1/turns', 'Reviews reuse the existing Human support session, not the Specialist session')
   }, { path: '/smart-brains/brain-37/human-support?real&targetProfileId=target-stage' })
   await run('real Kit details guide binds the saved Kit Brain and links to real resource editors', async ({ page, calls }) => {
     await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); const p = panel(page)

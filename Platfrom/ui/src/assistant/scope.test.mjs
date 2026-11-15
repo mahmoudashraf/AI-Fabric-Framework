@@ -5,7 +5,7 @@ import ts from 'typescript'
 
 const source = await readFile(new URL('./scope.ts', import.meta.url), 'utf8')
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } })
-const { brainAssistantScope, operation, scopeIdentity } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const { brainAssistantScope, brainPageAssistantScope, operation, scopeIdentity } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 const root = '/smart-brains/brain-37'
 const expected = {
   '': 'KIT', '/': 'KIT', '/capabilities': 'ACTIONS', '/capabilities/actions': 'ACTIONS',
@@ -53,11 +53,22 @@ test('formal connection and specialist selectors bind their tasks', () => {
   assert.equal(brainAssistantScope(root + '/human-support/specialists', '', 'brain-37').task, 'SPECIALISTS')
   assert.equal(brainAssistantScope(root + '/advanced/configuration', '?panel=specialists', 'brain-37').task, 'KIT', 'No invented specialist selector on provider JSON')
 })
-test('unrelated, unavailable and operational routes have no assistant', () => {
+test('operational routes have no writable assistant task', () => {
   for (const path of ['/try', '/channels', '/updates', '/advanced/runtime', '/advanced/recovery', '/advanced/diagnostics', '/capabilities/add', '/capabilities/unknown', '/capabilities/action%3Aread/extra', '/knowledge/sources/id/extra', '/unknown', '/responses/unknown']) assert.equal(brainAssistantScope(root + path, '', 'brain-37'), null, path)
   assert.equal(brainAssistantScope('/smart-brains/other/models', '', 'brain-37'), null)
   assert.equal(brainAssistantScope('/smart-brains/brain-37-suffix/models', '', 'brain-37'), null)
   assert.equal(brainAssistantScope('/smart-brains//models', '', ''), null)
+})
+test('every valid Brain page offers assistance, with guidance only outside supported editors', () => {
+  for (const path of ['/try', '/channels', '/updates', '/tasks', '/secrets', '/advanced/runtime', '/advanced/recovery', '/advanced/diagnostics']) {
+    assert.deepEqual(brainPageAssistantScope(root + path, '', 'brain-37'), {
+      resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'KIT', editorContext: { section: 'KIT' },
+    })
+  }
+  assert.equal(brainPageAssistantScope(root + '/models', '', 'brain-37').task, 'MODELS')
+  assert.equal(brainPageAssistantScope(root + '/capabilities', '?view=mcp&mcp=connection-1', 'brain-37').task, 'ACTIONS')
+  for (const path of ['/kits/brain-37', '/smart-brains/other/models', '/smart-brains/brain-37-suffix/models']) assert.equal(brainPageAssistantScope(path, '', 'brain-37'), null)
+  assert.equal(brainPageAssistantScope('/smart-brains//models', '', ''), null)
 })
 test('task and resource identity are unaffected by natural language parameters', () => {
   assert.equal(brainAssistantScope(root + '/responses', '?query=configure+models&task=MODELS', 'brain-37').task, 'BEHAVIOUR')
