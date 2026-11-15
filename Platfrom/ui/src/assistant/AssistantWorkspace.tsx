@@ -43,6 +43,7 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
   const visibilityIdentity = visibilityKey ?? identity
   const [visibility, setVisibility] = useState({ identity: visibilityIdentity, open: initiallyOpen, activated: initiallyOpen })
   const current = visibility.identity === visibilityIdentity ? visibility : { identity: visibilityIdentity, open: initiallyOpen, activated: initiallyOpen }
+  if (visibility.identity !== visibilityIdentity) setVisibility(current)
   const open = Boolean(scope && current.open)
   const [sourceRequest, setSourceRequest] = useState<PendingSource | null>(null)
   const sourceSequence = useRef(0)

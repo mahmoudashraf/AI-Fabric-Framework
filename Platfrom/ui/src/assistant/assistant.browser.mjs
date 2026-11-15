@@ -239,6 +239,10 @@ try {
     await page.getByRole('link', { name: 'Select another Brain' }).click()
     await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: 'Build with AI', exact: true }).getAttribute('aria-expanded'), 'true')
+    await page.getByRole('link', { name: 'Select Models task' }).click()
+    await page.waitForURL(url => url.pathname === '/smart-brains/brain-37/models')
+    await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Build with AI', exact: true }).getAttribute('aria-expanded'), 'true', 'Returning to a previously dismissed Brain is a fresh visit')
     assert.equal(calls.filter(call => /\/turns|\/apply|\/publish|\/sources/.test(call.path)).length, 0, 'Opening and navigation perform no inference, source sharing or saves')
   }, { path: '/smart-brains/brain-37/responses?defaultOpen' })
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
