@@ -191,9 +191,27 @@ test('editor and preview links use the correct canonical delivery channel', () =
   assert.equal(editor.searchParams.get('resourceId'), 'awi-embed')
   assert.equal(editor.searchParams.get('editor'), 'configuration')
   assert.equal(editor.searchParams.get('view'), null, 'Existing resource inspector selects the correct app editor')
+  assert.equal(editor.searchParams.get('kitId'), value.id)
   const preview = new URL(models.kitEditorPath(value, true), 'https://console.test')
   assert.equal(preview.searchParams.get('previewInstallationId'), 'awi-one')
   assert.equal(preview.searchParams.get('view'), 'manage')
+  assert.equal(preview.searchParams.get('kitId'), value.id)
+})
+
+test('all editor and preview links retain the exact Kit origin, including embedded-only and encoded IDs', () => {
+  const value = kit({ id: 'kit/a&b', deploymentId: 'dep/a&b', installationId: 'awi/a&b', embeddedInstallationId: 'embed/a&b', deliveryMode: 'both' })
+  for (const preview of [false, true]) for (const embedded of [false, true]) {
+    const path = new URL(models.kitEditorPath(value, preview, embedded), 'https://console.test')
+    assert.equal(path.pathname, '/ai-workspaces')
+    assert.equal(path.searchParams.get('kitId'), value.id)
+    assert.equal(path.searchParams.get(preview ? 'previewInstallationId' : 'resourceId'), embedded ? value.embeddedInstallationId : value.installationId)
+    if (!preview) assert.equal(path.searchParams.get('deploymentId'), value.deploymentId)
+  }
+  const embeddedOnly = kit({ deliveryMode: 'embedded', embeddedInstallationId: null })
+  const path = new URL(models.kitEditorPath(embeddedOnly), 'https://console.test')
+  assert.equal(path.searchParams.get('resourceId'), embeddedOnly.installationId)
+  assert.equal(path.searchParams.get('kitId'), embeddedOnly.id)
+  assert.throws(() => models.kitEditorPath(embeddedOnly, true, true), /not available/)
 })
 
 test('outbound app and demo links reject unsafe protocols and embedded credentials', () => {

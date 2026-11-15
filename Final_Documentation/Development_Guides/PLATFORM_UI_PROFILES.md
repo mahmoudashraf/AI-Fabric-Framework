@@ -73,6 +73,29 @@ filters. Direct app-inspector links may return to that app's owned linked Brain;
 never choose an unrelated Brain when the parent is unavailable. This is panel
 navigation only, not reassignment or a configuration change.
 
+### Engage Setup Follow-up - Owner Approval, 15 November 2026
+
+Engage discovery and app inspectors now follow the same compact, guided pattern.
+Keep All / Setup needed / Active filters, customer-facing delivery labels and
+one next-step action. Active is the recorded installation state, not a runtime
+health probe. Show actual remaining readiness messages beside Connect your Brain,
+Brand your workspace, Website/address setup or Check and activate, using declared
+check codes. Unknown checks stay visible under launch checks. Never hide blockers,
+auto-activate, change assignments or start AI merely because a setup view opens.
+Keep all prior operational controls and raw facts under Technical details.
+
+Setup steps reuse the existing connection dialog, appearance preview, delivery
+instructions and launch controls; there is no duplicate app editor. Preserve
+Kit/Brain origin identifiers through those routes. Back to Kit is offered only
+after the owned Kit, app and Brain relationship has been loaded and matched;
+never trust an arbitrary return URL. Retain existing close/discard protection.
+
+Kit product headings reveal and focus their inspector even on repeated selection
+and narrow screens. The workspace card's Configure workspace action opens the
+existing editor instead of re-selecting an already open panel. Preview and both
+delivery-channel links retain the exact Kit ID. The Kit page, Home and global
+shell are not otherwise redesigned by this follow-up; 010.65 stays rejected.
+
 The assistant is page-aware and shows selected reference documents, real draft
 save results and inspectable diffs. Review draft opens the existing Updates
 workflow with the selected target preserved; it never publishes or applies.

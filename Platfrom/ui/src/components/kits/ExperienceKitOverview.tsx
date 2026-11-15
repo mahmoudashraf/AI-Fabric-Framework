@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Tooltip, useTheme } from '@mui/material'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded'
@@ -51,6 +51,21 @@ function KitReadinessDetails({ checks }: { checks: AIWorkspaceReadinessCheck[] }
 
 function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit: ExperienceKitSummary; refresh: () => Promise<unknown> }) {
   const [selected, setSelected] = useState<'deployment' | 'engage' | 'desk' | null>('engage')
+  const [inspectorRequest, setInspectorRequest] = useState(0)
+  const inspectorId = useId()
+  const inspector = useRef<HTMLElement>(null)
+  const inspectorTrigger = useRef<HTMLButtonElement | null>(null)
+  const inspectProduct = (product: 'deployment' | 'engage' | 'desk', trigger: HTMLButtonElement) => {
+    inspectorTrigger.current = trigger
+    setSelected(product)
+    setInspectorRequest(request => request + 1)
+  }
+  useEffect(() => {
+    if (!inspectorRequest || !selected || !inspector.current) return
+    inspector.current.scrollTop = 0
+    inspector.current.focus({ preventScroll: true })
+    inspector.current.scrollIntoView({ block: 'start', inline: 'nearest' })
+  }, [inspectorRequest, selected])
   const [editing, setEditing] = useState(false)
   const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio, retry: false })
   const releases = useQuery({ queryKey: experienceKitKeys.releases(customerId, kit.deploymentId),
@@ -102,23 +117,24 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
       {releases.isError && <Alert severity="error">{deploymentTerm.singular} verification could not be loaded.<Button onClick={() => void releases.refetch()}>Retry</Button></Alert>}
       {primary?.releaseId && releases.isSuccess && !release && <Alert severity="warning">Your app's assigned release is unavailable. Open the {deploymentTerm.lowercase} to review it.</Alert>}
       <div className="ek-product-resources">
-        <article className={`ek-product-resource${selected === 'deployment' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('deployment')} aria-label={`Inspect AI ${deploymentTerm.lowercase}`}>
+        <article className={`ek-product-resource${selected === 'deployment' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={event => inspectProduct('deployment', event.currentTarget)} aria-label={`Inspect AI ${deploymentTerm.lowercase}`} aria-controls={inspectorId} aria-expanded={selected === 'deployment'}>
           <KitMark product="platform" large /><div><h2>Your AI assistant</h2><p>{deployment?.name ?? kit.name}</p></div></button>
           <div className="ek-resource-body"><span className="ek-inline-status"><i />{releases.isPending ? 'Checking setup' : releases.isError ? 'Status unavailable' : release ? connectableRelease(release) ? 'Tested and connected' : 'Checks needed' : latestAttempt ? 'Setup needs attention' : 'Not live yet'}</span>
             <p>Answers and next steps using your business information</p><Link to={deploymentPath}>Set up your assistant <ArrowForwardRounded /></Link></div>
         </article><ArrowForwardRounded className="ek-resource-arrow" />
-        <article className={`ek-product-resource${selected === 'engage' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('engage')} aria-label="Inspect Engage experience">
+        <article className={`ek-product-resource${selected === 'engage' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={event => inspectProduct('engage', event.currentTarget)} aria-label="Inspect Engage experience" aria-controls={inspectorId} aria-expanded={selected === 'engage'}>
           <KitMark product="engage" large /><div><h2>Your customer workspace</h2><p>{primary?.displayName ?? 'Workspace missing'}</p></div></button>
           <div className="ek-resource-body"><WorkspaceStatus state={appStates[0]} /><p>{kit.deliveryMode === 'both' ? 'Website widget + standalone' : kit.deliveryMode === 'embedded' ? 'Website widget' : 'Standalone app'}</p>
-            <button type="button" className="ek-text-button" onClick={() => setSelected('engage')}>View details <ArrowForwardRounded /></button></div>
+            {kit.installationId ? <Link to={kitEditorPath(kit)}>Configure workspace <ArrowForwardRounded /></Link>
+              : <Link to="/ai-workspaces">Open Engage apps <ArrowForwardRounded /></Link>}</div>
         </article><ArrowForwardRounded className="ek-resource-arrow" />
-        <article className={`ek-product-resource${selected === 'desk' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={() => setSelected('desk')} aria-label="Inspect human support">
+        <article className={`ek-product-resource${selected === 'desk' ? ' ek-resource-selected' : ''}`}><button type="button" onClick={event => inspectProduct('desk', event.currentTarget)} aria-label="Inspect human support" aria-controls={inspectorId} aria-expanded={selected === 'desk'}>
           <KitMark product="desk" large /><div><h2>{supportExperience ? 'Request tracking & team' : 'Human support'}</h2><p>LoomAI Desk</p></div></button>
           <div className="ek-resource-body"><span className={`ek-inline-status${desk.data?.status === 'ENABLED' ? ' ek-mint' : ' ek-amber'}`}><i />
             {supportExperience ? kit.ticketingEnabled ? 'Request tracking requested' : kit.humanSupportEnabled ? 'Human support requested' : 'Optional'
               : desk.isError ? 'Status unavailable' : desk.data?.status === 'ENABLED' ? 'Desk connected' : kit.humanSupportEnabled ? 'Setup requested' : 'Optional'}</span>
             <p>{supportExperience ? `Request tracking ${kit.ticketingEnabled ? 'requested' : 'off'}. Human support is separate.` : 'A person when your customers need one'}</p>
-            {supportExperience ? <button type="button" className="ek-text-button" onClick={() => setSelected('desk')}>Configure support <ArrowForwardRounded /></button>
+            {supportExperience ? <button type="button" className="ek-text-button" onClick={event => inspectProduct('desk', event.currentTarget)} aria-controls={inspectorId} aria-expanded={selected === 'desk'}>Configure support <ArrowForwardRounded /></button>
               : <Link to={deskPath}>Add your support team <ArrowForwardRounded /></Link>}</div>
         </article>
       </div>
@@ -140,9 +156,9 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
         <Button component={Link} to={revisionPath} endIcon={<ArrowForwardRounded />}>Versions & launch</Button></div>
       <p className="ek-observed">Last updated {new Date(kit.updatedAt).toLocaleString()}.</p>
     </div>
-    {selected && <aside className="ek-inspector" aria-label="Selected product details"><div className="ek-inspector-heading"><KitMark product={selected === 'deployment' ? 'platform' : selected === 'desk' ? 'desk' : 'engage'} />
+    {selected && <aside className="ek-inspector" id={inspectorId} ref={inspector} tabIndex={-1} aria-label="Selected product details"><div className="ek-inspector-heading"><KitMark product={selected === 'deployment' ? 'platform' : selected === 'desk' ? 'desk' : 'engage'} />
       <div><h2>{selected === 'engage' ? primary?.displayName ?? 'Customer workspace' : selected === 'deployment' ? deployment?.name ?? 'AI assistant' : supportExperience ? 'Support setup' : 'Human support'}</h2><small>{selected === 'engage' ? 'LoomAI Engage' : selected === 'deployment' ? 'LoomAI Platform' : 'LoomAI Desk'}</small></div>
-      <Tooltip title="Close details"><IconButton aria-label="Close kit product details" onClick={() => setSelected(null)}><CloseRounded /></IconButton></Tooltip></div>
+      <Tooltip title="Close details"><IconButton aria-label="Close kit product details" onClick={() => { setSelected(null); inspectorTrigger.current?.focus({ preventScroll: true }) }}><CloseRounded /></IconButton></Tooltip></div>
       {selected === 'engage' ? <>
         {channels.map((channel, index) => <section className="ek-inspector-section" key={channel.key}><h3>{channel.name}</h3>
           <WorkspaceStatus state={appStates[index]} />

@@ -7,7 +7,6 @@ import DnsOutlined from '@mui/icons-material/DnsOutlined'
 import WidgetsOutlined from '@mui/icons-material/WidgetsOutlined'
 import CloseRounded from '@mui/icons-material/CloseRounded'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import AddRounded from '@mui/icons-material/AddRounded'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
@@ -28,6 +27,10 @@ import { brainPath } from '../../brain/brainNavigation'
 import { BuildWithAIButton } from '../../assistant/BuildWithAIButton'
 import { BrainLibrary } from './BrainLibrary'
 import { BrainLibraryInspector } from './BrainLibraryInspector'
+import { EngageLibrary } from './EngageLibrary'
+import { EngageInspector } from './EngageInspector'
+import { EngageReturnNavigation } from './EngageReturnNavigation'
+import { type EngageFilter, engageStepPath } from './engagePresentation'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -54,7 +57,9 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const compact = useMediaQuery(useTheme().breakpoints.down('md'))
   const [search, setSearch] = useState('')
   const [brainFilter, setBrainFilter] = useState<BrainLibraryFilter>('all')
+  const [appFilter, setAppFilter] = useState<EngageFilter>('all')
   const brainLibrary = props.mode === 'deployments'
+  const guidedApp = props.mode !== 'home'
   const params = new URLSearchParams(location.search)
   const id = params.get('resourceId')
   const kind = params.get('resourceKind')
@@ -63,9 +68,6 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const allResources = [...deploymentCards, ...appCards]
   const selected = allResources.find(item => item.id === id && item.kind === kind)
   const parentBrain = selected?.kind === 'app' ? deploymentCards.find(item => item.id === selected.deploymentId) : undefined
-  const previousBrainPanel = location.state?.brainPanelOrigin
-  const parentReleaseId = parentBrain && previousBrainPanel?.deploymentId === parentBrain.id
-    && typeof previousBrainPanel.releaseId === 'string' ? previousBrainPanel.releaseId : null
   const unresolved = Boolean(id && !props.loading && !selected)
   const offer = props.offers.find(item => item.id === props.deployments.find(deployment => deployment.deploymentId === selected?.deploymentId)?.offerId)
   const selectedReleaseId = params.get('releaseId')
@@ -106,11 +108,15 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     next.delete('editor'); next.delete('editorSection')
     const origin = selected?.kind === 'deployment' && resource.kind === 'app' && resource.deploymentId === selected.id
       ? { deploymentId: selected.id, releaseId: selectedReleaseId } : null
+    next.delete('fromBrainId'); next.delete('fromBrainReleaseId')
+    if (origin) { next.set('fromBrainId', origin.deploymentId); if (origin.releaseId) next.set('fromBrainReleaseId', origin.releaseId) }
+    if (resource.id !== selected?.id) next.delete('kitId')
     navigate({ pathname: location.pathname, search: next.toString() }, { state: origin ? { brainPanelOrigin: origin } : null })
   }
   const close = () => {
     const next = new URLSearchParams(location.search)
     next.delete('resourceKind'); next.delete('resourceId'); next.delete('releaseId'); next.delete('editorSection')
+    next.delete('fromBrainId'); next.delete('fromBrainReleaseId'); next.delete('kitId')
     navigate({ pathname: location.pathname, search: next.toString() })
   }
   const title = props.mode === 'home' ? 'Your workspace' : props.mode === 'apps' ? 'Engage apps' : deploymentTerm.plural
@@ -141,17 +147,17 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const resourceActions = selected ? <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         {selected.kind === 'deployment' ? !brainLibrary ? <BuildWithAIButton fullWidth onClick={() => openConfiguration()} /> : null
           : <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>}
-        <Button component={RouterLink} startIcon={<LinkRounded />} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage',
+        <Button component={RouterLink} startIcon={<LinkRounded />} to={assignedApp ? engageStepPath(assignedApp, 'connection', params) : `/ai-workspaces?${new URLSearchParams({ view: 'manage',
           ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
         })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : `Change ${deploymentTerm.lowercase}`}</Button>
         {assignedApp ? <Button component={RouterLink} startIcon={<PaletteOutlined />}
-          to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', previewInstallationId: assignedApp.installationId })}`}>Appearance & preview</Button> : null}
+          to={engageStepPath(assignedApp, 'appearance', params)}>Appearance & preview</Button> : null}
         {selected.kind === 'deployment' ? <Button component={RouterLink} variant="outlined" to={`/revisions?${new URLSearchParams({
           deploymentId: selected.id, ...(selectedRelease?.targetProfileId ? { targetProfileId: selectedRelease.targetProfileId } : {}),
         })}`}>Versions & updates</Button> : null}
-        {selected.kind === 'app' && safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}
+        {!guidedApp && selected.kind === 'app' && safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null) ? <Button component="a" href={safeCustomerAppUrl(props.apps.find(item => item.installationId === selected.id)?.appUrl ?? null)!} target="_blank" rel="noopener noreferrer" startIcon={<OpenInNewRounded />}>Open app</Button> : null}
         {assignedApp?.deliveryMode === 'embedded' ? <Button startIcon={<CodeRounded />} onClick={() => openConfiguration()}>Installation script</Button> : null}
-        {assignedApp ? <Button component={RouterLink} startIcon={assignedApp.deliveryMode === 'standalone' ? <CodeRounded /> : <AddRounded />}
+        {assignedApp && !guidedApp ? <Button component={RouterLink} startIcon={assignedApp.deliveryMode === 'standalone' ? <CodeRounded /> : <AddRounded />}
           to={`/ai-workspaces?${new URLSearchParams({ view: 'manage', sourceInstallationId: assignedApp.installationId,
             delivery: assignedApp.deliveryMode === 'standalone' ? 'embedded' : 'standalone' })}`}>
           {assignedApp.deliveryMode === 'standalone' ? 'Add website embed' : 'Add standalone app'}
@@ -185,16 +191,24 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
           </Box> : null}
           <Button variant="outlined" onClick={() => openConfiguration('advanced')}>Open advanced settings</Button>
         </Stack> : null
+  const appNavigation = assignedApp ? <EngageReturnNavigation app={assignedApp} deployments={props.deployments} brainLibrary={brainLibrary}
+    onBrainReturn={brainLibrary && parentBrain ? releaseId => open(parentBrain, releaseId) : undefined} fallbackLabel /> : null
   const inspector = selected ? brainLibrary && selected.kind === 'deployment' && selectedBrainState
     ? <BrainLibraryInspector key={selected.id} resource={selected} state={selectedBrainState} targetProfileId={selectedRelease?.targetProfileId}
       apps={props.apps} releases={props.releases} profiles={selectedProfiles} evidence={releaseEvidence} profileEvidence={profileEvidence} resourcesAvailable={!props.loading && !props.errors.length}
       selectedReleaseId={selectedReleaseId} notices={resourceNotices} onBuild={() => openConfiguration()} onClose={close}
       onInspectApp={appId => { const app = appCards.find(item => item.id === appId); if (app) open(app) }}
       technicalDetails={<>{resourceActions}{overview}{configurationDetails}{advancedDetails}</>} />
+    : guidedApp && assignedApp ? <EngageInspector key={assignedApp.installationId} app={assignedApp} source={params} navigation={appNavigation} onClose={close}
+      notices={<Stack spacing={1}>
+        {props.releaseError && <Alert severity="error">Release details could not be loaded: {props.releaseError}</Alert>}
+        {!props.releaseLoading && !props.releaseError && releaseSelection.missingAssignmentIds.length > 0 && <Alert severity="warning">The app's assigned release is unavailable. No different release was selected.</Alert>}
+        {visibleReleases.flatMap(release => releaseIssues(release).map(issue => <Alert key={`${release.id}:${issue.code}`} severity={issue.severity}>{issue.message}</Alert>))}
+      </Stack>}
+      technicalDetails={<>{resourceActions}{resourceNotices}{overview}{configurationDetails}{advancedDetails}</>} />
     : <Box component="aside" aria-label={`${selected.name} details`} sx={{ width: compact ? '100%' : 425, minWidth: 0, bgcolor: 'background.paper', height: '100%', overflowY: 'auto' }}>
     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, pt: 2, pb: 1 }}>
-      {brainLibrary && parentBrain ? <Tooltip title={`Return to ${parentBrain.name}`} describeChild><Button startIcon={<ArrowBackRounded />} onClick={() => open(parentBrain, parentReleaseId)} sx={{ px: 0, textAlign: 'left' }}>Back to Smart Brain</Button></Tooltip>
-        : <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>}
+      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>
       <Tooltip title="Close details"><IconButton aria-label="Close resource details" onClick={close}><CloseRounded fontSize="small" /></IconButton></Tooltip>
     </Stack>
     <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
@@ -206,19 +220,22 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   return <Box sx={{ display: 'flex', m: { xs: -2, md: -3.5 }, minHeight: 'calc(100vh - 62px)' }}>
     <Box sx={{ p: { xs: 2, md: 3.5 }, flex: 1, minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box><Typography variant="h4" sx={brainLibrary ? { fontSize: 32, fontWeight: 700 } : undefined}>{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Your published experiences and their current assignments.' : 'Build AI that knows your business and helps your customers.'}</Typography></Box>
+        <Box><Typography variant="h4" sx={brainLibrary || props.mode === 'apps' ? { fontSize: 32, fontWeight: 700 } : undefined}>{title}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{props.mode === 'home' ? 'Your AI products and apps.' : props.mode === 'apps' ? 'Bring your AI to your website and branded customer app.' : 'Build AI that knows your business and helps your customers.'}</Typography></Box>
         {props.mode !== 'home' ? <Button component={RouterLink} to={developer && props.mode === 'deployments' ? '/kits' : setupPath} variant="contained" startIcon={<AddRounded />} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>{props.mode === 'apps' ? 'Create Engage app' : `Create ${deploymentTerm.lowercase}`}</Button> : null}
       </Stack>
       {props.mode !== 'apps' ? <Box sx={{ mb: 2 }}><CustomerEnvironmentQuota compact={brainLibrary} /></Box> : null}
       <Stack spacing={1} sx={{ mb: 2 }}>{props.errors.map((error,index) => <Alert key={index} severity="error">{error}</Alert>)}{unresolved ? <Alert severity="error" action={<Button onClick={close}>Close</Button>}>The requested resource is not available in this account. No other resource was selected.</Alert> : null}</Stack>
       {props.loading ? <CircularProgress aria-label="Loading customer resources" /> : null}
-      {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
+      {props.mode === 'home' ? !props.loading ? <CustomerProductHome offers={props.offers} deployments={props.deployments} apps={props.apps} errors={props.errors} onInspect={open} /> : null : props.mode !== 'apps' && !props.loading && !props.deployments.length && !props.apps.length && !props.errors.length ? <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>{developer ? 'Choose a developer starter' : 'Choose a starting template'}</Typography>
         {developer ? <DeveloperCatalogue /> : <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>{props.offers.map(item => <Card key={item.id}><CardContent><Typography fontWeight={600}>{item.name}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>{item.targets.length} reviewed targets</Typography><Button component={RouterLink} to={`/deployments?view=setup&step=template&offerId=${encodeURIComponent(item.id)}`} sx={{ mt: 2 }}>Open setup</Button></CardContent></Card>)}</Box>
           {!props.offers.length ? <Alert severity="info">No entitled template is currently available. Review your invitations in {deploymentTerm.lowercase} setup.</Alert> : null}
         </>}
-      </Box> : brainLibrary ? <BrainLibrary rows={brainRows} search={search} onSearch={setSearch} filter={brainFilter} onFilter={setBrainFilter}
+      </Box> : props.mode === 'apps' ? <EngageLibrary apps={props.apps} search={search} onSearch={setSearch} filter={appFilter} onFilter={setAppFilter}
+        loading={props.loading} unavailable={Boolean(props.errors.length)}
+        selectedId={selected?.kind === 'app' ? selected.id : undefined} onInspect={appId => { const app = appCards.find(item => item.id === appId); if (app) open(app) }} />
+      : brainLibrary ? <BrainLibrary rows={brainRows} search={search} onSearch={setSearch} filter={brainFilter} onFilter={setBrainFilter}
         selectedId={selected?.kind === 'deployment' ? selected.id : undefined} onInspect={open} /> : <>
         <TextField size="small" placeholder="Find a resource..." inputProps={{ 'aria-label': 'Find a customer resource' }} value={search} onChange={event => setSearch(event.target.value)} sx={{ mb: 2.5, maxWidth: 300 }} />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selected ? '1fr' : 'repeat(2,minmax(0,1fr))' }, gap: 2 }}>
@@ -236,6 +253,7 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
     </Box>
     {compact ? <Drawer anchor="right" open={Boolean(selected)} onClose={close} PaperProps={{ sx: { width: '100%' } }}>{inspector}</Drawer> : selected ? <Box sx={{ width: brainLibrary && selected.kind === 'deployment' ? { md: 425, xl: 495 } : 425, borderLeft: 1, borderColor: 'divider', flexShrink: 0, position: 'sticky', top: 62, height: 'calc(100vh - 62px)' }}>{inspector}</Box> : null}
     <CustomerConfigurationPanel open={Boolean(selected && props.configuration && params.get('editor') === 'configuration')} scopeKey={selected ? `${selected.kind}:${selected.id}` : ''} title={selected ? `${selected.name} / Configuration` : 'Configuration'} initialSection={params.get('editorSection') === 'advanced' ? 'advanced' : 'configuration'} notices={resourceNotices ? <Box sx={{ mb: 2 }}>{resourceNotices}</Box> : null} onClose={closeConfiguration}
+      navigation={assignedApp ? <EngageReturnNavigation app={assignedApp} deployments={props.deployments} brainLibrary={brainLibrary} /> : null}
       deploymentId={selected?.kind === 'deployment' ? selected.id : undefined}>{props.configuration}</CustomerConfigurationPanel>
   </Box>
 }

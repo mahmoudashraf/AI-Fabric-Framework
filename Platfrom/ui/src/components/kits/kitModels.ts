@@ -141,8 +141,8 @@ export function kitReadinessText(check: AIWorkspaceReadinessCheck): string {
 export function kitEditorPath(kit: ExperienceKitSummary, preview = false, embedded = false) {
   const installationId = embedded ? kit.embeddedInstallationId : kit.installationId
   if (!installationId) throw new Error('The requested delivery channel is not available.')
-  return `/ai-workspaces?${new URLSearchParams(preview ? { view: 'manage', previewInstallationId: installationId }
-    : { resourceKind: 'app', resourceId: installationId, deploymentId: kit.deploymentId, editor: 'configuration' })}`
+  return `/ai-workspaces?${new URLSearchParams(preview ? { view: 'manage', previewInstallationId: installationId, kitId: kit.id }
+    : { resourceKind: 'app', resourceId: installationId, deploymentId: kit.deploymentId, editor: 'configuration', kitId: kit.id })}`
 }
 
 export function kitDeploymentPath(kit: ExperienceKitSummary) {

@@ -377,6 +377,8 @@
 .ek-overview-advanced { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; margin-top: 24px; border-block: 1px solid var(--ek-line); }
 .ek-observed { font-size: 10px; color: var(--ek-muted); padding-top: 14px; }
 .ek-inspector { position: sticky; top: 80px; align-self: start; border-left: 1px solid var(--ek-line); padding-left: 20px; min-width: 0; max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 4px; }
+.ek-inspector { scroll-margin-top: 90px; }
+.ek-inspector:focus-visible { outline: 2px solid var(--ek-blue); outline-offset: 4px; }
 .ek-inspector-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; }
 .ek-inspector-heading > div { flex: 1; min-width: 0; }
 .ek-inspector-heading h2 { font-size: 20px; overflow-wrap: anywhere; }

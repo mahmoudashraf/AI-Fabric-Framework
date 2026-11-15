@@ -7,7 +7,7 @@ import { CustomerEditorSections, type CustomerEditorSection } from './CustomerDe
 import { CustomerSpecialistAssistance } from './CustomerSpecialistAssistance'
 import { ConfigurationSurface } from '../ConfigurationSurface'
 
-export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, children, initialSection, notices, deploymentId }: {
+export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, children, initialSection, notices, deploymentId, navigation }: {
   open: boolean
   title: string
   scopeKey: string
@@ -16,6 +16,7 @@ export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, chi
   initialSection?: CustomerEditorSection
   notices?: ReactNode
   deploymentId?: string
+  navigation?: ReactNode
 }) {
   const [confirmClose, setConfirmClose] = useState(false)
   const discardNavigation = useRef(false)
@@ -42,7 +43,7 @@ export function CustomerConfigurationPanel({ open, title, scopeKey, onClose, chi
   return <>
     <Drawer anchor="right" open={open} onClose={requestClose} PaperProps={{ sx: { width: { xs: '100%', md: 'min(1100px, calc(100vw - 205px))' }, maxWidth: '100%' } }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 3, py: 1.5, borderBottom: 1, borderColor: 'divider', position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 2 }}>
-        <Typography fontWeight={600}>{title}</Typography><Tooltip title="Close configuration"><IconButton aria-label="Close configuration" onClick={requestClose}><CloseRounded /></IconButton></Tooltip>
+        <Box sx={{ minWidth: 0 }}>{navigation}<Typography fontWeight={600} sx={{ overflowWrap: 'anywhere' }}>{title}</Typography></Box><Tooltip title="Close configuration"><IconButton aria-label="Close configuration" onClick={requestClose}><CloseRounded /></IconButton></Tooltip>
       </Stack>
       <Box key={scopeKey} sx={{ p: { xs: 2, md: 3 }, minWidth: 0 }}>
         <ConfigurationSurface><CustomerEditorSections scopeKey={scopeKey} initialSection={initialSection} notices={notices}>

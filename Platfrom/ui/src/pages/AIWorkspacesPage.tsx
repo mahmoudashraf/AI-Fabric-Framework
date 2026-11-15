@@ -44,7 +44,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   activateAIWorkspaceInstallation,
   createAIWorkspaceInstallation,
@@ -150,11 +150,12 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The operation failed.'
 }
 
-export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId }: {
+export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, initialConsumerId, sourceInstallationId, initialDeliveryMode, autoPreview, connectDeploymentId, connectInstallationId, initialDetailsSection, navigation }: {
   initialCustomerId?: string; initialInstallationId?: string; initialConsumerId?: string; sourceInstallationId?: string
   initialDeliveryMode?: 'embedded' | 'standalone'
   autoPreview?: boolean
   connectDeploymentId?: string; connectInstallationId?: string
+  initialDetailsSection?: 'delivery' | 'readiness'; navigation?: ReactNode
 } = {}) {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -706,6 +707,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       </TableContainer>
 
       {selected && <WorkspaceDetails installation={selected} refresh={invalidate}
+        initialSection={initialDetailsSection}
         customize={() => openEdit(selected)}
         deploymentName={portfolioQuery.data?.find(item => item.deploymentId === selected.deploymentId)?.name}
         connect={customerScopeLocked ? () => setConnectionPanel({ fromEditor: false, deploymentId: selected.deploymentId ?? undefined, consumerId: selected.consumerId ?? undefined, app: selected }) : undefined}
@@ -713,6 +715,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
 
       <Dialog open={editing != null} onClose={appCommandPending ? undefined : () => setEditing(null)} maxWidth={false} fullWidth
         PaperProps={{ sx: { width: 'min(1440px, calc(100vw - 32px))', maxWidth: 'none', m: 2, height: 'calc(100dvh - 32px)' } }}>
+        {navigation && <Box sx={{ px: 3, pt: 1 }}>{navigation}</Box>}
         <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Appearance & preview'}</DialogTitle>
         <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <AssistantWorkspace scope={editing && editing !== 'new' ? { resourceKind: 'ENGAGE_APP', resourceId: editing.installationId, task: 'ENGAGE' } : null}
@@ -966,15 +969,21 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
   )
 }
 
-function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled, customize, connect, deploymentName }: {
+function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisabled, customize, connect, deploymentName, initialSection }: {
   installation: AIWorkspaceInstallationSummary; refresh: () => Promise<void>
   addDelivery: (mode: 'embedded' | 'standalone') => void; addDeliveryDisabled: boolean
   customize: () => void
   connect?: () => void; deploymentName?: string
+  initialSection?: 'delivery' | 'readiness'
 }) {
   const customerView = usePlatformAuth().session?.role === 'CUSTOMER_ADMIN'
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState<string | null>(null)
+  const deliveryRef = useRef<HTMLDivElement>(null), readinessRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const target = initialSection === 'delivery' ? deliveryRef.current : initialSection === 'readiness' ? readinessRef.current : null
+    if (target) { target.scrollIntoView({ block: 'nearest' }); target.focus({ preventScroll: true }) }
+  }, [installation.installationId, initialSection])
   useEffect(() => { setCopied(false); setCopyError(null) }, [installation.installationId])
   const verifyMutation = useMutation({
     mutationFn: ({ hostname, operationKey }: { hostname: string; operationKey: string }) =>
@@ -1020,7 +1029,7 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
         </Stack>
       </Stack>
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
-        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
+        <Paper ref={deliveryRef} tabIndex={-1} aria-label="Website and app address setup" variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
             <Typography variant="subtitle2">{installation.deliveryMode === 'standalone' ? 'AI app address' : 'Installation script'}</Typography>
             <Tooltip title={installation.deliveryMode === 'standalone' ? 'Copy app address' : 'Copy installation script'}>
@@ -1059,7 +1068,7 @@ function WorkspaceDetails({ installation, refresh, addDelivery, addDeliveryDisab
           {copyError ? <Alert severity="warning" sx={{ mt: 1 }}>{copyError}</Alert> : null}
           {copied && installation.deliveryMode === 'standalone' ? <Typography variant="caption" color="success.main">Copied.</Typography> : null}
         </Paper>
-        <Paper variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
+        <Paper ref={readinessRef} tabIndex={-1} aria-label="App launch checks" variant="outlined" sx={{ p: 2.5, flex: 1, minWidth: 0, borderRadius: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Readiness</Typography>
           <EngageDeploymentUpdatePanel key={installation.installationId} installation={installation} refresh={refresh} />
           <Stack spacing={1}>
