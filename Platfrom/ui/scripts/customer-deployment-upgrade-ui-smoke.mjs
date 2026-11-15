@@ -165,7 +165,7 @@ try {
   const details = page.getByRole('complementary', { name: 'Customer workspace details' })
   const versionLink = details.getByRole('link', { name: 'Versions & updates', exact: true })
   assert((await versionLink.getAttribute('href')).includes('/revisions?deploymentId=deployment-one'))
-  await details.getByRole('button', { name: 'Configure', exact: true }).click()
+  await details.getByRole('button', { name: 'Build with AI', exact: true }).click()
   await page.getByRole('heading', { name: 'Draft, publish, apply', exact: true }).waitFor()
   assert.equal(new URL(page.url()).searchParams.get('targetProfileId'), 'production-target')
   assert.equal(await page.getByRole('heading', { name: 'Smart Brain source', exact: true }).count(), 0)

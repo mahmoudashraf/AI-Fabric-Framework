@@ -223,6 +223,25 @@ async function importDocumentation(page, mode = 'paste', title = 'API reference'
 }
 try {
   browser = await chromium.launch({ headless: true })
+  await run('Build with AI is prominent with bounded motion and a reduced-motion alternative', async ({ page, calls }) => {
+    await open(page, false)
+    const button = page.getByRole('button', { name: 'Build with AI', exact: true })
+    const style = await button.evaluate(node => {
+      const button = getComputedStyle(node), icon = getComputedStyle(node.querySelector('.MuiButton-startIcon'))
+      return { height: node.getBoundingClientRect().height, weight: Number(button.fontWeight), background: button.backgroundColor, animation: button.animationName, iterations: button.animationIterationCount, iconAnimation: icon.animationName }
+    })
+    assert.ok(style.height >= 38 && style.weight >= 700)
+    assert.notEqual(style.background, 'rgba(0, 0, 0, 0)')
+    assert.equal(style.animation, 'buildAiInvite'); assert.equal(style.iterations, '3'); assert.equal(style.iconAnimation, 'buildAiSpark')
+    await page.screenshot({ path: join(evidence, 'build-with-ai-prominent.png') })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const reduced = await button.evaluate(node => [getComputedStyle(node).animationName, getComputedStyle(node.querySelector('.MuiButton-startIcon')).animationName])
+    assert.deepEqual(reduced, ['none', 'none'])
+    await panel(page).getByRole('button', { name: 'Close assistant' }).click()
+    await button.waitFor({ state: 'visible' })
+    await button.click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
+    assert.equal(calls.filter(call => /\/turns|\/apply|\/publish/.test(call.path)).length, 0)
+  }, { path: '/smart-brains/brain-37/models?real' })
   await run('Brain entry opens assistance; dismissal survives page changes and another Brain opens afresh', async ({ page, calls }) => {
     await open(page, false)
     assert.equal(await panel(page).isVisible(), true)

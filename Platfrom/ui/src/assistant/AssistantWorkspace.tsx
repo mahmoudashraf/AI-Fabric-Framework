@@ -12,6 +12,7 @@ import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined'
 import { ControlledConversation, type ControlledConversationMessage } from '../../../../max-mode-widget/src/controlledConversation'
 import { stringifyExactJson } from '../lib/losslessJson'
 import { AssistantSources } from './AssistantSources'
+import { BuildWithAIButton } from './BuildWithAIButton'
 import { operation, scopeIdentity } from './scope'
 import { useAssistant, type AssistantController } from './useAssistant'
 import type { AssistantScope, AssistantSession, AssistantTurn, ValidationFeedbackPolicy } from './types'
@@ -73,7 +74,7 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
   return <AssistantSourceContext.Provider value={scope ? requestSource : null}><Box data-assistant-workspace data-assistant-open={open} sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
     {scope && <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
       {busy && <Typography role="status" variant="caption" sx={{ mr: 'auto' }}>AI is updating this editor</Typography>}
-      <Button ref={opener} size="small" startIcon={<AutoAwesomeOutlined />} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity: visibilityIdentity, activated: true, open: !open })}>Build with AI</Button>
+      <BuildWithAIButton ref={opener} aria-expanded={open} aria-controls="configuration-assistant-panel" onClick={() => setVisibility({ identity: visibilityIdentity, activated: true, open: !open })} />
     </Stack>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
       {/* Scope changes reset the assistant, never an editor's retained manual buffer. */}

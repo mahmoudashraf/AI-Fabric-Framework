@@ -36,6 +36,13 @@ pages retain their existing task scopes. Operational pages offer guidance only,
 with no new mutation authority, automatic inference or source sharing. MCP's
 explicit Help configure uses that same panel, not a parallel assistant drawer.
 
+The shared Build with AI entry is a prominent contained button in the Brain
+workspace and selected-Brain resource inspector. Its short entry animation stops
+after three cycles and respects reduced-motion preferences. The inspector entry
+opens the existing Brain workspace/assistant; it does not create a second
+assistant or submit an AI request. Broader AI-first resource-list and right-panel
+mockups remain proposals until explicitly approved.
+
 Connection testing has one aggregate entry at Smart Brain -> Updates -> Check
 setup, combining existing draft validation with safe service checks. Saving a
 connection runs only changed/new checks and shows a compact shared summary;

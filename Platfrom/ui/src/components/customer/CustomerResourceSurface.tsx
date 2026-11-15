@@ -23,6 +23,7 @@ import { CustomerDeploymentAdvancedLinks } from './CustomerDeploymentAdvanced'
 import { CustomerDeskLink } from './CustomerDeskLink'
 import { CustomerEnvironmentQuota } from './CustomerEnvironmentQuota'
 import { brainPath } from '../../brain/brainNavigation'
+import { BuildWithAIButton } from '../../assistant/BuildWithAIButton'
 
 function ResourceFacts({ facts }: { facts: Array<[string, string]> }) {
   return <Box component="dl" sx={{ m: 0 }}>{facts.map(([label,value]) => <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}><Typography component="dt" variant="caption" color="text.secondary">{label}</Typography><Typography component="dd" variant="caption" sx={{ m: 0, textAlign: 'right', overflowWrap: 'anywhere', maxWidth: '62%' }}>{value}</Typography></Box>)}</Box>
@@ -110,7 +111,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       <Box><Typography variant="h5" sx={{ overflowWrap: 'anywhere' }}>{selected.name}</Typography><Stack direction="row" gap={1} alignItems="center" sx={{ mt: 1 }}><Chip size="small" color={selected.severity} label={selected.status || 'Unknown'} /><Typography color="text.secondary" variant="caption" sx={{ overflowWrap: 'anywhere' }}>{selected.subtitle}</Typography></Stack></Box>
       {resourceNotices}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>
+        {selected.kind === 'deployment' ? <BuildWithAIButton fullWidth onClick={() => openConfiguration()} />
+          : <Button variant="contained" onClick={() => openConfiguration()}>Configure</Button>}
         <Button component={RouterLink} startIcon={<LinkRounded />} to={`/ai-workspaces?${new URLSearchParams({ view: 'manage',
           ...(selected.kind === 'deployment' ? { connectDeploymentId: selected.id } : { connectInstallationId: selected.id }),
         })}`}>{selected.kind === 'deployment' ? 'Connect Engage app' : `Change ${deploymentTerm.lowercase}`}</Button>
