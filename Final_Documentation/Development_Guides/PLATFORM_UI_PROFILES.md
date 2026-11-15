@@ -66,6 +66,13 @@ Technical details. Setup links reuse canonical Brain pages; they do not create
 another configuration layer. Do not claim a live Brain lacks knowledge when its
 source configuration has not been read.
 
+Following a connected Engage app from the Brain inspector must retain a visible
+Back to Smart Brain control in the app inspector. Restore the owned Brain and
+its explicitly selected release without closing the inspector or losing library
+filters. Direct app-inspector links may return to that app's owned linked Brain;
+never choose an unrelated Brain when the parent is unavailable. This is panel
+navigation only, not reassignment or a configuration change.
+
 The assistant is page-aware and shows selected reference documents, real draft
 save results and inspectable diffs. Review draft opens the existing Updates
 workflow with the selected target preserved; it never publishes or applies.

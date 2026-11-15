@@ -7,6 +7,7 @@ import DnsOutlined from '@mui/icons-material/DnsOutlined'
 import WidgetsOutlined from '@mui/icons-material/WidgetsOutlined'
 import CloseRounded from '@mui/icons-material/CloseRounded'
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import AddRounded from '@mui/icons-material/AddRounded'
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import CodeRounded from '@mui/icons-material/CodeRounded'
@@ -61,6 +62,10 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const appCards = props.apps.map(appResource)
   const allResources = [...deploymentCards, ...appCards]
   const selected = allResources.find(item => item.id === id && item.kind === kind)
+  const parentBrain = selected?.kind === 'app' ? deploymentCards.find(item => item.id === selected.deploymentId) : undefined
+  const previousBrainPanel = location.state?.brainPanelOrigin
+  const parentReleaseId = parentBrain && previousBrainPanel?.deploymentId === parentBrain.id
+    && typeof previousBrainPanel.releaseId === 'string' ? previousBrainPanel.releaseId : null
   const unresolved = Boolean(id && !props.loading && !selected)
   const offer = props.offers.find(item => item.id === props.deployments.find(deployment => deployment.deploymentId === selected?.deploymentId)?.offerId)
   const selectedReleaseId = params.get('releaseId')
@@ -93,12 +98,15 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
   const selectedBrainState = brainRows.find(row => row.resource.id === selected?.id)?.state
   const resourceEnvironment = (release: DeploymentReleaseSummary) => brainLibrary && selected?.kind === 'deployment'
     ? brainLibraryEnvironment(release, selectedProfiles) : releaseEnvironment(release, offer)
-  const open = (resource: CustomerResource) => {
+  const open = (resource: CustomerResource, releaseId?: string | null) => {
     const next = new URLSearchParams(location.search)
     next.set('resourceKind', resource.kind); next.set('resourceId', resource.id); next.delete('releaseId')
+    if (resource.kind === 'deployment' && releaseId) next.set('releaseId', releaseId)
     if (resource.deploymentId) next.set('deploymentId', resource.deploymentId)
     next.delete('editor'); next.delete('editorSection')
-    navigate({ pathname: location.pathname, search: next.toString() })
+    const origin = selected?.kind === 'deployment' && resource.kind === 'app' && resource.deploymentId === selected.id
+      ? { deploymentId: selected.id, releaseId: selectedReleaseId } : null
+    navigate({ pathname: location.pathname, search: next.toString() }, { state: origin ? { brainPanelOrigin: origin } : null })
   }
   const close = () => {
     const next = new URLSearchParams(location.search)
@@ -185,7 +193,8 @@ export function CustomerResourceSurface(props: CustomerResourceSurfaceProps) {
       technicalDetails={<>{resourceActions}{overview}{configurationDetails}{advancedDetails}</>} />
     : <Box component="aside" aria-label={`${selected.name} details`} sx={{ width: compact ? '100%' : 425, minWidth: 0, bgcolor: 'background.paper', height: '100%', overflowY: 'auto' }}>
     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, pt: 2, pb: 1 }}>
-      <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>
+      {brainLibrary && parentBrain ? <Tooltip title={`Return to ${parentBrain.name}`} describeChild><Button startIcon={<ArrowBackRounded />} onClick={() => open(parentBrain, parentReleaseId)} sx={{ px: 0, textAlign: 'left' }}>Back to Smart Brain</Button></Tooltip>
+        : <Typography variant="overline" color="text.secondary">{selected.kind === 'app' ? 'Engage app' : deploymentTerm.singular}</Typography>}
       <Tooltip title="Close details"><IconButton aria-label="Close resource details" onClick={close}><CloseRounded fontSize="small" /></IconButton></Tooltip>
     </Stack>
     <Stack spacing={2.5} sx={{ p: 3, pt: 1 }}>
