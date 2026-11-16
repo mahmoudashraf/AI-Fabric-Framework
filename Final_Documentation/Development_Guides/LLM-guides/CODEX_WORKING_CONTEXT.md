@@ -16280,3 +16280,92 @@ test is being called hosted acceptance. UI extraction remains last.
   new document upload/indexing and real handover were NOT requalified in this run.
   New-Kit setup validation stops the full deployment journey; do not call it closed.
   No application fixes/releases were made. Unrelated local changes/firewall intact.
+
+## 2026-11-16 Real-Kit Journey Fixes - Deployed And Focused Live Checks Passed
+
+- Supersedes the five open findings in the immediately preceding entry for the
+  qualified journey. UI source e7378cefdc226c5d2162a2fe0fe6e24f2236b5e4 is healthy
+  on staging and production, digest
+  sha256:b16bbc2b6263a9eb01f4f44c63f877c6d418c344a469730a9bc7bd6dd2d58ec0.
+  Shared Engage source a406c7d827adb067e621ab70a7680231d1c4d4a0 is also healthy
+  on both hosts, digest
+  sha256:ce734e4763b1d7512c849416e6e2ee00938a24978eedb5fb64358f52db411956;
+  native image/source receipts are in the existing private
+  loomai-support-01054/rollouts directory. Backend and framework code unchanged.
+- Behaviour composition now uses stringifyExactJson AND parseExactJson, matching
+  the existing draft contract. Decimal0.4 remains a JSON number after compose,
+  save and reload, not a LosslessNumber wrapper object. Focused unit coverage also
+  preserves long decimals and large integers. Numeric validators were not relaxed.
+- Kit save completion closes its revision-owned dialog before cache replacement
+  can remount it. Pending-save guards, conflicts, ownership and manual edits remain.
+  Kit -> Brain links retain the exact owned assigned release/target, otherwise the
+  saved bootstrap target. ACTIVE website snippets no longer request activation.
+  Channels -> Branding & preview opens the canonical appearance editor directly.
+- Real Try it -> Load workspace now renders the branded Engage composer and
+  successfully queries the runtime. Console frame-src permits explicitly configured
+  owned app zones; Engage frame-ancestors permits only the exact environment's
+  Console origin. Other parents are blocked, default remains deny, and Console
+  itself retains X-Frame-Options DENY. No Console credentials enter the child app.
+  See PLATFORM_UI_PROFILES.md for both server-owned environment settings.
+- Fresh normal-customer production UI proof: public dealership detail/install,
+  both delivery channels, managed AI-state choice (configuration only), live app
+  link preview, branding edit/save/reopen, correct staging target on first Brain
+  entry, Warm/Brief save/reload, native numeric threshold0.4, Check setup HTTP200
+  publishReady=true, actual saved branding preview and390px Engage navigation.
+  No page errors. No infrastructure or paid service was provisioned for this Kit.
+- Original Harbor Kit preserved. Both normal-customer hosted Engage desktop/mobile
+  journeys pass (staging Support, production Harbor), including Kit/Brain returns,
+  exact selected app, controls and unified page. Production real iframe also loads
+  and answers using the retained standalone app; no simulated response used.
+- Delivery quality: source evidence was correct but the model inverted a minimum
+  threshold. Added generic quantitative eligibility/units/consistent-total guidance
+  to Harbor's answerGenerationPrompt, preserving its other configuration. Published
+  v13/ver-591dc111, applied rel-f036a78f to the existing staging target using the
+  same runtime artifact dsa-57559e4b/framework0.8.52, then assigned both existing
+  apps after APPLIED_VERIFIED/PASSED. This is configuration qualification, not a new
+  framework release or a universal template-default promotion.
+- All15 observed real query checks met their expected facts/limitations:10 product,
+  follow-up, comparison, unsupported-delivery, missing-warranty, returns and boundary
+  questions; two additional fresh product/follow-up pairs; one query inside Console's
+  iframe. GBP499 -> GBP25 charge/GBP524 total, GBP500 -> free/GBP500. No automatic
+  retry, lexical decision rule, answer rewriting, authority bypass or new write tool.
+  Read checks did not create enquiries. Model uncertainty about locality remains
+  visible; these samples are not a guarantee for every future question.
+- Local PASS:61 focused UI units,23 Kit navigation/save browser scenarios,19 actual
+  Responses editor scenarios,32 integrated Engage scenarios,4 shared-server unit
+  checks,33 standalone browser checks, both production builds and type checks.
+  Core image CI43778387797, storage CI43778387882 and Engage CI43778584960 pass.
+  Initial Engage CI failed before tests on ubuntu-latest/Playwright OS support;
+  pinned ubuntu-24.04. Separate quota CI43778387818 had no assertion failures but
+  one Docker API compatibility error on the updated host; runner-only correction
+  b79816169 follows the already-qualified storage job's ubuntu-24.04 setting.
+  That run then passed backend checks but exposed the productization data-URL
+  test loader's unresolved relative JSON-helper import. Reused the existing real
+  withPluginJsonSupport loader, not a JSON stub, in7f92a8132;34 API contract tests
+  and the allowance browser group pass locally. Added both test/helper paths to
+  this CI trigger so future loader edits are qualified too.
+  Final quota/Desk CI43780329211 and Core CI43780329290 both PASS on7f92a8132.
+  Later runner/test/docs commits do not change deployed application behavior;
+  do not confuse their image publication with the native deployed sources above.
+- A transient APP_DELIVERY warning during shared-frontend replacement blocked one
+  assignment attempt. Normal readiness refresh returned both ready; identical
+  reassignment then succeeded. The initial query harness timed out before finding
+  the composer and executed no query; only subsequent completed runs count above.
+  Hosted wrapper initially selected the temporary unpublished Kit; restricted it
+  to a Kit with an actual assigned release and reran successfully. No bypass used.
+- Removed temporary Kit kit-dcfee74a-3cd7-4fd7-85b1-ccc5b632c59f, Brain dep-99e80fb4,
+  both apps and its unused consumer. Deletion del-814712e8 SUCCEEDED; no owned
+  vector/document resources. Final original inventory: Kit1, Brain1, apps2 ACTIVE,
+  ready=true, both assigned rel-f036a78f. Cleanup receipt read used staff auth only;
+  all customer functional checks used normal CUSTOMER_ADMIN sign-in/ownership.
+  Customer infrastructure quota readback remains1/2.
+- Evidence: ~/.codex/private/kit-journey-fixes-20261116/ (fresh UI readbacks,
+  screenshots, iframe request, prompt/config/release receipts, fresh pairs and
+  final inventory), plus loomai-harbor-journey-20261114/quality-defaults/
+  kit-fix-20261116-b/ for the10-question run. The -a directory is the failed
+  pre-composer attempt, not pass evidence. Production UI/private deployment receipts
+  remain in loomai-feedback-loop-20261110. Unrelated dirty files/firewall unchanged.
+- Scope limits: no new-Kit infrastructure provisioning/promotion, custom DNS,
+  external identity redirects, actual handover or business-write workflow was
+  requalified in this fix cycle. Support drawer was minimized during setup through
+  its existing control; its global startup presentation was not redesigned.
