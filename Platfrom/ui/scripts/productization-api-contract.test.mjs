@@ -3,13 +3,14 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import ts from 'typescript'
 import { deploymentTerminologySource } from './deployment-terminology-test-support.mjs'
+import { withPluginJsonSupport } from './plugin-json-test-support.mjs'
 
 const source = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
 const customerConsoleSource = await readFile(
   new URL('../src/components/customer/CustomerDeploymentConsole.tsx', import.meta.url),
   'utf8',
 )
-const compiled = ts.transpileModule(source, {
+const compiled = ts.transpileModule(withPluginJsonSupport(source), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText
 

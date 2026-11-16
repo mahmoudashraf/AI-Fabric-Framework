@@ -16,6 +16,8 @@ on:
       - "Platfrom/backend/src/**/CustomerEnvironmentDeletionGuardTest.java"
       - "Platfrom/ui/src/components/customer/CustomerEnvironmentQuota*"
       - "Platfrom/ui/src/api/platformApi.ts"
+      - "Platfrom/ui/scripts/productization-api-contract.test.mjs"
+      - "Platfrom/ui/scripts/plugin-json-test-support.mjs"
   workflow_dispatch:
 
 permissions:
