@@ -10,6 +10,6 @@ test('server exposes health and runtime config without embedding provider secret
   assert.match(source, /'Permissions-Policy':/)
   assert.match(source, /'Referrer-Policy': 'no-referrer'/)
   assert.match(source, /'X-Content-Type-Options': 'nosniff'/)
-  assert.match(source, /'X-Frame-Options': 'DENY'/)
+  assert.match(source, /response\.set\('X-Frame-Options', 'DENY'\)/)
   assert.doesNotMatch(source, /SUPABASE.*KEY/i)
 })

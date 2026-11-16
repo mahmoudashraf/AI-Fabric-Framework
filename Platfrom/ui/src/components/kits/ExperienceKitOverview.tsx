@@ -11,7 +11,7 @@ import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchCustomerDeploymentPortfolio, fetchCustomerSelfServiceOffer, fetchDocumentStorageBindings, fetchDeploymentDesk, fetchDeploymentReleases, getPlatformApiBaseUrl,
   PlatformApiError, type AIWorkspaceInstallationSummary, type AIWorkspaceReadinessCheck } from '../../api/platformApi'
@@ -67,6 +67,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
     inspector.current.scrollIntoView({ block: 'start', inline: 'nearest' })
   }, [inspectorRequest, selected])
   const [editing, setEditing] = useState(false)
+  const saving = useIsMutating({ mutationKey: experienceKitKeys.detail(customerId, kit.id) }) > 0
   const portfolio = useQuery({ queryKey: ['customer-deployment-portfolio', customerId], queryFn: fetchCustomerDeploymentPortfolio, retry: false })
   const releases = useQuery({ queryKey: experienceKitKeys.releases(customerId, kit.deploymentId),
     queryFn: () => fetchDeploymentReleases(kit.deploymentId), retry: false })
@@ -89,7 +90,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
   const allActive = allReady && appStates.every(state => state.active)
   const appearance = primary ? kitFormFromSummary(kit) : null
   const deskPath = brainPath(kit.deploymentId, 'human-support', release?.targetProfileId)
-  const deploymentPath = kitDeploymentPath(kit)
+  const deploymentPath = kitDeploymentPath(kit, releases.data ?? [])
   const knowledgePath = brainPath(kit.deploymentId, 'knowledge', release?.targetProfileId)
   const integrationPath = brainPath(kit.deploymentId, 'knowledge/connections', release?.targetProfileId)
   const revisionPath = brainPath(kit.deploymentId, 'updates', release?.targetProfileId)
@@ -167,7 +168,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
             <KitReadinessDetails checks={channel.app.readinessChecks} />
             <p className="ek-muted">{channel.name === 'Website embed' ? channel.app.allowedOrigins.join(', ') || 'No website origin configured' : channel.app.appUrl || 'App address not assigned'}</p>
             <Button component={Link} to={kitEditorPath(kit, false, channel.embedded)} variant="outlined" startIcon={<EditOutlined />}>Configure {channel.name.toLowerCase()}</Button>
-            {channel.name === 'Website embed' && <KitInstallSnippet installationId={channel.app.installationId} />}
+            {channel.name === 'Website embed' && <KitInstallSnippet installationId={channel.app.installationId} active={channel.app.status === 'ACTIVE'} />}
             {channel.app.domains.map(domain => <div className="ek-domain-fact" key={domain.hostname}><strong>{domain.hostname}</strong><span>{domain.status}</span>{domain.lastVerificationError && <p className="ek-amber">{domain.lastVerificationError}</p>}</div>)}
           </> : <Alert severity="warning">This installation is missing.<Button component={Link} to="/ai-workspaces">Open Engage apps</Button></Alert>}
         </section>)}
@@ -202,7 +203,7 @@ function KitOverviewData({ customerId, kit, refresh }: { customerId: string; kit
         </section>
       </>}
     </aside>}
-    <Dialog open={editing} onClose={() => setEditing(false)} maxWidth="sm" fullWidth PaperProps={{ className: 'ek-kit-dialog' }}>
+    <Dialog open={editing} onClose={() => { if (!saving) setEditing(false) }} maxWidth="sm" fullWidth PaperProps={{ className: 'ek-kit-dialog' }}>
       <KitEditForm key={`${kit.id}:${kit.revision}`} customerId={customerId} kit={kit} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void refresh() }} />
     </Dialog>
   </div>
@@ -229,14 +230,14 @@ function KitDocumentStorageSetup({ customerId, kit, knowledgePath }: { customerI
   </section>
 }
 
-function KitInstallSnippet({ installationId }: { installationId: string }) {
+function KitInstallSnippet({ installationId, active }: { installationId: string; active: boolean }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const script = `<script async src="${getPlatformApiBaseUrl()}/api/public/ai-workspace/install.js" data-installation-id="${installationId}"></script>`
   return <div className="ek-install-snippet"><div><strong>Website installation</strong><Tooltip title="Copy installation script"><IconButton size="small" aria-label="Copy website installation script" onClick={() => {
     void navigator.clipboard.writeText(script).then(() => setCopyState('copied')).catch(() => setCopyState('failed'))
   }}><ContentCopyRounded fontSize="small" /></IconButton></Tooltip></div><pre tabIndex={0}><code>{script}</code></pre>
     {copyState === 'copied' && <small role="status">Copied.</small>}{copyState === 'failed' && <small role="alert">Could not copy. Select the script above.</small>}
-    <small>Activate this website app when setup is complete.</small>
+    <small>{active ? 'This website app is active.' : 'Activate this website app when setup is complete.'}</small>
   </div>
 }
 
@@ -250,22 +251,24 @@ function KitEditForm({ customerId, kit, onClose, onSaved }: { customerId: string
   const ticketProviders = catalogue.data?.find(entry => entry.definition.code === kit.kitCode)?.ticketProviders ?? []
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  const save = useMutation({ mutationFn: () => {
+  const save = useMutation({ mutationKey: experienceKitKeys.detail(customerId, kit.id), mutationFn: () => {
     if (!kit.workspace) throw new Error('The saved workspace is unavailable. Open the existing app editor.')
     return updateExperienceKit(kit.id, kitUpdateRequest(form, kit.revision, kit.workspace.rowVersion, kit.embeddedWorkspace?.rowVersion ?? null))
   } })
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (save.isPending) return
     const errors = kitExperienceErrors(form, supportExperience ? ticketProviders : undefined)
     if (errors.length) { setError(new Error(errors[0])); return }
     setError(null)
     try {
       const updated = await save.mutateAsync()
       if (!mounted.current) return
+      // Close while this revision's form still owns the save completion.
+      onSaved()
       queryClient.setQueryData(experienceKitKeys.detail(customerId, kit.id), updated)
       await Promise.all([queryClient.invalidateQueries({ queryKey: experienceKitKeys.list(customerId) }),
         queryClient.invalidateQueries({ queryKey: ['ai-workspace-installations', customerId] })])
-      if (mounted.current) onSaved()
     } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure : new Error('The kit could not be updated.')) }
   }
   const conflict = error instanceof PlatformApiError && error.status === 409

@@ -175,6 +175,8 @@ try {
     await page.getByText('Draft saved; live configuration unchanged', { exact: true }).waitFor()
     assert.equal(writes(calls).length, 1)
     assert.equal(calls.filter(call => call.path.endsWith('/compose')).length, 1)
+    assert.equal(calls.find(call => call.path.endsWith('/compose')).body.promptConfig.ragSimilarityThreshold, 0.2)
+    assert.equal(saved().ragSimilarityThreshold, 0.2, 'Preset save must not turn exact JSON decimals into wrapper objects')
     for (const key of promptKeys) assert.equal(saved()[key], original[key])
     assert.deepEqual(saved().futureSetting, original.futureSetting)
     assert.deepEqual(saved().aiBehaviour.answerLength, original.aiBehaviour.answerLength)

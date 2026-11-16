@@ -11,6 +11,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { CustomerDeskActivation } from '../pages/CustomerKnowledgeConnectionsPage'
 import { IntegrationsPage } from '../pages/IntegrationsPage'
 import { safeCustomerAppUrl } from '../components/customer/customerResourceModels'
+import { engageStepPath } from '../components/customer/engagePresentation'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useBrainWorkspace, useBrainEditor } from './BrainWorkspaceContext'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
@@ -50,7 +51,7 @@ export function BrainChannelsPage() {
           <Stack direction="row" gap={2} flexWrap="wrap" sx={{ mt: 2 }}><Typography variant="body2">{app.interactionPolicy === 'public' ? 'Anonymous access' : app.interactionPolicy === 'login-required' ? 'Sign-in required' : 'Sign-in for protected capabilities'}</Typography>
             {target && app.releaseId !== target.releaseId && <Typography variant="body2" color="warning.main">Assigned to a different release</Typography>}</Stack>
           {issues.map((check, index) => <Alert severity="warning" key={index} sx={{ mt: 1 }}>{check.message}</Alert>)}
-          <Stack direction="row" gap={1.25} sx={{ mt: 2 }} flexWrap="wrap"><Button component={RouterLink} to={editor} variant="outlined">Branding & preview</Button>
+          <Stack direction="row" gap={1.25} sx={{ mt: 2 }} flexWrap="wrap"><Button component={RouterLink} to={session?.role === 'CUSTOMER_ADMIN' ? engageStepPath(app, 'appearance') : editor} variant="outlined">Branding & preview</Button>
             <Button component={RouterLink} to={`${editor}&editor=configuration`}>{app.deliveryMode === 'embedded' ? 'Installation & allowed websites' : 'Address & custom domains'}</Button>
             {url && app.status === 'ACTIVE' && <Button component="a" href={url} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewOutlined />}>Open app</Button>}</Stack>
           {app.domains.length > 0 && <Typography variant="caption" sx={{ mt: 1.5, display: 'block' }} color="text.secondary">{app.domains.map(domain => `${domain.hostname}: ${domain.status}`).join(' / ')}</Typography>}

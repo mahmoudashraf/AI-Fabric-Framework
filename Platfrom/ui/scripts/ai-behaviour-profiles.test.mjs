@@ -1,7 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import ts from 'typescript'
+
+const require = createRequire(import.meta.url)
 
 function evaluate(source, names, bindings = {}) {
   const compiled = ts.transpileModule(`${source}\nObject.assign(exports, { ${names.join(',')} });`, {
@@ -13,6 +16,7 @@ function evaluate(source, names, bindings = {}) {
 }
 const helperSource = await readFile(new URL('../src/aiBehaviourProfiles.ts', import.meta.url), 'utf8')
 const helpers = evaluate(helperSource, [])
+const exact = evaluate(await readFile(new URL('../src/lib/losslessJson.ts', import.meta.url), 'utf8'), [], { require })
 const pageSource = await readFile(new URL('../src/pages/PromptsPage.tsx', import.meta.url), 'utf8')
 const pageAst = ts.createSourceFile('PromptsPage.tsx', pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const functions = ['defaultPromptState', 'isRecord', 'normalizePromptState', 'parseRagSimilarityThreshold', 'parsePositiveInteger', 'createPromptConfigPayload']
@@ -93,10 +97,34 @@ test('appended API adapters use the canonical catalogue and encoded deployment c
   const names = ['fetchDeploymentAiBehaviourProfiles', 'composeDeploymentAiBehaviour']
   const calls = []
   const api = evaluate(ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
-    .map(node => node.getText(ast)).join('\n'), names, { request: async (...args) => { calls.push(args); return { okay: true } } })
+    .map(node => node.getText(ast)).join('\n'), names, { ...exact, request: async (...args) => { calls.push(args); return { okay: true } } })
   await api.fetchDeploymentAiBehaviourProfiles()
   await api.composeDeploymentAiBehaviour('dep/a b', { promptConfig: source, selections: { tone: 'technical' } })
   assert.equal(calls[0][0], '/api/deployment-ai-behaviour-profiles')
   assert.equal(calls[1][0], '/api/deployments/dep%2Fa%20b/ai-behaviour/compose')
   assert.deepEqual(JSON.parse(calls[1][1].body), { promptConfig: source, selections: { tone: 'technical' } })
+  assert.equal(calls[1][3], exact.parseExactJson)
+})
+
+test('behaviour composition preserves decimal and large-number draft values through request and response', async () => {
+  const apiSource = await readFile(new URL('../src/api/platformApi.ts', import.meta.url), 'utf8')
+  const ast = ts.createSourceFile('platformApi.ts', apiSource, ts.ScriptTarget.Latest, true)
+  const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'composeDeploymentAiBehaviour')
+  const config = exact.parseExactJson('{"ragSimilarityThreshold":0.4000000000000000001,"futureSetting":{"counter":9007199254740993,"ratio":0.0000000000000000001}}')
+  const original = exact.stringifyExactJson(config)
+  const api = evaluate(declaration.getText(ast), ['composeDeploymentAiBehaviour'], { ...exact,
+    request: async (_path, init, authMode, parser) => {
+      assert.equal(authMode, 'default')
+      assert.ok(init.body.includes('"ragSimilarityThreshold":0.4000000000000000001'))
+      assert.ok(init.body.includes('9007199254740993'))
+      assert.ok(!init.body.includes('isLosslessNumber'))
+      const received = exact.parseExactJson(init.body)
+      assert.equal(exact.stringifyExactJson(received.promptConfig), original)
+      return parser(exact.stringifyExactJson({ promptConfig: received.promptConfig, effectivePromptConfig: received.promptConfig }))
+    },
+  })
+  const result = await api.composeDeploymentAiBehaviour('owned-brain', { promptConfig: config, selections: { tone: 'warm' } })
+  assert.equal(exact.stringifyExactJson(result.promptConfig), original)
+  assert.equal(exact.stringifyExactJson(result.effectivePromptConfig), original)
+  assert.equal(exact.stringifyExactJson(config), original)
 })

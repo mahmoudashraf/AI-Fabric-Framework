@@ -11,6 +11,22 @@ const indexPath = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const apiBaseUrl = (process.env.PLATFORM_UI_API_BASE_URL || process.env.VITE_PLATFORM_API_BASE_URL || '').trim()
 const workspaceScriptSource = workspaceAssetSource(apiBaseUrl)
+const engageFrameSources = frameSources(process.env.PLATFORM_UI_ENGAGE_FRAME_ORIGINS)
+
+function frameSources(value = '') {
+  const sources = value.split(',').map(source => source.trim()).filter(Boolean).map(source => {
+    const url = new URL(source)
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    const hostname = url.hostname.replace(/^\*\./, '')
+    if (url.username || url.password || url.search || url.hash || url.pathname !== '/'
+      || (!local && !/^[a-z0-9.-]+$/i.test(hostname))
+      || (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) {
+      throw new Error('Engage frame sources must be HTTPS origins (or local development HTTP)')
+    }
+    return url.origin
+  })
+  return [...new Set(sources)].map(source => ` ${source}`).join('')
+}
 
 function workspaceAssetSource(base) {
   if (!base || base.startsWith('/')) return ''
@@ -72,7 +88,7 @@ function securityHeaders(isStaticAsset, isAuthPage = false) {
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https: http:",
-      "frame-src 'self' https://calendly.com",
+      `frame-src 'self' https://calendly.com${engageFrameSources}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",

@@ -215,6 +215,63 @@ test('all editor and preview links retain the exact Kit origin, including embedd
   assert.throws(() => models.kitEditorPath(embeddedOnly, true, true), /not available/)
 })
 
+test('first Brain entry retains the fresh Kit target instead of the runtime default', () => {
+  for (const deliveryMode of ['standalone', 'embedded', 'both']) {
+    const value = kit({ deliveryMode, targetProfileId: 'dtp-coolify-staging-behavior' })
+    const path = new URL(models.kitDeploymentPath(value), 'https://console.test')
+    assert.equal(path.pathname, '/smart-brains/dep-one')
+    assert.equal(path.searchParams.get('targetProfileId'), value.targetProfileId)
+    assert.equal(path.searchParams.has('releaseId'), false)
+  }
+})
+
+test('Brain entry prefers the exact app-assigned release and target, not newer attempts or bootstrap defaults', () => {
+  const value = kit({ workspace: workspace({ releaseId: 'assigned' }) })
+  const records = [release('assigned', { targetProfileId: 'production' }),
+    release('newer', { createdAt: '2026-11-02T11:00:00Z' })]
+  const path = new URL(models.kitDeploymentPath(value, records), 'https://console.test')
+  assert.equal(path.searchParams.get('targetProfileId'), 'production')
+  assert.equal(path.searchParams.get('releaseId'), 'assigned')
+  assert.equal(value.targetProfileId, 'stage-one', 'Navigation does not change the Kit or assignment')
+})
+
+test('missing, foreign or targetless assignments never substitute another release for Brain entry', () => {
+  const assignedKit = kit({ workspace: workspace({ releaseId: 'assigned' }) })
+  for (const [value, records] of [
+    [kit(), [release('newer', { targetProfileId: 'production' })]],
+    [assignedKit, []],
+    [assignedKit, [release('other', { targetProfileId: 'production' })]],
+    [assignedKit, [release('assigned', { deploymentId: 'foreign', targetProfileId: 'production' })]],
+    [assignedKit, [release('assigned', { targetProfileId: null })]],
+    [kit({ workspace: workspace({ releaseId: 'assigned', deploymentId: 'foreign' }) }), [release('assigned')]],
+    [kit({ workspace: workspace({ releaseId: 'assigned', installationId: 'foreign' }) }), [release('assigned')]],
+  ]) {
+    const path = new URL(models.kitDeploymentPath(value, records), 'https://console.test')
+    assert.equal(path.searchParams.get('targetProfileId'), value.targetProfileId)
+    assert.equal(path.searchParams.has('releaseId'), false)
+  }
+})
+
+test('both-channel Brain entry follows the primary app assignment without borrowing the secondary app release', () => {
+  const value = kit({ deliveryMode: 'both', embeddedInstallationId: 'awi-embed',
+    workspace: workspace({ releaseId: 'primary' }),
+    embeddedWorkspace: workspace({ installationId: 'awi-embed', releaseId: 'secondary', deliveryMode: 'embedded' }) })
+  const records = [release('primary', { targetProfileId: 'primary-target' }), release('secondary', { targetProfileId: 'secondary-target' })]
+  const path = new URL(models.kitDeploymentPath(value, records), 'https://console.test')
+  assert.equal(path.searchParams.get('targetProfileId'), 'primary-target')
+  assert.equal(path.searchParams.get('releaseId'), 'primary')
+})
+
+test('Brain entry safely encodes identifiers and retains an assigned failing release for inspection', () => {
+  const value = kit({ deploymentId: 'dep/a&b', workspace: workspace({ deploymentId: 'dep/a&b', releaseId: 'release/a&b' }) })
+  const path = new URL(models.kitDeploymentPath(value, [release('release/a&b', {
+    deploymentId: value.deploymentId, targetProfileId: 'target/a&b', verificationStatus: 'FAILED',
+  })]), 'https://console.test')
+  assert.equal(path.pathname, '/smart-brains/dep%2Fa%26b')
+  assert.equal(path.searchParams.get('targetProfileId'), 'target/a&b')
+  assert.equal(path.searchParams.get('releaseId'), 'release/a&b')
+})
+
 test('outbound app and demo links reject unsafe protocols and embedded credentials', () => {
   assert.equal(models.safeKitExternalUrl('javascript:alert(1)'), null)
   assert.equal(models.safeKitExternalUrl('https://name:secret@example.com'), null)

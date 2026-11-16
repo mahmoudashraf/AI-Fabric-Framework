@@ -268,6 +268,30 @@ authority across deployment, provisioning, promotion and reassignment.
 
 ## Runtime Configuration
 
+### Connected Workspace Preview
+
+The Brain's Try it page embeds the actual standalone Engage app only after an
+explicit Load workspace command. It does not pass Console identity or permissions
+to the customer app. Open app remains available as a separate-tab path.
+
+Both servers must explicitly permit the preview. Console uses
+`PLATFORM_UI_ENGAGE_FRAME_ORIGINS` (comma-separated HTTPS origins; a leading
+subdomain wildcard is supported for the owned app-hostname zone). The shared
+Engage frontend uses `CONSOLE_FRAME_ANCESTORS` (comma-separated exact HTTPS
+Console origins, never a wildcard). Local loopback HTTP is accepted for tests.
+An empty Engage list retains frame-ancestors none and X-Frame-Options DENY.
+An explicitly configured list replaces only Engage's framing restriction with
+the exact CSP ancestor list. Console itself remains non-embeddable. Never allow
+all HTTPS parents or forward authentication tokens into the iframe.
+
+Kit Brain-entry links retain the exact owned app-assigned release and target
+when known, otherwise the Kit's saved bootstrap target. Branding saves close
+their current revision's dialog before cache replacement can remount the form;
+pending saves, revision conflicts and ownership checks must remain intact.
+Response-preset composition must use the exact JSON serializer and parser on
+both request and response: draft decimal values must never become wrapper
+objects. Keep the underlying numeric execution contract unchanged.
+
 The uncached `/runtime-config.js` still supplies the API base URL and actual
 `environment` (`staging` or `production`). The removed `PLATFORM_UI_PROFILE` value
 has no effect and is not emitted. Do not confuse a public entry page with the

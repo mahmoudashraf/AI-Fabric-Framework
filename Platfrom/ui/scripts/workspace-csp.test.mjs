@@ -13,15 +13,16 @@ async function unusedPort() {
 }
 
 for (const variant of ['container', 'railway']) {
-  for (const [name, api, expected] of [
+  for (const [name, api, expected, frames = '', expectedFrames = ''] of [
     ['same-origin', '', "script-src 'self' 'unsafe-inline'"],
     ['exact workspace assets', 'https://api.example.test/ignored-path?query=ignored', "script-src 'self' 'unsafe-inline' https://api.example.test/api/public/ai-workspace/assets/"],
     ['local development', 'http://127.0.0.1:8100', "script-src 'self' 'unsafe-inline' http://127.0.0.1:8100/api/public/ai-workspace/assets/"],
+    ['trusted Engage previews', '', "script-src 'self' 'unsafe-inline'", 'https://*.apps.loomai.pro, https://engage.loomai.pro/,https://*.apps.loomai.pro', ' https://*.apps.loomai.pro https://engage.loomai.pro'],
   ]) {
     test(`${variant}: ${name} retains the narrow script policy`, async () => {
       const port = await unusedPort()
       const child = spawn(process.execPath, [new URL(`../deploy/${variant}/server.mjs`, import.meta.url).pathname], {
-        env: { ...process.env, PORT: String(port), PLATFORM_UI_API_BASE_URL: api, VITE_PLATFORM_API_BASE_URL: '', NODE_ENV: 'production' },
+        env: { ...process.env, PORT: String(port), PLATFORM_UI_API_BASE_URL: api, PLATFORM_UI_ENGAGE_FRAME_ORIGINS: frames, VITE_PLATFORM_API_BASE_URL: '', NODE_ENV: 'production' },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
       let output = ''
@@ -39,7 +40,7 @@ for (const variant of ['container', 'railway']) {
         assert.equal(response.status, 200)
         const policy = response.headers.get('content-security-policy').split('; ')
         assert.equal(policy.find(value => value.startsWith('script-src ')), expected)
-        assert.equal(policy.find(value => value.startsWith('frame-src ')), "frame-src 'self' https://calendly.com")
+        assert.equal(policy.find(value => value.startsWith('frame-src ')), `frame-src 'self' https://calendly.com${expectedFrames}`)
         assert.ok(policy.includes("frame-ancestors 'none'"))
         assert.ok(policy.includes("object-src 'none'"))
         assert.equal(response.headers.get('x-frame-options'), 'DENY')
@@ -56,6 +57,15 @@ for (const variant of ['container', 'railway']) {
       })
       const [code] = await once(child, 'exit')
       assert.notEqual(code, 0)
+    }
+  })
+  test(`${variant}: unsafe frame sources are rejected rather than weakening the policy`, async () => {
+    for (const source of ['*', 'https:', 'http://engage.example.test', 'https://key:secret@engage.example.test', 'https://*.example.test/path', 'https://app.example.test?x=1', 'https://app.example.test#x', 'https://*', 'https://app.example.test;frame-src']) {
+      const child = spawn(process.execPath, [new URL(`../deploy/${variant}/server.mjs`, import.meta.url).pathname], {
+        env: { ...process.env, PORT: '0', PLATFORM_UI_API_BASE_URL: '', PLATFORM_UI_ENGAGE_FRAME_ORIGINS: source }, stdio: 'ignore',
+      })
+      const [code] = await once(child, 'exit')
+      assert.notEqual(code, 0, source)
     }
   })
 }

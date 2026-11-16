@@ -8790,6 +8790,6 @@ export function composeDeploymentAiBehaviour(
   payload: { promptConfig: Record<string, unknown>; selections?: AiBehaviourSelections },
 ) {
   return request<AiBehaviourComposition>(`/api/deployments/${encodeURIComponent(deploymentId)}/ai-behaviour/compose`, {
-    method: 'POST', body: JSON.stringify(payload),
-  })
+    method: 'POST', body: stringifyExactJson(payload),
+  }, 'default', parseExactJson)
 }

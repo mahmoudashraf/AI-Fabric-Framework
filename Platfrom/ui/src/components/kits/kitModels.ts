@@ -145,8 +145,12 @@ export function kitEditorPath(kit: ExperienceKitSummary, preview = false, embedd
     : { resourceKind: 'app', resourceId: installationId, deploymentId: kit.deploymentId, editor: 'configuration', kitId: kit.id })}`
 }
 
-export function kitDeploymentPath(kit: ExperienceKitSummary) {
-  return `/smart-brains/${encodeURIComponent(kit.deploymentId)}`
+export function kitDeploymentPath(kit: ExperienceKitSummary, releases: DeploymentReleaseSummary[] = []) {
+  const assigned = kit.workspace?.installationId === kit.installationId && kit.workspace?.deploymentId === kit.deploymentId
+    ? kitRelease(kit, releases) : null
+  const params = new URLSearchParams({ targetProfileId: assigned?.targetProfileId ?? kit.targetProfileId })
+  if (assigned?.targetProfileId) params.set('releaseId', assigned.id)
+  return `/smart-brains/${encodeURIComponent(kit.deploymentId)}?${params}`
 }
 
 export function safeKitExternalUrl(value: string | null | undefined) {

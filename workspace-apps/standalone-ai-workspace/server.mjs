@@ -7,6 +7,7 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const port = positiveInteger(process.env.PORT, 8080)
 const platformApiBaseUrl = requiredHttpsUrl(process.env.PLATFORM_API_BASE_URL, 'PLATFORM_API_BASE_URL')
+const consoleFrameAncestors = trustedConsoleOrigins(process.env.CONSOLE_FRAME_ANCESTORS)
 
 app.disable('x-powered-by')
 app.use((_request, response, next) => {
@@ -15,8 +16,9 @@ app.use((_request, response, next) => {
     'Permissions-Policy': 'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': `frame-ancestors ${consoleFrameAncestors.length ? consoleFrameAncestors.join(' ') : "'none'"}`,
   })
+  if (!consoleFrameAncestors.length) response.set('X-Frame-Options', 'DENY')
   next()
 })
 app.get('/health', (_request, response) => {
@@ -43,6 +45,19 @@ app.listen(port, '0.0.0.0', () => {
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value || '', 10)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function trustedConsoleOrigins(value = '') {
+  return [...new Set(value.split(',').map(origin => origin.trim()).filter(Boolean).map(origin => {
+    const url = new URL(origin)
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    if (url.username || url.password || url.search || url.hash || url.pathname !== '/'
+      || (!local && !/^[a-z0-9.-]+$/i.test(url.hostname))
+      || (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) {
+      throw new Error('Console frame ancestors must be exact HTTPS origins (or local development HTTP)')
+    }
+    return url.origin
+  }))]
 }
 
 function requiredHttpsUrl(value, name) {
