@@ -16639,3 +16639,79 @@ test is being called hosted acceptance. UI extraction remains last.
   approval; requested asynchronously, NOT authorized by prior catalogue approval.
   Evidence: verification-support/framework-demos/2026-11-19_ACCOUNT_RESOLVER_INVESTIGATION.md;
   raw private evidence ~/.codex/private/account-resolver-20261119/.
+
+### 2026-11-19 Approved 0.8.56 Account Resolver source handoff fix
+
+- Owner approved the bounded framework fix and verified release, including
+  Account Resolver's explicit two-source recovery and stale diagnostic metadata.
+  Do not expand this into automatic Platform/Support runtime upgrades: they
+  remain verified 0.8.55 unless separately requested.
+- New isolated public worktree ~/.codex/worktrees/account-resolver-source-handoff-0856,
+  branch codex/read-planner-source-handoff-0856, based on immutable 45ad0b05.
+  Implementation fb04ef53 preserves the latest source/query pair within the
+  same read-planning call only when RAG remains required. Later selections
+  replace it; missing plans are not invented; no extra model/action call.
+- Red regression reproduced source loss on 0.8.55. Fixed focused suite92 passed,
+  including invalid replacement, request isolation and downstream source/fan-out
+  restrictions. A test-only AssertJ wildcard-key compile issue was corrected
+  before the final92 pass; raw initial logs retained.
+- Example default/prod YAML explicitly opts into BOUNDED_ALLOWED_FAN_OUT, retaining
+  its two approved sources/max-spaces2. Health now prioritizes packaged app/build
+  identity over stale environment labels; metadata regression added. No prompt
+  or model change. Dockerfile prepared for 0.8.56. Maven native version goals
+  updated reactor/example pins, and release guards passed.
+- 21:50 UTC current: 30-module release-profile reactor running session93584;
+  no tag, Central publication, image build or live deployment yet. Qualification
+  helpers prepared under ~/.codex/private/loomai-framework-0.8.56/ for local gates,
+  real providers, original-policy versus shipping-policy scenarios. The original
+  synthetic baseline/failed0.8.55 proof remains under account-resolver-20261119.
+  Public main still45ad0b05; never move existing release tags or publish twice.
+- 22:12 UTC update: release-profile reactor30 modules/core1150 passed. Local
+  example53+smoke13, vector18+8container, executionconsumer5 and real
+  OpenAI/ONNX/Lucene matrix passed. Original-policy and shipping-policy seven-turn
+  routing/receipt proofs passed; eligibility used carried-forward policy source.
+  Both temporary JVMs stopped. Native provider suite19/21; the public READ choice
+  and offered-checklist failures occurred on unchanged RAG-disabled paths. A
+  selected unchanged55comparison5/5 passed, not proof those failures reproduced
+  on baseline. Retain candidatefailures and contradictory eligibility wording;
+  no prompt/assertion change or retry-until-pass. Scoped release qualified with
+  these explicit semantic limits, not all-scenarios green.
+- Release source f01690615207a8fa395602cf4dce0b81ad798a27/tag56 pushed on new
+  codex branch; one GitHub Release451987463 triggered Centralrun44625446902.
+  Publication still running; public-consumer proof and hosted adoption pending.
+  Public main remains55 until Central-only qualification. No Platform/Support
+  runtime mutation. Evidence: framework-demos/2026-11-19_ACCOUNT_RESOLVER_0856_RELEASE.md.
+- 22:34 UTC: Central44625446902 succeeded/accepted deploymentc62bb48f published.
+  Isolated Central-only Accountconsumer66tests passed, all12framework jars56,
+  publiccorehash5237585ef734228214ca325442dcf2a73d21c285864f4db5047c24f48750f61b.
+  Package boot/health passed. Public main normalfastforward tof0169061; image
+  run44629376034 builds only AccountResolver. Four stale diagnosticenvrows
+  removed, allotherenvsettings unchanged; hosted adoption/browser stillpending.
+- Public-package journey FAILED eligibility before changed READplanner: three
+  configured attempts omitted requiresTargetResolution (firstalsoadvancedRAG),
+  recovery preserved an incomplete sibling/source decision. Failure retained,
+  not retried. Remaining two questions continued same conversation: actual
+  verifiedpayment/validatedaddress confirmed, why usedcarriedsource but wording
+  contradictory. Finalreadiness true. Do NOT labelthispublicseven-turn allgreen.
+  PublicconsumerJVM29928 stopped. No broader prompt/validator/recovery fix approved.
+- Final 22:48 UTC: imageCI44629376034 succeeded; existingupdater requested only
+  AccountResolver deploycj42a8un51ry6wy4d92cggel, finished/reconciled done. Native
+  containerc26285bf1643/sourcef0169061/image3975bec6 contains12framework56jars;
+  publiccorehashmatches. Health56/correctcommit. Env/auth/model, domains, ports,
+  memory/CPU/restart/mounts unchanged exceptfourdiagnosticrows. NoPlatform/Support
+  rollout and no serving-hostbuild/globaltimerpause/newapp/duplicatedeploy.
+- LiveAPIoriginalseven-turn passed routing/receipts; realdesktopUI typedform,
+  Confirm andallfollowups passed withoutinternaldomain prompt orJSerrors.
+  Browsereligibility correctlysayscanorder; why stillcontradictory. Browser-owned
+  finalreadinessverified onexpectedbackend. Phone390px initialload completed,
+  nooverflow/JSerrors,3successfulaccountAPIresponses; NOTfullphoneconversation.
+  Two earlierbrowserharness waits sentnoAI: video-gatelabel and nonexistenthealth
+  request assumptions corrected toactualsession/APIconnected. Firstmobileloading
+  screenshot retained; laterreadycheckpassed. AlllocalJVMs/browsersclosed.
+- BroadmainCI44629351707: library/consumers/vectorcontainers passed; all-appsuite
+  same14IncidentRoommethods+samefailure-summarylines as55run44603376611, no added
+  orremovedfailures. Stagingupdaterstillwarns on separate stoppedAgenticapp,
+  notthisAccountrollout; noautostart attempted. Scopedfixclosed, NOTallsemantic
+  qualityclosed: native19/21, publicpackageextractionfailure andwhy-wordingremain.
+  Full evidence: verification-support/framework-demos/2026-11-19_ACCOUNT_RESOLVER_0856_RELEASE.md;
+  raw ~/.codex/private/loomai-framework-0.8.56/.
