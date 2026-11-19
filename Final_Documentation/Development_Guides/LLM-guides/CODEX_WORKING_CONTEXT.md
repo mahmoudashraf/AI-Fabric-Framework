@@ -16609,3 +16609,33 @@ test is being called hosted acceptance. UI extraction remains last.
   SUP-D1224F11-96A remainsread-only. LiveproofAPI/native, NOTbrowserclickthrough.
   Allrollout/testsessions9794/83742/47570/9560 finished. Onlythisrelease'stwo
   staffsessions revokedandoldcookiesverifiedunauthenticated; no globaluserlogout.
+
+### 2026-11-19 Account Resolver follow-up investigation
+
+- Owner supplied a chat transcript in attached index.html and requested live
+  reproduction plus assessment of whether the framework upgrade resolves it.
+- Live demo health says 0.8.42, but actual packaged jars are 0.8.50. Stale
+  AI_FABRIC_VERSION and APP_BUILD_COMMIT overrides mask image identity. Example
+  Dockerfile still pins 0.8.50 despite Maven POMs using 0.8.55.
+- Isolated seven-turn live reproduction confirmed payment receipt/canContinue,
+  then VECTOR_SPACE_SELECTION_REQUIRED on the natural eligibility follow-up.
+  Same model/prompts/config against public Central 0.8.55 also failed both
+  eligibility and subsequent why questions. Upgrade alone is NOT a fix.
+- Cause is separate from the catalogue fix: both sources are advertised, the
+  READ succeeds, iteration 1 selects policy source/query, iteration 2 omits them,
+  and lastDecision-only projection loses the earlier selection. Parallel mode
+  still requires RAG; missing-source policy defaults to clarification despite
+  fan-out capability/budget being enabled. History is present and untruncated.
+- One separate local configuration experiment explicitly enabled
+  BOUNDED_ALLOWED_FAN_OUT; both questions routed successfully within the existing
+  two-source allowlist. One answer still had contradictory eligibility wording;
+  routing success is not a full semantic-quality pass. No retry-until-pass.
+- Local public-package build passed 52 example + 13 smoke tests; actual OpenAI
+  gpt-4o-mini queries retained demo simple embeddings/Lucene. Hosted initial page
+  loaded in headless browser without JS errors; full flows were API checks.
+- No live deployment/config, original conversation or framework production code
+  changed. Both temporary local JVMs stopped. Proposed bounded source/query
+  handoff patch plus demo recovery/adoption/metadata fix requires new owner
+  approval; requested asynchronously, NOT authorized by prior catalogue approval.
+  Evidence: verification-support/framework-demos/2026-11-19_ACCOUNT_RESOLVER_INVESTIGATION.md;
+  raw private evidence ~/.codex/private/account-resolver-20261119/.
