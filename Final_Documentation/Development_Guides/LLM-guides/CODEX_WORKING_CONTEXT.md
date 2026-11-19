@@ -16434,3 +16434,77 @@ test is being called hosted acceptance. UI extraction remains last.
 - Evidence: verification-support/support-followups/2026-11-19-followup-confirmation.md
   and ~/.codex/private/loomai-framework-0.8.53/. Raw conversations and credentials
   stay private; no customer knowledge, tickets, apps or auth policies are changed.
+
+### 2026-11-19 - Approved 0.8.54 follow-up extension (qualification in progress)
+
+- Owner approved the bounded0.8.54 fix and verified staging/production release.
+  This supersedes the approval-pending status above, not its recorded failures.
+- Isolated branch codex/context-only-rag-0854 now has0.8.54 POMs. The history-only
+  exception remains narrow; actual READ/search and fresh-evidence checks remain.
+  Parallel READ planning now receives an explicit ragRequiredWithReadActions
+  catalogue flag and guidance to select exact authorized indexed namespaces.
+  Routing-terminal diagnostics omit invocation-parameter fields while retaining
+  actual READ receipts and original failure status.
+- Full30-module release-profile reactor passed, then all1130 core tests passed
+  again after the final diagnostic projection. Local minimal and standalone
+  consumer checks passed. Real OpenAI native qualification passed19 scenarios /
+  24 entry calls, including all8 follow-up variants, genuine confirmation,
+  rejection, no-confirmation writes and private-read sign-in. The new parallel
+  search case used real embeddings/search over a fictional indexed guide, not
+  an advertised-but-unregistered namespace. Earlier failed candidates remain.
+- Public release, public-package proof and Support rollout remain pending. Do
+  not report0.8.54 live from these local changes. Runtime/Backend changes are
+  version pins, manifest and matching tests only; Support configuration is to
+  remain unchanged. Evidence is under ~/.codex/private/loomai-framework-0.8.54/.
+- Public source/tagd16c7e40 / ai-fabric-framework-v0.8.54 is immutable. Central
+  run44579500851 built/tested/uploaded, then hit its30-minute publication poll
+  timeout. Existing deploymentde2bbc72-c285-4731-ba6b-28d9060fb872 is PUBLISHING
+  with31 components/0 errors/warnings (read-only status run44586819052 at18:20UTC).
+  Do not upload the bundle again or infer rejection from the wait timeout.
+  Separate public metadata fixes14179a94 and status-only workflow2a0f84bf do not
+  change the tagged runtime code. Broader Build44579878882 retains exactly the
+  same14 Incident Room failing methods as the0.8.53 baseline; registry and vector
+  container checks pass. Private adoption commit3975c0746 remains local/unpushed
+  while public package proof is pending. No production0.8.54 apply has occurred.
+- 18:49 UTC update: Central artifacts became public at18:35. Isolated public-only
+  consumer package/boot passed, coreSHA96949c78184ff1dcab84ee125c9b8625544723a5cccec5180a34154c96a822f8.
+  Private3975c0746 is now pushed; backendCI44589568381 and runtimeCI44589568461
+  passed, including818 runtime tests/0skip against released jars. Runtime artifact
+  dsa-f10175fa has OCI39d011e830d736d3e7c154474a51af658438df781ff1a2499d3324a820267f16;
+  packaged manifest/core match public release. Both backends are healthy at3975,
+  schema241/settings preserved; UI unchanged. Supportver-d3bc5c61 preserves all10
+  saved sections; stagingrel-9f151693 is PROVISIONING. Production Support stays
+  on0.8.53/rel-08026937 until native staging and8-turn qualification pass. No
+  production0.8.54 apply/binding yet. Private observe/qualify helpers retain gates.
+- 19:05 UTC update: stagingrel-9f151693 APPLIED_VERIFIED/PASSED; both native
+  services healthy/0restart, exactCIimage/publiccore bytes verified. All4 fresh
+  offer/follow-up pairs (8turns,Thinker+Executor) passed with actual checklists;
+  every acceptance has ownedhistory2/contextOnlyContinuationtrue/useRagfalse.
+  Staging identity is owned read-only service-test, not browser/customer login.
+  Productionrel-18ea90c9 is PROVISIONING on the same version/image; original app
+  binding and normal-customer8-turn qualification remain gated on readiness.
+- 19:24 UTC CURRENT: Support0.8.54 is live. Productionrel-18ea90c9 now
+  APPLIED_VERIFIED/PASSED; both native roles healthy/0restart and match exact
+  CIimage/publiccore bytes. Original ACTIVE app awi_pub_fc4f82f55cb6b83355cd807f0a21adfa
+  and consumer kit-ca617a82-bfb6-411e-89fe-94ccabf8713e retained/bound; other2
+  consumer bindings unchanged, all10 draft sections unchanged. Binding harness
+  initially assumed1consumer instead of3; stopped before mutation, then corrected
+  to exact snapshotted app/customer/consumer with revision/ownership checks.
+- Production normal-customer qualification is PARTIAL, NOTGREEN: first offer+
+  Thinker yes-please-do passed (history2/contextOnlytrue/useRagfalse). Second
+  fresh OPENING question failed domain selection; no offer/follow-up followed,
+  remaining3variants not exercised. Retained all3 responses without retries or
+  answer substitution. Staging8/8 and local19scenario/24call proof remain valid.
+- New diagnostic trace: extraction mistook approved-support-documents source ID
+  for namespace; model repair required retrieval but omitted namespace. Planner
+  catalogue falsely had NO_AUTHORIZED_VECTOR_SOURCES, although ordinary routing
+  recognized document (1registered namespace) and first sample searched it.
+  OrchestrationPolicyResolutionStep calls DefaultEffectiveCapabilitiesResolver
+  .resolveLegacy, which builds effectiveVectorSpaces only from optional allowlist;
+  absent allowlist=>empty profile. ReadActionResolutionService intersects its
+  registered catalogue with that empty set. Keep actual authorization/explicit
+  profile denials intact; proposed separate fix should supply registered+authorized
+  spaces to legacy ordinary-chat resolution, NOT turn all empty profiles into all.
+  Owner approval requested asynchronously; NO further framework patch implemented.
+  See 2026-11-19-framework-0854.md and private
+  production-qualification.private.json for partial evidence.
