@@ -16369,3 +16369,68 @@ test is being called hosted acceptance. UI extraction remains last.
   external identity redirects, actual handover or business-write workflow was
   requalified in this fix cycle. Support drawer was minimized during setup through
   its existing control; its global startup presentation was not redesigned.
+
+### 2026-11-19 - Support informational follow-ups (0.8.53 live; partial qualification)
+
+- Owner asked to fix and live-test the false confirmation after accepting an
+  informational offer in SUP-D1224F11-96A. Original request/conversation remain
+  read-only. A separate normal-customer production conversation reproduced it
+  on0.8.52 with the preceding two messages present; do not call this history loss.
+- Framework0.8.53 source9b0188bd76e7627813aeaa3d5e633c97c32cec97/tag
+  ai-fabric-framework-v0.8.53 carries trusted observed pending state, generic
+  informational-offer guidance and typed CONFIRMATION_WITHOUT_PENDING_ACTION.
+  New recovery policy confirmation-without-pending defaults to FAIL; LoomAI's
+  runtime explicitly opts into LLM_REPLAN_THEN_FAIL under existing progressive
+  model-call budgets. No lexical routing, forced replacement intent, fabricated
+  pending action, canned answer replacement or new write authority.
+- Reviewed regressions preserve pending-action ownership, incomplete drafts,
+  valid compound siblings, dedicated terminal-policy attribution and genuine
+  confirmation. Final124 focused tests,14 real OpenAI scenarios/19 entry calls
+  and OpenAI/ONNX/Lucene core matrix pass. Earlier failed candidates stay recorded.
+- Backend default sourcee14964e4c64fab343a6ef922bf3f290759faf549 is healthy on
+  both environments with schema241 and settings preserved. Central publication
+  44552711283 and isolated Central-only consumer package/boot passed. Runtime
+  adoption source7804af5ee73574704f19efc46e2f913cd964a201 / image CI44556239040
+  passed all818 runtime tests. Artifactdsa-5482e5ea uses digest
+  sha256:2c09a78bcf49dfd1c5b713b004e4793bc3362d710dd0b5010b960f9df99f01f4.
+- Supportver-fb899e00 preserves all10 saved configuration sections, no reindex.
+  Stagingrel-f0539865 is APPLIED_VERIFIED/PASSED. Native runtime/connector match
+  the CI digest and public core bytes; four focused server-test turns pass in
+  Thinker/Executor. An earlier first-question source-ID/domain miss remains
+  recorded separately; no permission or routing policy was changed to hide it.
+- Productionrel-08026937 is APPLIED_VERIFIED/PASSED and bound to the original
+  ACTIVE Support installation/consumer. Both native roles are healthy and match
+  the immutable CI image/public core. Original draft and app identities retained.
+  Existing COLD_REPLACE lifecycle used; do not claim a zero-downtime rollout.
+- Fresh normal-customer production API qualification: all4 guide/offer turns
+  passed, plus Thinker `yes please do` and Executor `go ahead with the checklist`.
+  Thinker `do that please` and `please continue` still asked which knowledge
+  domain to search. All4 avoided false confirmation; the two failed follow-ups
+  had history2 and INFORMATION/no-retrieval extraction. Overall journey remains
+  incomplete. Browser automation was unavailable; no clickthrough proof claimed.
+- A controlled regression confirms that PARALLEL_ACTIONS_AND_RAG forces a search
+  even after a completed context-only READ plan. The failed production responses
+  lose planner diagnostics at their routing terminal, so their exact planner
+  choices are not asserted. Source-ID/domain selection is a separate finding.
+- Additional candidate in ~/.codex/worktrees/context-only-rag-0854, branch
+  codex/context-only-rag-0854, local commit862eefd4 (not pushed/released): preserve
+  completed no-retrieval/history-only plans
+  with no active inputs/targets or read-work recovery; retain historical evidence
+  limits and actual search authorization; clarify planner decisions and preserve
+  diagnostics/receipts on routing failures. Red-before regression,79 focused and
+  all1130 core tests pass. Local POMs still0.8.53; test-only, never installed or
+  published over released artifacts. Initial real-model parallel run passed3/4;
+  the remaining extraction requested retrieval while its READ planner selected
+  context-only. Preserved that failure and clarified generic extraction guidance
+  without bypassing its fresh-retrieval flag. Final core1130/1130 pass. Second
+  real-model parallel run is also3/4: one usable READ plan had no indexed source,
+  then parallel policy forced RAG/domain clarification. Diagnostics now retain
+  this cause. Candidate is NOT release-qualified. Finish/qualify the cooperation
+  and source-selection contract (or scoped Support policy); do not weaken source
+  authorization or substitute answers. The synthetic parallel fixture has an
+  authorized namespace, not an indexed dataset. Additional0.8.54 release/adoption
+  awaits owner's asynchronous approval AND completed qualification. Other Brains
+  and the UI are outside this rollout.
+- Evidence: verification-support/support-followups/2026-11-19-followup-confirmation.md
+  and ~/.codex/private/loomai-framework-0.8.53/. Raw conversations and credentials
+  stay private; no customer knowledge, tickets, apps or auth policies are changed.
