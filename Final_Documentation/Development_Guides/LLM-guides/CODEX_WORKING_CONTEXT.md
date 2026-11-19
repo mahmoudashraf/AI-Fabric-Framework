@@ -16508,3 +16508,104 @@ test is being called hosted acceptance. UI extraction remains last.
   Owner approval requested asynchronously; NO further framework patch implemented.
   See 2026-11-19-framework-0854.md and private
   production-qualification.private.json for partial evidence.
+
+### 2026-11-19 - Approved 0.8.55 ordinary-chat source catalogue correction
+
+- Owner approved the catalogue fix and verified release. Isolated public worktree
+  ~/.codex/worktrees/context-only-rag-0854 is now on codex/legacy-source-catalog-0855;
+  implementation96213b7d. Do not touch the dirty sibling framework main worktree.
+- Policy resolution now supplies server-registered namespaces to the mode-derived
+  capability resolver; absent optional allowlist no longer hides them. Configured
+  restrictions, required allowlists, disabled retrieval, missing registration and
+  explicit task-profile empty ceilings remain enforced. Actual search authorization
+  is unchanged; no model/source guessing, search-all or new inference call.
+- Spring-wired regression reproduced empty catalogue before fix; retained privately.
+  Focused54 tests and full30-module release-profile reactor passed; core1139/0skip.
+  Release guards passed. Expanded real-provider fixture uses no optional allowlist
+  and adds2natural indexed-guide questions (21scenarios/26entry-call ceiling).
+- Public0.8.55 version/release metadata prepared, NOT committed/tagged/published.
+  Private5-file version/manifest/test/default pins prepared, NOT committed or live.
+  External consumer and integration compile pipeline is running; real-provider and
+  private runtime/backend qualification still pending. All hosted Support remains
+  0.8.54. No draft config, index, UI, auth policy or binding changed this turn.
+- Private0.8.55 harnesses/snapshots use current0.8.54 baselines, exact original
+  Support consumer selection and fresh staff sessions. Old0.8.54 staff sessions
+  were revoked; do not reuse them. Public-only consumer workspace is prepared at
+  /private/tmp/ai-fabric-0.8.55-public-consumer-main with no candidate artifacts.
+  See verification-support/support-followups/2026-11-19-framework-0855.md.
+- 19:59 UTC update: all local gates passed. Full30-module reactor/core1139,
+  release guards, external consumers, integration compile, Docker vector contracts
+  (8containerIT), real OpenAI21scenarios/26calls, OpenAI/ONNX/Lucene matrix and
+  private818runtime/118backend tests passed. Public immutable45ad0b059729d4dc7118ee5cdef1d7e2be943e81
+  /tagai-fabric-framework-v0.8.55 pushed; Central44603407173 dispatched ONCE,
+  FrameworkBuild44603376611 in progress. Never move tag/reupload accepted bundle.
+  Private8157409ef94d6cb5e3862635e21d2a2fa780699d NOTPUSHED until public-only
+  package proof; queued helper has exact HEAD/branch/remote-parent guards.
+- Qualification failures retained: first shared-fixture18/21 model selected an
+  unseeded registered namespace (catalogue itself correctly populated); isolated
+  real single-source registry matches Support shape. Import-merging harness issue
+  stopped before model turns; corrected with real dedicated loader/environment.
+  Next20/21 source selection correct, query cosine0.598 below0.7 default cutoff;
+  finalfixtureexplicit0.5 and exactdocumentID assertions pass. No production/default
+  threshold or source scope changed. Do not claim general multi-source relevance
+  fixed. All raw failed and passing logs under private0.8.55.
+- Active local observers: wait-central.mjs session75148 (60min bounded), queued
+  public-only package/boot and guarded private-source push session27269 (65min).
+  No0.8.55 hosted mutation yet. Support0.8.54 source/binding/config remain current.
+- 20:09 UTC CI update: FrameworkBuild44603376611 passed provider registry,
+  framework reactor and vector-container checks, then retained exactly the same14
+  Incident Room failing method names as0.8.54 (44579878882). Comparison proof is
+  private0.8.55/incident-baseline-comparison.private.json; zero added/removed.
+  Broader CI remains red for that known example failure, not a new catalogue
+  regression. Central44603407173 remains in progress; do not upload again.
+- 20:24 UTC CURRENT: Central44603407173 SUCCESS; deploymente977df73-8e72-4c8e-b327-c1284f2a55d2,
+  public availability20:08 and isolated Central-only package/boot PASS. CoreSHA
+  66f162f5e418eea4122dc5f0eef7a65383096b0a58eab02323d3946273688671. Guarded
+  private8157409ef push completed; backendCI44605637130 and runtimeCI44605637139
+  passed (818runtime/0skip against public jars). Artifactdsa-1e4752d3, stage CP
+  dsa-fd20b557, OCIfeec00100dfcd0c403d8307c831f7b81f39eed5cae2a7b006e297faadc2a9d3b
+  packaged manifest/core/source verified. BOTH backendshealthy815/schema241/settings
+  preserved; UI unchanged. Supportver-e0587a82 preserves10sections; staging
+  rel-bfec72a3 APPLY_REQUESTED/PROVISIONING. Production Support remains0.8.54/
+  rel-18ea90c9 and original app binding. No0.8.55 prod apply yet.
+- Active stage observers: session58131 observe.mjs; session21273 waits for formal
+  readiness, then native byte proof and8turns. Thinker parallel requires actual
+  indexed sources; Executor may use declared grounded READ evidence if its
+  RAG_IF_ACTIONS_INSUFFICIENT policy permits. Nonempty catalogue required for both.
+  Public availability/package observers75148/27269 finished successfully.
+- 20:45 UTC CURRENT: stagingrel-bfec72a3 APPLIED_VERIFIED/PASSED; both native
+  roles healthy and matchCI/publiccore. Catalogue bug is visibly fixed: Thinker
+  optional-allowlist-absent now sees document/ragAvailabletrue/RAG-requiredtrue.
+  First broad pair retained as qualityFAIL: opening4584chars ends mid-list before
+  offer, subsequent yes-please repeats offer. History2/4695chars stored/present,
+  projectionhistoryTruncatedtrue; nothistoryloss. Configuredtokens2048; no finish
+  reason exposed, so exact cutoff cause not asserted. No budget/prompt change.
+- Separate CONCISE_SETUP_OFFER four-pair staging qualification passed8/8: exact
+  six-short-bullet initial request makes an actual offer, fresh sources18/18/18/10;
+  all4acceptances checklist/history2/contextOnlytrue/useRagfalse/historyTruncfalse.
+  Record is not a pass for the broad failed pair; both evidence directories kept.
+  Productionrel-e2f53802 nowPROVISIONING on same version/image, exactstageID/source/
+  digest/8turn gate. Original production binding still0.8.54 until explicitbind.
+  Activeprodobservers session9794 observe, session83742 native/bind/customer8turns
+  after readiness. Production script also explicitly uses concise-scenario label.
+  Broad long-answer follow-up remains separate qualityfinding, NOT silentlyfixed.
+- 20:58 UTC CURRENT FINAL: productionrel-e2f53802 APPLIED_VERIFIED/PASSED;
+  both native roleshealthy/0restarts, exactOCI/source/publiccore verified. Original
+  ACTIVE Supportinstallation awi_pub_fc4f82f55cb6b83355cd807f0a21adfa/consumer
+  kit-ca617a82-bfb6-411e-89fe-94ccabf8713e explicitlybound to.55; other2bindings
+  preserved. All10configsections unchanged. Normalpublish creatednextdraftrev8
+  fromrev7; sourceDraftId matchesoriginal. Initial integrityharness ID-equality
+  assumption corrected againstactualpublish contract, not productmutation.
+- NormalCUSTOMER_ADMIN production4concise pairs/8turns passedcatalogue/evidence/
+  historycontracts: sources18/18/18/10, acceptanceshistory2/contextOnlytrue/
+  useRagfalse/historyTruncfalse. Manualsemanticreview overrideslist-shapepass:
+  only3/4fullydeliveredchecklists; please-continue returnedstepsbutofferedagain.
+  FollowupsemanticstatusPARTIAL; do NOT callall8qualitygreen. No blindrerun or
+  productionprompt/budget/configedit. Separateone-shotoriginalbroadpairpassed:
+  5sources, complete1444charanswer+actualoffer, yes-please actualchecklist,
+  history2/1555chars/untruncated. Doesnoterasebroadstagingfailure.
+- Approvedcataloguefixclosed; residualmodelofferfulfilment/long-answerprojection
+  andgeneral multi-source relevance remainqualifiedlimits. Originalreportedticket
+  SUP-D1224F11-96A remainsread-only. LiveproofAPI/native, NOTbrowserclickthrough.
+  Allrollout/testsessions9794/83742/47570/9560 finished. Onlythisrelease'stwo
+  staffsessions revokedandoldcookiesverifiedunauthenticated; no globaluserlogout.
