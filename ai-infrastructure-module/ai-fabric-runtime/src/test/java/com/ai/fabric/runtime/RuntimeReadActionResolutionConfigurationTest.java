@@ -18,6 +18,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RuntimeReadActionResolutionConfigurationTest {
 
     @Test
+    void informationalFollowupCorrectionIsAnExplicitRuntimePolicyAndCanBeDisabled() throws Exception {
+        for (String configured : List.of("DEFAULT", "FAIL")) {
+            StandardEnvironment environment = new StandardEnvironment();
+            Map<String, Object> values = configured.equals("DEFAULT")
+                ? Map.of("ai.curated.pack", "default")
+                : Map.of("ai.curated.pack", "default",
+                    "AI_ORCHESTRATION_SEMANTIC_RECOVERY_CONFIRMATION_WITHOUT_PENDING", configured);
+            environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource(
+                "deployment-runtime-env", values));
+            new YamlPropertySourceLoader().load("runtime-application", new ClassPathResource("application.yml"))
+                .forEach(environment.getPropertySources()::addLast);
+            new CuratedPackEnvironmentPostProcessor()
+                .postProcessEnvironment(environment, new SpringApplication(Object.class));
+            OrchestrationProperties properties = Binder.get(environment)
+                .bind("ai.orchestration", OrchestrationProperties.class)
+                .orElseThrow(() -> new IllegalStateException("Runtime orchestration configuration was not bound"));
+            assertThat(properties.getSemanticRecovery().getConfirmationWithoutPending())
+                .isEqualTo(configured.equals("DEFAULT")
+                    ? OrchestrationProperties.ConfirmationWithoutPendingRecovery.LLM_REPLAN_THEN_FAIL
+                    : OrchestrationProperties.ConfirmationWithoutPendingRecovery.FAIL);
+        }
+    }
+
+    @Test
     void deploymentRetrievalAllowlistBindsForExecutorMode() throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource(

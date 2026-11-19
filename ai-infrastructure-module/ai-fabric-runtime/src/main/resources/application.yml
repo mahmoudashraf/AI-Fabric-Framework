@@ -254,6 +254,8 @@ ai:
 
   orchestration:
     strict-mode-routing: true
+    semantic-recovery:
+      confirmation-without-pending: ${AI_ORCHESTRATION_SEMANTIC_RECOVERY_CONFIRMATION_WITHOUT_PENDING:LLM_REPLAN_THEN_FAIL}
     modes:
       conversational:
         actions-enabled: false
