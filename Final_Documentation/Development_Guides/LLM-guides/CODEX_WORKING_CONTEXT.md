@@ -17311,3 +17311,119 @@ test is being called hosted acceptance. UI extraction remains last.
   setMode('automatic','live') toretain priorunappliedtest+restorationproofs.
   harbor-release.mjs prepared butNEVERrun; no59version/applyintents exist.
   PreserveRoot58browser-events beforestartinganewbrowser-host (itwritesnewlog).
+
+## 2026-11-21 Maven 0.8.59 Publication Confirmed
+
+- CURRENT publication blocker CLOSED: all30 public framework modules and their
+  POM/JAR/detached-signature files returned200 (118 availability checks). BOM,
+  core and actions-connector downloads matched Central SHA1; SHA256 identities
+  saved for later image comparison. Empty-repository Maven transitive resolution
+  of actions-connector0.8.59 BUILD SUCCESS,35.516seconds,21:42:51UTC. This is not
+  a new test-suite run or cryptographic validation of every detached signature.
+- Root59 all-public-components.private.json/public-consumer-proof.private.json/
+  central-checksums.private.json and central-only-repository preserve proof.
+  No duplicate upload/tag movement/newversion. Original44923227840 remains a
+  historical publication-wait timeout, not falsely relabelled green.
+- This turn only verified publication and recorded owner policy. Privatee01
+  remains NOTPUSHED; no new CI/image/backend/runtime/app/Harbor write or query.
+  Harbor still58/rel-b4b472b0. Resume approved rollout from the exact pinned e01
+  source with fresh normal admin sessions and current preflight; never rerun
+  wait-central.mjs blindly because its CI-success assertion still rejects the
+  historical timeout. All own observation commands finished; gallery unchanged.
+- Owner now explicitly requires permission before such infrastructure changes.
+  Recorded durable approval rule in PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md:
+  software/recovery approval is not a host-resize/billing/capacity/protection
+  authorization; present reason,cost,availability and rollback limits first.
+
+### Live Verification Resumed
+
+- Owner requested live verification. Fresh own normal admin sessions active in
+  Root58 standard session files; customer Playwright browser exec54948 active.
+  Browser root redirected to Root59; old events preserved separately. All saved
+  customer configuration matched closing baseline before changes. Both CPs still
+  backend150, schema241, existing environment snapshots unchanged.
+- Pinned approved e01eadd28 fast-forward pushed to Platform-V11 (no force).
+  Coreimages44953233571 and runtime44953233480 building; observerexec59487.
+  No59 service rollout/source registration/apply yet. Public all30/checksums and
+  empty-repository Maven resolution already passed; no duplicate public upload.
+- Customer UI harborModes.setMode('selected','live') PASS: only get_product
+  evidence now SELECTED_FIELDS(id,name,priceGbp); other sections and confirmation
+  retained. This is DRAFT ONLY; live app still58/rel-b4b472b0. Must finish normal
+  selected59publish/apply/bind/proof, then restore Automatic and final59release.
+  Do not leave temporary Selected draft if blocked. Root59 live-selected before/
+  after preserve exact evidence. No AI query/business write this resume yet.
+- Both private image CIs now SUCCESS; runtime818/private-accounting78+103tests,
+  zero failures/errors/skips. Backend e01 native/healthy both hosts, exact OCI
+  3ae640cc..., schema241/env/resources/mounts preserved. Runtime59image digest
+  2fd7d257... manifest/core Central bytes verified; stageCP dsa-5f8fec25 and
+  productionCP dsa-f0d7ff21 registered/promoted STAGING only. No59production-
+  channel qualification yet. UI remains ef4, no frontend source change.
+- CustomerUI published Selected v6/ver-f442c418/framework59/reindexfalse.
+  Source list had cached empty result because registration finished after page
+  lookup; normal API returned compatible dsa-f0d7ff21. Cancel/reload/review the
+  existing v6 fixed observation, no republish/duplicate apply. One normal apply
+  rel-20c6f0d8 REQUESTED; observerexec25806 active. Cold sequence currently starts
+  connector after successful runtime. Runtime nativehealthy/0restart; Coolify
+  job a2gvoqksnybb7hlmij1wktqo FINISHED after configured180sstartperiod. No manual
+  force/restart/healthcheck change. No AI query/new businesswrite yet. Root59
+  harbor-bind.mjs prepared, not yet executed; verify/app-bind before SelectedQA,
+  then Automatic restore/finalv7/apply/native/bind/liveQA. Adminsessions and
+  browser54948 remain active; final normal logout/close required.
+- Selected59 v6 rel-20c6f0d8 APPLIED_VERIFIED/PASSED. Native runtime20 +connector5
+  public libraries ALL59/exactCentral, healthy0restart/env/caps/storage preserved.
+  Actual existing app explicitly bound through customer assignmentUI to its
+  own engage-40e... consumer (revision4->5), ACTIVE/ready/branding+origins+URLsame.
+  A separate unbound kit-08db... assignment was NOT changed. Test harness MUI
+  locator needed accessible-name prefix (includes selected value), no failed
+  mutation before corrected locator. Customercontrol worked normally.
+- Selected live ACTION_EXECUTED and INFORMATION_PROVIDED both PASS: get_product
+  sources contain only action/category/success/message + id/name/priceGbp499;
+  no stock/category/height/legacyraw evidence. Accurate answers, enquiries12
+  unchanged. Root59 selected-live-qualification and selected-0859 raw/UI proof.
+- ALL5 action draft modes now omittedAutomatic via normalcustomerUI; otherconfig
+  and writeconfirmation retained. Publishedv7/ver-a31981aa/framework59/reindexfalse;
+  one apply rel-2d36dfcf REQUESTED. Second observer active; do not replay. Need
+  waitverify -> native -> harborBind.bind('automatic') -> freshchat via real
+  Chat History/New (priorSelectedchat exists) -> Auto facts/compare/delivery/
+  oneconfirmed syntheticenquiry+receipt/no replay/phone, optionalpolicychecks.
+  Source production-channel promotion still pending; no unrelated runtimeupgrade.
+  Browser54948 has selectedQA, harborModes, harborRelease and harborBind(v2).
+- FINALdefault59 v7 rel-2d36dfcf APPLIED_VERIFIED/PASSED; native20+5libs59 exact
+  Central/source e01/digest2fd7/healthy0restart, all env/caps/storage retained.
+  Actual sameapp now bound to v7 via correctexistingconsumer revision5->6,
+  ACTIVE/ready, originalURL/branding/origins retained. Draft ALLsections equal
+  original preSelected baseline, all5Automatic-by-omission, confirmationtrue.
+  Customer phone390 evidencecontrols nooverflow/Automaticpressed/errors0; older
+  parsed-action table still cramped (not newly fixed). UI testPTY accepts bounded
+  input; one long phonecommand was truncated BEFOREexecution, cleared withCtrlU,
+  private harbor-ui-checks.mjs then passed. No producterror/sourcechange for it.
+- Current: autoQA opening fresh appchat on finalv7 via real ChatHistory/New,
+  first product-search question pending inbrowser54948. Selected2PASS retained.
+  Still need AutoQA compare/catalogue/delivery, exactly1confirmed syntheticenquiry
+  and receipt/no replay, standalonephone, finalproduction-package promotion,
+  liveclosingpreservation, normal admin/customer logout+close and trackedproof.
+  Sourceproductionchannel not yet promoted; no unrelated deployment upgrade.
+- FINAL LIVE59 CLOSED for evidence feature: final v7/rel-2d36dfcf native20+5
+  publiclibs59/Central/source-e01/healthy0restart; actualappACTIVE/ready onv7,
+  consumerrevision6, sameURL/branding/origins/storage/credentials/caps. ALLdraft
+  configsections match original, all5Automatic, confirmationtrue. Runtimepackage
+  dsa-5f8fec25(stageCP)/dsa-f0d7ff21(prodCP) nowproduction-channel qualified;
+  no other deployment upgraded and Harbor remains developer staging-only.
+- Live10cases:9PASS/1PARTIAL. Selected ACTION+INFORMATION3facts passed. Auto
+  search499/stock8/height, 3-productcatalogue, known-recordcomparison, delivery
+  499+25=524/3-5days passed. Initialnaturalcomparison fetched onlyStandingDesk,
+  disclosedmissingExecutivefacts: retainPARTIAL, not a fixed planner claim.
+  Actual Confirm required: counter12 before,13 afteronefictionalwrite. Natural
+  followup actually READ receipt/realref/RECEIVED/emailfalse/stockfalse; counter13
+  unchanged, no replay. Root59 final-qualification/private rawsamples captureall.
+- Phone390 standalonechat+evidencecontrols nooverflow/errors0, visuallychecked.
+  Older parsedactiontable stillcramped. Fresh finalUpdates v7verified/applied
+  STILL saysChangesnotapplied due runtimeguidancediff despite matching saved
+  replyinputs; no postpublishdraftedit. UntracedseparateUIstatusfinding, notfixed.
+  Existing policyretrievalmisses/IncidentRoomCI remain outside thisqualification.
+- Final closingproof PASS, both ownnormaladminlogouts/revocationPASS, customer
+  normalSignout/storedidentitycleared, browser54948 CLOSED/exit0. All taskowned
+  observers done; gallery8766 untouched. Finalpublichealth/page probes200.
+  Rawproof Root59 final-live-state/final-qualification/production-package-promotion,
+  selected-0859 andautomatic-0859 samples/native/releases/screenshots. No resize,
+  newpaidcapacity/DNS/storagecredentialchange or unrelatedproductionruntimeapply.

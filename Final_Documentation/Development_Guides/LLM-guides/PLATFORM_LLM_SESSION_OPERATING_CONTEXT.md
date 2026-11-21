@@ -33,6 +33,17 @@ funding/accounting remain enforced. This owner decision supersedes older
 reviewed-offer lifecycle restrictions in 010.36 and historical handoff entries.
 Track implementation and evidence in 010.47, not by rewriting historical proof.
 
+## Infrastructure Changes Require Owner Approval (2026-11-21)
+
+Obtain explicit owner approval before resizing, adding, replacing or removing
+infrastructure, or changing infrastructure billing, paid capacity or protection
+settings. State the affected resource, reason, expected cost and availability
+impact, and rollback limitations before acting. A software release, recovery
+request or access credential is not approval for a paid infrastructure change.
+Temporary capacity changes require the same approval; never assume that a later
+downsize restores legacy pricing. Read-only investigation and already approved
+software-release verification do not authorize unrelated infrastructure changes.
+
 ## Customer Infrastructure Allowance (Owner Decision, 2026-11-04)
 
 Default to two provisioned deployment environments per customer workspace, not
