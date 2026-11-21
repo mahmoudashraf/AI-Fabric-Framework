@@ -16715,3 +16715,228 @@ test is being called hosted acceptance. UI extraction remains last.
   qualityclosed: native19/21, publicpackageextractionfailure andwhy-wordingremain.
   Full evidence: verification-support/framework-demos/2026-11-19_ACCOUNT_RESOLVER_0856_RELEASE.md;
   raw ~/.codex/private/loomai-framework-0.8.56/.
+
+### 2026-11-21 Approved repair, source planning and answer consistency work
+
+- Owner accepted the recommended order: repair preservation first, source
+  planning and answer consistency next, then repeated quality checks. Keep
+  inference/repair round limits and all authority checks unchanged. No generic
+  critique loop, answer rewriting or additional Platform/Support rollout.
+- Isolated public worktree ~/.codex/worktrees/planning-answer-evidence-0857,
+  branch codex/planning-answer-evidence-0857, starts immutable f0169061. Preserve
+  unrelated dirty sibling checkout and private .gitignore/UI buildinfo changes.
+- Important correction to earlier attribution: third-attempt diagnostics in the
+  old public-package failure were post-preservation. The candidate had passed
+  validation before full original-intent copying reintroduced missing fields.
+  This is a framework preservation defect, not simply three model omissions.
+- New real-validator regression: 10 cases, 9 failed before fix, no-model-repair
+  control passed. Commit467ce649 retains model-supplied corrections for four
+  explicitly rejected missing decisions while restoring validated source/type/
+  action choices; final validation remains. Diagnostics identify repaired fields.
+  Focused50 tests passed. Other repair families were not redesigned.
+- Commit9cca4ecf removes tentative directAnswer from READ planning inputs and
+  supplies actual evidence-presence counts to shared planner prompt packs;
+  no forced READ or extra planning round. Focused95 passed. One initial new
+  fixture accidentally kept optional RAG enabled while expecting NONE; corrected
+  fixture/log retained, no runtime workaround.
+- Answer changes prepared: generic fresh-evidence/false-premise guidance and
+  Account Resolver checked-ready/blocked/unknown rules. Demo extraction overlays
+  explicitly require current contract decisions. Focused41 generation tests pass.
+  Native real-provider corpus expands21to24scenarios/26to29entrycalls with public
+  policy paraphrases and greeting control; runtime budgets unchanged.
+- 05:08 UTC: candidate57 Maven pins prepared; no57publication/tag/mainpush or
+  hosted mutation. First full reactor core1163 had2 existing overlay-fixture
+  failures due new required placeholder. Fixtures now supply it without weakening
+  placeholder assertions; full rerun session86344. Original failure log retained.
+- Fixed quality corpus12 questions declared before calls: ready/payment/address
+  x3 plus3unknown-status questions, one fresh conversation each, no writes or
+  semantic string matching. Public56 baseline JVM38349/session43216 on8099,
+  quality run83989 active. Must stop it before candidate starts. Current hosted
+  Account remains56/containerc26285bf1643; fresh native/auth snapshots under
+  ~/.codex/private/loomai-framework-0.8.57/, no secrets in Git. Candidate artifacts
+  are not public-artifact proof. Broader Incident Room14 remains separate.
+- 05:22 UTC: baseline56 fixed12case corpus completed, manual review8/12. Failures:
+  ready-why invented invalid billing address; payment-can ignored missing payment;
+  address-can confused checking eligibility with placing an order; unknown-identity
+  dumped profile instead of exposing missing identity evidence. All samples retained.
+  Baseline JVM38349 stopped. No same-query retry-until-pass.
+- Traced direct READ generation gap: forced summary instructions said answer the
+  request without supplying that question. Commit5ffb9c78 passes existing processed
+  question into the same forced READ generation call, not write narration; no
+  extra provider request or permissions. New2case regression red1/controlpass,
+  then73 related tests pass. Same commit adds false-premise/current checked outcome
+  guidance, aligns Account extraction overlays, expands real-provider corpus and
+  corrects existing overlay fixture with the required evidence placeholder.
+- First corrected full reactor30modules/core1163 passed before question handoff.
+  Final post-handoff reactor session25429 now running; local/provider/candidate
+  gates still pending. No57tag/publication/mainpush/hosted mutation. Keep Platform
+  and Support on their previously verified versions; only Account Resolver rollout
+  is in this scope. Do not broaden into a new critic loop or history engine.
+- 05:33 UTC: final post-handoff reactor30/core1165 passed; guards passed after
+  mechanical skill release marker alignment. Local Account53+smoke13, execution5,
+  vector18+actualcontainers8, integration compile and minimal consumer passed.
+  Native real-provider24/24 passed on gpt-5.4-mini. Fixed12 candidate sample9/12,
+  not qualified: payment/address positive openings contradict blockers; identity
+  status substituted unrelated verified fields. Original7turn routing/receipt pass
+  but finalwhy still contradictory. All failed samples retained; no57publication.
+- One bounded local proxy diagnostic (headers not recorded) captured exact OpenAI
+  generation request/response: correct question, current facts and updated overlay
+  reached provider; contradictory positive opening was provider-authored, not
+  sanitizer rewriting. First trace harness session raced demo seeding and failed
+  before any AI call; after seed summary, a single diagnostic turn captured4calls.
+  Trace JVM41228 and proxy stopped; original candidate JVM40784 stopped.
+- Commit52449585 strengthens generic separate-check/mandatory-prerequisite guidance
+  and moves explicit outcome-first demo guidance ahead of facts. No new code
+  decision, round, model or output matcher. Requalification from this new source
+  uses separate candidate2 evidence; final reactor session31529 running. Earlier
+  source's tests/logs preserved, not overwritten into a misleading green result.
+- 05:44 UTC: candidate2 fixed12 still9/12, with3ready-account false blocker
+  openings; all blocked/unknown cases passed. Stronger prompt shifted failures,
+  not enough for publication. Owner explicitly approved qualifying gpt-5.4-mini
+  for answer generation only and deploying it only if measured quality improves.
+  Routing remains gpt-4o-mini, existing per-purpose config, no extra model calls.
+- Second native provider run22/24:2parallel-mode clarifications after successful
+  READs omitted source selection. Found catalogue advertised EXECUTE_READ_ACTIONS
+  while server policy necessarily addsRAG. New real-policy regression red1 then
+  focused78 pass. Commit9daffb51 advertises combinedREAD+RAG for that policy and
+  aligns prompt instructions, while preserving legacy execution, no-source
+  uncertainty, context-only and optional/no-index READ choices. It also adds
+  Account answer-only model defaults and2binding tests; not a framework-wide model
+  default. No arbitrary source choice or new semantic hard validator.
+- Previous30/core1165 reactor31529 completed pass. Final catalogue-source reactor
+ 82737 running (new core regression adds1); Account model build82984 and final
+  native25618 running. Candidate2 JVM41980 stopped. Source-model qualification
+  will use separate candidate3 evidence. No57publication or hosted mutation yet.
+- Candidate3 answer-only gpt-5.4-mini also8/12: three blocked answers contradicted
+  facts in their opening and identity answer substituted unrelated checks. Model
+  identity in metadata proves routing4o-mini/generation5.4-mini. Owner's conditional
+  quality criterion not met: do NOT deploy the new model on that evidence.
+  Candidate3 JVM43593 stopped. Native final catalogue-source run23/24: all source
+  routing/publicREAD/auth/write tests pass; one context-only direct-answer model
+  returned the offered checklist as a paragraph. This path used MODEL_DIRECT_ANSWER
+  and no generation call; do not claim source fix solved this format limitation.
+- Owner separately approved bounded generation prompt-role separation. New static
+  rag/generation/system template has no dynamic placeholders; Account static rules
+  move there, query/evidence stay in user answer template, approved history stays
+  native messages. Existing AICore text helper gets a backwards-compatible3arg
+  overload preserving purpose/model/temperature/min(configuredTokens,1000) and one
+  provider call. No critic, response rewrite, permission change or increased rounds.
+- Role regression2/2 red before fix. First all-core run1170 had8 failures:7 old
+  two-argument mock fixtures and a new test marker colliding with ordinary wording
+  in the reference policy. Signatures updated, assertions kept; unique history
+  markers now test actual content separation. New invalid-system-placeholder guard
+  and500/2500token cap checks added. Rerun24553 active. Role source not committed,
+  tagged or published yet. Catalogue-source30/core1166 reactor82737 passed/stopped.
+- 05:59 UTC: role core rerun1171 passed. Commitce0ab223 includes static default
+  generation system policy and Account system/body split, backwards-compatible
+  text-helper overload, role/token/call-count tests, no-dynamic-system guard and
+  mechanical mock-signature updates without weakening output assertions. System
+  renders with no dynamic values; query/evidence/history never enter that role.
+  The first marker collision used ordinary words in reference policy, now unique
+  untrusted-history markers. Failed logs retained. No23/24 native result relabelled.
+- Final role-source reactor80828 running. Candidate3 and all earlier JVMs/proxy
+  stopped. Upcoming candidate4 = role packing +5.4-mini generation; candidate5 =
+  same source +4o-mini generation. Both retain4o-mini routing. Owner requires
+  measured improvement before promoting model. Select only after manual review
+  of fixed12 samples and original7turn journey. Prepared publication helper still
+  references obsolete candidate3: MUST update to actual selected qualified source,
+  final role reactor and all required gates before use. No57tag/push/publication,
+  imageCI or hosted mutation has happened. Private dirty .gitignore/UI unchanged.
+- 06:14 UTC: role-source reactor80828 completed30modules/core1171 pass. Native
+  role-source51278 passed24/24 and OpenAI/ONNX/Lucene matrix58444 passed. Earlier
+ 23/24 format miss remains visible; direct-answer path wasn't changed by roles.
+  Local final68189 completed Account55+smoke13, integration compile/support10,
+  minimal consumer, execution5 and vector18+actualcontainers8. Guards83007 passed.
+- Role source candidate4 (5.4 answer) scored11/12:9eligibility cases passed, one
+  invented identity status; original7turn journey passed routing/receipt AND
+  manual current-state semantics. Candidate5 (4o answer) also11/12, but ready-why
+  still contradictory. Do not claim stronger model alone wins overall; old runs
+  and roles-only controls are retained. Both JVMs46098/46432 stopped.
+- App-only commit0f185ac0 declares actual profile-source coverage in its READ
+  description and notReportedByThisSource facts. It reports no identity/fraud/
+  order history, not a failed or satisfied business status. No aggregate readiness
+  computation or new action. Regression red1; full Account55+smoke13 build98260
+  passed. No framework code changed after role-source full verification.
+- Current candidate6 JVM47210/session86839 uses roles+coverage/5.4 answer,4o
+  routing; fixed12 quality38721 running. Candidate7 (same source/4o answer) still
+  pending. Only select a model after both fixed samples; primary9eligibility
+  cases and original7journey must pass. Publication helper now requires actual
+  selected-candidate proof/final role reactor; no57tag/publication/hosted mutation.
+- 06:22 UTC: candidate6 (roles+coverage,5.4 answer) fixed12 passed12/12 by manual
+  review. But original7journey opening failed TARGET_REQUIRED after a completion
+  repair; subsequent6turns passed including receipt/current-ready answers. Earlier
+  helper omitted opening assertion, so its routing label was overbroad. Saved
+  journey-candidate6-review FAIL and strengthened future structural opening check;
+  this sample may not qualify publication. No failed query retried.
+- App-only commite4cca587 adds the missing Account completion system-addon: normal
+  compound/multistep stages had current-account ownership/target guidance, while
+  completion used generic guidance. Default/prod template regressions red2, then
+  full Account55+smoke13 build86112 passed. Same existing repair/model budgets,
+  no code override of a model decision or natural-language matcher. Framework
+  code unchanged since qualified role-sourcece0ab223.
+- Candidate8 (final e4cca source/5.4 answer) JVM48426/session22285 booting;
+  candidate7 (same source/4o answer) pending. Candidate6
+  JVM47210 stopped. All library/local/provider gates are green; pending final
+  app-source quality/journey, model selection, notes, immutable publication and
+  actual hosted verification. No57tag, public push or hosted mutation yet.
+- Final candidate8/e4cca:12/12 fixed questions pass, all7journey turns pass including
+  corrected opening assertion, confirmation/receipt/history and current-ready why.
+  Same-source candidate7/4o answer scored11/12, still contradictory ready-why.
+  Selected5.4answer only (routing4o unchanged), pinned actual tested snapshot
+  gpt-5.4-mini-2026-03-17. Source42e16cb4 adds default/prod snapshot tests and
+  updates the remaining generation-routing integration mock signature. App57+
+  smoke13 and routingintegration2 passed. All local JVMs stopped.
+- Immutable release sourcec25a854d63e39fae7b52495085aa72c4cf5e813e, tag
+  ai-fabric-framework-v0.8.57, branchcodex/planning-answer-evidence-0857 pushed.
+  One GitHub Release453493860 triggered Centralrun44876213643 at06:34UTC.
+  Final guards passed. No manual parallel publication, moved tag or duplicate
+  upload. Public main stillf0169061/56 until clean Central-only consumption.
+- 06:37 UTC publication running; public URLs still404. Wait helper83225 active.
+  No hosted mutations: Account still56/containerc26285bf1643; Platform/Support55.
+  Need clean public-consumer proof and default-model query test (helper removes
+  model overrides), then normal mainFF, Account-only CI image and native/UI checks.
+  Existing privatehelperspublication/image-ci/public-consumer/account-adoption/
+  browser-live/scenario/quality under ~/.codex/private/loomai-framework-0.8.57/.
+  Native helper now requires all12library hashes, not only core, to match public
+  artifacts; models/secrets/env/limits/mounts/app identity must remain unchanged.
+  No goal created. Preserve unrelated private dirty .gitignore/UI buildinfo.
+- 06:56 UTC: Central public availability at06:53, release workflow44876213643
+  completedSUCCESS. Fresh isolated Central-only consumer packaged57app+13smoke
+  tests, all12framework jars from public-central-only with recorded hashes and
+  source/javadoc200. No local57cache seed. Packaged-default model (no override)
+  fixed12 quality12/12 and strict7turn journey PASS by manual review; routing
+  4o-mini-2024-07-18/answer5.4-mini-2026-03-17. Original Boolean-name style limit
+  remains. ConsumerJVM51307 stopped/session54368 consumed.
+- Public main normalFFf0169061->c25a854d after clean consumption; no force/tag
+  movement. Account-only existing imageCI dispatch requested, plus normal broad
+  framework CI now observing main. No hosted mutation yet. Pendingnative/UI/live
+  proofs and IncidentRoombaseline comparison; Platform/Support55 unchanged by us.
+- 07:06 UTC: Account-only imageCI44877858058 SUCCESS; normal updater deployment
+  ssgi0bkkhufkvxnesmiyyoje finished. Same app/domain now healthy/container
+  55bf93307f62/sourcec25a854d/framework57. Image33bfc5f6...; ALL12 library hashes
+  match public Central artifacts/core3b2a9929..., exactenv/secrets/routingmodel/
+  DB/JVM/limits/ports/restart/mounts/appidentity preserved. No privatePlatform/
+  Support rollout, migration, reindex or extra repair/generation call.
+- Live fixed12:11PASS/1FAIL, main9eligibility allPASS. Unknownidentity answer
+  starts misleadingYes before correctly saying not reported; retainedfailure,
+  no retry/newpatch/outputmatcher. Fraud/orderunknown correct. API7turn and
+  actualdesktopUI7turn PASS incl opening/typedform/confirm/receipt/readyfollowups/
+  why/nativehistory8/10/12 andapprovedpolicy. Phone390x844initialloadPASS, not
+  fullphonejourney; JSerrors0/nohorizontaloverflow. Allbrowsersclosed.
+- Visualreviewfound oldSmartSuggestioncard repeatsprofileREAD/No relevantcontext
+  found despitecorrectmainanswer. SAME retained56baselinealreadyhasthis; separate
+  legacyroute NOT fixed inrolepatch. SomeBooleanfieldnames remain inanswers.
+  Fullproofs quality-live-review/journey-live-review/browser-live-review private.
+- BroadCI44877849609:registry+vectorcontainersPASS/librariesPASS; realappsFAIL
+  EXACT same14IncidentRoommethodsANDsummarylines as56baseline44629351707,
+  added0/removed0. comparisonUNCHANGED_PREEXISTING_FAILURES; do notclaimallgreen.
+  Release/report path verification-support/framework-demos/
+  2026-11-21_PLANNING_EVIDENCE_AND_ANSWER_0857_RELEASE.md. Allnecessarylocal
+  execsessionsconsumed/JVMsstopped. Pendingfinalupdaterreceiptreadback+private
+  report/context-onlycommit; unrelated.gitignore/UI/untrackedworkpreserved.
+- 07:08 UTC finalreadback: updaterphaseDONE for exact57tag/deploymentssgi0...,
+  healthUP57/sourcec25a854d at07:08:29. No extra deploy or model call. Publicmain
+  and immutable peeledtag bothc25a854d; isolated publicworktreeclean. All gates
+  recordedconsistently with11/12live quality and knownlimits, notperfectclosure.
+  Private report/context-onlycommit follows; no task-ownedJVM/helper/browser left
+  running, unrelated dirty/untrackedwork untouched.
