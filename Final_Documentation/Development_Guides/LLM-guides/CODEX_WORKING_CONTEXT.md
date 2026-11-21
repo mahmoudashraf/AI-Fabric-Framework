@@ -17427,3 +17427,34 @@ test is being called hosted acceptance. UI extraction remains last.
   Rawproof Root59 final-live-state/final-qualification/production-package-promotion,
   selected-0859 andautomatic-0859 samples/native/releases/screenshots. No resize,
   newpaidcapacity/DNS/storagecredentialchange or unrelatedproductionruntimeapply.
+
+## 2026-11-21 Harbor Selected-Result Follow-up Investigation
+
+- CURRENT newuserattachment file.txt.txt reproduced on SAME v7/rel-2d36dfcf/
+  framework59/nativee01, healthy0restart/assignmentmatches. Nine actualUI query
+  samples, FOUR internal-domainclarifications. No code/config/release/assignment/
+  infrastructure change, no businesswrite; enquirycount13 unchanged. Anonymous
+  browserexec46321 CLOSED/exit0, no adminsessionscreated; all owncommandsdone.
+- MainrootCONFIRMED: extractionrequiresRetrieval=false +completedREADplanner
+  ANSWER_FROM_CONTEXT/actions0/needsMoreStepsfalse overridden. 0.8.54 guard in
+  ReadActionResolutionService809 excludesANYresolvedtargets/pinnedcontext/
+  attachments/transientinput. shouldUseRag843 thenforcesRAGIFINSUFFICIENT with
+  nofreshactionevidence; no selectednamespace -> InformationVectorSpaceRouting
+  hardcodedinternaldomainquestion. CatalogueHAS authorizeddocument; explicit
+  forceRetrievalflagsfalse. Even no-attachment comparebetweenThemfailed with
+  ACTION_RESULT_ITEMS2. Twofullsourceattachments retainedfactsbutstillfailed.
+  Existingtest214 intentionallyassertsRAGforcurrentinputs; priorcoverage too narrow.
+- Widgetroot2: attachments.ts33 whitelistdropspriceGbp/stock/adjustableHeight;
+  actualselectedcardpayloadonlyid/name/category. Automatic backendpreparedfacts
+  werecomplete. Root3: useAttachmentsController87 duplicatepredicate compares
+  absentSKU==absentSKU, blockingdifferentIDchairasduplicate; only1chip/request.
+- CarewrongDeliverysource NOTreproducedtoday: correctUSE_RAG_ONLY/document/care
+  query, but0documents. Exactindex/filter/searchcauseuntraced; no claimstorage
+  permission/missingfile. Previousknownpolicyretrievalmiss notclosed.
+- Newtracked 2026-11-21-selected-results-followup-investigation.md detailsroot,
+  sourcecitations/testgapandproposedboundedframework+genericwidgethandoff/identity
+  work. No extraLLMrounds/modelupgrade/fanoutmasking/keywordrules recommended.
+  PreserveAuto/Selectedpreparedfacts, auth/ownership/confirmation. Frameworkpatch
+  requiresownerreviewapproval; NOTimplemented. Previous10-case9PASS1PARTIAL only
+  qualifiesthosesamples, nottheseadditionaljourneys. Rawproof private
+  ~/.codex/private/harbor-followup-20261121; safe report has no credentials.
