@@ -54,10 +54,16 @@ const entry = [
 
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false,
   server: { host: '127.0.0.1', port: 0, hmr: false },
-  plugins: [{ name: 'action-definition-fixture',
-    resolveId(id) { if (id === '/__actions-entry.jsx') return '\0actions-entry.jsx' },
+  plugins: [{ name: 'action-definition-fixture', enforce: 'pre',
+    resolveId(id) {
+      if (id === '/__actions-entry.jsx') return '\0actions-entry.jsx'
+      if (/\/auth\/PlatformAuthProvider(?:\.tsx)?$/.test(id)) return '\0actions-auth.js'
+    },
     transform(code, id) { if (id === '\0actions-entry.jsx') return transformWithEsbuild(code, 'actions-entry.jsx', { loader: 'jsx', jsx: 'automatic' }) },
-    load(id) { if (id === '\0actions-entry.jsx') return entry },
+    load(id) {
+      if (id === '\0actions-entry.jsx') return entry
+      if (id === '\0actions-auth.js') return 'export function usePlatformAuth() { return { session: { actorId: "actor-a", customerId: "customer-a", role: "CUSTOMER_ADMIN" } }; } export const useOptionalPlatformAuth = usePlatformAuth;'
+    },
     configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
       if (new URL(req.url, 'http://fixture').pathname !== '/__actions') return next()
       res.setHeader('Content-Type', 'text/html')
@@ -74,7 +80,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } })
   page.setDefaultTimeout(15000)
   const errors = [], writes = [], unexpected = []
-  page.on('pageerror', error => errors.push(error.message))
+  page.on('pageerror', error => { errors.push(error.message); console.error('Browser error: ' + error.message) })
   let draft = { id: 'draft-a', revisionNumber: 1, status: 'DRAFT', actionsConfig: cloneExactJson(fixture),
     routingConfig: { actions: { lookup_order: cloneExactJson(fixture.actions[0].route) }, connector: {}, authz: {} } }
   const initialRouting = cloneExactJson(draft.routingConfig)
@@ -85,6 +91,8 @@ try {
     const send = body => route.fulfill({ status: 200, contentType: 'application/json', body: stringifyExactJson(body) })
     if (url.pathname === '/api/deployments/brain-a/workspace') return send({ access: { canEdit: true, canOperate: false }, deployment: { id: 'brain-a', name: 'Order Brain', runtimeBaseUrl: null } })
     if (url.pathname === '/api/deployments/brain-a/draft') return send(draft)
+    if (url.pathname === '/api/deployments/brain-a/setup-checks') return send({ deploymentId: 'brain-a', draftId: draft.id,
+      revisionNumber: draft.revisionNumber, checkedAt: null, services: [], verifiedCount: 0, failedCount: 0, notTestedCount: 0 })
     if (url.pathname === '/api/deployment-drafts/draft-a' && request.method() === 'PUT') {
       const body = parseExactJson(request.postData())
       writes.push(body)
@@ -233,6 +241,27 @@ try {
   await page.getByText('No action definitions in this draft.', { exact: true }).waitFor()
   await page.evaluate(value => window.__setBuffer(value), stringifyExactJson(fixture))
   const isolatedCurrent = async () => parseExactJson(await page.evaluate(() => window.__buffer))
+  await page.getByRole('button', { name: 'Advanced evidence preparation - Selected fields', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: 'Selected evidence fields', exact: true }).getAttribute('aria-pressed'), 'true')
+  await page.getByRole('button', { name: 'Automatic evidence', exact: true }).click()
+  assert.deepEqual((await isolatedCurrent()).actions[0].llmFacts, { ...fixture.actions[0].llmFacts, mode: 'AUTOMATIC' })
+  await page.getByRole('button', { name: 'Selected evidence fields', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit selected-field projection', exact: true }).click()
+  const projection = page.getByRole('dialog').getByLabel('Evidence projection JSON', { exact: true })
+  await projection.fill('{"mode":"SELECTED_FIELDS","copyFields":[]}')
+  await page.getByRole('dialog').getByRole('button', { name: 'Apply to buffer', exact: true }).click()
+  assert.deepEqual((await isolatedCurrent()).actions[0].llmFacts, { mode: 'SELECTED_FIELDS', copyFields: [] })
+  await page.getByRole('button', { name: 'Edit selected-field projection', exact: true }).click()
+  await projection.fill(stringifyExactJson({ ...fixture.actions[0].llmFacts, mode: 'SELECTED_FIELDS' }))
+  await page.getByRole('dialog').getByRole('button', { name: 'Apply to buffer', exact: true }).click()
+  assert.deepEqual((await isolatedCurrent()).actions[0].route, fixture.actions[0].route)
+  assert.deepEqual((await isolatedCurrent()).actions[1], fixture.actions[1])
+  await page.screenshot({ path: join(screenshots, 'evidence-modes-desktop.png'), fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: join(screenshots, 'evidence-modes-mobile.png'), fullPage: true })
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+  await page.setViewportSize({ width: 1440, height: 1100 })
+  console.log('PASS evidence modes preserve stored fields, empty selected mode, routes, sibling actions and mobile layout')
   await page.getByRole('button', { name: 'Result presentation', exact: true }).click()
   await page.getByRole('combobox', { name: 'Result presentation hint', exact: false }).click()
   await page.getByRole('option', { name: 'DETAIL', exact: true }).click()

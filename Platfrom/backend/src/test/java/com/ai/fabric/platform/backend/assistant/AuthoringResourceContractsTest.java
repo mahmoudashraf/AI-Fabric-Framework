@@ -49,13 +49,18 @@ class AuthoringResourceContractsTest {
         for (String task : new String[] {"ACTIONS", "CONNECTIONS"}) {
             var catalogue = mapper.createObjectNode();
             AuthoringResourceContracts.populate(mapper, catalogue, task);
-            var mapping = catalogue.at("/readResultMemoryExample/response/pinned-targets-from-collection");
+            var mapping = catalogue.at("/readResultMemoryExample/value");
+            assertThat(catalogue.at("/readResultMemoryExample/path").asText()).startsWith("/routingConfig/actions/")
+                .endsWith("/response/pinned-targets-from-collection");
             assertThat(mapping.path("collection-json-pointer").asText()).isEqualTo("/records");
             assertThat(mapping.path("id-json-pointer").asText()).isEqualTo("/id");
             assertThat(mapping.has("vector-space")).isFalse();
             assertThat(mapping.path("max-targets").asInt()).isEqualTo(8);
             assertThat(mapping.at("/content-fields/name").asText()).isEqualTo("/name");
-            assertThat(catalogue.at("/readResultMemoryExample/llmFacts/lists/0/includeFields/0").asText()).isEqualTo("id");
+            assertThat(catalogue.at("/selectedEvidenceExample/value/llmFacts/lists/0/includeFields/0").asText()).isEqualTo("id");
+            assertThat(catalogue.at("/selectedEvidenceExample/value/llmFacts/mode").asText()).isEqualTo("SELECTED_FIELDS");
+            assertThat(catalogue.at("/automaticEvidenceExample/value/llmFacts/mode").asText()).isEqualTo("AUTOMATIC");
+            assertThat(catalogue.path("evidencePreparationRules").asText()).contains("is the default", "never silently broaden", "exposes no result data");
             assertThat(catalogue.path("readResultMemoryRules").asText())
                 .contains("authorized READ", "does not grant permission", "Omit vector-space", "not the schematic example");
         }

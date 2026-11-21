@@ -1,6 +1,32 @@
 import { isExactNumber, parseExactJson, parseExactObject, stringifyExactJson } from '../lib/losslessJson'
 
 export type JsonObject = Record<string, unknown>
+export type ActionEvidenceMode = 'AUTOMATIC' | 'SELECTED_FIELDS'
+
+export function actionEvidenceMode(action: JsonObject): ActionEvidenceMode {
+  const facts = action.llmFacts
+  if (facts === undefined || facts === null || (isJsonObject(facts) && Object.keys(facts).length === 0)) return 'AUTOMATIC'
+  if (!isJsonObject(facts)) throw new Error('llmFacts must be an object. Repair it in Advanced action JSON.')
+  if (facts.mode === undefined) return 'SELECTED_FIELDS'
+  if (facts.mode === 'AUTOMATIC' || facts.mode === 'SELECTED_FIELDS') return facts.mode
+  throw new Error('Evidence mode must be AUTOMATIC or SELECTED_FIELDS.')
+}
+
+export function selectActionEvidenceMode(action: JsonObject, mode: ActionEvidenceMode): JsonObject {
+  actionEvidenceMode(action)
+  return { ...(isJsonObject(action.llmFacts) ? action.llmFacts : {}), mode }
+}
+
+export function parseActionEvidenceProjection(source: string): JsonObject {
+  const result = parseExactObject(source, 'Evidence projection')
+  const mode = actionEvidenceMode({ llmFacts: { ...result, mode: result.mode ?? 'SELECTED_FIELDS' } })
+  for (const key of ['copyFields', 'lists', 'objects']) {
+    if (result[key] !== undefined && !Array.isArray(result[key])) throw new Error(`${key} must be an array.`)
+  }
+  if (result.copyFields && (result.copyFields as unknown[]).some(value => typeof value !== 'string')) throw new Error('copyFields must contain field paths.')
+  if (result.rootPath !== undefined && typeof result.rootPath !== 'string') throw new Error('rootPath must be a string.')
+  return { ...result, mode }
+}
 
 // ConnectorActionDefinition / ConnectorActionParamDefinition, framework 0.8.46.
 export const ACTION_ACCESS_MODES = ['READ', 'READ_WRITE', 'WRITE_ONLY'] as const

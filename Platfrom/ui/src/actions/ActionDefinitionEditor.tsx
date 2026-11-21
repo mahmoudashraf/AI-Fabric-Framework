@@ -4,9 +4,11 @@ import CodeRounded from '@mui/icons-material/CodeRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
 import RouteRounded from '@mui/icons-material/RouteRounded'
 import ClearRounded from '@mui/icons-material/ClearRounded'
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
+import FilterListRounded from '@mui/icons-material/FilterListRounded'
 import {
   Alert, Autocomplete, Box, Button, Checkbox, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, FormControlLabel, IconButton, InputAdornment, MenuItem, Stack, TextField, Tooltip, Typography,
+  DialogTitle, Divider, FormControlLabel, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import { ConfigurationDetails } from '../components/ConfigurationSurface'
 import { parseExactObject, stringifyExactJson } from '../lib/losslessJson'
@@ -19,6 +21,7 @@ import {
   isJsonObject, patchActionDefinition, patchActionParameter, readActionCatalogue, readActionParams,
   removeActionDefinition, removeActionParameter, replaceActionDefinition, parseActionParameterInteger,
   parseActionParameterJson, type ActionParameterJsonField, type JsonObject,
+  actionEvidenceMode, selectActionEvidenceMode, parseActionEvidenceProjection, type ActionEvidenceMode,
 } from './actionDefinitionModel'
 
 type Props = {
@@ -73,7 +76,7 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
   const [newName, setNewName] = useState('')
   const [removing, setRemoving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [jsonEdit, setJsonEdit] = useState<{ source: string; index: number; value: string; paramIndex?: number; field?: ActionParameterJsonField } | null>(null)
+  const [jsonEdit, setJsonEdit] = useState<{ source: string; index: number; value: string; paramIndex?: number; field?: ActionParameterJsonField; evidence?: boolean } | null>(null)
   const [jsonError, setJsonError] = useState<string | null>(null)
 
   const namedIndex = catalogue.actions.findIndex(action => isJsonObject(action) && action.name === selection.name)
@@ -84,6 +87,10 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
   const action = isJsonObject(candidate) ? candidate : null
   const mcp = mcpActionDestination(action)
   const name = action ? text(action, 'name') : ''
+  const evidence = useMemo(() => {
+    try { return { mode: action ? actionEvidenceMode(action) : 'AUTOMATIC', error: null } }
+    catch (error) { return { mode: null, error: error instanceof Error ? error.message : 'Invalid evidence configuration.' } }
+  }, [action])
   const params = useMemo(() => {
     try { return { values: action ? readActionParams(action) : [], error: null } }
     catch (error) { return { values: [], error: error instanceof Error ? error.message : 'Invalid params array.' } }
@@ -256,6 +263,33 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
           </Stack>
         </ConfigurationDetails>
 
+        <ConfigurationDetails label={`Advanced evidence preparation - ${evidence.mode === 'AUTOMATIC' ? 'Automatic' : evidence.mode === 'SELECTED_FIELDS' ? 'Selected fields' : 'Needs attention'}`}>
+          <Stack spacing={2}>
+            {evidence.error ? <Alert severity="error">{evidence.error}</Alert> : null}
+            <ToggleButtonGroup exclusive size="small" aria-label="Evidence preparation mode" value={evidence.mode} disabled={disabled || Boolean(evidence.error)}
+              sx={{ flexWrap: 'wrap', alignSelf: 'flex-start' }} onChange={(_, value: ActionEvidenceMode | null) => {
+                if (value) patch({ llmFacts: selectActionEvidenceMode(action, value) })
+              }}>
+              <ToggleButton value="AUTOMATIC" aria-label="Automatic evidence"><AutoAwesomeOutlined fontSize="small" sx={{ mr: 1 }} />Automatic</ToggleButton>
+              <ToggleButton value="SELECTED_FIELDS" aria-label="Selected evidence fields"><FilterListRounded fontSize="small" sx={{ mr: 1 }} />Selected fields</ToggleButton>
+            </ToggleButtonGroup>
+            <Typography variant="body2" color="text.secondary">{evidence.mode === 'SELECTED_FIELDS'
+              ? 'Only the configured fields are supplied as answer evidence. An empty selection does not fall back to the full result.'
+              : 'Successful action output is prepared automatically, including nested records, within size limits. Transport headers and known credential fields are excluded.'}</Typography>
+            {evidence.mode === 'SELECTED_FIELDS' ? <>
+              <Autocomplete multiple freeSolo options={[]} disabled={disabled}
+                value={isJsonObject(action.llmFacts) && Array.isArray(action.llmFacts.copyFields) ? action.llmFacts.copyFields.filter((field): field is string => typeof field === 'string') : []}
+                onChange={(_, fields) => patch({ llmFacts: { ...selectActionEvidenceMode(action, 'SELECTED_FIELDS'), copyFields: fields } })}
+                renderInput={input => <TextField {...input} size="small" label="Result field paths" placeholder="e.g. status or order.reference"
+                  helperText="Optional direct fields. Existing list and object projections are retained below." />} />
+              <Button startIcon={<CodeRounded />} sx={{ alignSelf: 'flex-start' }} disabled={disabled} onClick={() => {
+                setJsonError(null)
+                setJsonEdit({ source: editorValue, index, evidence: true, value: stringifyExactJson(action.llmFacts ?? { mode: 'SELECTED_FIELDS', copyFields: [] }, 2) })
+              }}>Edit selected-field projection</Button>
+            </> : null}
+          </Stack>
+        </ConfigurationDetails>
+
         <ConfigurationDetails label="Grounding & read resolution">
           <Stack spacing={2}>
             <FormControlLabel control={<Checkbox checked={grounding} disabled={disabled}
@@ -307,11 +341,11 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
     </Dialog>
 
     <Dialog open={jsonEdit !== null} onClose={() => setJsonEdit(null)} fullWidth maxWidth="md" aria-labelledby="action-json-title">
-      <DialogTitle id="action-json-title">{jsonEdit?.field ? parameterJsonLabels[jsonEdit.field] : mcp ? 'Advanced local action JSON' : 'Advanced action JSON'}</DialogTitle>
+      <DialogTitle id="action-json-title">{jsonEdit?.evidence ? 'Selected-field evidence projection' : jsonEdit?.field ? parameterJsonLabels[jsonEdit.field] : mcp ? 'Advanced local action JSON' : 'Advanced action JSON'}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
-        <TextField fullWidth multiline minRows={jsonEdit?.field ? 6 : 16} maxRows={24} label={jsonEdit?.field ? `${parameterJsonLabels[jsonEdit.field]} JSON` : mcp ? 'Local action settings JSON' : 'Action definition JSON'} value={jsonEdit?.value ?? ''}
+        <TextField fullWidth multiline minRows={jsonEdit?.field || jsonEdit?.evidence ? 6 : 16} maxRows={24} label={jsonEdit?.evidence ? 'Evidence projection JSON' : jsonEdit?.field ? `${parameterJsonLabels[jsonEdit.field]} JSON` : mcp ? 'Local action settings JSON' : 'Action definition JSON'} value={jsonEdit?.value ?? ''}
           disabled={disabled || jsonStale} onChange={event => { setJsonEdit(current => current ? { ...current, value: event.target.value } : null); setJsonError(null) }}
-          helperText={jsonEdit?.field ? parameterJsonHelp[jsonEdit.field] : mcp ? 'Local settings only. Typed defaultValue and resolveFrom are configurable; imported parameter contracts, native schemas and connection settings are read-only.' : 'Parameters use defaultValue, allowedValues and resolveFrom. Nested schemas use items, properties and requiredProperties.'}
+          helperText={jsonEdit?.evidence ? 'Use copyFields, lists or objects. Example: {"mode":"SELECTED_FIELDS","lists":[{"sourcePath":"products","target":"records","maxItems":8,"includeFields":["id","name","price"]}]}. Paths are relative to the approved action result.' : jsonEdit?.field ? parameterJsonHelp[jsonEdit.field] : mcp ? 'Local settings only. Typed defaultValue and resolveFrom are configurable; imported parameter contracts, native schemas and connection settings are read-only.' : 'Parameters use defaultValue, allowedValues and resolveFrom. Nested schemas use items, properties and requiredProperties.'}
           InputProps={{ sx: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 } }} />
         {jsonError ? <Alert severity="error">{jsonError}</Alert> : null}
         {jsonStale ? <Alert severity="warning">The current buffer changed. Close and reopen Advanced action JSON before editing.</Alert> : null}
@@ -319,7 +353,7 @@ export function ActionDefinitionEditor({ editorValue, onChange, disabled = false
       <DialogActions><Button onClick={() => setJsonEdit(null)}>Cancel</Button><Button startIcon={<CodeRounded />} variant="contained" disabled={disabled || jsonStale} onClick={() => {
         if (!jsonEdit || disabled || jsonStale) return
         try {
-          onChange(jsonEdit.field && jsonEdit.paramIndex !== undefined
+          onChange(jsonEdit.evidence ? patchActionDefinition(editorValue, jsonEdit.index, { llmFacts: parseActionEvidenceProjection(jsonEdit.value) }) : jsonEdit.field && jsonEdit.paramIndex !== undefined
             ? patchActionParameter(editorValue, jsonEdit.index, jsonEdit.paramIndex, { [jsonEdit.field]: parseActionParameterJson(jsonEdit.field, jsonEdit.value) })
             : mcpActionDestination(isJsonObject(catalogue.actions[jsonEdit.index]) ? catalogue.actions[jsonEdit.index] as JsonObject : null)
               ? replaceMcpLocalSettings(editorValue, jsonEdit.index, parseExactObject(jsonEdit.value, 'Local action settings'))

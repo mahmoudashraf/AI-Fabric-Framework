@@ -365,6 +365,22 @@ public class DeploymentDraftValidationService {
             }
 
             validatePostPolicies(action.path("postPolicies"), basePath, name, webhookTargetIds, issues);
+            JsonNode facts = action.path("llmFacts");
+            if (!facts.isMissingNode() && !facts.isNull()) {
+                if (!facts.isObject()) {
+                    issues.add(error("actions", "ACTION_EVIDENCE_CONFIG_INVALID", basePath + ".llmFacts",
+                        "Evidence preparation must be an object. Omit it for automatic preparation."));
+                } else if (facts.has("mode") && (!facts.path("mode").isTextual()
+                    || !java.util.Set.of("AUTOMATIC", "SELECTED_FIELDS").contains(facts.path("mode").asText()))) {
+                    // Mode selects the approved data exposure boundary; never silently widen an invalid selection.
+                    issues.add(error("actions", "ACTION_EVIDENCE_MODE_INVALID", basePath + ".llmFacts.mode",
+                        "Choose AUTOMATIC or SELECTED_FIELDS for evidence preparation."));
+                } else if (("SELECTED_FIELDS".equals(facts.path("mode").asText()) || (!facts.has("mode") && !facts.isEmpty()))
+                    && facts.path("copyFields").isEmpty() && facts.path("lists").isEmpty() && facts.path("objects").isEmpty()) {
+                    issues.add(warning("actions", "ACTION_EVIDENCE_SELECTION_EMPTY", basePath + ".llmFacts",
+                        "Selected-field evidence has no fields. Result data will not be supplied to answer generation."));
+                }
+            }
 
             if (action.path("requiresConfirmation").asBoolean(false) && !name.isEmpty()) {
                 confirmableActionNames.add(name);

@@ -121,6 +121,22 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void actionEvidenceModesValidateTheExposureContractWithoutMakingOptionalMappingsMandatory() {
+        for (String setting : java.util.List.of("", ",\"llmFacts\":{\"mode\":\"AUTOMATIC\"}",
+            ",\"llmFacts\":{\"mode\":\"SELECTED_FIELDS\",\"copyFields\":[\"status\"]}")) {
+            var result = service.validate(draft("{\"actions\":[{\"name\":\"read_record\",\"accessMode\":\"READ\"" + setting + "}]}",
+                "{\"ai-entities\":{}}", "{}", "{}", "{}"));
+            assertThat(result.issues()).extracting("code").doesNotContain("ACTION_EVIDENCE_MODE_INVALID", "ACTION_EVIDENCE_SELECTION_EMPTY");
+        }
+        var empty = service.validate(draft("{\"actions\":[{\"name\":\"read_record\",\"accessMode\":\"READ\",\"llmFacts\":{\"mode\":\"SELECTED_FIELDS\",\"copyFields\":[]}}]}",
+            "{\"ai-entities\":{}}", "{}", "{}", "{}"));
+        assertThat(empty.issues()).extracting("code").contains("ACTION_EVIDENCE_SELECTION_EMPTY");
+        var invalid = service.validate(draft("{\"actions\":[{\"name\":\"read_record\",\"accessMode\":\"READ\",\"llmFacts\":{\"mode\":\"typo\"}}]}",
+            "{\"ai-entities\":{}}", "{}", "{}", "{}"));
+        assertThat(invalid.issues()).extracting("code").contains("ACTION_EVIDENCE_MODE_INVALID");
+    }
+
+    @Test
     void taskValidationAcceptsInputOnlyTaskAndReportsUninstalledCapabilities() throws Exception {
         var mapper = new ObjectMapper();
         var draft = draft("{\"actions\":[]}", "{\"ai-entities\":{}}", "{}", "{}", "{}");

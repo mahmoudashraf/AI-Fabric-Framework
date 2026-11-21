@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.57",
+  "aiFabricVersion": "0.8.58",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -26,6 +26,7 @@
     "SPECIALIST_ASSISTANCE"
   ],
   "capabilities": [
+    "automatic-action-evidence-v1",
     "managed-mcp-connections",
     "managed-intelligence-tasks",
     "managed-task-governed-actions",

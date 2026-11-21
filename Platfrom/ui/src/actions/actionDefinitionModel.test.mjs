@@ -25,6 +25,22 @@ test('contract enums are connector enums, not invented WRITE or source propertie
   assert.deepEqual(model.ACTION_RESULT_HINTS, ['DEFAULT', 'LIST', 'DETAIL', 'STATUS'])
 })
 
+test('automatic evidence is the default and existing selected fields are never widened implicitly', () => {
+  assert.equal(model.actionEvidenceMode({}), 'AUTOMATIC')
+  assert.equal(model.actionEvidenceMode({ llmFacts: {} }), 'AUTOMATIC')
+  assert.equal(model.actionEvidenceMode({ llmFacts: { copyFields: ['status'] } }), 'SELECTED_FIELDS')
+  assert.equal(model.actionEvidenceMode({ llmFacts: { mode: 'SELECTED_FIELDS' } }), 'SELECTED_FIELDS')
+  assert.throws(() => model.actionEvidenceMode({ llmFacts: [] }), /must be an object/)
+  assert.throws(() => model.actionEvidenceMode({ llmFacts: { mode: 'typo' } }), /Evidence mode/)
+  const action = actionCatalogueFixture.actions[0]
+  const automatic = model.selectActionEvidenceMode(action, 'AUTOMATIC')
+  assert.deepEqual(automatic, { ...action.llmFacts, mode: 'AUTOMATIC' })
+  const selected = model.selectActionEvidenceMode({ ...action, llmFacts: automatic }, 'SELECTED_FIELDS')
+  assert.deepEqual(selected, { ...action.llmFacts, mode: 'SELECTED_FIELDS' })
+  assert.deepEqual(model.parseActionEvidenceProjection('{"copyFields":["status"]}'), {copyFields: ['status'], mode: 'SELECTED_FIELDS'})
+  assert.throws(() => model.parseActionEvidenceProjection('{"copyFields":"status"}'), /must be an array/)
+})
+
 test('basics, access, confirmation and grounding edits preserve all unedited definition and catalogue fields', () => {
   const changes = {
     displayName: 'Order status', description: 'Current status by order reference.', category: 'support',
