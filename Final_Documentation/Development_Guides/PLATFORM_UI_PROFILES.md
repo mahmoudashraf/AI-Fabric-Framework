@@ -139,6 +139,13 @@ Session management and raw references belong under session options/Advanced.
 Manual action/plugin editors remain the single editable implementation, opened
 explicitly from the outcome table rather than automatically mounting on entry.
 
+Action evidence preparation belongs in that existing action editor's collapsed
+Advanced section. Automatic is the new-action default; selected fields remains
+an explicit, lossless advanced projection. Preserve saved selection rules when
+switching modes and show an empty-selection warning rather than silently using
+the complete result. Use the normal shared draft save and explicit Updates
+workflow, not another editor, automatic publication or a new connection test.
+
 Connection testing has one aggregate entry at Smart Brain -> Updates -> Check
 setup, combining existing draft validation with safe service checks. Saving a
 connection runs only changed/new checks and shows a compact shared summary;

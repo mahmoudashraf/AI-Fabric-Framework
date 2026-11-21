@@ -17050,3 +17050,108 @@ test is being called hosted acceptance. UI extraction remains last.
   rollout/query/browser helpers exited; final audit and document whitespace
   checks passed. Source remains72cbd4cc; final report/context-only commit follows.
   Unrelated .gitignore, UI tsbuildinfo and untracked user work remain untouched.
+
+### 2026-11-21 Harbor AI-Built Kit Recording And Quality Findings
+
+- New normal-customer developer staging-only Kit kit-08db160a-e9c7-4d80-8aa4-ccd286905da4,
+  Brain dep-86ad8f93, target dtp-coolify-staging-behavior. Existing Harbor retained;
+  new environment uses workspace second infrastructure slot. No quota increase.
+- Managed PostgreSQL, distinct managed Milvus/Zilliz and private hosted S3 were
+  provisioned through normal UI. Two uploaded guides explicitly public-approved,
+  indexed and reconciled ACTIVE. Original hashes match; anonymous S3 HEAD403.
+- All business edits used Build with AI with human review/guidance. Credentials
+  only in masked Keys & secrets; uploads/approval/publish/apply/assignment/activate
+  explicit UI commands. No framework/application source changes for recording.
+- Confirmed generated-config defect: harbor_search_products omitted root action
+  llmFacts, so fallback dropped nested products and sent only count/scalar facts.
+  First attempted correction mislocated response fields; explicitly undone before
+  publication. AI then saved supported products-to-records projection and routing
+  pinned-target mapping. Optional filters askUser true/required false retained.
+- Final v3 ver-c996822f, rel-ac4c5ae1 APPLIED_VERIFIED/PASSED, framework0.8.57,
+  source72cbd4cc; verification30pass/0fail/4skip. Runtime+connector healthy0restarts,
+  owned DBhealthy, vector cluster stable betweenv2/v3. Initialv1 correctly failed
+  document readiness before indexing; history retained, no hidden replay.
+- Standalone awi_pub_22c8a38f5cffca12415185e93e035898 ACTIVE, consumer
+  engage-40e6c07b-836d-3364-a7c5-3bcf68cdd6f8 explicitly bound verifiedv3:
+  https://harbor-ai-build-20261121.apps.loomai.pro . Existing app/Brain IDs retained.
+- Earlytests blocked by OpenAI429 insufficient_quota/credit_balance_exhausted;
+  owner restored credits and resumedtests recorded separately. Do not leave this
+  as a current credit blocker. Product/desk comparison and390phoneproduct PASS.
+  Explicit confirmation created exactly1synthetic enquiry, no email/reservation;
+  natural follow-up returned actualreference/RECEIVED. Unknownwarranty notinvented.
+- THREE semantic failures remain: delivery computedGBP524 butcontradicted free
+  eligibility; returns/care didnotretrieve approvedACTIVEguides. Bothdocumentturns
+  reallyrequestedRAG/document namespace, notamissingplannercatalogue. Exactscoped
+  vector/filtercause stilluntraced; doNOTrelaxowner/publicapproval/activeversion
+  filtersorclaimindexingreadinessprovesanswerquality. Immediatewriteackgeneric.
+- Both normal recording-account sessionssignedout; no newadminsession. Allraw
+  evidence/helpers at ~/.codex/private/harbor-recording-20261121, safevideooutputs
+  /Users/mahmoudashraf/Movies/LoomAI/Harbor-2026-11-21. Notes:
+  verification-support/harbor-ai-kit-20261121/README.md. No videos/privatekeysinGit.
+  Initialharness/noresponsecomparisonfailure andallrealfailedsamplesretained.
+  Videoassembly complete:64m38full,7m19finaltests,94sphone. RealH264playback,
+  canvaspixels,chapterseek andnooverflow PASS on1440/390 locallyandpublicHTTPS;
+  publicMP4range206/2048bytes. Own browser/encoder/QAprocesses allclosed.
+  Galleryintentionallyrunning8766, safeoutputsONLY. Temporaryunlisted/notauth:
+  https://columbus-endangered-resist-dates.trycloudflare.com/player.html .
+  Macmuststayawake/online; quicktunnelURLnotpermanent. No all-greenqualityclaim.
+
+### 2026-11-21 Automatic Action Evidence - In Progress
+
+- Owner approved Automatic as the new-action default and Selected fields as an
+  Advanced option. Implemented public framework0.8.58/source359236c315098708db6fb9f057e09c1ff62cb084;
+  immutable tag/release ai-fabric-framework-v0.8.58 exists. Do NOT recreate it.
+- Private feature f3be4746d plus compatibility15000367e (full image candidate
+  15000367eafc94cf9f2c63a1ed11ed50384e983f) committed locally, NOT PUSHED as of
+  13:17 UTC. Preserve unrelated dirty files. No backend/UI/Harbor live changes.
+- Automatic uses bounded successful approved ActionPayload, retains arbitrary
+  nested records, excludes known structured credential/transport fields and
+  declared sensitive parameter names. Existing nonempty projections stay selected;
+  empty selected never falls back. Modes round-trip without deleting rules.
+  No additional AI calls/retries, authorization or confirmation changes.
+- Local public reactor2558/0fail/0skip; focused109; Platform118; UI50;
+  Shopify compatibility6; typecheck/build and desktop/mobile editor browser PASS.
+  Actual public CI2558/0fail/0error/2skip: existing Docker-conditional
+  JdbcPostgresqlLeaseTransitionTest (passed locally). Do not report CI zero skips.
+- Public release44904347460 built/signed/uploaded all components at12:39 UTC,
+  then timed out after30min waiting for publication. No unit test/build failure.
+  Central deployment d41e7c30-c73a-4337-bc1e-16b65972ed04; read-only status run
+  44907574446 at13:11 UTC: PUBLISHING,31purls, errors{}. Do NOT re-upload while
+  pending. Maven Central public BOM/core still404. No private CI or rollout yet.
+- Private root ~/.codex/private/automatic-evidence-0858 contains immutable
+  release/source proofs, failed-publication log, parsed Central status, local
+  test logs and helpers. wait-central-and-push.mjs checks every published
+  component before Central hash proof and one pinned private fast-forward push.
+  watch-private-ci.mjs observes exact-source backend/UI/runtime builds; service
+  rollout helpers enforce source, stage-before-production, unchanged env/caps/
+  mounts/schema. register-runtime.mjs and harbor-native.mjs are prepared, not run.
+- New own staging+production admin sessions ACTIVE in that root and must be
+  revoked on closure. Own normal customer Playwright browser-host.mjs is ACTIVE;
+  baseline draft/apps/consumers/releases and native runtime+connector snapshots
+  captured for current Harbor dep-86ad8f93/kit08db.../activeapp22c8... . Existing
+  v3rel-ac4c5ae1 stilllive57. No draft edit yet. Prior gallery8766 stays running.
+- Remaining: public availability -> private CI -> stage/prod backend+UI ->
+  register/promote58 -> normal Harbor UI mode round-trip/removal of llmFacts ->
+  publish/apply58 -> verified release + exact active-consumer binding -> native
+  Central library hashes/storage+config preservation -> actual chat/phone and
+  exactly-one confirmed synthetic write -> final docs/push/session revocation.
+  Prior delivery contradiction and returns/care RAG misses remain separate.
+  See verification-support/automatic-action-evidence/2026-11-21.md for evidence.
+- External blocker confirmed by final read-only status44909740265 at13:36:58:
+  still PUBLISHING/31components/0errors/0warnings after successful signed upload.
+  Canonical repo.maven.apache.org and repo1.maven.org downloads still404. No
+  private push/CI, image deployment, source registration or Harbor edit occurred.
+  Bounded availability/CI observation helpers ended; do not call those CI failures.
+  Only public release job failed, solely on its publication-poll timeout.
+- 13:35 normal customer read proof: all config sections exact baseline, appACTIVE/
+  ready on originalrel-ac4c5ae1. Browser signedout/storedidentitycleared/closed;
+  both ownadmincookies normal logout/revocation checked. Gallery8766 untouched.
+  No task-owned helpers left running. Feature is NOT live-qualified or deployed.
+- Resume with existing Central deployment/status, not a duplicate upload/tag or
+  speculative version bump. Prepared helper can make the one pinned private
+  fast-forward push of15000367e after ALL published components are available.
+  Run CI/rollout/native/live qualification against that exact image source;
+  later documentation-only commits need no separate runtime rollout. If source
+  changes, re-evaluate the candidate and existing snapshots rather than reusing
+  a mutation intent or blindly replaying an apply. No user configuration fix is
+  required to unblock Maven Central's own publication processing.

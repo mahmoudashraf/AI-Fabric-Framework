@@ -124,6 +124,27 @@ and adoption in 010.63's generation-integrity record; approval/source is not
 deployment evidence. Relationship-specific behavior and public web search
 remain deferred.
 
+## Automatic Action Evidence (Owner Decision, 2026-11-21)
+
+Automatic preparation of successful approved action output is the default from
+framework 0.8.58. New actions do not require an `llmFacts` projection. Existing
+explicit projections remain selected fields, including when their mode was
+omitted; never silently widen one. Selected fields is an Advanced option in the
+canonical action editor. Empty selected output must not fall back to Automatic.
+Switching modes retains saved rules; Automatic ignores inactive selection rules.
+
+Use the connector's existing approved `ActionPayload`, after any configured
+response mapping, not transport headers, parameters, execution context or stored
+credentials. Retain bounded structured output and visible truncation. Structural
+credential exclusions are defense in depth, not a classifier for arbitrary
+confidential fields or secrets in prose. Keep output contracts appropriately
+narrow. Failed action data is not automatically forwarded. No additional model
+call, retry, authority, write confirmation or document-filter relaxation follows
+from this default. Answer breadth and conversational record memory are separate.
+See `Final_Documentation/External_User_Guides/SMART_BRAIN_ACTION_EVIDENCE.md`;
+actual publication/adoption evidence belongs in `CODEX_WORKING_CONTEXT.md` and
+the dated verification record, not this owner decision.
+
 ## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
 
 An explicit configuration request authorizes the assistant to save changes to
