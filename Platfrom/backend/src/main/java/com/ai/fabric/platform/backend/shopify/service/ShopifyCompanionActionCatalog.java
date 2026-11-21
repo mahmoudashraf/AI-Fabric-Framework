@@ -160,9 +160,8 @@ final class ShopifyCompanionActionCatalog {
         if (llmFacts == null || !llmFacts.isObject()) {
             return false;
         }
-        return llmFacts.path("copyFields").isArray() && !llmFacts.path("copyFields").isEmpty()
-            || llmFacts.path("lists").isArray() && !llmFacts.path("lists").isEmpty()
-            || llmFacts.path("objects").isArray() && !llmFacts.path("objects").isEmpty();
+        // Preserve explicit exposure policy, including Automatic and empty Selected fields.
+        return !llmFacts.isEmpty();
     }
 
     private static boolean ensureProductFilterParams(ObjectNode action, String actionId) {

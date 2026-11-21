@@ -65,6 +65,41 @@ class ShopifyCompanionActionCatalogTest {
     }
 
     @Test
+    void ensureLlmFactsDefaultsPreservesExplicitEvidenceModeWithoutSelectionRules() {
+        for (String mode : new String[]{"AUTOMATIC", "SELECTED_FIELDS", "INVALID_MODE"}) {
+            ObjectNode config = JsonNodeFactory.instance.objectNode();
+            ObjectNode action = config.putArray("actions").addObject()
+                .put("name", "list_products")
+                .put("category", "shopify-companion")
+                .put("adapterType", "mcp-tool")
+                .put("accessMode", "READ");
+            ObjectNode existing = action.putObject("llmFacts").put("mode", mode);
+            ObjectNode before = existing.deepCopy();
+
+            ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(config);
+
+            assertThat(action.path("llmFacts")).isEqualTo(before);
+        }
+    }
+
+    @Test
+    void ensureLlmFactsDefaultsDoesNotWidenLegacyEmptyProjection() {
+        ObjectNode config = JsonNodeFactory.instance.objectNode();
+        ObjectNode action = config.putArray("actions").addObject()
+            .put("name", "list_products")
+            .put("category", "shopify-companion")
+            .put("adapterType", "mcp-tool")
+            .put("accessMode", "READ");
+        ObjectNode existing = action.putObject("llmFacts");
+        existing.putArray("copyFields");
+        ObjectNode before = existing.deepCopy();
+
+        ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(config);
+
+        assertThat(action.path("llmFacts")).isEqualTo(before);
+    }
+
+    @Test
     void routeActionIdsIncludesManagedCustomerAccountAndCheckoutPlugins() {
         ObjectNode actionsConfig = JsonNodeFactory.instance.objectNode();
         var actions = actionsConfig.putArray("actions");
