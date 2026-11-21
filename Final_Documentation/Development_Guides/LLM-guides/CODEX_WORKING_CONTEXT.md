@@ -16962,3 +16962,91 @@ test is being called hosted acceptance. UI extraction remains last.
   privately; updated only generateTextResponse mock to3args, retaining native
   budget-denial/write-receipt assertions. Focused3thenPASS. NeedCI full runtime
   rerun, image/native gates, production release and real UI/AI verification.
+- Source72cbd4cc9870de774c1fb34f35bb912e7b90245d committed/pushed. CI runtime
+  44886457983, backend44886458000 andDesk44886457984 allSUCCESS; UIimageskipped.
+  RuntimefullrequiredCIpassed, DeskrequiredPostgrespassed. Adminsessionsfresh
+  inownprivatedir, mustrevokebothatend (admin-session.mjs logout env).
+- Staging directserviceadoption running through service-rollout.mjs: Desk8245,
+  backend55093; assistant also starting. Boundedreceiptspreventduplicates.
+  Brain normalupgrades preparedinbrain-rollout.mjs, inventory3c4/79/5fbd zero
+  draftdiffs. Native-libraries.mjs checksALLframeworkbytes againstpublic57 and
+  preservedresources/storage/sensitiveenv withoutprintingvalues. Noprodmutation
+  yet. Needstageproofs thenprodbackend/Desk/assistant, registerruntimeartifact,
+  publish3Brains/applystage/read-onlyAI/manualreviewthenprod/normalbindings.
+- 09:08UTC: ALL directservices now72/nativehealthy/settingspreserved: backend
+  stageqnlas.../prodgw3... schema241unchanged; Deskstagedsp4.../prodvxk...,
+  assistantstagej12.../prodnd06.... NativeDesk3libraries andassistant20libraries
+  onBOTHhosts matchpublic57bytes. Image runtime4e136061...,backenddc3bf205...,
+  Deskb298c9c1.... CIproofactual818runtime0skip/Desk1500skip preservedprivately.
+- ActualassistantUI stageANDprod PASS withnormalSupabasecustomer: paste1neutral
+  API source, Preparecapabilities(nohint),1READaction/1attempt/0validationerrors,
+  unrelatedsettingsunchanged, no publish/apply, desktop+390phonenoerrors/overflow.
+  Successfulsessions+temporaryBrainsdeletednormallyanduser signedout. Twoinitial
+  pre-inferenceharnessfailures retained: staleautopaneltoggle andoldPrepareactions
+  label. ThoseBrainsdeleted,2IDLEauthoringsessionmetadataorphansTTLNov28 remain
+  because normalDELETEafterresourcedeletion404; noAIcalls/infra fromthosefailures.
+- Runtimeartifactdsa-4680b746 registeredproductionCP with57manifest/publiccore
+  hash. Publishedversions onlyframeworkchange: Supportver-423d4ac3,Northfield
+  ver-740c6dca,Harborver-e6de354a; allreindexfalse/10sectionsunchanged.
+  Concurrenthelperregistrysavelost2localentries, recoveredfromimmutablepublish
+  receipts+authoritativeversionsreadback(count+1each), NO backendmutation/replay.
+  Futurebrainmutationsserializedwithlockfile; observeprocessdoesnotmutateregistry.
+- Supportstagingapplyrel-556ff629 ongoing, observerexec57842; runtime7ec4ed9d
+  andconnector37c2bc7a healthy, finalCoolifyjobstillfinishing09:08. Pendingnative
+  proof+brain-query+manualsemanticreview beforeSupportproductionapply; Northfield
+  andHarborstagingnotappliedyet. Helpersbrain-rollout/native-libraries/brain-query/
+  engage-ui/desk-ui/support-customer inprivateroot. Neednormalappbindingsafter
+  verifiedrelease. AdminstaffsessionsstillACTIVEandmustlogoutatend.
+- 09:13UTC: ProductionassistantUI alsoPASS/1READaction/1attempt/unrelatedconfig
+  unchanged/no publication; cas-91410... anddep91f090c9 deletednormaldel-a1df35ee,
+  signedout. Stageproperproof assistant-ui-staging-current-capability-control/
+  reportPASS/sessioncasf253.../dep-f198f509 deletiondel716...; ALLpublishednative
+  libs20assistant/3Deskverifiedbothhosts. InitialtwoharnessfailuresmadeZEROAI
+  calls; normalpost-resource-deletion sessionDELETE404 retained;2IDLEmetadata
+  rows expireNov28, noinfra. Don'tsilentlySQLdeleteorclaimfullcleanup.
+- Supportstage57rel556... inwait_for_coolify_connector_after_database_credential_scrub
+  (normalsecondrestart, firstjobfinished9:09); observer57842. Northfieldstage
+  57rel-5fa07fbe launched, observer23081, wait_for_coolify_runtime. Neitherhas
+  finalPlatformverificationyet. Harborstagenotstarted. Needfinishall5target
+  releases(3stage,2prod), nativeproofs/read-onlyAI/manualreview/normalbindings,
+  EngageUI, ordinarycustomerSupport, DeskUIhandover andfinalintegrity/docs/commit.
+- Final 09:44 UTC adoption evidence supersedes intermediate pending entries:
+  all five target releases APPLIED_VERIFIED/PASSED on framework0.8.57/source72cbd4cc.
+  Northfield stage rel-5fa07fbe/prod rel-d079d2a1, Support stage rel-556ff629/
+  prod rel-9ea1b03c, Harbor stage-only rel-532c7c37. All existing active app
+  bindings updated normally; no new production Harbor target or stopped restart.
+  Native libraries per runtime20/connector5/Desk3 all match public Central57.
+  Both source-artifact catalogues qualified: prod dsa-4680b746/stage dsa-f95fa8dd.
+- Final audit PASS: all3Brains/10draftsections/immutableoldversions/ownership/
+  appIDs/configuration/URLs/storage/settings preserved; exactly1newversion each,
+  reindexfalse,5verifiedreleases. 16servicecontainers healthy/restart0,21stopped
+  apps remainstopped,6publicHTTPSentrypoints200. No capacity/load benchmark.
+- Normal customer Support5turn PASS includes context-only yesplease, channels,
+  secretplacement and actual successful consult_specialist. Restricted synthetic
+  service identity correctly lacks specialist scope, not broadened. Console
+  embedded SupportUI actualsourcedanswerPASS/desktop+phone/noJSerrors/signedout.
+- Engage UI3turns each Northfieldstage/prod and Harborstage transportPASS;
+  manual semantic review retained limits: Northfield combined policy query only
+  retrieveddelivery/disclosedmissingreturns; Harborpublic returns OUT_OF_SCOPE
+  beforeRAG despiteavailabledocumentnamespace (authorizedserviceconversation
+  retrievedcorrectreturns). No hidden repeat-until-pass or new semantic patch.
+  Phone renders but existing narrowSupport source rail crowdsanswerarea; not
+  exhaustive mobileusability qualification, no UIredesign inthisdependencyrollout.
+- Production Desk full realUI PASS: existingagentnormalSSO+explicitconfirmation,
+  visitorhandover/claim/bidirectionalreply/AIpaused/explicitreturn/actualsourced
+  AIanswerafterreturn; newepisode terminalRETURNED_TO_AI. Firstharness202-vs200
+  failureepisodealsoidentifiedexactlyandreturnednormally, no other handovers
+  touched. Agent+itsConsole sessions signedout. Harness route/manifest/status/
+  identityselectors corrected, originalfailuresretained; no productauthchange.
+- Final report verification-support/framework-demos/
+  2026-11-21_PRODUCTION_PRODUCTS_0857_UPGRADE.md recordsactualCI/runtime8180skip/
+  Desk1500skip andimages. Broaderpublicframework14IncidentRoomfailuresstill
+  preexisting;2IDLEpre-inferencesessionmetadataorphansTTLNov28stillnotdeleted.
+  Pending only ownadminsessionrevocations, finalreport/context commit andpush;
+  no further runtime deployment needed for that documentation-only commit.
+- 09:46 UTC closure: own production and staging admin cookies revoked through
+  normal logout and confirmed unauthenticated. Desk agent and its Console cookie
+  already signed out; both synthetic handover episodes terminal. All task-owned
+  rollout/query/browser helpers exited; final audit and document whitespace
+  checks passed. Source remains72cbd4cc; final report/context-only commit follows.
+  Unrelated .gitignore, UI tsbuildinfo and untracked user work remain untouched.
