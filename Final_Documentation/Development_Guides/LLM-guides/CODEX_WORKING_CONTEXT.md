@@ -17155,3 +17155,159 @@ test is being called hosted acceptance. UI extraction remains last.
   changes, re-evaluate the candidate and existing snapshots rather than reusing
   a mutation intent or blindly replaying an apply. No user configuration fix is
   required to unblock Maven Central's own publication processing.
+
+### 2026-11-21 Automatic Evidence Resume - Rollout In Progress
+
+- 14:47 UTC owner requested retry. All30unique Central components now available;
+  public-consumer-proof.private.json records actual BOM/core/actions-connector
+  SHA256. No tag movement, re-upload or version bump. Pinned private15000367e
+  pushed; coreimages44915768330 and runtime44915768329 SUCCESS. RuntimeCI181
+  private accounting tests +818runtime tests,0fail/0skip. Publicjobtimeout remains
+  historical; it is superseded by real public availability, not re-labelled green.
+- Backend15000367e deployed/healthy bothhosts; schema241, env/caps/mounts retained.
+  UI150 initially deployed bothhosts. Real stage staff editor read PASS.
+  Runtime58image sha256:40594161a15b2ff453e3c8e56f7b2fb8e31bdf6d73ba9e9886dde0989cecd4d7
+  actualmanifest/coreCentralbytes match; normal source registration/promotedstage:
+  stageCP dsa-30fec014, productionCP dsa-c0312d5c.
+- Live customer found existing refresh-lock defect: restoring historical SAVED
+  assistant receipt invalidated every Brain query with throwOnError; unrelated
+  live webhook overview401 kept entire draft editor inert. No AI turn running.
+  UI-onlyfix ef4ee6744045ea2d9f633b0a306d2ba586426600 marks Brain queries stale,
+  refetches required active editor data strictly, leaves live delivery telemetry
+  to its own view, and only loads that telemetry when deliveries is visible.
+  Its actual error remains visible; failed draft refresh still blocks safely.
+  37scope/refresh tests0skip +productionbuild PASS; UI-onlyCI44917392851 SUCCESS,
+  backendimage intentionally skipped. New UI ef4 deployed/healthy stage+prod,
+  stage realUI PASS. Backend/runtime remain15000367e. No framework changes.
+- Harbor production customer UI evidence mode QA PASS15:12: legacyselected
+  detected; Automatic/Selected roundtrip retains rules; emptyselectedexplicit;
+  final searchaction llmFacts OMITTED. All other draft config sections unchanged,
+  enquiry confirmation preserved. Desktop+390controls render, no root overflow.
+  Legacy narrow parsed-action table remains cramped, not redesigned/claimed fixed.
+  Test selector corrected for MUI's composed combobox name; no productauth bypass.
+- Explicit normal UI Checksetup0errors/0warnings; publishedv4 ver-237df33a on58,
+  reindexfalse; selected verifiedpackage dsa-c0312d5c and confirmed applyonce.
+  rel-5c427550 APPLY_REQUESTED15:14, targetdtp-coolify-staging-behavior. Observer
+  observe-harbor.mjs active. Do NOT replay apply. Runtime/connector IDs expected
+  bx54h8jexgl2glbn0f1wzr1f/kikbh7zdi7l7tftvq3qy5bas, existingstorage preserved.
+- OWN admin stage+prod sessions ACTIVE again, customerbrowser-host.mjs ACTIVE,
+  current interactive exec46246. Commands must stay below MacPTY1024line limit;
+  use imported private helper modules for longer scripts. Earlier turn's sessions
+  alreadyrevoked; current proof files in mainprivate root, UI-hotfix proofs in
+  ui-refresh-fix/. Prior gallery8766 deliberately untouched.
+- NEXT: wait release APPLIED_VERIFIED/PASSED -> exact existing activeconsumer
+  engage-40e6c07b-836d-3364-a7c5-3bcf68cdd6f8 binding via Updates assignment UI ->
+  harbor-native.mjs rel5c... -> actual standalone product/evidence, followups,
+  confirmation/exactly1syntheticwrite/receipt and390phone -> preserve rawfailures
+  and report old delivery/RAG limits separately -> promote qualified source58
+  productionchannel -> finalintegrity/docs/push/revokeownsessions/closehelpers.
+- 15:23 v4rel5c427550 APPLIED_VERIFIED/PASSED. Native20runtime+5connector public
+  libs all58/exactCentralbytes, healthy0restart, env/caps/mounts/DB/vector/S3
+  bindings unchanged. Existingactiveconsumer normalUI revision2->3 boundv4,
+  appACTIVE/ready preserved. Normal standalone firstquestionPASS: real evidence
+  facts.data.products contains499/stock8/heighttrue with no llmFacts mapping.
+- Natural comparison FAILED (retained in harbor-live-tests.private.json):
+  get_product route literal /v1/products/{productId} -> INVALID_REQUEST/illegal
+  URIbrace -> RAGfallback/domainclarification. NOT missing automatic evidence.
+  Also existing receipt route literal /v1/enquiries/{reference}. Native connector
+  requires /.../{{params.productId}} or {{params.reference}}; request.path map
+  is not route substitution. Corrected only2route.path fields using existing
+  HTTP route forms; fullrouting+allotherdraftsections deep-preservation PASS.
+  No framework/authoringprompt changes for this additional config defect.
+- Explicit normalUI publishv5 ver-4ce8cbb8/framework58/reindexfalse, applyonce
+  rel-b4b472b0 (same target/package dsa-c0312d5c). Second observer active, do NOT
+  replay. Follow this release now; finalnative/appbinding mustbe v5, not v4.
+  observe-harbor now writes per-release files; harbor-native now writes
+  harbor-native-<release>.private.json so firstv4proof remains untouched.
+- Customerbrowser remains exec46246; original liveQA module has2v4samples and
+  chat oldconversation87903... . New harbor-chat helper supports open(phase,
+  releaseId) with prefixed files; reimport ?v=2 AFTERv5verified/bound to preserve
+  v4rawtests and create freshphase. Use actual Chat History -> New control for
+  a freshconversation if sessionrestores; do not erase failed history. Final
+  pending tasks unchanged; ownadminsessions ACTIVE, gallery8766 untouched.
+- v5rel-b4b472b0 subsequently APPLIED_VERIFIED/PASSED; native20runtime+5connector
+  libraries58/exactCentral, healthy0restart/resources+storage preserved. Existing
+  activeconsumer revision3->4 boundv5; appACTIVE/ready. v5actualtests retained:
+  search499/stock8/heighttrue PASS; direct naturalcomparison GET404 FAIL (path
+  syntax now valid, exact modelparameter untraced); fullcatalogue3records PASS;
+  comparisonfromreturnedrecords PASS; delivery499+25=524/notfree/3-5days PASS.
+  Enquiry askedactualproductID, then CONFIRMATION_REQUIRED/no write. Explicit
+  Confirm succeeded exactlyonce, counter11->12. Receiptfollowup UI produced no
+  capturedqueryresponse/180secondtimeout and empty restoredworkspace; counter12
+  unchanged. Not a passed receipt test; failure recorded privately, no replay.
+- Livefullcatalogue source showed facts plus legacy actionResultData. Traced to
+  PostActionGenerationSupport raw-result reattachment after prepared evidence;
+  forcedgeneration path can bypass Selectedfields/Automatic exclusions, and
+  readobservations feed modelcontext. No actual credentialleak observed (synthetic
+  publicdata). Separate INFORMATION fallback also reattached rawdata/pinnedtargets
+  when facts absent/empty/failed. Production promotion58 deliberately NOT done.
+- Owner explicitly APPROVED bounded0.8.59 and verifiedrelease in asyncanswer.
+  Dedicated publicworktree ~/.codex/worktrees/automatic-evidence-boundary-0859
+  branchcodex/automatic-evidence-boundary-0859 frommain359236c3. Remove rawresult
+  fallback on bothpaths; preserve approved ActionResult/receipts/auth/confirmation/
+  budgets. NativeActionFacts absent means no modeldata, not implicitrawfallback.
+  Focused69pass0skip; initialfullcore1180 had2oldfallback-contracttests fail,
+  updated to assertnodata withoutfacts and explicit preparednumericbudget instead.
+  Finalrelease-reactor currentlyrunning; releaseguardsPASS59. No59publiccommit,
+  tag/upload ornewprivatepush yet. Privateversiondefaults/manifesttests edited59,
+  not committed; privateguardedrollouthelpers/snapshots at
+  ~/.codex/private/automatic-evidence-0859; operations reuse current58adminsessions.
+  Preflight backend150/source/schema241 bothhosts captured. Do not apply59 until
+  fulltests/publicCentral/exactsourceCI verified. No59runtimeartifactregistered.
+- 16:11 approved59source5feab5beaee6b225ea42dcf1c889ab2fa0007ae4 pushedpublicmain;
+  immutable tag/release ai-fabric-framework-v0.8.59 created16:11:50. Publicrelease
+  run44923227840 ACTIVE (signeddeploy step), componentsnotpublicyet. DO NOT
+  re-upload/move tag. Final local release reactor2567/404suites/0fail/0skip,
+  guardsPASS; privateprovideraccounting181/0skip; runtime818/0skip; Platform118/0skip.
+  Privatecodecandidate e01eadd2866398562985e04a6226a3ba3173421d committedlocally,
+  NOTPUSHED untilCentral+releasejob. Newprivatewait-central.mjs ACTIVEexec17558,
+  watch-private-ci.mjs ACTIVEexec28988; theyguard exactsource and singlepush.
+- Broader publicmainCI44922762932 RED inIncidentRoom; registry+vectorcontracts
+  PASS. Compared actualbaseline58run44904224705: same14failedmethods/accessdenied
+  beforefirstchaintimeline plus1asyncDeclarativeCancellationNeverCreatesASubstituteAnswer
+  race (polledRUNNING then cancellation400/alreadyterminal). Rawlogs+methoddiff
+  public-broad-ci-comparison.private.json retained. Do NOTcall broadCI green or
+  hide its15failed/15skipped realapp summary. NoIncidentRoomfix inthispatch.
+- Harbor selectedfieldstestpreparedonlyinDRAFT through realcustomerUI: changed
+  ONLY harbor_get_product llmFacts={mode:SELECTED_FIELDS,copyFields:[id,name,priceGbp]}.
+  Allotherconfiguration+writeconfirmation retained. Livev5still58/allauto. Root59
+  selected-draft-before/after.private.json, helperharbor-modes.mjs setMode(selected)
+  alreadyran; DONOTreplaywxintent. Planned after59backend/registeredartifact:
+  harbor-release.mjs publish(selected)->apply(selected), observe/native/bind,
+  liveproveSelected; thenharborModes.setMode(automatic) deletesonlyprojection,
+  publish/apply/bindfinalv7/defaultomitted, actualchat+phone+receiptchecks.
+  Ifpublicationblockrequiresstopping, restore temporarydrafttoAutomatic before
+  logout. Do NOTleaveSelectedtest asfinaldefault. No59runtimeartifact/applyyet.
+- FINAL59PUBLICATIONBLOCK: run44923227840 uploaded signedbundle16:18:38UTC then
+  failed16:48:41 solely30minpublicationpolltimeout. ActualCI2567/0fail/0error/2skip
+  (JdbcPostgresqlLeaseTransitionTest Dockerconditional; localfull2567/0skip).
+  ExistingCentraldeployment2a7cf43c-c19f-486c-9490-d6bd6000a025 read-onlystatusrun
+  44926729081: PUBLISHING/31purls/0errors/0warnings. PublicBOMstill40416:53UTC.
+  NOduplicateupload/tagmovement/versionbump. Privatee01 NOTPUSHED; bothbounded
+  observationhelpers ended (exec17558/28988), privateimageCI nevertriggered.
+  CIobserverdeadlineisnotabuildfailure. No59artifactregistration/rollout/promotion.
+- Harbor temporarySelecteddraft RESTORED through normalUI to omittedAutomatic
+  onall5actions. FinalcustomerAPIproof16:52:41: EVERYconfigsectionequalsoriginal
+  v5baseline, writeconfirmationtrue, exactappinternalawi-5b04514b-bc99-4dc0-9b91-8cfacad8f7a3/
+  publicawi_pub_22c8a38f5cffca12415185e93e035898 ACTIVE/ready onrel-b4b472b0.
+  CurrentappassignmentRevision isahash; consumerbindingrow revision4 previously
+  qualified (do notconfuse thetwo). Enquirycount12 unchanged/noadditionalwrite.
+  Standalone andbothbackendhealth200. Advancedcontrols390pxfit, oldparsedtable
+  stillcramped. Root59harbor-closing-preservation.private.json recordsproof.
+- Ownadminstage+prod sessions normalAPIlogout/revocationPASS; owncustomerbrowser
+  normalUI Signout/storedidentitycleared, thenclosed. No taskownedhelpers remain;
+  priorvideo/gallery8766 deliberatelyuntouched. All59privatehelpers read admin
+  auth viaRoot58operations: createfreshown normal sessions onresume, notfallback
+  admin-key usage toavoidlogin. Existingauthcookiesare revoked, notusable.
+- RESUME: read existingCentralstatus, waitALL30publiccomponents, central-proof.mjs
+  (Root59) verifiespublicBOM/core/actions hashes. Inspectrecordedpublication-only
+  timeout+2567/0fail/2skip beforeallowingpinnedfastforwardpush e01; current
+  wait-central.mjs deliberatelyrejectsfailedjob andmustnotbereplayedblindly.
+  Thenexact-sourceprivateCI, backendstage->prod, runtime59source registrations,
+  realHarborSelectedthenAutomatic UIversions/apply/native/binding/livechat+phone,
+  sourceproductionpromotiononlyafterqualification. Snapshotpreflightcurrent150
+  backends/58Harbornative; recheckbeforemutationsifanotheragentchangedthem.
+  harbor-modes.mjs now supports phaseprefix: setMode('selected','live') then
+  setMode('automatic','live') toretain priorunappliedtest+restorationproofs.
+  harbor-release.mjs prepared butNEVERrun; no59version/applyintents exist.
+  PreserveRoot58browser-events beforestartinganewbrowser-host (itwritesnewlog).
