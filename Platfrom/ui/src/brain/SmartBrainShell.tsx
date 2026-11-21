@@ -38,6 +38,7 @@ import { BrainEnvironmentSwitch } from './BrainEnvironmentSwitch'
 import { environmentAllowed, stagingOnly } from '../developer/deploymentPolicy'
 import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
 import { brainPageAssistantScope } from '../assistant/scope'
+import { refreshBrainEditors } from '../assistant/refreshBrainEditors'
 import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpecialistAssistance'
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
@@ -240,8 +241,8 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
             ] : undefined}
             reviewHref={href('updates')}
             readOnlyReason={workspace.workspace?.access.canEdit === false ? 'You do not have draft editing access.' : undefined}
-            onSaved={async () => { await queryClient.invalidateQueries({ predicate: query => query.queryKey.includes(brainId)
-              || query.queryKey[0] === 'customer-specialist-assistance' && query.queryKey[1] === JSON.stringify([session?.actorId, session?.customerId, session?.authenticationMode, brainId]) }, { throwOnError: true }) }}>
+            onSaved={() => refreshBrainEditors(queryClient, brainId,
+              JSON.stringify([session?.actorId, session?.customerId, session?.authenticationMode, brainId]))}>
           {({ revision }) => <>
           <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap" sx={{ px: { xs: 2, md: 3 }, py: 1.5, minHeight: 64, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
             <BrainEnvironmentSwitch profiles={options} releases={releases.data ?? []} versions={versions.data ?? []}

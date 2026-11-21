@@ -683,7 +683,8 @@ function ActionsEditor({ selectedDeploymentId, workspace, workspaceMode = false,
   const webhookOverviewQuery = useQuery({
     queryKey: ['deployment-webhooks-overview', selectedDeploymentId],
     queryFn: () => fetchDeploymentWebhookOverview(selectedDeploymentId, 50),
-    enabled: selectedDeploymentId.length > 0 && canOperate && Boolean(workspace?.deployment.runtimeBaseUrl),
+    enabled: (!workspaceMode || technicalView === 'deliveries')
+      && selectedDeploymentId.length > 0 && canOperate && Boolean(workspace?.deployment.runtimeBaseUrl),
     refetchInterval: 10_000,
   })
 
