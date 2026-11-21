@@ -115,7 +115,7 @@ class RuntimeBudgetFrameworkPathsTest extends RuntimeBudgetFixture.TestScope {
                 budgets, turns, null, BudgetGuardedSpringAiModelResolver.OutputCapMode.MAX_COMPLETION_TOKENS);
             when(core.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
                 .thenAnswer(call -> { denyNative(call.getArgument(0)); return null; });
-            when(core.generateTextResponse(anyString(), any(LlmPurpose.class)))
+            when(core.generateTextResponse(anyString(), any(LlmPurpose.class), anyString()))
                 .thenAnswer(call -> { denyNative(null); return null; });
         }
 

@@ -16940,3 +16940,25 @@ test is being called hosted acceptance. UI extraction remains last.
   recordedconsistently with11/12live quality and knownlimits, notperfectclosure.
   Private report/context-onlycommit follows; no task-ownedJVM/helper/browser left
   running, unrelated dirty/untrackedwork untouched.
+
+### 2026-11-21 Production Product Adoption Of Framework 0.8.57
+
+- Owner now explicitly requested all production products upgraded and verified;
+  supersedes the prior Account-only rollout scope. Use existing identities,
+  normal source-artifact/publish/apply/binding path, staging qualification then
+  production. No model/profile/credential/ownership changes or stopped-resource
+  revival. Active production-Console resources: Northfielddep3c4(stage+prod),
+  Supportdep79(stage+prod), Harbordep5fbd(stageonly), plus configuration assistant
+  and Desk. Backend default changes57; Engage/Console frontend functionality
+  remains unchanged and needs connected journey verification, not a UI redesign.
+- Fresh private snapshots/helpers ~/.codex/private/loomai-products-0857/.
+  All3Brain drafts match their live published source sections; no unrelated
+  edits need publishing. Versions before: Northfield/Harbor52, Support55.
+- Source pins now57: runtime parent, product modules, Desk chat-session, backend
+  publication default and capability manifest/version tests. Product modules
+  passed including78budget ledger tests with actualPostgres; focusedbackend150
+  passed. Desk150local:108pass/42Postgres-specificskip; CI must run requiredPG.
+- Full connector163PASS/runtime818had1oldmock-signaturefailure. Preserved redXML
+  privately; updated only generateTextResponse mock to3args, retaining native
+  budget-denial/write-receipt assertions. Focused3thenPASS. NeedCI full runtime
+  rerun, image/native gates, production release and real UI/AI verification.

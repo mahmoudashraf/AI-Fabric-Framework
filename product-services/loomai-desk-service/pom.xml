@@ -4,7 +4,7 @@
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>4.1.0</version><relativePath/></parent>
   <groupId>com.loomai.product</groupId><artifactId>loomai-desk-service</artifactId><version>0.1.0</version>
   <name>LoomAI Desk</name><description>Shared, scope-isolated human support and action review integration.</description>
-  <properties><java.version>21</java.version><ai-fabric.version>0.8.41</ai-fabric.version></properties>
+  <properties><java.version>21</java.version><ai-fabric.version>0.8.57</ai-fabric.version></properties>
   <dependencies>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
