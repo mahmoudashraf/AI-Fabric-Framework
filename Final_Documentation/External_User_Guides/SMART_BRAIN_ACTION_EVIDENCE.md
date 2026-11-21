@@ -6,6 +6,11 @@ Automatic preparation is the default from framework 0.8.58. New actions do not
 need an `llmFacts` mapping. Publish and apply a compatible runtime to change the
 running Brain; saving a draft alone does not update live behavior.
 
+Use framework 0.8.59 or newer for authoritative evidence selection across both
+read-planning and post-action generation. It closes a legacy raw-result fallback
+that could bypass prepared fields. Empty, absent or failed facts preparation
+does not expand back to the raw result.
+
 ## Automatic
 
 The connector first produces the approved action result. Its existing response
@@ -51,6 +56,11 @@ An empty selected projection exposes no result data. It never falls back to the
 full result. Existing projections remain selected even if their mode was omitted.
 Switching modes retains saved selection rules; Automatic ignores them until
 Selected fields is chosen again. Inspect and save the normal shared draft.
+
+These settings control model evidence, not the application's original
+customer-visible `ActionResult`. Response mapping and the approved output
+contract must also exclude fields the customer should not receive. Selecting
+fields for the model alone is not a privacy filter for the application's API.
 
 Record memory (`routingConfig.actions.<name>.response.pinned-targets-from-collection`)
 is separate: it retains actual IDs for conversational follow-ups. It does not
