@@ -205,10 +205,14 @@ public class SupportResourceService {
         var app = app(owner, ref.id());
         var result = readiness.evaluateLocal(app);
         var checks = result.checks().stream().limit(40).map(c -> Map.of(
-            "code", safe(c.code(), READINESS_CODES), "status", safe(c.status(), Set.of("PASSED", "BLOCKED")))).toList();
+            "code", safe(c.code(), READINESS_CODES), "status", unprobedLocalCheck(c) ? "NOT_PROBED"
+                : safe(c.status(), Set.of("PASSED", "BLOCKED")))).toList();
+        // Local evaluation intentionally skips these external probes; absence of a probe is not a failed provider.
+        var configurationChecks = result.checks().stream().filter(c -> !unprobedLocalCheck(c)).toList();
         var facts = new LinkedHashMap<String, Object>();
         facts.put("installationStatus", app.getStatus() == null ? "UNKNOWN" : app.getStatus().name());
-        facts.put("localReadinessPassed", result.ready());
+        facts.put("localReadinessPassed", !configurationChecks.isEmpty()
+            && configurationChecks.stream().allMatch(c -> "PASSED".equals(c.status())));
         facts.put("checks", checks);
         facts.put("deliveryProbed", false);
         facts.put("providerConnectivityProbed", false);
@@ -217,6 +221,10 @@ public class SupportResourceService {
         facts.put("handoverConfiguration", Map.of("availability", handover.availability(), "facts", handover.facts()));
         facts.put("guidance", "Use explicit app readiness verification for support-provider, route and HTTPS checks. A blocked local-only external check is unverified, not proof of a failed live provider probe.");
         return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
+    }
+
+    private boolean unprobedLocalCheck(com.ai.fabric.platform.backend.aiworkspace.model.AIWorkspaceReadinessCheck check) {
+        return "BLOCKED".equals(check.status()) && Set.of("APP_DELIVERY", "SUPPORT_SPACE").contains(check.code());
     }
     private ResourceDiagnostic connectionStatus(Requester owner, ResourceRef ref) {
         var source = connection(owner, ref.id());

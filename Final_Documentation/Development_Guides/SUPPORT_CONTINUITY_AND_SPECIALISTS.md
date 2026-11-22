@@ -53,6 +53,12 @@ resource observations. The model should explain the corresponding UI step, not
 present it as a successful resource check. Source authorization, approved document
 filters and release-specific runtime authority remain separate checks.
 
+Support diagnostics project local-only `APP_DELIVERY` and `SUPPORT_SPACE` skipped
+probes as `NOT_PROBED`, not a provider outage. `localReadinessPassed` covers the
+actual configuration checks; the diagnostic remains INCOMPLETE and does not
+establish full app readiness. Existing activation/readiness APIs retain their
+full verification gates. No raw check exception, URL or credential is exposed.
+
 ## Specialists And Plans
 
 The internal LoomAI overlay defines Workspace and channels, Brain and release

@@ -127,7 +127,28 @@ class SupportResourceServiceTest {
         var result = f.diagnostics.read("support_get_engage_readiness", f.headers(f.service.requireOwnedCase(c.id())));
         assertThat(f.json.writeValueAsString(result)).contains("ASSIGNMENT", "SUPPORT_SPACE", "BLOCKED").doesNotContain("DO_NOT_DISCLOSE", "private.example", "UNKNOWN");
         assertThat(result.resources().getFirst().facts()).containsEntry("observationBasis", "LOCAL_CONFIGURATION_ONLY")
+            .containsEntry("providerConnectivityProbed", false).containsEntry("deliveryProbed", false)
+            .containsEntry("localReadinessPassed", false);
+        assertThat(f.json.writeValueAsString(result)).contains("NOT_PROBED");
+        assertThat(result.availability()).isEqualTo(Availability.INCOMPLETE);
+        verify(f.readiness, never()).evaluate(app);
+    }
+
+    @Test void unperformedLocalProviderChecksDoNotInventAnOutageOrRelaxActivationReadiness() throws Exception {
+        var f = new SupportFixture();
+        var app = new AIWorkspaceInstallationEntity(); app.setInstallationId("app-a"); app.setCustomerId("customer-a"); app.setConsumerEntityId("consumer-a");
+        var consumer = new PlatformConsumerEntity(); consumer.setId("consumer-a"); consumer.setCustomerId("customer-a");
+        when(f.apps.findByCustomerIdAndInstallationId("customer-a", "app-a")).thenReturn(Optional.of(app));
+        when(f.consumers.findById("consumer-a")).thenReturn(Optional.of(consumer));
+        when(f.readiness.evaluateLocal(app)).thenReturn(new AIWorkspaceReadinessSummary(false,"app-a","support","consumer-a",null,null,null,null,
+            List.of(new AIWorkspaceReadinessCheck("ASSIGNMENT","PASSED","Local assignment exists"),
+                new AIWorkspaceReadinessCheck("APP_DELIVERY","BLOCKED","No delivery probe performed"),
+                new AIWorkspaceReadinessCheck("SUPPORT_SPACE","BLOCKED","No support provider probe performed"))));
+        var c = f.create(true, new ResourceRef(ResourceType.ENGAGE_APP, "app-a"));
+        var result = f.diagnostics.read("support_get_engage_readiness", f.headers(f.service.requireOwnedCase(c.id())));
+        assertThat(result.resources().getFirst().facts()).containsEntry("localReadinessPassed", true)
             .containsEntry("providerConnectivityProbed", false).containsEntry("deliveryProbed", false);
+        assertThat(f.json.writeValueAsString(result)).contains("NOT_PROBED").doesNotContain("\"status\":\"BLOCKED\"");
         assertThat(result.availability()).isEqualTo(Availability.INCOMPLETE);
         verify(f.readiness, never()).evaluate(app);
     }

@@ -19052,3 +19052,48 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   backend/UI + Support normal publish/apply/bind, realquality, generic bootstrap,
   preservation audit and sanitized verification record. UI can retain exactcdb
   source; do not require a nonexistent UI image for a backend-only change.
+
+### Support Live Qualification Checkpoint - 22:53 UTC
+
+- Corrected staging Support rel-35cc0a0b/ver-9195948d APPLIED_VERIFIED/PASSED,
+  bound to its unchanged existing app. Runtime artifact dsa-fb6ce713 and private
+  image source76e1b99f1; exact64103byte bundle/10invocations/hash verified by
+  Platform and by reading the JVM environment as its own UID10001 (PID1 is the
+  init process; do not add ptrace/capabilities to read another UID's environment).
+  Production runtime artifact dsa-d1b65b08 registered/promotedstaging only. No
+  production phase2 backend/UI/Support adoption yet.
+- Stage backend76e1b99f1 healthy/schema247. UI3a03df18e healthy, CI45079106001,
+  digest3ffbfaac251720430f961395abc499cbedf3d3679f247a6574d427e594ca542b.
+  UI fix adds delivery/status/linked Brain and short unique labels for same-name
+  diagnostic resources; exact full IDs still govern selection. 15 real-pack UI
+  smoke groups PASS. The first live attempt exposed real duplicate labels; second
+  harness attempt used synchronous checkbox.check on server-confirmed consent.
+  Both retained; corrected harness awaits actual PUTs and uses typed option IDs.
+- stage phase2-live-staging-attempt3: 15 main queries succeeded; five named areas
+  and four of five named plans observed. next-step question instead selected the
+  relevant integration-setup plan; next-step still needs explicit fresh coverage.
+  Natural status answered ACTIVE with correct release; natural investigation
+  compared assigned release and document index. Reload, no mobile overflow/noJS
+  errors, private-route403, revocation no fresh observations, original selection
+  restored and customer signedout. No blanket quality PASS yet.
+- Manual answer review found local-only Support provider/standalone-delivery
+  checks represented as BLOCKED even though never probed. Current bounded fix
+  projects those evaluateLocal-only checker codes as NOT_PROBED and computes
+  localReadinessPassed from actual config checks; diagnostic stays INCOMPLETE.
+  Actual activation/readiness APIs/gates unchanged, no new probes/authorization.
+  Corrected Support+assistant+readiness tests415PASS. Needs backend CI/stage
+  rollout then fresh affected-case/next-step qualification before production.
+- NEW OWNER APPROVAL received: 50 extra internal authoring turns per environment,
+  token/spending caps unchanged. Used signed existing runtime /top-ups API with
+  fixed durable IDs support-specialists-20261122-{environment}-50. BOTH verified
+  effective150turns, totalTokens2000000/costNanoUsd5000000000 unchanged; expiry,
+  stop state and existing usage preserved. Receipts under own private root; no
+  SQL counter reset or original approval replacement. Shared assistant image and
+  environment unchanged. Production regression is no longer allowance-blocked;
+  finish real tests, do not retain the earlier exhausted-only final conclusion.
+- Runtime full845PASS, final broad527PASS, transport101PASS, extra readiness415PASS
+  (overlapping suites). Framework still0.8.63, no public release. Stage authoring
+  earlier8case+posttransport3case PASS; production earlier3+followup/undo/BEHAVIOUR
+  PASS, remaining5 formerlyblocked nowmustrerun. Own staff sessions BOTH ACTIVE;
+  revoke both at finish. No required exec except future CI/live helpers. Gallery
+  8766/infra sizes/capacity/billing/protection unchanged.
