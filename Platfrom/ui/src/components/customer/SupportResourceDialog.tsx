@@ -54,7 +54,7 @@ function ResourceContext({ id, ticket }: { id: string; ticket: boolean }) {
     <Box><Stack direction="row" spacing={0.75} alignItems="center"><ShieldOutlined fontSize="small" color="secondary" /><Typography variant="subtitle2">Status-check permission</Typography></Stack>
       <FormControlLabel sx={{ alignItems: 'flex-start', m: 0 }} control={<Checkbox size="small" checked={context.consent.granted} disabled={busy || dirty} onChange={(_, granted) => consent.mutate(granted)} />}
         label={<Typography variant="body2" sx={{ pt: 0.85 }}>Allow AI and the integration team to check these selected resources for this {ticket ? 'request' : 'conversation'}</Typography>} />
-      <Typography variant="caption" color="text.secondary">Release and verification state, app readiness, and connection/indexing status only. No credentials, raw logs or business records. Documentation help remains available without permission.</Typography>
+      <Typography variant="caption" color="text.secondary">Selected resources only: release and verification records, app readiness, connection/indexing status, and capability or handover configuration metadata. No credentials, raw configuration, logs or business records. This does not run business actions or grant configuration access. Documentation help remains available without permission.</Typography>
     </Box>
     {dirty && <Alert severity="info">Save resource changes before granting permission.</Alert>}
     {(save.error || consent.error) && <Alert severity="warning">{supportErrorMessage(save.error ?? consent.error)}</Alert>}
