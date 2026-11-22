@@ -149,8 +149,6 @@ public class PlatformSecurityConfiguration {
                 "/api/internal/support/diagnostics/support_get_deployment_status",
                 "/api/internal/support/diagnostics/support_get_engage_readiness",
                 "/api/internal/support/diagnostics/support_get_connection_sync_status",
-                "/api/internal/support/diagnostics/support_get_integration_status",
-                "/api/internal/support/diagnostics/support_get_handover_status",
                 "/api/integrations/support/desk/context",
                 "/api/integrations/support/ticket-commands",
                 "/api/vectorization/runner/**",

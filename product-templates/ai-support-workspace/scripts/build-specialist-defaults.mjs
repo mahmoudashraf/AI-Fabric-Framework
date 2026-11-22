@@ -31,11 +31,25 @@ export function diagnosticManifest() {
 }
 
 export function specialistDefaults() {
-  return {generic:read('overlays/generic/specialist-assistance.json'),loomai:read('overlays/loomai/specialist-assistance.json'),prompts:supportPrompts,diagnostics:diagnosticManifest()}
+  return {generic:read('overlays/generic/specialist-assistance.json'),loomai:read('overlays/loomai/specialist-assistance.json'),prompts:supportPrompts,diagnostics:compoundDiagnosticManifest()}
+}
+
+export function compoundDiagnosticManifest() {
+  const manifest=read('manifests/loomai-support-diagnostics.1.0.4.manifest.json')
+  manifest.version='1.2.0'
+  manifest.description='Consent-bound resource diagnostics with recorded release, saved integration and exact assigned handover metadata. Existing approved endpoint and credential contracts are retained; no business actions or live connectivity probes.'
+  const deployment=manifest.contributions.actions.find(a=>a.actionId==='support_get_deployment_status')
+  deployment.description+=' Includes bounded saved-draft capability metadata under integrationConfiguration; this does not execute tools or test connectivity.'
+  deployment.llmFacts.lists.find(l=>l.target==='deploymentObservations').includeFields.push('facts.observationBasis','facts.integrationConfiguration')
+  const releases=deployment.llmFacts.lists.find(l=>l.target==='releaseObservations');releases.maxItems=8;releases.includeFields.push('versionId','environment')
+  const engage=manifest.contributions.actions.find(a=>a.actionId==='support_get_engage_readiness')
+  engage.description+=' Includes handoverConfiguration from the exact app-assigned verified release, not the draft. Agent presence and message delivery are not probed.'
+  engage.llmFacts.lists.find(l=>l.target==='readinessObservations').includeFields.push('facts.observationBasis','facts.providerConnectivityProbed','facts.handoverConfiguration')
+  return manifest
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const write = (path,value) => { mkdirSync(dirname(path),{recursive:true}); writeFileSync(path,JSON.stringify(value,null,2)+'\n') }
-  write(resolve(root,'manifests/loomai-support-diagnostics.1.1.0.manifest.json'),diagnosticManifest())
-  write(resolve(root,'../../Platfrom/backend/src/main/resources/platform-templates/support-specialist-defaults.json'),specialistDefaults())
+  write(resolve(root,'manifests/loomai-support-diagnostics.1.2.0.manifest.json'),compoundDiagnosticManifest())
+  write(resolve(root,'../../Platfrom/backend/src/main/resources/platform-templates/support-specialist-defaults.v2.json'),specialistDefaults())
 }

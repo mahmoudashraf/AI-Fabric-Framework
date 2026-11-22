@@ -24,7 +24,7 @@ grant permission. Changing resources revokes permission. Revocation stops later
 private reads, not observations already shared in history. Merely visiting a
 Brain, typing an ID or attaching an object does not authorize a resource lookup.
 
-All six diagnostic tools retain the dedicated service-key authentication,
+All four compound diagnostic tools retain the dedicated service-key authentication,
 verified original requester, active membership, ownership, explicit resource
 selection and consent. The exact connector routes are registered individually;
 there is no wildcard anonymous diagnostics API. A normal customer token cannot
@@ -36,18 +36,17 @@ open authoritative episode.
   legitimately have no request.
 - `support_get_deployment_status`: recorded states and bounded release records,
   including target, environment, version and verification. Exact document index
-  observations require a selected connected app. Not a live health probe.
+  observations require a selected connected app. `integrationConfiguration`
+  contains bounded saved-draft capability metadata, not endpoints, credentials,
+  raw configuration or business payloads. Neither projection executes business
+  tools or proves live health/connectivity. Check setup remains the canonical
+  compound connectivity workflow.
 - `support_get_engage_readiness`: bounded local configuration checks. Not a
-  delivery, provider connectivity or HTTPS probe.
+  delivery, provider connectivity or HTTPS probe. `handoverConfiguration` reads
+  selected app visibility and its exact assigned verified release, not the draft.
+  Agent presence, message delivery and ticket-provider health remain unprobed.
 - `support_get_connection_sync_status`: stored synchronization observations, not
   a new upstream source check.
-- `support_get_integration_status`: bounded saved-draft capability metadata.
-  Never returns endpoints, credentials, raw configuration or business payloads;
-  it does not execute tools or test connectivity. Check setup remains the
-  canonical compound connectivity workflow.
-- `support_get_handover_status`: selected app visibility and handover configuration
-  from its exact assigned verified release, not the latest draft. Agent presence,
-  message delivery and ticket-provider health are explicitly unprobed.
 
 Missing selection/consent is returned as a safe structured requirement with no
 resource observations. The model should explain the corresponding UI step, not
@@ -67,6 +66,12 @@ LoomAI diagnostic service bindings. Customers attach their own approved knowledg
 and explicitly installed READ tools through the existing Support capabilities
 editor. The LoomAI private overlay is an installation configuration, not a new
 framework behavior type.
+Fresh templates preconfigure the five areas and plans with assistance off until
+the required sources/tools are connected. This preserves configuration-only
+bootstrap when an owned document-storage binding does not exist yet. LoomAI's
+already-connected production installation enables them through its normal draft
+and release flow. The two areas of another company's custom installation are not
+silently replaced by the new generic defaults.
 The reusable template also retains its company-neutral system prompt: internal
 Console diagnostic controls and Build with AI navigation are not assumed to
 exist in another company's end-user support experience.
@@ -83,7 +88,7 @@ their actual authority and confirmation requirements. Draft configuration edits
 use canonical Build with AI; there is no second Support draft writer. Publish,
 apply, activation and destructive operations remain explicit existing workflows.
 
-V245/V246 create additive catalogue snapshots. V246 corrects the distinction
+V245/V246/V247 create additive catalogue snapshots. V246 corrects the distinction
 between runtime extensions and template allowed/default extensions. Two unused
 invalid generated snapshots retain their payloads and hashes as rejected audit
 records; they cannot bootstrap a deployment. The corrective migration refuses
@@ -93,6 +98,9 @@ the actual manifest parser. Explicit draft-template configuration bootstrap keep
 its existing parser and ownership checks; creating a draft is not deployment or
 permission to execute its actions. No extra publication gate is added to that
 authoring flow. The rejected malformed seed still fails parsing if selected.
+V247 preserves the original diagnostic endpoint/credential field contract by
+adding the new observations to the existing resource checks. It also makes fresh
+template activation dependency-aware; it does not auto-enable unconnected sources.
 Existing customer drafts,
 immutable published versions, offer pins and app assignments are not silently
 repinned. A newly reviewed offer can select the new template revision; the
@@ -102,8 +110,10 @@ has adopted it. Shared model/provider/security defaults are preserved.
 ## Source And Verification
 
 Source profiles are under `product-templates/ai-support-workspace/overlays`.
-`scripts/build-specialist-defaults.mjs` regenerates the immutable diagnostic
-manifest and the backend's bundled catalogue defaults. Node consistency tests
+`scripts/build-specialist-defaults.mjs` regenerates diagnostic1.2.0 and the v2
+bundled defaults. The original bundle used by applied V245/V246 is frozen; do not
+rewrite historical migration inputs or the unqualified six-endpoint1.1.0 candidate.
+Node consistency tests
 prevent drift; compiler tests verify both profiles within the existing 65536-byte
 runtime bundle limit. No framework limit increase follows from this feature.
 

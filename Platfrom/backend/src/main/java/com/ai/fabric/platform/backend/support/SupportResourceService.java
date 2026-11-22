@@ -70,14 +70,6 @@ public class SupportResourceService {
         };
     }
 
-    public ResourceDiagnostic readDiagnostic(String action, Requester owner, ResourceRef ref, List<ResourceRef> selected, String principalId) {
-        return switch (action) {
-            case "support_get_integration_status" -> integrationStatus(owner, ref);
-            case "support_get_handover_status" -> handoverStatus(owner, ref);
-            default -> read(owner, ref, selected, principalId);
-        };
-    }
-
     private DeploymentEntity deployment(Requester owner, String id) {
         return deployments.findById(id).filter(d -> owner.customerId().equals(d.getCustomerId()) && d.getArchivedAt() == null)
             .orElseThrow(SupportPolicy::denied);
@@ -116,6 +108,8 @@ public class SupportResourceService {
             return Map.copyOf(release);
         }).toList());
         facts.put("liveHealthProbed", false);
+        var integration = integrationStatus(owner, ref);
+        facts.put("integrationConfiguration", Map.of("availability", integration.availability(), "facts", integration.facts()));
         if (principalId != null) {
             // Only a selected app supplies target/release authority; never follow the latest release or global runtime URL.
             var targets = new LinkedHashSet<DeploymentTargetReference>();
@@ -219,6 +213,8 @@ public class SupportResourceService {
         facts.put("deliveryProbed", false);
         facts.put("providerConnectivityProbed", false);
         facts.put("observationBasis", "LOCAL_CONFIGURATION_ONLY");
+        var handover = handoverStatus(owner, ref);
+        facts.put("handoverConfiguration", Map.of("availability", handover.availability(), "facts", handover.facts()));
         facts.put("guidance", "Use explicit app readiness verification for support-provider, route and HTTPS checks. A blocked local-only external check is unverified, not proof of a failed live provider probe.");
         return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
     }

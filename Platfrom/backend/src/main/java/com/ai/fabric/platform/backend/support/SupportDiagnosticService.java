@@ -16,9 +16,7 @@ public class SupportDiagnosticService {
     public static final Map<String, ResourceType> RESOURCE_ACTIONS = Map.of(
         "support_get_deployment_status", ResourceType.DEPLOYMENT,
         "support_get_engage_readiness", ResourceType.ENGAGE_APP,
-        "support_get_connection_sync_status", ResourceType.CONNECTION,
-        "support_get_integration_status", ResourceType.DEPLOYMENT,
-        "support_get_handover_status", ResourceType.ENGAGE_APP);
+        "support_get_connection_sync_status", ResourceType.CONNECTION);
 
     private final SupportDiagnosticAuthentication authentication;
     private final SupportTicketService tickets;
@@ -57,7 +55,7 @@ public class SupportDiagnosticService {
                     ticket.path("topic").asText(null), CaseStatus.OPEN, c.consent(), c.resources()), List.of());
         }
         var selected = c.resources().stream().filter(r -> r.type() == RESOURCE_ACTIONS.get(action)).toList();
-        var results = selected.stream().map(r -> resources.readDiagnostic(action, c.requester(), r, c.resources(), c.runtimePrincipal())).toList();
+        var results = selected.stream().map(r -> resources.read(c.requester(), r, c.resources(), c.runtimePrincipal())).toList();
         var availability = results.isEmpty() ? Availability.NOT_APPLICABLE
             : results.stream().allMatch(r -> r.availability() == Availability.CURRENT) ? Availability.CURRENT : Availability.INCOMPLETE;
         return new DiagnosticResult(action, Instant.now(), availability, null, results);
@@ -74,7 +72,7 @@ public class SupportDiagnosticService {
         if (selected.isEmpty()) return required(action, "SELECT_RESOURCE", "Choose the relevant resource in Configure diagnostics before checking its status. A support ticket is not required.");
         if (!context.consent().granted()) return required(action, "DIAGNOSTIC_CONSENT_REQUIRED", "Grant status-check permission in Configure diagnostics for the selected resources, then request the check again.");
         resources.requireOwned(scope.requester(), context.resources());
-        var results = selected.stream().map(r -> resources.readDiagnostic(action, scope.requester(), r, context.resources(), scope.runtimePrincipal())).toList();
+        var results = selected.stream().map(r -> resources.read(scope.requester(), r, context.resources(), scope.runtimePrincipal())).toList();
         return new DiagnosticResult(action, Instant.now(), results.stream().allMatch(r -> r.availability() == Availability.CURRENT)
             ? Availability.CURRENT : Availability.INCOMPLETE, null, results);
     }

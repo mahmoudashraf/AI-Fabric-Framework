@@ -37,8 +37,8 @@ class SupportResourceServiceTest {
         when(f.drafts.findTopByDeploymentIdOrderByRevisionNumberDesc(d.getId())).thenReturn(Optional.of(draft));
         var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()));
         var headers = f.headers(f.service.requireOwnedCase(c.id()));
-        var result = f.diagnostics.read("support_get_integration_status", headers);
-        var facts = result.resources().getFirst().facts();
+        var result = f.diagnostics.read("support_get_deployment_status", headers);
+        var facts = nested(result.resources().getFirst(), "integrationConfiguration");
         assertThat(facts).containsEntry("draftRevision", 7).containsEntry("capabilityCount", 3)
             .containsEntry("readCapabilityCount", 2).containsEntry("writeCapabilityCount", 2)
             .containsEntry("observationBasis", "SAVED_DRAFT_CONFIGURATION")
@@ -46,7 +46,7 @@ class SupportResourceServiceTest {
         assertThat(f.json.writeValueAsString(result)).contains("public_lookup", "confirmationRequired\":true").doesNotContain("DO_NOT_DISCLOSE");
         f.service.consent(c.id(), new ConsentChange(false, c.consent().version()));
         clearInvocations(f.drafts);
-        assertThatThrownBy(() -> f.diagnostics.read("support_get_integration_status", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_deployment_status", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
         verifyNoInteractions(f.drafts);
     }
 
@@ -55,10 +55,10 @@ class SupportResourceServiceTest {
         when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
         var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()));
         var headers = f.headers(f.service.requireOwnedCase(c.id()));
-        assertThat(f.diagnostics.read("support_get_integration_status", headers).resources().getFirst().facts()).containsEntry("code", "NO_SAVED_DRAFT");
+        assertThat(nested(f.diagnostics.read("support_get_deployment_status", headers).resources().getFirst(), "integrationConfiguration")).containsEntry("code", "NO_SAVED_DRAFT");
         var draft = new DeploymentDraftEntity(); draft.setActionsConfigJson("not-json");
         when(f.drafts.findTopByDeploymentIdOrderByRevisionNumberDesc(d.getId())).thenReturn(Optional.of(draft));
-        assertThatThrownBy(() -> f.diagnostics.read("support_get_integration_status", headers)).hasMessageContaining("SUPPORT_");
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_deployment_status", headers)).hasMessageContaining("SUPPORT_");
     }
 
     @Test void handoverUsesExactVerifiedAppReleaseNeverTheNewerDraftAndDoesNotClaimAgentPresence() throws Exception {
@@ -76,19 +76,25 @@ class SupportResourceServiceTest {
         var version = new DeploymentVersionEntity(); version.setDeploymentId(d.getId());
         version.setBehaviorConfigJson("{\"conversationHandover\":{\"enabled\":true,\"userCanResumeAi\":true,\"channel\":{\"secret\":\"DO_NOT_DISCLOSE\"}}}");
         when(f.versions.findById("version-exact")).thenReturn(Optional.of(version));
+        when(f.readiness.evaluateLocal(app)).thenReturn(new AIWorkspaceReadinessSummary(false,"app-a","support","consumer-a",d.getId(),"rel-exact",null,"revision",List.of()));
         var c = f.create(true, new ResourceRef(ResourceType.ENGAGE_APP, "app-a"));
         var headers = f.headers(f.service.requireOwnedCase(c.id()));
-        var result = f.diagnostics.read("support_get_handover_status", headers);
-        assertThat(result.resources().getFirst().facts()).containsEntry("handoverEnabledInAssignedRelease", true)
+        var result = f.diagnostics.read("support_get_engage_readiness", headers);
+        assertThat(nested(result.resources().getFirst(), "handoverConfiguration")).containsEntry("handoverEnabledInAssignedRelease", true)
             .containsEntry("handoverVisibleInApp", true).containsEntry("teamVisibleInApp", true)
             .containsEntry("agentPresenceProbed", false).containsEntry("messageDeliveryProbed", false);
         assertThat(f.json.writeValueAsString(result)).doesNotContain("DO_NOT_DISCLOSE");
         verifyNoInteractions(f.drafts);
         release.setVerificationStatus("FAILED"); clearInvocations(f.versions);
-        assertThat(f.diagnostics.read("support_get_handover_status", headers).resources().getFirst().facts()).containsEntry("code", "ASSIGNED_RELEASE_NOT_VERIFIED");
+        assertThat(nested(f.diagnostics.read("support_get_engage_readiness", headers).resources().getFirst(), "handoverConfiguration")).containsEntry("code", "ASSIGNED_RELEASE_NOT_VERIFIED");
         verifyNoInteractions(f.versions);
         consumer.setBoundDeploymentId("foreign");
-        assertThatThrownBy(() -> f.diagnostics.read("support_get_handover_status", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_engage_readiness", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String,Object> nested(ResourceDiagnostic resource, String key) {
+        return (Map<String,Object>) ((Map<String,Object>) resource.facts().get(key)).get("facts");
     }
 
     @Test void deploymentProjectionReportsReleaseStatesWithoutMisrepresentingLatestAttemptAsServing() throws Exception {

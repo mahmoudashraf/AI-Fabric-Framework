@@ -18959,3 +18959,63 @@ exec19537, phase2-final-corrected-tests.log. Observe final exit before rollout.
 CI17af59d1a45072710255 passed but contains the now-removed gate; do not deploy it.
 Next commit has corrected backend code; UI remains exact35d05edde. Rebuild only
 backend, keep both failed stage folders and normal oldaa676567 healthy service.
+
+### Support Compound Diagnostics Checkpoint - 21:55 UTC
+
+- STAGE backend9107306d8 verified healthy/schema246 (jobzq2w9eig6pkthrc1pzevvu1m,
+  digest8034857434568c954888755798b2623ce894d02baafd49ebd7b2b08624049bf4),
+  originalsettingspreserved. UI35d05edde healthy. Production stillaa676567 +
+  Phase1Support1.0.4 verified/bound. No phase2 Support version or apply exists.
+- Two phase2 stage preparation failures are PRESERVED and explained: install
+  update1.1.0 is atomic409 EXTERNAL_INTEGRATION_FIELD_CONTRACT_MISMATCH because
+  its added2URLfields differ from the approved existing four-field profile.
+  No install mutation succeeded; it remains1.0.4. Do not relax that profile
+  validator, bypass approved bindings or edit original offer fingerprints.
+  Fresh generic template1.6 bootstrap also atomic409: enabled specialists cannot
+  compile against yet-unconnected approved knowledge. No draft/infra was created.
+- Final scoped approach: keep the FOUR original diagnostic tools/endpoints and
+  form/credential fields; add bounded saved integration metadata inside existing
+  deployment-status observations and exact assigned-release handover metadata
+  inside existing app-readiness observations. Five specialist areas share these
+  resource reads. Extra two candidate routes/actions are removed from current
+  source; immutable1.1.0 candidate is retained but not adopted. New diagnostic
+  snapshot1.2.0 has original4formURLfields+secret. No new permissions/writes.
+- V247 (NEW, not deployed) publishes compound1.2.0 and template1.7.0. Templates
+  preconfigure five areas/plans but start OFF until knowledge/tools are connected;
+  allowed extensions retain SPECIALIST_ASSISTANCE but default execution does not
+  activate it yet. The already-connected internal LoomAI overlay remains enabled
+  and will be saved/published/applied normally. Generic prompt stays company-
+  neutral and no private diagnostic tools are installed. Frozen original bundle
+  support-specialist-defaults.json is V245/V246 input; DO NOTregenerate it. New
+  script generates support-specialist-defaults.v2.json and diagnostic1.2.0 only.
+- Current compound source local focused backend suite PASS (exec6153 CLOSED,
+  phase2-compound-tests.log, including realPostgres/fullmanifestparser). UI build
+  PASS(exec67949 CLOSED); Nodeconsistency/continuity3PASS. Prior533 focused tests
+  +4 generic-isolation tests also PASS. No framework source/release change.
+  Need commit/push compound source + CI for BOTH new backend/UI, then stage image
+  rollout schema247. Preserve current phase2 stage backend910/UI35 proof folders
+  under an explicit pre-compound name before new helper runs; verify no jobs in
+  progress before retrying. Update per-role CI proofs to actual new source.
+- Private helpers already updated: support-release phase2 selects1.2.0, preserves
+  all existing config/secretRefs (no new URLs), usesv2 overlay. rollout expects247.
+  reusable-template expects1.7.0/off, toggles only local preview then returns off,
+  creates no versions/releases/infra and deletes its own draft normally. Existing
+  failed reusable-template-staging folder must be preserved/renamed before rerun.
+  specialist-live uses real normal customer/iframe,5area+5planqueries, history/
+  consent checks and CDP durable response capture; still NOTRUN. Do not claim its
+  quality yet. Production guides10/12 upload/approval/index PASS already done,
+  old2indexedguidesretired withoutsourceobjectdeletion; ownerbrowser signedout.
+- ACTIVE OWN STAFF SESSIONS BOTH support-specialists root. Logout BOTH and prove
+  oldcookies false at finish. No other required process currently running. Root
+  helpers use fresh own normalstaffcookies, never oldroot/APIkey fallback.
+  BuildwithAI50-extra-turn approval question is still unanswered; no topup, caps,
+  newstorage, resize or gallery8766 changes. Prod shared assistant at100/100 is
+  genuinely blocked; stage91/100. Do not call it just a test limit or claim full
+  production authoring health. First3PREPAREs+rename/undo/BEHAVIOUR passed; remaining
+ 5blocked beforemodelcalls. Stage earlier8-case authoring regression passed.
+- Still required afternewCI: phase2 stage backend/UI -> publish/apply/observe/bind
+  existing Support -> real specialist/history/diagnostic queries + manualgate ->
+  production backend/UI + Supportverifiedrelease/binding/livequality. Fresh company-
+  neutral bootstrap UI proof; final nonSupport drafts/versions/releases and native
+  resource/env/limit preservation; sessioncleanup; sanitizedverification report,
+  source context/docs finalcommit/push. Do not stop afterPhase1 or source tests.

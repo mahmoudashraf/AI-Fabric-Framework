@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
-import {specialistDefaults,diagnosticManifest} from './build-specialist-defaults.mjs'
+import {specialistDefaults,compoundDiagnosticManifest} from './build-specialist-defaults.mjs'
 const read = path => JSON.parse(readFileSync(new URL(path,import.meta.url)))
 
 test('bundled defaults match source profiles and immutable diagnostic snapshot',()=>{
-  assert.deepEqual(specialistDefaults(),read('../../../Platfrom/backend/src/main/resources/platform-templates/support-specialist-defaults.json'))
-  assert.deepEqual(diagnosticManifest(),read('../manifests/loomai-support-diagnostics.1.1.0.manifest.json'))
+  assert.deepEqual(specialistDefaults(),read('../../../Platfrom/backend/src/main/resources/platform-templates/support-specialist-defaults.v2.json'))
+  assert.deepEqual(compoundDiagnosticManifest(),read('../manifests/loomai-support-diagnostics.1.2.0.manifest.json'))
 })
 test('each plan is bounded to declared areas, private tools never leak into the reusable profile',()=>{
   const defaults=specialistDefaults()
@@ -17,7 +17,9 @@ test('each plan is bounded to declared areas, private tools never leak into the 
     assert.equal(profile.limits.maxParallelWorkers,2);assert.equal(profile.limits.deadlineSeconds,75)
   }
   assert.ok(defaults.generic.areas.every(a=>a.readActions.length===0))
-  const actions=diagnosticManifest().contributions.actions
-  assert.equal(actions.length,6)
+  const manifest=compoundDiagnosticManifest(),actions=manifest.contributions.actions
+  assert.equal(actions.length,4)
+  assert.deepEqual(manifest.installForm,read('../manifests/loomai-support-diagnostics.1.0.4.manifest.json').installForm)
+  assert.ok(defaults.loomai.areas.every(a=>a.readActions.every(id=>actions.some(action=>action.actionId===id))))
   for(const a of actions){assert.equal(a.readOnly,true);assert.equal(a.anonymousAllowed,false);assert.deepEqual(a.params,[]);assert.deepEqual(a.requiredScopes,['support:diagnostics:read'])}
 })

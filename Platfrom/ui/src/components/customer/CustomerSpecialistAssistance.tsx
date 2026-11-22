@@ -156,7 +156,7 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
     {save.isError ? <Alert severity="error">{errorText(save.error)}</Alert> : null}
     {reloadError ? <Alert severity="error">{reloadError}</Alert> : null}
     {!canEdit ? <Alert severity="info">This {deploymentTerm.lowercase} is read-only for your account.</Alert> : null}
-    {!value.enabled ? <Typography variant="body2" color="text.secondary">Optional specialist assistance is disabled.</Typography> : <>
+    {!value.enabled ? <Typography variant="body2" color="text.secondary">Specialist assistance is off. {value.areas.length} support areas and {value.resolutions.length} resolution plans are configured.</Typography> : <>
       {loadingCatalogue ? <Stack direction="row" gap={1}><CircularProgress size={18} /><Typography variant="body2">Loading installed knowledge and READ tools...</Typography></Stack> : null}
       {catalogueError ? <Alert severity="error">{catalogueError}</Alert> : null}
       {depth === 'configuration' ? <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) 290px' }, gap: 3 }}>

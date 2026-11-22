@@ -31,7 +31,7 @@
       "purpose": "Action/API/MCP setup, imports, authorization, confirmation and evidence; saved capability metadata.",
       "instructions": "Use installed action contracts and approved guides. Integration observations describe saved draft metadata, not the serving release or a successful API call. They do not probe connectivity or execute actions. Never request raw keys or infer that a route works because it exists. Requested draft changes use canonical Build with AI on AI capabilities or Connections, not a second writer. Check setup is the existing compound connectivity check. Public MCP and business-authorized connections are supported; personal-account connections remain deferred.",
       "vectorSpaces": ["document"],
-      "readActions": ["support_get_integration_status", "support_get_connection_sync_status"]
+      "readActions": ["support_get_deployment_status", "support_get_connection_sync_status"]
     },
     {
       "id": "handover",
@@ -39,7 +39,7 @@
       "purpose": "Support history, requests, consent, Desk handover and return to AI; exact app-assigned handover configuration.",
       "instructions": "Use approved guides, actual request receipts and exact app-assigned verified release metadata. Configuration is not agent presence, delivery or ticket-provider health. A case summary can be absent in ordinary chat; do not create a ticket merely to diagnose. Tickets and human conversations have separate lifecycle states. Do not create, cancel, resolve or transfer inside a specialist. Parent controls perform governed actions only on user request with required confirmation. Never claim a person joined without its real receipt.",
       "vectorSpaces": ["document"],
-      "readActions": ["support_get_case_summary", "support_get_handover_status"]
+      "readActions": ["support_get_case_summary", "support_get_engage_readiness"]
     }
   ],
   "resolutions": [

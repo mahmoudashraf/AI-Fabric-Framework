@@ -37,11 +37,18 @@ class SupportSpecialistDefaultsTest {
             if (!internal) assertThat(corrected.at("/contributions/template/promptConfig/systemPrompt"))
                 .isEqualTo(source.at("/contributions/template/promptConfig/systemPrompt"));
             assertThat(V246__support_template_extension_contract.corrected(corrected,defaults,internal)).isEqualTo(corrected);
+            var compound=V247__compound_support_diagnostics_and_setup_defaults.revise(corrected,V247__compound_support_diagnostics_and_setup_defaults.defaults(),internal);
+            version.setManifestJson(json.writeValueAsString(compound));
+            assertThatCode(() -> parser.parseAndValidate(plugin,version)).doesNotThrowAnyException();
+            assertThat(compound.at("/contributions/template/deploymentBehavior/specialistAssistance/enabled").asBoolean()).isFalse();
+            assertThat(compound.at("/contributions/template/deploymentBehavior/defaultExecutionExtensions").toString()).doesNotContain("SPECIALIST_ASSISTANCE");
+            assertThat(compound.at("/contributions/template/deploymentBehavior/specialistAssistance/areas")).hasSize(5);
+            assertThat(V247__compound_support_diagnostics_and_setup_defaults.revise(compound,V247__compound_support_diagnostics_and_setup_defaults.defaults(),internal)).isEqualTo(compound);
         }
     }
 
     @Test void fiveAreasAndAdaptivePlansCompileInsideExistingBudgetsWithoutWritesOrPrivateGenericTools() throws Exception {
-        var defaults = V245__support_specialist_template_defaults.defaults();
+        var defaults = V247__compound_support_diagnostics_and_setup_defaults.defaults();
         for (String profile : Set.of("generic", "loomai")) {
             var config = defaults.path(profile); var behavior = json.createObjectNode();
             behavior.put("type", "CONVERSATIONAL"); behavior.putArray("executionExtensions").add("SPECIALIST_ASSISTANCE");

@@ -54,5 +54,16 @@ class SupportSpecialistDefaultsPostgresTest {
             assertThat(behavior.has("executionExtensions")).isFalse();
             assertThat(behavior.path("defaultExecutionExtensions").toString()).contains("SPECIALIST_ASSISTANCE");
         }
+        var current=jdbc.queryForList("SELECT manifest_json FROM platform_marketplace_plugin_versions WHERE id LIKE 'mkv-support247-%' AND status='PUBLISHED'",String.class);
+        assertThat(current).hasSize(3);
+        for(String value:current) {
+            var manifest=json.readTree(value);
+            if("TEMPLATE".equals(manifest.path("pluginType").asText())) {
+                var behavior=manifest.at("/contributions/template/deploymentBehavior");
+                assertThat(behavior.at("/specialistAssistance/enabled").asBoolean()).isFalse();
+                assertThat(behavior.at("/specialistAssistance/areas")).hasSize(5);
+                assertThat(behavior.path("defaultExecutionExtensions").toString()).doesNotContain("SPECIALIST_ASSISTANCE");
+            } else assertThat(manifest.path("contributions").path("actions")).hasSize(4);
+        }
     }
 }
