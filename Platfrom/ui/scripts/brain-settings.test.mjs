@@ -704,6 +704,11 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
           if (section === 'storage') {
             await page.getByRole('button', { name: 'Answers & sources', exact: true }).click()
             await waitField('How tools and knowledge work together')
+            const selected = page.getByRole('button', { name: 'Answers & sources', exact: true })
+            if (width < 1200) assert.equal(await selected.evaluate(button => {
+              const item = button.getBoundingClientRect(), list = button.closest('ul').getBoundingClientRect()
+              return item.left >= list.left - 1 && item.right <= list.right + 1
+            }), true, 'The selected search task is visible on mobile')
             await page.getByText('Advanced read planning & context limits', { exact: true }).click()
             await waitField('Read-tool planning')
             await page.locator('section[aria-label="Answers and knowledge sources"] .MuiCollapse-entered').waitFor()

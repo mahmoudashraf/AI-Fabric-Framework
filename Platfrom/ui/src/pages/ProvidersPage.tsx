@@ -63,9 +63,9 @@ const RETRIEVAL_FIELDS = {
   ragCooperationMode: { path: ['readActionResolution', 'ragCooperationMode'], label: 'How tools and knowledge work together', kind: 'enum',
     help: 'Applies when resolving read tools. It does not force knowledge search for every message or change access permissions.',
     options: [
-      { value: 'RAG_IF_ACTIONS_INSUFFICIENT', label: 'Automatic - search when tool results need more context' },
-      { value: 'PARALLEL_ACTIONS_AND_RAG', label: 'Tools + knowledge - include search with read tools' },
-      { value: 'NONE', label: 'Tools independently - no automatic knowledge cooperation' },
+      { value: 'RAG_IF_ACTIONS_INSUFFICIENT', label: 'Automatic - search when needed' },
+      { value: 'PARALLEL_ACTIONS_AND_RAG', label: 'Read tools + knowledge' },
+      { value: 'NONE', label: 'Read tools independently' },
     ] },
   retrievalFanoutEnabled: { path: ['rag', 'fanoutEnabled'], label: 'Search across multiple knowledge sources', kind: 'boolean',
     help: 'Allow bounded search across authorized sources. This does not add sources or broaden customer access.' },
@@ -1880,6 +1880,15 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   const [storageView, setStorageView] = useState<(typeof searchSetupTasks)[number]['id']>(() =>
     new URLSearchParams(location.search).get('searchTask') === 'answers' ? 'answers' : 'engine')
   const focusedSearch = scoped && view === 'storage'
+  const searchTasksRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    const list = searchTasksRef.current
+    const selected = list?.querySelector('[aria-pressed="true"]')
+    if (list && selected && list.scrollWidth > list.clientWidth) {
+      const item = selected.getBoundingClientRect(), container = list.getBoundingClientRect()
+      if (item.left < container.left || item.right > container.right) list.scrollLeft += item.left - container.left
+    }
+  }, [focusedSearch, storageView])
   const searchTask = searchSetupTasks.find(item => item.id === storageView)!
   const showModels = view === 'all' || (view === 'models' && modelView === 'models')
   const showModelRouting = view === 'all' || (view === 'models' && modelView === 'routing')
@@ -2129,7 +2138,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   return (
     <Box data-search-configuration={focusedSearch || undefined} sx={focusedSearch ? { flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: { xs: 2, lg: 3 } } : undefined}>
     {focusedSearch && <Box component="aside" sx={{ width: { lg: 200 }, flexShrink: 0, minWidth: 0, borderRight: { lg: 1 }, borderBottom: { xs: 1, lg: 0 }, borderColor: 'divider', pr: { lg: 2 } }}>
-      <List disablePadding aria-label="Search setup tasks" sx={{ display: { xs: 'flex', lg: 'block' }, overflowX: 'auto', maxWidth: '100%', pb: { xs: 1, lg: 0 } }}>
+      <List ref={searchTasksRef} disablePadding aria-label="Search setup tasks" sx={{ display: { xs: 'flex', lg: 'block' }, overflowX: 'auto', maxWidth: '100%', pb: { xs: 1, lg: 0 } }}>
         {searchSetupTasks.map(({ id, label, Icon }) => <ListItemButton key={id} selected={id === storageView} aria-pressed={id === storageView}
           onClick={() => setStorageView(id)} sx={{ minWidth: { xs: 140, lg: 0 }, minHeight: 57, px: 1.25, borderRadius: 1, alignItems: 'flex-start' }}>
           <ListItemIcon sx={{ minWidth: 28, mt: 0.5, color: id === storageView ? 'primary.main' : 'text.secondary' }}><Icon fontSize="small" /></ListItemIcon>
