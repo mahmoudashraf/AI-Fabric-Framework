@@ -1,8 +1,10 @@
 # 010.72 AI Led Document Preparation And RAG Evaluation
 
-Owner request: 22 November 2026. Status: locally implemented candidate, final
-qualification recorded below. Isolated from the released 0.8.62 fleet. This
-document is not production deployment evidence.
+Owner request: 22 November 2026. Status: framework 0.8.63 published; compatible
+Platform/Console/assistant deployed to staging and production. Real upload,
+AI preparation/refinement, indexing and evaluation are live-qualified on Acme
+staging, Harbor and actual production Support. Exact release evidence belongs in DOCUMENT_INTELLIGENCE_VERIFICATION.md
+and CODEX_WORKING_CONTEXT.md, not in this design status alone.
 
 ## Outcome
 
@@ -123,7 +125,9 @@ existing document boundary. Draft save is not publish/apply/index success.
 
 - Hosted uploads: PDF, DOCX, DOC, PNG, JPEG, TIFF, TXT and JSON, up to 20 MiB.
   Upload completion means the original file is stored, not that parsing passed.
-- Runtime extraction: at most 50 PDF/image pages, 16 million pixels per image,
+- Runtime extraction: inherits the canonical indexing document-count ceiling
+  (currently 20 pages/sections, with an absolute preparation cap of 50),
+  16 million pixels per image,
   250,000 extracted characters by default, and a 60-second cooperative parsing
   allowance. Local OCR subprocesses obey the remaining deadline. English is
   installed in the serving image; other language models need operator setup.
@@ -133,7 +137,10 @@ existing document boundary. Draft save is not publish/apply/index success.
 - Evaluations: 1..20 saved questions, 1..10 excerpts/question, 1,000..16,000
   context characters, threshold 0..1 and answer ceiling 128..1,500 tokens.
   Default structured judge uses one answer and one judge call per question.
-  Runtime provider-budget accounting still gates actual provider requests.
+  With the optional provider-budget ledger enabled, its admission/interruption
+  checks gate actual provider requests. Other deployments use their configured
+  provider credentials and record calls/usage as DEPLOYMENT_PROVIDER accounting.
+  A funded denial never falls back to unguarded credentials.
 - At most two evaluation workers and two queued jobs per runtime; 120-second
   run deadline, explicit cancel, partial case preservation and restart recovery
   to INTERRUPTED. Starts use the existing durable idempotency service. Failed
@@ -149,11 +156,15 @@ existing document boundary. Draft save is not publish/apply/index success.
 
 ## Rollout And Honest Qualification
 
-Candidate branches are `codex/document-processing` in the public framework
+Implementation branches are `codex/document-processing` in the public framework
 repository and `codex/document-intelligence` in the private Platform worktree.
-The candidate framework version is 0.8.63-SNAPSHOT, installed locally only.
-Do not deploy a private image referring to that snapshot before publishing and
-qualifying a real release version.
+Framework 0.8.63 is published to Maven Central from
+`2888f0549b34dec97f6b5d3b37afa72387f1a5b4`; the release workflow, downloaded
+artifact hashes and empty-cache consumer build passed. Do not republish/retag.
+Compatible Platform/Console/shared-assistant images use `4a3a56e8ff07d55c168c1668e61e6ad2616fc9a4`.
+The corrected ordinary runtime uses `c8b1ef457066b3e00b4fdfe226cec8747909e2dd`
+and passed all 843 runtime tests. These are different serving roles, not a
+reason to upgrade an unrelated stopped resource.
 
 Backend migrations V242/V243 add the longer scoped assistant resource identity
 and additive rich-document catalogue/template revisions. Published historical
@@ -170,10 +181,22 @@ immutability. Browser tests exercise the actual React components and shared
 assistant transport with explicit API fixtures; those are not live-model or
 production quality evidence. See the implementation guide for commands.
 
+Real staging and production qualification exercised hosted S3 upload, all four PDF/DOCX/
+PNG/scanned-PDF formats, real AI preparation, source-scoped paid evaluation,
+evaluation-to-AI refinement, repeat evaluation, cancellation, stale409 and an
+outsider404. Harbor's real Engage chat retrieved a newly uploaded Word source;
+production Console Support answered from the real support guides. The obsolete
+support indexing limits and ambiguous OCR descriptions were corrected and their
+old indexed copies retired. Generated references remained unreviewed. One wrong
+synthetic reference and misleading judge scores are preserved in the evidence;
+inspect actual answers, not only completion status or scores.
+
 Not claimed: Ragas integration, cloud OCR, handwritten-text accuracy, OCR inside
 Word images, perfect PDF reading order/table reconstruction, arbitrary Java
-parser hard termination, real-provider quality improvement or a live production
-rollout. A synthetic reference and an LLM score remain diagnostic evidence.
+parser hard termination, universal real-provider quality improvement or live
+selected-file promotion qualification. A synthetic reference and an LLM score
+remain diagnostic evidence. Existing broad backend fixtures and Incident Room
+CI failures remain separate from the passing focused release suites.
 
 ## Primary Library References
 

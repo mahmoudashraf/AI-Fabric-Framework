@@ -50,6 +50,19 @@ source profiles and evaluation cases, evidence, answers, metrics and receipts.
 Vectors stay in the selected vector service. Evaluation retention follows the
 configured document evidence retention. UI test artifacts contain fixtures only.
 
+Upload purpose prefixes are relative to the hosted connection's root, but the
+applied runtime reader can have a narrower approved prefix. Uploading outside
+that prefix stores a file without making it discoverable or readable by that
+runtime. Use the existing approved folder, or deliberately bind a different
+scope and apply that configuration; do not widen reader access to fix a test.
+
+COMPLETED describes evaluation execution, not answer quality. Zero retrieved
+excerpts, an honest abstention and low relevance are useful diagnostic results,
+not a parser failure or a passing answer. Inspect the actual source and answers,
+then supply those results to Evaluate & optimize with AI. Generated questions
+should make sense without a hidden excerpt; vague title/location questions can
+miss semantic retrieval even when the indexed document contains the fact.
+
 ## Extension Points
 
 The optional framework ai-fabric-document-readers module uses PDFBox/POI and an
@@ -72,6 +85,11 @@ Do not add phrase-based answer replacement or treat scores as authorization.
 Search/model tuning retains its canonical Brain editors. Evaluation threshold,
 retrieval count and context limits here describe the test, not an implicit global
 search change. A model-generated expected answer is not independent ground truth.
+In live qualification, a reference generated from a truncated preparation sample
+incorrectly said a format list was unavailable, even though retrieval returned
+the full list. Its low judge scores were not corrected or hidden automatically.
+Review references against the original/actual excerpts before comparing scores;
+a successful optimization loop is not evidence of improved answer quality.
 
 ## Local Verification
 
@@ -117,10 +135,12 @@ Apply forward migrations and use normal deployment/version operations. Select
 the new document catalogue revision explicitly for old TXT/JSON-only releases.
 Do not mutate historical manifests or resize infrastructure as a side effect.
 
-Before calling production closed, qualify a real hosted upload -> AI settings
+Qualify a real hosted upload -> AI settings
 and questions -> preview -> active index -> paid retrieval/answer/evaluation ->
-AI refinement -> explicit reindex -> repeat evaluation, then hosted production
-promotion and cross-customer negative checks on the exact released images.
+AI refinement -> explicit reindex when processing changes -> repeat evaluation,
+with cross-customer negative checks on the exact released images. Hosted
+selected-file promotion is a separate qualification: direct production upload
+and evaluation do not prove that promotion preserves the frozen active profile.
 
 See `DOCUMENT_INTELLIGENCE_VERIFICATION.md` for the local candidate evidence and
 the remaining release gates. Do not describe fixture responses as AI quality.

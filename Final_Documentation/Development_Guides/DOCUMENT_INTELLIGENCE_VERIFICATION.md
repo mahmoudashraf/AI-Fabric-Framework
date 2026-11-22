@@ -1,35 +1,80 @@
 # Document Intelligence Verification
 
-## Release Qualification In Progress - 22 November 2026
+## Published And Live Qualified - 22 November 2026
 
 - Framework 0.8.63 is published to Maven Central from public commit
   `2888f0549b34dec97f6b5d3b37afa72387f1a5b4`. The release workflow passed;
   downloadable artifact hashes and an empty-cache consumer build were checked.
   The full 31-module release reactor passed. Do not republish or retag it.
 - Compatible backend, Console and shared assistant images at private source
-  `4a3a56e8ff07d55c168c1668e61e6ad2616fc9a4` passed image CI and staging health.
-  The backend applied forward migration 243. Production rollout is still held.
-- Staging exposed two runtime integration defects: a required dependency on the
+  `4a3a56e8ff07d55c168c1668e61e6ad2616fc9a4` passed image CI and native health
+  checks on staging AND production. Both backends applied forward migration243.
+- Staging exposed three runtime integration defects: a required dependency on the
   optional provider-budget ledger, and a 50-section preparation request against
-  the runtime's 20-section safety ceiling. Runtime source
-  `80f3f3fb4f389a81562b8607eeac61ac88138c13` fixes both, preserves typed reader
-  failures, and passes all 842 runtime tests. Failed source artifacts were moved
-  out of the staging promotion channel; historical release evidence is retained.
-- Acme staging release rel-e42b989b passed normal release verification at that
-  source. Real customer upload, AI preparation and explicit indexing then passed,
-  but evaluation exposed a Jackson 2 tree / Jackson 3 HTTP response mismatch.
-  Runtime c8b1ef457066b3e00b4fdfe226cec8747909e2dd corrects the four evaluation
-  response endpoints with ordinary JSON values. Its HTTP tests pass; image CI and
-  full live qualification are in progress. No production quality PASS is implied.
+  the runtime's 20-section safety ceiling, then a Jackson2 tree / Jackson3 HTTP
+  evaluation-response mismatch. Final runtime source
+  `c8b1ef457066b3e00b4fdfe226cec8747909e2dd` fixes all three and preserves typed
+  reader failures. All843 runtime tests and image CI45061307996 passed. Failed/
+  incomplete artifacts are quarantined, with historical release evidence retained.
+- Acme staging rel-08954e78 and production-Console Harbor rel-1d456cd2 passed
+  normal apply verification at that runtime source. Harbor runs on physical
+  staging; it is not proof of production compute. Existing consumer assignments,
+  installation IDs, addresses, routes, volumes and resource limits were preserved.
+- Real customer UI journeys exercised PDF, DOCX, PNG OCR and scanned-PDF OCR,
+  S3 receipt/hash verification, approval/discovery/registration, AI preparation,
+  chunk preview, explicit index, real retrieval/answer/judge calls, actual result
+  attachment to AI, explicit reindex when required and repeat evaluation. Staging
+  and Harbor each supplied8 initial cases plus5 repeat cases for manual review.
+  Stale409s, cancellation, outsider404, phone/desktop layout and cleanup passed.
+- Actual production Support rel-18e7fc5c is APPLIED_VERIFIED/PASSED and its
+  existing Engage app is rebound. The same four-format real customer UI journey
+  passed on physical production, with8 initial+5 repeat cases, real model usage,
+  cancellation, stale409s, outsider404, cleanup and customer sign-outs. Its actual
+  Console Support Engage chat answered scanned-PDF support,20MiB, OCR, and the
+  Prepare -> Index -> Evaluate sequence from the new guide. See the dated report.
+- Support-content review found the old guide07's TXT/JSON/1MiB description and
+  ambiguous guide14 OCR wording. Corrected both, uploaded/indexed the revised
+  guides through customer UI, manually reviewed4+7 additional cases, and retired
+  the obsolete guide07/PDF indices only after replacements were active. Current
+  retained sources are doc-2da209bb8a9c9943424ec77e95629ded (guide07 TXT) and
+  doc-549b35e2472333a6c5108b1adf3f3879 (guide14 PDF). Originals remain private.
+- One earlier synthetic reference wrongly called a full-format-list question
+  unanswerable because the preparation sample was truncated. The actual retrieved
+  excerpt and answer contained the correct list; the judge still gave misleading
+  low scores. Another answer exposed the ambiguous OCR wording, now corrected.
+  These receipts remain. Do not report perfect model quality or automatic-score
+  improvement, or promote synthetic references to reviewed truth.
+- After guide replacement, a new Support conversation answered20MiB per file
+  using the current sources. OCR-mode answers correctly distinguish OFF, AUTO
+  and ALWAYS. A multi-part specialist answer still missed the documented size
+  limit; that reasoning limitation is preserved, not claimed fixed here.
+  A fresh customer revisit confirmed the retained PDF activev2 and selected a
+  completed persisted evaluation on desktop/390px with no page errors/overflow.
+- Harbor also exposed useful quality/qualification limits: one earlier generated
+  title question retrieved no evidence, while the height question worked. A new
+  question set is not evidence that the original miss is fixed. The Brain
+  Technical test omits a mode and therefore uses conversational mode, which has
+  retrieval disabled. Its no-evidence response is not a rich-reader failure.
+  Standalone Engage used executor mode and answered its live delivery API;
+  that does not prove selection of the fictional uploaded delivery policy.
+  A separate care-guide test DID retrieve the newly uploaded Word source/version
+  in ordinary Engage and correctly answered75kg and every three months. Its model
+  selected USE_RAG_ONLY; own conversation and temporary index were removed.
+- Hosted selected-file promotion remains a separate live qualification; source
+  evaluation or direct production upload does not prove promotion.
 - The focused backend release suite passed 607 tests. Broader existing backend
   integration fixtures still fail on legacy schema/credential setup. Public
   broad-app CI retains the known Incident Room failures. Neither is reported
   as a fully green broad suite.
 - Private operational receipts are under
   `/Users/mahmoudashraf/.codex/private/document-intelligence-0863`.
-  Task-owned normal staff sessions for both control planes must be revoked at
-  completion. No infrastructure sizing, paid capacity or billing changes were
+  Both task-owned normal staff sessions are revoked; old-cookie negative checks
+  passed on both control planes. Customer browser attempts signed out too.
+  No infrastructure sizing, paid capacity or billing changes were
   made. Existing running resources and hosted storage are reused.
+
+Current sanitized record: `verification-support/document-intelligence/2026-11-22_RELEASE.md`.
+Historical local-candidate evidence below is not the current deployment status.
 
 ## Original Local Candidate Evidence
 
@@ -90,7 +135,7 @@ are not OCR'd. Ragas and cloud OCR adapters are extension opportunities, not
 implemented providers. Evaluation is source-scoped retrieval/answer diagnosis,
 not a replacement for end-to-end chat, action or user-authorization acceptance.
 
-## Release Gates
+## Original Candidate Release Gates
 
 1. Review and merge the two candidate branches without reverting unrelated work.
    Run the full framework release checks and publish a real matching version.

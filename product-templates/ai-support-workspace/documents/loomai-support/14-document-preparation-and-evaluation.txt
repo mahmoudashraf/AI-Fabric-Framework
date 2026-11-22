@@ -34,9 +34,11 @@ Advanced processing settings
 Chunk targets range from 100 to 800 tokens. Overlap can repeat up to half a
 chunk and never crosses an input page or section boundary. Smaller chunks can
 focus narrow questions; overlap uses additional embedding and vector storage.
-Minimum chunk and indexed-text lengths control tiny fragments. OCR modes are
-automatic when PDF text is missing, every PDF page, or text only. Higher OCR
-resolution uses more memory and processing time. Always inspect OCR output.
+Minimum chunk and indexed-text lengths control tiny fragments. OCR mode AUTO
+(When text is missing) performs OCR only for PDF pages without readable text.
+ALWAYS (Every PDF page) runs OCR on every PDF page. OFF (Text only) disables OCR;
+use it only when the source already has readable text. Higher OCR resolution
+uses more memory and processing time. Always inspect OCR output.
 
 Index deliberately
 Changing processing settings creates a candidate source version. The old active
