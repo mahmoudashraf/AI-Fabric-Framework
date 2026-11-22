@@ -198,3 +198,10 @@ ones; `live-version-and-safety.private.json` confirms the current release,
 matching assignment, healthy e01 runtime/connector with zero restarts, and no
 business writes. The browser was anonymous; no admin session was created.
 No user credentials or raw production secrets are included in this document.
+
+Implementation follow-up, 22 November: framework 0.8.60 and the widget fixes are
+published and live in Harbor v8. See the separate
+[implementation verification](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/context-attachments/2026-11-22.md)
+for the primary passing journeys and remaining model-quality findings. This does
+not rewrite the nine original samples or imply every source-selection issue is
+resolved.

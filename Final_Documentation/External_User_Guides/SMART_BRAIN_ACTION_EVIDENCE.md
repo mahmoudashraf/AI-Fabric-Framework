@@ -81,9 +81,15 @@ Do not use model Selected fields as a privacy filter for customer-visible data.
 
 Attachments are user-provided context, not verified business facts or permission
 to execute an action. Credentials, authorization headers and private execution
-context remain outside item content; existing content bounds remain. Plan 010.70
-tracks implementation and rollout. Source fixes are implemented and locally
-tested; live adoption is not yet qualified at this checkpoint.
+context remain outside item content. The widget retains its 2,000-character
+content bound and shows when content is shortened. Full item data is not an
+unbounded payload or permission to attach other records.
+
+Use framework 0.8.60 with the updated widget for the corrected selected-item and
+context-only follow-up behavior. Harbor's desktop/phone item journeys are live
+verified. This does not guarantee every model source-selection decision is
+correct; [010.70 verification](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/context-attachments/2026-11-22.md)
+records the release and remaining model-quality findings.
 
 Neither preparation mode changes answer-breadth profiles, authentication,
 ownership, document approval, configured confirmation or spending limits. General

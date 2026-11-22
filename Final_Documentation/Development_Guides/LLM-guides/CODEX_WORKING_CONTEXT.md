@@ -17536,3 +17536,85 @@ test is being called hosted acceptance. UI extraction remains last.
   /tmp/loomai-context-0860-private-runtime-tests.log. Widget final fullsuite and
   extra cross-source-ID desktop/phone browser case PASS. Private source commit/
   push/build/deploy still pending; no live software changes yet.
+- UPDATE final private commits f34d6dafe30b7c36042f1c04b6cd4039d4fc2e1b and
+  e5319e190eebc6a6cec312e5770e804f894236d7 (final image source). NOTpushed yet;
+  awaiting public Central44968474640, stillinprogress asof01:06UTC. Localruntime
+ 818testsPASS; backendDraftValidation112PASS. Final complete widgetprepublish
+  exec61120 PASS after final scoped-type/unknown-source identity refinement.
+  Remaining unrelated rootdirty .gitignore/tsbuildinfo and untracked files ignored.
+- Active own waiter exec43846 (wait-public.mjs) checks publicCI+threeCentral
+  artifacts/signatures every30s, bounded45min. Do not duplicate Maven upload/tag.
+  PublicCI job137042748315 log download redirects but in-progress log unavailable;
+  private public-ci-current.log is a small XML error, not real Maven output.
+- Both own normal admin sessions now active in private helperroot
+  admin-production.private.json/admin-staging.private.json; use operations.mjs
+  logout(environment) for BOTH at close. Correct normal /api/platform/auth routes;
+  GET deployment itself does not exist, use /workspace. No auth product fix needed.
+- Helperroot has tested-syntax version60 service-rollout.mjs, register-runtime.mjs,
+  harbor-native.mjs, harbor-upgrade.mjs and harbor-live.mjs (NOTexecuted except
+  snapshot-native). Existing native/runtime+connector snapshots saved. Preflight
+  actual appACTIVE/ready stillrel2d, enquiries13 unchanged. Helpers use own async
+  platform() wrapper with task-owned sessions, old operations base forSSH/Coolify.
+  service-rollout backend catalog call adaptedawait; registry/native scripts also
+  adaptedawait. CI observer watch-private-ci.mjs expects release-source.private.json
+  final e531 and private-push-intent.private.json (not yet created).
+- Planned sequence once Centralready: push e531 only toPlatform-V11, await core+
+  runtimeCI; stage backend/UI image apply+preservation; qualifythenprod backend/UI;
+  register candidate runtime .60 bothCP; harbor-upgrade publish-apply EXACTsame
+  draftconfigs/target/newartifact, observe verified, native hashcheck againstCentral,
+  bind exactexistingappconsumer with revisionguard (otherKitconsumer unchanged),
+  run READ-only harbor-live.mjs captures original9+phone cases for qualityreview.
+  Live helper requires native proof first, closesbrowserfinally; no new business
+  writes/confirmations. Final promotion/docs/sessionlogout still required. Do not
+  claimfull/live untilactualproof. All taskexecs except waiter43846 closed asof
+  currentcheckpoint; no gallery8766 change, no infrastructure mutations.
+- UPDATE01:19UTC: publicCentral run44968474640 SUCCESS, all30modules/118artifact+
+  signatureHEADsPASS, threeSHA256proofsPASS. Fresh isolated Maven core60 resolution
+  PASS and Centralchecksum matches e6e179625e53b613466df3d27af4395f6e74e89b862f64b84f854d22dfcd4cf8.
+  Public waiter43846 CLOSED/0. Private e531 pushedPlatform-V11, bothCI core44970125906
+  andruntime44970125928 SUCCESS (observer64650 CLOSED/0). Both staging backend/UI
+  appliede531 and nativehealth/settings/storage/credential/mount checksPASS; schema241
+  unchanged. Runtime60 staged artifactdsa-81776175 registered on stagingCP/channel
+  staging; digest sha256:7d641f0836cc1c035a974fc8bd8c562a77dc503ee1ea05a8bb575b736d568360,
+  embeddedcore60hash equalsCentral. Rootrelease-source.private.json correctlye531.
+- NOW productionbackend exec41073/job e10revnclr13c8zqxxwa8u9i queued, productionUI
+  exec46510/job gtryxrk85da06gkyqqs3rfxh inprogress. Both service-rollout helpersrunning;
+  wait for their own verified.json PASS before any subsequentstep. Sameexisting
+  appIDs/resourcesonly; noresize. Need register-runtime.mjs production staging after
+  backendprodproof, then harbor-upgrade publish-apply/observe, nativeproof, bind,
+  READ-only livequeries/qualityreview/promote/canonicaldocs/logoutBOTHsessions.
+- FINAL01:45UTC 010.70: public0.8.60 source09a0d7d14e83411c4775c97f4015bd280935fa53,
+  immutabletag ai-fabric-framework-v0.8.60, Central44968474640 SUCCESS. All30module/
+  118artifact/signatureavailabilitychecksPASS; freshMavenconsumerPASS. Privatefinal
+  image sourcee5319e190eebc6a6cec312e5770e804f894236d7 pushedPlatform-V11; CoreCI
+  44970125906/runtimeCI44970125928SUCCESS. Both Corebackend/UIenvshealthyzeroRestarts,
+  e531source; schema241unchanged. Runtime digest7d641f0836cc1c035a974fc8bd8c562a77dc503ee1ea05a8bb575b736d568360.
+- Harboronly dep86ad8f93 publishedv8/ver0a4eb6e9, existingtarget stagingbehavior,
+  rel4a4caa6a APPLIED_VERIFIED/PASSED, reindexfalse. Native runtime20/connector5
+  publicJARs all60 and allchecksumsmatchCentral. Existingruntimebx54/connectorkikb
+  healthy0restart; capacity/storage/credentials/configpreserved. Standardexisting
+  COLD_REPLACEsoftwareworkflowtook~8min, notaninfraresize/newprovision. Exactexisting
+  Engageconsumerengage40e6c07b boundnewrelwithrevisionguard; appACTIVE/ready/sameURL,
+  branding/origins/domains/connectionpreserved; otherbindingsincludingKitconsumer
+  unchanged. Runtimeartifactsdsa81776175(stagingCP)/dsa68a7028e(prodCP) promotedproduction.
+  OtherBrainsNOTupgraded. Finalnative6servicehealthandpreservationchecksPASS.
+- Live14READ-onlysamplesretained (8originalscript+3continuation+1freshsourcecontrol+
+  2phone). PrimarydeskSummary,short/fullDelivery,twoNoSKUitemComparison,andhistoryOnly
+  comparisonPASS; contextplansremainANSWER_FROM_CONTEXT/noRAG. Phone390x844twoitems
+  PASS/nooverflow/nopageerrors. TwofullsourceattachmentsreachserverwithdistinctIDs.
+  No model/prompt/budget changes, no hidden retries; enquiries13unchanged/0writes.
+- NotallAIqualitygreen: careselecteddeliveryREAD; compounddelivery3INFORMATION
+  obligationshad2internal-domainclarifications; attachedsourcefollowupafterdelivery
+  answeredeliveryinsteadofproducts; onefreshbrowsechoseRAGandskippedproductREAD.
+  Theseareseparateplanning/context/source-qualityfindings, notlostattachmentdata
+  oroverrideofavalidcompletedcontextplan. BaselinecareRAGzeroDocsalsonotclosed.
+  ExistingcrampedphoneMarkdown/actiontablesremainoutside010.70. No blanketclaimof
+  everytheme/dockedmode/sourceanswerquality; livechecksusedstandaloneEngage.
+- Allownbrowsers/requiredexecsclosed. BOTHtask-ownednormaladminsessionsrevoked,
+  oldcookie-only /auth/session authenticatedfalse verified01:45. Privateproofroot
+  ~/.codex/private/context-attachments-0860, final-rollout-proof.private.json and
+  admin-{environment}-logout-proof.private.json. Gallery8766/user sessionsuntouched.
+  Canonical010.70/externalguide/verificationreportupdated; finaldocumentationonly
+  commitisnotthenativeimageSHA. Unrelated.gitignore/tsbuildinfo/untrackeduserfiles
+  remainuntouched. No furtherpublication/runtimeapplyorcapacitychangeisneededfor
+  thisboundedfix; broaderqualityfollowupsrequireseparatescopedinvestigation.

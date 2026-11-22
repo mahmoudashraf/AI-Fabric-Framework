@@ -1,6 +1,6 @@
 # 010.70 LLM Context Routing And Selected-Result Reliability
 
-- Status: owner-approved implementation in progress; local routing/widget regressions pass. Publication and live adoption are not yet qualified.
+- Status: implemented and released. Framework 0.8.60 and the updated widget are live in Harbor; primary desktop/phone item journeys pass. Broader compound/source-choice model quality remains explicitly qualified below.
 - Created: 2026-11-22.
 - Revised: 2026-11-22, explicit UI attachment approves the selected item's full data as AI context.
 - Authority: the owner approved implementation after the explicit-attachment clarification on 2026-11-22. Scope remains the three fixes below and their bounded release/Harbor verification; no unrelated runtime upgrade or infrastructure change.
@@ -220,7 +220,7 @@ authorization, counter checks and a no-replay assertion.
 
 ## 8. Separate Findings And Completion Criteria
 
-The care question correctly chose document RAG but returned zero documents. Audit
+The baseline care question chose document RAG but returned zero documents. Audit
 its indexed-source/filter/search path separately; do not claim this routing fix
 solves it or infer an S3 permission problem from an empty search. Likewise, the
 older cramped action table, Updates status discrepancy and unrelated broad-CI
@@ -236,9 +236,9 @@ context route alone is not proof that the final answer is accurate.
 Framework source `09a0d7d1` implements the bounded context-routing correction
 for 0.8.60. All 53 focused routing tests and the 30-module test reactor passed;
 release-profile packaging/install also passed (2,568 tests, no failures/skips).
-Public main and immutable tag are pushed; Maven publication is in progress.
-Framework release guards pass. No model, prompt, retrieval allowlist or budget
-was changed.
+Public main, immutable tag and Maven Central publication are complete. All 30
+module availability checks, fresh consumer resolution and release guards pass.
+No model, prompt, retrieval allowlist or budget was changed.
 
 Widget source now preserves full explicit item content within existing content
 bounds, retains nested/zero/false/null values, excludes structured credentials,
@@ -247,6 +247,26 @@ persistence, React/script-tag APIs and transient chat inputs. Desktop/phone
 browser tests exercise real cards and outgoing chat payloads. The complete widget
 pre-publication suite, next-step/source-document regressions and Console build
 passed. Initial test-harness dependency omissions were corrected, not bypassed.
+
+Private final image source is `e5319e190eebc6a6cec312e5770e804f894236d7`.
+Fresh Core/runtime CI passed against Central. Both Core backend/UI environments
+run that source. Harbor's existing app is ACTIVE/ready on v8 / `rel-4a4caa6a`,
+APPLIED_VERIFIED/PASSED. Native runtime and connector public JARs match Central
+0.8.60 checksums. Both control planes' runtime packages are promoted to the
+production channel; unrelated Brain deployments were not upgraded.
+
+Fourteen READ-only live query samples are retained. Desk summary, delivery,
+two-item comparison and history-only comparison pass; the phone comparison also
+passes with two full attachments and no page overflow/browser errors. Two full
+source-card payloads reach the server, but one mixed-topic source follow-up chose
+delivery instead of those products. A care wrong-tool choice, compound delivery
+domain clarifications and a fresh browse skipping its READ tool remain separate
+model/planning findings. Do not describe the broader AI experience as fully green.
+
+Storage, credentials, draft settings, capacity, app URL/identity and unrelated
+bindings were preserved; enquiry count stayed 13. Both task-owned admin sessions
+were revoked and their old cookies no longer authenticate. No paid infrastructure
+change, business write, hidden model retry or automatic reindex was performed.
 
 See [execution evidence](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/context-attachments/2026-11-22.md)
 for the latest publication, artifact and live-qualification status. Initial plan
