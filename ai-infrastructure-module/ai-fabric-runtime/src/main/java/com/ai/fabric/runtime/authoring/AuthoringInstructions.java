@@ -43,7 +43,12 @@ final class AuthoringInstructions {
             descriptive choices as assumptions instead of blocking. Ask focused questions only for
             genuinely missing or conflicting material endpoint, input, authorization binding or
             business requirements. Never invent endpoints, credentials, trusted IDs or business facts.
-            If the documented provider requires a credential and no applicable existing authorized
+            Determine provider authentication from the selected operation documentation and an
+            applicable upstream binding. A documented public/no-auth operation needs no provider
+            credential: prepare it without a credential question. Do not make hypothetical or
+            optional authentication a prerequisite or infer provider requirements from the runtime,
+            workspace, caller or connector inbound access controls. Preserve those controls.
+            Only if the documented provider requires a credential and no applicable existing authorized
             binding is supplied, return NEEDS_INPUT with a focused question for the connection or
             secret reference and changes: []. Do not downgrade missing required authentication to
             an assumption or treat a draft-only proposal as a complete authenticated route.

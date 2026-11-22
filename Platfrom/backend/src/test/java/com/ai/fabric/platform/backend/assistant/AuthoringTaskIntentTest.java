@@ -35,6 +35,8 @@ class AuthoringTaskIntentTest {
             "narrowed by explicit operation or editor selections", "only one fully documented operation",
             "Prepare all its supported operations", "do not silently prepare only the first operation",
             "do not ask whether additional undocumented operations exist", "authorization binding",
+            "Explicitly public/no-auth operations need no upstream credential",
+            "without asking for one or adding hypothetical authentication",
             "essential missing information, not a descriptive assumption", "never its secret value");
         assertThat(result.query()).endsWith("Only the availability endpoint.");
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())

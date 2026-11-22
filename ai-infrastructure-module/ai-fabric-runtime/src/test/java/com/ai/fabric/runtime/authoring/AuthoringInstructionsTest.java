@@ -68,6 +68,8 @@ class AuthoringInstructionsTest {
             "Never invent endpoints, credentials, trusted IDs or business facts",
             "not permission to execute, publish or include unselected material",
             "Use NEEDS_INPUT for missing essential information", "return NEEDS_INPUT with a focused question",
+            "documented public/no-auth operation needs no provider", "without a credential question",
+            "Do not make hypothetical or", "Preserve those controls",
             "Do not downgrade missing required authentication", "changes: []",
             "inbound API key are not", "Never ask for raw secret values");
         assertThat(AuthoringInstructions.system(feedbackRequest(ConfigurationAuthoringRequest.Task.BEHAVIOUR, 1)))

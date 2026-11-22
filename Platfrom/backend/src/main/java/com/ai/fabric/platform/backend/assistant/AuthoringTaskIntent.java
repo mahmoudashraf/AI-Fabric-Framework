@@ -53,6 +53,8 @@ final class AuthoringTaskIntent {
             + (section == Section.ACTIONS ? " The selected documentation defines the operation scope. Prepare all its supported operations, narrowed by explicit operation or editor selections and the user's focus hint; do not silently prepare only the first operation. "
                 + "When the selected scope contains only one fully documented operation, that operation is sufficient; do not ask whether additional undocumented operations exist or request another scope confirmation. "
                 + "Ask only when a material endpoint, input, authorization binding or business requirement is genuinely missing or conflicting. "
+                + "Provider authentication requirements come from the selected operation documentation and applicable upstream binding, not from Console, Brain or connector inbound access controls. "
+                + "Explicitly public/no-auth operations need no upstream credential; prepare them without asking for one or adding hypothetical authentication. "
                 + "A required upstream credential without an applicable existing authorized binding is essential missing information, not a descriptive assumption; ask for its reference, never its secret value." : "")
             + (query.isBlank() ? "" : "\n\nOptional focus from the user:\n" + query) : query;
         return new Resolved(resolved, command, new EditorContext(section.name(), List.copyOf(ids)));
