@@ -80,7 +80,7 @@ public class SupportResourceService {
         var d = deployment(owner, ref.id());
         var facts = new LinkedHashMap<String, Object>();
         facts.put("observationBasis", "PLATFORM_PERSISTED_STATE");
-        facts.put("deploymentStatus", safe(d.getStatus(), Set.of("DRAFT", "ACTIVE", "READY", "APPLIED", "FAILED", "PROVISIONING", "DELETING", "DELETED")));
+        facts.put("deploymentStatus", safe(d.getStatus(), Set.of("DRAFT", "VERSION_PUBLISHED", "APPLY_REQUESTED", "VERIFYING", "VERIFICATION_FAILED", "APPLY_FAILED", "ACTIVE", "READY", "APPLIED", "FAILED", "PROVISIONING", "DELETING", "DELETED")));
         var recent = releases.findByDeploymentIdOrderByCreatedAtDesc(d.getId());
         // Keep targets distinct: the most recently attempted release is not necessarily the serving release.
         facts.put("releases", recent.stream().limit(8).map(r -> {

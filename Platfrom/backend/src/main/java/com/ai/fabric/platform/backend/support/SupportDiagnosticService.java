@@ -22,10 +22,12 @@ public class SupportDiagnosticService {
     private final SupportTicketService tickets;
     private final SupportRequesterService requesters;
     private final SupportResourceService resources;
+    private final SupportConversationScopeService conversations;
 
     public SupportDiagnosticService(SupportDiagnosticAuthentication authentication, SupportTicketService tickets,
-                                     SupportRequesterService requesters, SupportResourceService resources) {
+                                     SupportRequesterService requesters, SupportResourceService resources, SupportConversationScopeService conversations) {
         this.authentication = authentication; this.tickets = tickets; this.requesters = requesters; this.resources = resources;
+        this.conversations = conversations;
     }
 
     @Transactional
@@ -34,7 +36,11 @@ public class SupportDiagnosticService {
         if (!CASE_SUMMARY.equals(action) && !RESOURCE_ACTIONS.containsKey(action)) throw SupportPolicy.bad("SUPPORT_UNKNOWN_ACTION");
         // A per-conversation principal proves scope even when a specialist trace omits conversationId.
         // The lock serializes accepted resource reads against local consent revocation.
-        var c = tickets.contextByPrincipal(caller.principal(), true);
+        var found = tickets.findContextByPrincipal(caller.principal(), true);
+        if (found.isEmpty()) return conversationRead(action, caller);
+        return ticketRead(action, caller, found.orElseThrow());
+    }
+    private DiagnosticResult ticketRead(String action, SupportDiagnosticAuthentication.VerifiedCaller caller, SupportIntegrationContextStore.Context c) {
         var ticket = tickets.getFor(c);
         var conversation = ticket.path("conversation").path("conversationId").asText();
         if (caller.conversationId() != null && !caller.conversationId().equals(conversation)
@@ -53,5 +59,24 @@ public class SupportDiagnosticService {
         var availability = results.isEmpty() ? Availability.NOT_APPLICABLE
             : results.stream().allMatch(r -> r.availability() == Availability.CURRENT) ? Availability.CURRENT : Availability.INCOMPLETE;
         return new DiagnosticResult(action, Instant.now(), availability, null, results);
+    }
+    private DiagnosticResult conversationRead(String action, SupportDiagnosticAuthentication.VerifiedCaller caller) {
+        var scope = conversations.findPrincipal(caller.principal()).orElseThrow(SupportPolicy::denied);
+        if (caller.conversationId() != null && !scope.conversationId().equals(caller.conversationId())) throw SupportPolicy.denied();
+        var context = conversations.context(scope, true);
+        // Adoption takes the same requester lock; ticket consent/lifecycle wins over casual context.
+        var adopted = tickets.findContextByPrincipal(caller.principal(), true);
+        if (adopted.isPresent()) return ticketRead(action, caller, adopted.orElseThrow());
+        var selected = context.resources().stream().filter(r -> r.type() == RESOURCE_ACTIONS.get(action)).toList();
+        if (CASE_SUMMARY.equals(action)) return required(action, "NO_LINKED_REQUEST", "This is a general support conversation, not a ticket. Documentation help and consented resource checks are available without creating a request.");
+        if (selected.isEmpty()) return required(action, "SELECT_RESOURCE", "Choose the relevant resource in Configure diagnostics before checking its status. A support ticket is not required.");
+        if (!context.consent().granted()) return required(action, "DIAGNOSTIC_CONSENT_REQUIRED", "Grant status-check permission in Configure diagnostics for the selected resources, then request the check again.");
+        resources.requireOwned(scope.requester(), context.resources());
+        var results = selected.stream().map(r -> resources.read(scope.requester(), r, context.resources(), scope.runtimePrincipal())).toList();
+        return new DiagnosticResult(action, Instant.now(), results.stream().allMatch(r -> r.availability() == Availability.CURRENT)
+            ? Availability.CURRENT : Availability.INCOMPLETE, null, results);
+    }
+    private static DiagnosticResult required(String action, String code, String message) {
+        return new DiagnosticResult(action, Instant.now(), Availability.NOT_APPLICABLE, null, List.of(), new DiagnosticRequirement(code, message));
     }
 }

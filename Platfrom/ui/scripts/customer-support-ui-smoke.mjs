@@ -14,6 +14,8 @@ await mkdir(evidence, { recursive: true })
 const teamReference = 'team-' + 'a'.repeat(64)
 const capabilities = ['CREATE', 'LIST', 'GET', 'RESOLVE', 'CANCEL', 'REOPEN', 'SEEN', 'LINK_CONVERSATION']
 const at = '2026-11-03T12:00:00Z'
+let activeGeneral = 'conversation-first'
+const generalChats = new Map([[activeGeneral, at]])
 let token = 'fixture-console-one', createError = 0, startError = 0, contextError = 0, sessionError = 0
 const authModule = '\0support-auth.js', entry = '\0support-fixture.jsx'
 const session = { enabled: true, authenticated: true, role: 'CUSTOMER_ADMIN', authenticationMode: 'SUPABASE',
@@ -58,8 +60,8 @@ let page
 const passed = label => { scenarios.push(label); console.log(`PASS ${label}`) }
 const requestCreates = () => calls.filter(call => call.method === 'POST' && call.path === '/api/support/requests')
 const requestStarts = () => calls.filter(call => call.method === 'POST' && call.path.endsWith('/start'))
-const bootstrap = id => ({ conversationId: id ? requests.get(id).conversation.conversationId : 'conversation-first', principalNamespace: id ? `support:${id}:episode-1` : 'support:conversation-first',
-  apiBaseUrl: id ? `/api/support/requests/${id}/runtime/api` : '/api/support/conversations/conversation-first/runtime/api', installationId: 'awi-real-support-fixture', assignmentRevision: 'verified-support-assignment',
+const bootstrap = id => ({ conversationId: id ? requests.get(id).conversation.conversationId : activeGeneral, principalNamespace: id ? `support:${id}:episode-1` : `support:${activeGeneral}`,
+  apiBaseUrl: id ? `/api/support/requests/${id}/runtime/api` : `/api/support/conversations/${activeGeneral}/runtime/api`, installationId: 'awi-real-support-fixture', assignmentRevision: 'verified-support-assignment',
   workspaceAssetUrl: '/api/public/ai-workspace/assets/widget.js', workspaceIntegrity: integrity(widget),
   experienceModuleUrl: '/api/public/ai-workspace/assets/support.js', experienceIntegrity: integrity('pack bundled in Console'),
   configuration: { schemaVersion: 'loomai-support-experience-config-v1', app: { assistantLabel: 'LoomAI Support', title: 'Integration support' },
@@ -91,7 +93,26 @@ try {
     if (request.headers().authorization !== `Bearer ${token}`) return json({ message: 'Console authentication required' }, 401)
     if (path === '/api/platform/auth/session') return json(session)
     if (path === '/api/configuration-assistant/status') return json({ enabled: false, ready: false, documentFetchEnabled: false, unavailableReason: 'Authoring disabled in support fixture.' })
-    if (path === '/api/support/workspace') return json(bootstrap())
+    if (path === '/api/support/workspace') {
+      if (url.searchParams.has('conversationId')) { assert.ok(generalChats.has(url.searchParams.get('conversationId'))); activeGeneral = url.searchParams.get('conversationId') }
+      return json(bootstrap())
+    }
+    if (path === '/api/support/conversations') {
+      if (method === 'POST') { activeGeneral = `general-${generalChats.size}`; generalChats.set(activeGeneral,new Date().toISOString()); return json(bootstrap()) }
+      return json({ items: [...generalChats].reverse().map(([conversationId,createdAt]) => ({ conversationId,createdAt })), nextCursor: null })
+    }
+    const generalContext = path.match(/^\/api\/support\/conversations\/([^/]+)\/context(\/consent)?$/)
+    if (generalContext) {
+      const [, id, consent] = generalContext; assert.ok(generalChats.has(id))
+      if (!contexts.has(id)) contexts.set(id,{ conversationId:id,resources:[],consent:{granted:false,version:0,changedAt:at,revokedAt:null},revision:0 })
+      const context = contexts.get(id)
+      if (method === 'PUT') {
+        if (consent) { assert.equal(body.expectedVersion,context.consent.version); context.consent.granted=body.granted; context.consent.version++ }
+        else { assert.equal(body.expectedRevision,context.revision); context.resources=body.resources; context.consent.granted=false; context.consent.version++ }
+        context.revision++
+      }
+      return json(context)
+    }
     if (path === '/api/support/notifications') return json({ available: true, enabled: false, deliveryStatus: 'NONE' })
     if (path === '/api/support/session') return sessionError ? json({ message: 'Synthetic session failure' }, sessionError)
       : json({ authenticated: true, requesterId: 'verified-requester-one', space: { spaceId: 'space-one', providerBindingId: 'provider-one', humanHandoverEnabled: true, capabilities }, capabilities })
@@ -166,13 +187,15 @@ try {
       if (operation === '/ai-resume-requests') { control.controlState = 'AI_ACTIVE'; control.controlVersion++; return json(control) }
       if (operation === '/messages' && method === 'POST') {
         if (control.controlState === 'HUMAN_ACTIVE') return json({ success: true, type: 'HUMAN_MESSAGE_ACCEPTED', conversationId }, 202)
+        control.messages.push({messageId:`${conversationId}-u-${control.messages.length}`,role:'USER',sequence:control.messages.length+1,content:body.query,createdAt:at})
+        control.messages.push({messageId:`${conversationId}-a-${control.messages.length}`,role:'AI',sequence:control.messages.length+1,content:'A chat-first answer without creating a ticket.',createdAt:at})
         return json({ success: true, type: 'INFORMATION_PROVIDED', answer: 'A chat-first answer without creating a ticket.', conversationId })
       }
       if (!operation) return json({ id: conversationId, status: 'ACTIVE', controlState: control.controlState, controlVersion: control.controlVersion,
         participantMessages: ticket && ticket.conversation.delivery === 'DELIVERED' ? [
           { messageId: `${id}-user`, role: 'USER', sequence: 1, content: ticket.details, createdAt: at },
           { messageId: `${id}-ai`, role: 'AI', sequence: 2, content: `Canonical guidance for ${ticket.reference}.`, createdAt: at },
-        ] : [], completedTurns: [] })
+        ] : control.messages, completedTurns: [] })
     }
     errors.push(`Unhandled ${method} ${path}`)
     return json({ message: 'Unknown fixture API' }, 500)
@@ -227,6 +250,34 @@ try {
   await frame.getByText('A chat-first answer without creating a ticket.', { exact: true }).waitFor()
   assert.equal(requestCreates().length, 0)
   passed('chat-first canonical message path does not create a tracked request')
+
+  await page.getByRole('button', { name: 'Configure diagnostics', exact: true }).click()
+  const casualDialog = page.getByRole('dialog')
+  await casualDialog.getByRole('combobox', { name: 'Affected resources (optional)', exact: true }).click()
+  await page.getByRole('option', { name: 'Current deployment', exact: true }).click()
+  await casualDialog.getByRole('button', { name: 'Save resources', exact: true }).click()
+  const casualConsent = casualDialog.getByRole('checkbox')
+  await casualConsent.waitFor()
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"] input[type="checkbox"]')?.disabled)
+  await casualConsent.click()
+  await page.waitForFunction(() => document.querySelector('[role="dialog"] input[type="checkbox"]')?.checked)
+  await casualDialog.getByRole('button', { name: 'Close diagnostics', exact: true }).click()
+  assert.equal(requestCreates().length,0)
+  assert.equal(contexts.get('conversation-first').consent.granted,true)
+  await page.reload()
+  await frame.getByText('A chat-first answer without creating a ticket.', { exact: true }).waitFor()
+  passed('general conversation diagnostics need no ticket and canonical history restores after reload')
+  await page.getByRole('button', { name: 'New support chat', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'New chat', exact: true }).click()
+  await frame.locator('textarea').waitFor()
+  assert.notEqual(activeGeneral,'conversation-first')
+  assert.equal(await frame.getByText('A chat-first answer without creating a ticket.', { exact: true }).count(),0)
+  await page.getByRole('button', { name: 'Support chat history', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /^Chat ·/ }).last().click()
+  await frame.getByText('A chat-first answer without creating a ticket.', { exact: true }).waitFor()
+  assert.equal(activeGeneral,'conversation-first')
+  assert.equal(requestCreates().length,0)
+  passed('explicit new chat preserves earlier history and reopening does not replay messages or create requests')
 
   const iframe = await page.locator('iframe[data-loomai-workspace-frame]').elementHandle()
   const marker = crypto.randomUUID(), draft = 'Keep this unsent question while I inspect my deployment.'
@@ -294,13 +345,13 @@ try {
   await consent.click()
   await page.waitForFunction(() => !document.querySelector('[role="dialog"] input[type="checkbox"]')?.checked)
   assert.equal(contexts.get('request-1').consent.granted, false)
-  assert.equal(calls.filter(call => call.path.endsWith('/context/consent')).length, 2)
+  assert.equal(calls.filter(call => call.path.startsWith('/api/support/requests/') && call.path.endsWith('/context/consent')).length, 2)
   await dialog.getByRole('combobox', { name: 'Affected resources (optional)', exact: true }).click()
   await page.getByRole('option', { name: 'Current app', exact: true }).click()
   contextError = 409
   await dialog.getByRole('button', { name: 'Save resources', exact: true }).click()
   await dialog.getByRole('alert').filter({ hasText: 'context changed' }).waitFor()
-  assert.equal(calls.filter(call => call.path.endsWith('/context/consent')).length, 2, 'A conflict never retries or regrants permission')
+  assert.equal(calls.filter(call => call.path.startsWith('/api/support/requests/') && call.path.endsWith('/context/consent')).length, 2, 'A conflict never retries or regrants permission')
   contextError = 0
   await dialog.getByRole('button', { name: 'Save resources', exact: true }).click()
   await page.waitForFunction(() => !document.querySelector('[role="dialog"] input[type="checkbox"]')?.disabled)

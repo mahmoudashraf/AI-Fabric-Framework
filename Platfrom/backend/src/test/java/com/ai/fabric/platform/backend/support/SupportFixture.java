@@ -95,7 +95,8 @@ class SupportFixture {
     jdbc.execute("create table platform_customers(id varchar(64) primary key)");
     jdbc.execute("create table platform_users(id varchar(64) primary key)");
     new ResourceDatabasePopulator(
-            new ClassPathResource("db/migration/V226__console_support_integration_context.sql"))
+            new ClassPathResource("db/migration/V226__console_support_integration_context.sql"),
+            new ClassPathResource("db/migration/V244__support_conversation_continuity.sql"))
         .execute(source);
     when(users.findById(anyString()))
         .thenAnswer(a -> Optional.ofNullable(directory.get(a.getArgument(0))));
@@ -118,7 +119,7 @@ class SupportFixture {
         new SupportResourceService(
             deployments, releases, apps, consumers, readiness, connections, plans, runs, documents);
     contextStore = new SupportIntegrationContextStore(jdbc, json);
-    conversations = new SupportConversationScopeService(jdbc, settings, requesters);
+    conversations = transactional(new SupportConversationScopeService(jdbc, settings, requesters, json, resources));
     when(ticketClient.spaceId()).thenReturn("support-binding");
     when(ticketClient.request(
             any(), anyString(), anyString(), nullable(Object.class), nullable(String.class)))
@@ -147,7 +148,7 @@ class SupportFixture {
                 ticketClient, requesters, contextStore, resources, settings, conversations));
     authentication = new SupportDiagnosticAuthentication(settings, secrets);
     diagnostics =
-        transactional(new SupportDiagnosticService(authentication, service, requesters, resources));
+        transactional(new SupportDiagnosticService(authentication, service, requesters, resources, conversations));
     when(secrets.resolveSecret("PLATFORM_MANAGED_SUPPORT_DIAGNOSTICS"))
         .thenReturn("dedicated-diagnostic-test-key");
     login("alice");

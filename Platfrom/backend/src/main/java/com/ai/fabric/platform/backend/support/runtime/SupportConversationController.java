@@ -19,9 +19,22 @@ public class SupportConversationController {
     private final SupportConversationScopeService scopes;
     public SupportConversationController(SupportRuntimeAccessService access, SupportWorkspaceService workspace,
         SupportConversationScopeService scopes) { this.access = access; this.workspace = workspace; this.scopes = scopes; }
-    @GetMapping("/workspace") public ResponseEntity<SupportRuntimeAccessService.Bootstrap> bootstrap() {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(access.bootstrapConversation());
+    @ModelAttribute void headers(jakarta.servlet.http.HttpServletResponse response) { response.setHeader("Cache-Control", "private, no-store"); }
+    @GetMapping("/workspace") public ResponseEntity<SupportRuntimeAccessService.Bootstrap> bootstrap(@RequestParam(required=false) String conversationId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(access.bootstrapConversation(conversationId));
     }
+    @PostMapping("/conversations") public ResponseEntity<SupportRuntimeAccessService.Bootstrap> create() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(access.newConversation());
+    }
+    @GetMapping("/conversations") public ResponseEntity<SupportConversationScopeService.History> history(
+        @RequestParam(required=false) String cursor, @RequestParam(defaultValue="20") int limit) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(scopes.history(cursor, limit));
+    }
+    @GetMapping("/conversations/{id}/context") public SupportConversationScopeService.ContextView context(@PathVariable String id) { return scopes.context(id); }
+    @PutMapping("/conversations/{id}/context") public SupportConversationScopeService.ContextView update(@PathVariable String id,
+        @jakarta.validation.Valid @RequestBody com.ai.fabric.platform.backend.support.SupportTicketService.ContextInput input) { return scopes.update(id, input); }
+    @PutMapping("/conversations/{id}/context/consent") public SupportConversationScopeService.ContextView consent(@PathVariable String id,
+        @jakarta.validation.Valid @RequestBody com.ai.fabric.platform.backend.support.SupportContracts.ConsentChange input) { return scopes.consent(id, input); }
     @GetMapping(value="/conversations/{scopeId}/runtime/api/chat/me/conversations/{conversationId}/events", produces=MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<StreamingResponseBody> events(@PathVariable String scopeId, @PathVariable String conversationId,
         @RequestHeader(value="Last-Event-ID",required=false) String lastEventId) {

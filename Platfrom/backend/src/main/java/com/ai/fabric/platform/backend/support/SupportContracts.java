@@ -32,5 +32,10 @@ public final class SupportContracts {
     public record CaseDiagnostic(String reference, String summary, String topic, CaseStatus status,
                                  Consent consent, List<ResourceRef> resources) { }
     public record DiagnosticResult(String action, Instant observedAt, Availability availability,
-                                    CaseDiagnostic supportCase, List<ResourceDiagnostic> resources) { }
+                                    CaseDiagnostic supportCase, List<ResourceDiagnostic> resources, DiagnosticRequirement requirement) {
+        public DiagnosticResult(String action, Instant observedAt, Availability availability, CaseDiagnostic supportCase, List<ResourceDiagnostic> resources) {
+            this(action, observedAt, availability, supportCase, resources, null);
+        }
+    }
+    public record DiagnosticRequirement(String code, String message) { }
 }

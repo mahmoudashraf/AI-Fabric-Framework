@@ -4,7 +4,8 @@ import { getPlatformApiBaseUrl, getStoredPlatformApiKey, platformCredentials, Pl
 
 export type SupportResource = { type: 'DEPLOYMENT' | 'ENGAGE_APP' | 'CONNECTION'; id: string }
 export type SupportRequestContext = {
-  ticketId: string
+  ticketId?: string
+  conversationId?: string
   resources: SupportResource[]
   consent: { granted: boolean; version: number; changedAt: string | null; revokedAt: string | null }
   revision: number
@@ -22,14 +23,19 @@ export interface ConsoleSupportWorkspaceBootstrap extends SupportWorkspaceBootst
 }
 const root = '/api/support'
 const item = (id: string) => `${root}/requests/${encodeURIComponent(id)}`
-export const getSupportWorkspace = (id?: string, signal?: AbortSignal) => platformRequest<ConsoleSupportWorkspaceBootstrap>(
-  id ? `${item(id)}/workspace` : `${root}/workspace`, { signal },
+export const getSupportWorkspace = (id?: string, signal?: AbortSignal, conversationId?: string, create = false) => platformRequest<ConsoleSupportWorkspaceBootstrap>(
+  id ? `${item(id)}/workspace` : create ? `${root}/conversations` : `${root}/workspace${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ''}`, { signal, ...(create && !id ? { method: 'POST' } : {}) },
 )
+export type SupportHistory = { items: { conversationId: string; createdAt: string }[]; nextCursor: string | null }
+export const getSupportHistory = (cursor?: string) => platformRequest<SupportHistory>(`${root}/conversations${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`)
+const contextPath = (context: Pick<SupportRequestContext, 'ticketId' | 'conversationId'>) => context.ticketId ? `${item(context.ticketId)}/context`
+  : `${root}/conversations/${encodeURIComponent(context.conversationId!)}/context`
 export const getSupportRequestContext = (id: string, signal?: AbortSignal) => platformRequest<SupportRequestContext>(`${item(id)}/context`, { signal })
-export const updateSupportResources = (context: SupportRequestContext, resources: SupportResource[]) => platformRequest<SupportRequestContext>(`${item(context.ticketId)}/context`, {
+export const getSupportConversationContext = (id: string, signal?: AbortSignal) => platformRequest<SupportRequestContext>(`${root}/conversations/${encodeURIComponent(id)}/context`, { signal })
+export const updateSupportResources = (context: SupportRequestContext, resources: SupportResource[]) => platformRequest<SupportRequestContext>(contextPath(context), {
   method: 'PUT', body: JSON.stringify({ resources, expectedRevision: context.revision }),
 })
-export const changeSupportConsent = (context: SupportRequestContext, granted: boolean) => platformRequest<SupportRequestContext>(`${item(context.ticketId)}/context/consent`, {
+export const changeSupportConsent = (context: SupportRequestContext, granted: boolean) => platformRequest<SupportRequestContext>(`${contextPath(context)}/consent`, {
   method: 'PUT', body: JSON.stringify({ granted, expectedVersion: context.consent.version }),
 })
 

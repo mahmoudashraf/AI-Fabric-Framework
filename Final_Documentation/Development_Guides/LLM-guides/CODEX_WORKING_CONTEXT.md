@@ -18437,6 +18437,48 @@ test is being called hosted acceptance. UI extraction remains last.
   A final documentation-only HEAD is not an image revision; no additional
   deployment is needed for the documentation commit.
 
+## 2026-11-22 Support Continuity, Diagnostics And Specialists - In Progress
+
+- Owner approved full implementation in order: restore Support history and
+  ordinary-chat diagnostics first, then expand specialists/resolution plans,
+  and regression-verify Build with AI live. No public framework change or new
+  infrastructure is planned. Existing ordinary Brains/Desk and unrelated UI
+  layouts must remain unchanged. Do not revive stopped apps or touch gallery8766.
+- Baseline deployed backend/shared assistant1cad1d5b, UI5404944, publicFW0.8.62,
+  schema241. Product working tree has unrelated .gitignore/cache/media changes;
+  do not stage/revert them. No source commit/push or rollout for this work yet.
+- Phase1 edits: V242 adds selection/consent metadata to existing private Support
+  scope table (no transcript duplication). General bootstrap resumes own latest
+  untracked conversation; explicit new/select/history APIs retain membership,
+  issuer/subject ownership, paging and request-adoption exclusion. Casual
+  diagnostics use same selected-resource/consent checks without inventing a
+  ticket, return typed selection/consent requirements; ticket lifecycle remains
+  enforced and adoption uses requester locking. UI gets history/new-chat and
+  general diagnostics; active owner/abort/busy guards retained. Host pack/runtime
+  remain sole transcript renderer/store; Build with AI untouched.
+- Added SupportConversationContinuityTest. Initial broad Support* test run
+  failed on H2 unsupported multi-ADD syntax (fixed before any deployment) and an
+  unrelated pre-existing SupportExperienceProductTemplateTest stale expected
+  1.0.1 vs current1.3.0 template. First run closed. Focused support packages now
+  rerunning, exec67689 completed with two HTTP-error expectation differences;
+  log ~/.codex/private/loomai-support-specialists-20261122/phase1-backend-tests.log.
+  UI tsc PASS and existing pack-host7 testsPASS. No live queries/mutations yet.
+- New private root ~/.codex/private/loomai-support-specialists-20261122/ (0700).
+  operations.mjs uses NEW own normal staff sessions; prepare.mjs completed and
+  BOTH STAGING/PRODUCTION OWN STAFF SESSIONS ARE ACTIVE. Baselines snapshot all
+  original Brains/drafts/releases plus backend/UI apps/settings/native state.
+  Prior roots remain revoked, never reuse their cookies or an
+  API-key fallback. Must logout all own sessions with old-cookie proof at finish.
+- Phase1 diagnostic manifest1.0.4 adds safe requirement evidence without editing
+  immutable1.0.3. Need test, publish/register through normal APIs, upgrade Support
+  instances only after staging checks. Expand to five read-only areas and bounded
+  LLM-driven plans in phase2, with actual safe integration/handover projections.
+  Writes remain canonical parent actions/Build with AI; no second draft writer.
+  Pending: finish local/backend/Postgres/UI tests, reviewed source commits/CI,
+  stage backend/UI+Support rollout, real history/consent/diagnostic checks, then
+  production verification; phase2 plus template reuse and Build with AI regression;
+  final preservation audit, cleanup, session revocation, docs/commit/push.
+
 ## 2026-11-22 Document Intelligence 0.8.63 Release - In Progress
 
 - Owner explicitly requested framework publication, compatible deployments and
@@ -18583,3 +18625,49 @@ test is being called hosted acceptance. UI extraction remains last.
   ~/.codex/private/document-intelligence-0863. Final docs/report/010.72 and working
   status remain required. Hosted selected-file promotion remains not live-qualified
   by this run; do not misrepresent upload/evaluation proof as promotion proof.
+
+### Support Continuity Implementation Checkpoint - 22 November, 20:41 UTC
+
+- Latest owner task: implement history + ordinary-chat diagnostics first, then
+  five specialists/adaptive resolution plans, and live-regress Build with AI.
+  Do not stop at phase1. Current branch includes document-intelligence commits
+  through183b104cd; PRESERVE these. Live global backend/UI/assistant4a3a56e8,
+  schema243, publicFW63, not earlier1cad/540/FW62. No public framework change is
+  part of the Support task. Support prod release rel-18e7fc5c is PROVISIONING
+  from separate document-intelligence work; observe, never replay/cancel it or
+  apply another version until it is terminal. Acme and Harbor changes are not
+  ours; don't restore their older snapshot data.
+- Phase1 edits are ready for final local qualification/commit: V244 (NOT242;
+  242/243 belong to document intelligence), ordinary-chat resume/new/history,
+  resource/consent context, typed diagnostic requirements, adoption isolation,
+  owner-scoped UI history/new chat/diagnostics. No Support transcript replica or
+  Build with AI changes. New manifest diagnostic1.0.4 is additive and preserves
+  the four registered actions/secret bindings; carries requirement evidence.
+- Local UI build PASS; pack-host7 tests PASS; real pack/widget Playwright15
+  scenario groups PASS including refresh, new/reopen, general consent, ticket
+  controls, token changes, phone layouts and authoring launcher separation.
+  Screenshots manually reviewed. Core Support suite132/0skip passed before
+  final adoption test. Combined Support+assistant suite currently reports409
+  tests/0fail/0error/0skip, exec64067 still needs final exit confirmation.
+  Log private phase1-combined-final.log. Earlier duplicate migration/H2/HTTP
+  expectation failures retained; both initial test sessions CLOSED. The broad
+  unrelated SupportExperienceProductTemplateTest expected old1.0.1 while current
+  accepted catalogue is1.3.0; don't revert templates to satisfy it.
+- ACTIVE OWN NORMAL STAFF SESSIONS BOTHCPs in new root
+  ~/.codex/private/loomai-support-specialists-20261122/. Use operations.mjs
+  logout BOTH and prove old cookies unauthenticated at finish. Other roots'
+  sessions are NOT ours and must not be reused/revoked. prepare.mjs completed
+  original snapshots48stage/24prodapps + allBrainconfigs/versions/releases,
+  backend/UI env/native/settings. Those snapshots already captured4a3/schema243.
+  New helpers watch-ci.mjs and rollout.mjs are prepared/syntaxchecked; no Support
+  source commit/push, CI or deployment yet. No new AI queries this task yet.
+- Pending ordered work: finish source tests/commit/push; CI core backend/UI;
+  deploy staging backend/UI using phase1 helper; publish diagnostic1.0.4 through
+  normal Marketplace API, upgrade only Support via ordinary draft/version/apply,
+  real customer history/consent/diagnostic checks and manual quality proof;
+  production after stage quality and separate prod release finishes. Then phase2
+  safe integration/Desk projections, five areas + bounded LLM-directed plans,
+  reusable template revisions and live checks. Regress current Build with AI,
+  including new document-aware authoring, not the obsolete baseline alone.
+  Final preservation/cleanup/logout/docs needed. Gallery8766 and unrelated
+  .gitignore/cache/media/worktrees unchanged. Do not resize/add infrastructure.
