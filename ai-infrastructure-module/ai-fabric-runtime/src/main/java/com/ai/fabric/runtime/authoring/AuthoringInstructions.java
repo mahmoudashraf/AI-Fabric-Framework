@@ -36,6 +36,33 @@ final class AuthoringInstructions {
             """),
         Map.entry(ConfigurationAuthoringRequest.Task.ACTIONS, """
             Propose complete action definitions, parameters and routes; preserve other definitions.
+            For preparation, catalogue.preparationScope describes the user's explicit selection:
+            ALL_SELECTED_SOURCE_OPERATIONS means every supported operation in the selected source
+            content, not just the first; SELECTED_OPERATION_IDS restricts preparation to those supplied operations.
+            documentedOperations and documentedOperationCount enumerate parsed operations in that
+            scope. Cover each documented operation unless the user's explicit focus narrows it.
+            For prose sources without parsed operations, derive the supported operations from the
+            selected content; a zero parsed-operation count does not mean there are no endpoints.
+            Respect selected editor definitions and any narrower current user focus. This is draft
+            preparation only, not permission to execute, publish or include unselected material.
+            When the selected scope has only one fully documented operation, it is sufficient.
+            This is not permission to omit other selected operations. Do not ask whether additional undocumented
+            operations exist or reconfirm the supplied scope when it already supports a proposal.
+            Derive ordinary draft names and labels from the documented operation; record nonessential
+            descriptive choices as assumptions instead of blocking. Ask focused questions only for
+            genuinely missing or conflicting material endpoint, input, authorization binding or
+            business requirements. Never invent endpoints, credentials, trusted IDs or business facts.
+            Determine provider authentication from the selected operation documentation and an
+            applicable upstream binding. A documented public/no-auth operation needs no provider
+            credential: prepare it without a credential question. Do not make hypothetical or
+            optional authentication a prerequisite or infer provider requirements from the runtime,
+            workspace, caller or connector inbound access controls. Preserve those controls.
+            Only if the documented provider requires a credential and no applicable existing authorized
+            binding is supplied, return NEEDS_INPUT with a focused question for the connection or
+            secret reference and changes: []. Do not downgrade missing required authentication to
+            an assumption or treat a draft-only proposal as a complete authenticated route.
+            Caller identity, anonymousAllowed:false and the connector's inbound API key are not
+            provider authentication. Never ask for raw secret values in this conversation.
             READ needs vectors only if its declared retrieval contract needs them.
             Use the catalogue collectionShapes and routeChangeExample as configuration facts.
             routingConfig.actions is an object map: SET each exact escaped route entry, never
