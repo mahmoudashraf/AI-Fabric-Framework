@@ -19,7 +19,7 @@ export function attachmentItemKey(data: any, source?: AttachmentItemSource): str
   const id = identifier(data?.id, data?.Id, data?.ID);
   const sku = identifier(data?.sku, data?.Sku, data?.SKU);
   if (source) {
-    return JSON.stringify(["selected-item", source.actionName ?? "", source.collection ?? "$",
+    return JSON.stringify(["selected-item", itemType(data), source.actionName ?? source.messageId, source.collection ?? "$",
       ...(id !== undefined ? ["id", id] : sku !== undefined ? ["sku", sku]
         : ["position", source.messageId, source.index])]);
   }
@@ -44,15 +44,18 @@ export function matchesAttachment(item: AttachedItem, key: string): boolean {
     || identifier(item.data?.sku, item.data?.Sku, item.data?.SKU) === key;
 }
 
-export function attachedActionItem(item: any, source?: AttachmentItemSource): AttachedItem {
+function itemType(item: any): string {
   const hasProductFields = item.sku || item.Sku || item.price !== undefined || item.Price !== undefined;
   const hasOrderFields = item.orderId || item.OrderId || item.orderNumber || item.OrderNumber;
   const hasReviewFields = item.rating !== undefined && (item.comment || item.Comment);
   const hasCouponFields = item.code || item.Code || item.discountType || item.DiscountType;
-  const type = hasOrderFields ? "order" : hasProductFields ? "product"
+  return hasOrderFields ? "order" : hasProductFields ? "product"
     : hasReviewFields ? "review" : hasCouponFields ? "coupon" : "item";
+}
+
+export function attachedActionItem(item: any, source?: AttachmentItemSource): AttachedItem {
   return {
-    type,
+    type: itemType(item),
     // Preserve source fields and casing; aliases are presentation conveniences only.
     data: {
       ...item,

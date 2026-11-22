@@ -30,6 +30,11 @@ assert.equal(sameAttachment(attachedDesk, attachedChair), false, 'missing SKUs a
 assert.equal(sameAttachment(attachedDesk, attachedActionItem(desk, source)), true)
 assert.equal(sameAttachment(attachedDesk, attachedActionItem(desk, { ...source, actionName: 'other_source' })), false)
 assert.equal(sameAttachment(attachedDesk, attachedActionItem(desk, { ...source, collection: 'other_items' })), false)
+assert.notEqual(attachmentItemKey(desk, { ...source, actionName: undefined }),
+  attachmentItemKey(desk, { ...source, actionName: undefined, messageId: 'another-message' }))
+const differentType = attachedActionItem({ ...desk, orderId: 'order-1' }, source)
+assert.equal(sameAttachment(attachedDesk, differentType), false)
+assert.equal(matchesAttachment(attachedDesk, differentType.selectionKey), false)
 assert.equal(sameAttachment({ type: 'item', data: { sku: 'SKU1' } }, { type: 'item', data: { sku: 'SKU1' } }), true)
 assert.equal(sameAttachment({ type: 'item', data: { id: 'one' } }, { type: 'item', data: { id: 'two' } }), false)
 assert.equal(sameAttachment({ type: 'item', data: {} }, { type: 'item', data: {} }), false)
