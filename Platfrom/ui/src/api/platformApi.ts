@@ -2186,6 +2186,7 @@ export type DocumentSourceDetail = {
 }
 
 export type DocumentPreviewResult = {
+  extraction?: { format: string; textSections: number; characters: number; ocrSections: number; warnings: string[] } | null
   planId: string
   source: DocumentSourceSummary
   documentCount: number
@@ -2194,6 +2195,8 @@ export type DocumentPreviewResult = {
   chunksTruncated: boolean
   chunks: Array<{
     sourceDocumentId: string
+    pageNumber?: number | null
+    extractionMethod?: string | null
     chunkId: string
     chunkIndex: number
     chunkCount: number
@@ -5833,8 +5836,38 @@ export function fetchDocumentSourceDetail(target: DeploymentTargetReference, sou
 export function previewDocumentSource(target: DeploymentTargetReference, sourceId: string) {
   return request<DocumentPreviewResult>(
     `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}/preview`,
+    undefined, 'default', undefined, { timeoutMs: 90_000 },
   )
 }
+
+export type DocumentPreparationConfig = {
+  processing: { chunkTokens: number; overlapTokens: number; minChunkChars: number; minEmbedChars: number; ocrMode: 'AUTO' | 'ALWAYS' | 'OFF'; ocrLanguage: string; ocrDpi: number }
+  evaluationOptions: { maxQuestions: number; maxDocuments: number; maxContextCharacters: number; similarityThreshold: number; answerMaxTokens: number }
+  questions: { id: string; question: string; referenceAnswer: string; reviewed: boolean }[]
+}
+export type DocumentPreparationSnapshot = {
+  sourceId: string; revision: number; sourceVersion: number; activeSourceVersion: number | null
+  configuration: DocumentPreparationConfig; ocrLanguages: string[]; ocrAvailable: boolean; reindexRequired: boolean
+}
+export type DocumentEvaluationRun = {
+  id: string; sourceId: string; status: string; createdAt: string; finishedAt?: string; releaseId: string
+  sourceVersion: number; candidateSourceVersion: number; reindexRequired: boolean; providerId: string; rubricVersion: string
+  modelCalls: number; maxModelCalls: number; syntheticReferences: boolean; configuration: DocumentPreparationConfig
+  cases: { id: string; question: string; referenceAnswer: string; referenceReviewed: boolean; status: string; error?: string; answer?: string
+    retrieval?: DocumentRetrievalProof; evaluatedExcerpts?: { id: string; sourceId: string; content: string }[]
+    evaluation?: { providerId: string; rubricVersion: string; metrics: Record<string, { status: string; score: number | null; explanation: string }> }
+  }[]
+  usage: unknown[]
+}
+const preparationPath = (target: DeploymentTargetReference, sourceId: string) => `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}`
+export const fetchDocumentPreparation = (target: DeploymentTargetReference, sourceId: string) => request<DocumentPreparationSnapshot>(`${preparationPath(target, sourceId)}/preparation`)
+export const saveDocumentPreparation = (target: DeploymentTargetReference, sourceId: string, expectedRevision: number, configuration: DocumentPreparationConfig) =>
+  request<DocumentPreparationSnapshot>(`${preparationPath(target, sourceId)}/preparation`, { method: 'POST', body: JSON.stringify({ expectedRevision, configuration }) })
+export const fetchDocumentEvaluations = (target: DeploymentTargetReference, sourceId: string) => request<DocumentEvaluationRun[]>(`${preparationPath(target, sourceId)}/evaluations`)
+export const startDocumentEvaluation = (target: DeploymentTargetReference, sourceId: string, expectedRevision: number, operationKey: string) =>
+  request<DocumentEvaluationRun>(`${preparationPath(target, sourceId)}/evaluations`, { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: JSON.stringify({ expectedRevision }) })
+export const cancelDocumentEvaluation = (target: DeploymentTargetReference, sourceId: string, id: string) =>
+  request<DocumentEvaluationRun>(`${preparationPath(target, sourceId)}/evaluations/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' })
 
 function documentCommand(
   target: DeploymentTargetReference,
@@ -5849,6 +5882,7 @@ function documentCommand(
       headers: { 'Idempotency-Key': operationKey },
       body: '{}',
     },
+    'default', undefined, { timeoutMs: operation === 'index' ? 90_000 : 30_000 },
   )
 }
 

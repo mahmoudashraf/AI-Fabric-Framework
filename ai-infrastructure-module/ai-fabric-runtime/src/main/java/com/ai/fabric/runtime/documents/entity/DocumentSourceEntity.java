@@ -101,6 +101,9 @@ public class DocumentSourceEntity {
     @Column(name = "metadata_json", nullable = false, columnDefinition = "TEXT")
     private String metadataJson = "{}";
 
+    @Column(name = "preparation_json", nullable = false, columnDefinition = "TEXT")
+    private String preparationJson = "{}";
+
     @Enumerated(EnumType.STRING)
     @Column(name = "lifecycle_status", nullable = false, length = 32)
     private Status status = Status.REGISTERED;

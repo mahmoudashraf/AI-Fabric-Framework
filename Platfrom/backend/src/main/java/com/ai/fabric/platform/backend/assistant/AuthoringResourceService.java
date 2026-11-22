@@ -47,6 +47,10 @@ public class AuthoringResourceService {
     private final PlatformSecretRepository secrets;
     private final AuthoringChanges changes;
     private final ObjectMapper mapper;
+    private DocumentSourceAuthoring documentAuthoring;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setDocumentAuthoring(DocumentSourceAuthoring value) { documentAuthoring=value; }
 
     public AuthoringResourceService(DeploymentRepository deployments, DeploymentService brains, DeploymentAccessService access,
         DeploymentDraftValidationService validation, CustomerPluginLibraryService plugins, MarketplacePluginRepository pluginRepository,
@@ -61,6 +65,11 @@ public class AuthoringResourceService {
 
     public Snapshot load(String kind, String id, String task) {
         if (!PlatformSecurityContext.isAuthenticated()) throw new ResponseStatusException(UNAUTHORIZED, "Sign in to configure this resource.");
+        if ("DOCUMENT_SOURCE".equals(kind)) {
+            paths(kind,task);
+            if(documentAuthoring==null) throw new ResponseStatusException(SERVICE_UNAVAILABLE,"Document authoring is unavailable.");
+            return documentAuthoring.load(id);
+        }
         List<String> paths = paths(kind, task);
         var catalogue = mapper.createObjectNode();
         AuthoringResourceContracts.populate(mapper, catalogue, task);
@@ -127,6 +136,7 @@ public class AuthoringResourceService {
     }
 
     public JsonNode check(String kind, String id, Snapshot snapshot, JsonNode candidate) {
+        if ("DOCUMENT_SOURCE".equals(kind)) return documentAuthoring.check(id,snapshot,candidate);
         if ("DEPLOYMENT_DRAFT".equals(kind)) {
             var brain = deployments.findById(id).orElseThrow(() -> missing());
             var copy = new DeploymentDraftEntity();
@@ -166,13 +176,19 @@ public class AuthoringResourceService {
     public Saved undo(String kind, String id, String task, JsonNode diff) {
         Snapshot current = load(kind, id, task);
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
-        return persist(kind, id, current, changes.inverse(diff), changes.undo(current.configuration(), diff, current.allowedPaths()));
+        return persist(kind, id, current, changes.inverse(diff), changes.undo(current.configuration(), diff, current.allowedPaths()), true);
     }
 
     private Saved persist(String kind, String id, Snapshot current, JsonNode requestedChanges, AuthoringChanges.Result result) {
-        JsonNode findings = check(kind, id, current, result.candidate());
+        return persist(kind,id,current,requestedChanges,result,false);
+    }
+    private Saved persist(String kind, String id, Snapshot current, JsonNode requestedChanges, AuthoringChanges.Result result, boolean restoring) {
+        JsonNode findings = restoring && "DOCUMENT_SOURCE".equals(kind) ? documentAuthoring.checkRestoration(id,current,result.candidate())
+            : check(kind, id, current, result.candidate());
         JsonNode receipt;
-        if ("DEPLOYMENT_DRAFT".equals(kind)) {
+        if ("DOCUMENT_SOURCE".equals(kind)) {
+            receipt=documentAuthoring.save(id,current,result.candidate());
+        } else if ("DEPLOYMENT_DRAFT".equals(kind)) {
             var config = result.candidate();
             Set<String> touched = new java.util.HashSet<>();
             requestedChanges.forEach(change -> touched.add(change.path("path").asText().split("/", 3)[1]));
@@ -209,6 +225,7 @@ public class AuthoringResourceService {
     }
 
     public List<String> paths(String kind, String task) {
+        if ("DOCUMENT_SOURCE".equals(kind) && "DOCUMENT_PREPARATION".equals(task)) return List.of("/processing","/evaluationOptions","/questions");
         if ("PRIVATE_DATA_PLUGIN".equals(kind) && "DATA_PLUGIN".equals(task)) return List.of("/manifest");
         if ("ENGAGE_APP".equals(kind) && "ENGAGE".equals(task)) return List.of("/displayName", "/configuration", "/authConfiguration", "/allowedOrigins");
         if (!"DEPLOYMENT_DRAFT".equals(kind)) throw new ResponseStatusException(BAD_REQUEST, "The configuration task does not match this resource.");

@@ -66,6 +66,17 @@ class DocumentStorageSelectionServiceTest {
         service.prepare("dep","storage",new PrepareSelection("stage","release",List.of("upload"),"documents",false,"selection-private"));
         verify(operations).register(eq(target),argThat(body->!body.path("metadata").has("publicationStatus")),any());
     }
+    @Test void promotedFilesUseTheReviewedChunkProfileBeforePreviewAndIndex() throws Exception {
+        release.setPromotionCandidateJson("{\"hostedDocumentSelection\":[{\"uploadId\":\"upload\",\"processing\":{\"chunkTokens\":400,\"overlapTokens\":60}}]}");
+        when(operations.preparation(target,"source")).thenReturn(response("{\"revision\":4,\"configuration\":{\"processing\":{\"chunkTokens\":800,\"overlapTokens\":0},\"questions\":[],\"evaluationOptions\":{}}}"));
+        when(operations.savePreparation(eq(target),eq("source"),any(),eq(false))).thenReturn(response("{}"));
+        service.prepare("dep","storage",request);
+        var ordered=inOrder(operations);
+        ordered.verify(operations).preparation(target,"source");
+        ordered.verify(operations).savePreparation(eq(target),eq("source"),argThat(body -> body.path("expectedRevision").asLong()==4
+            &&body.at("/configuration/processing/chunkTokens").asInt()==400 && body.at("/configuration/questions").isArray()),eq(false));
+        ordered.verify(operations).preview(target,"source");ordered.verify(operations).index(eq(target),eq("source"),any());
+    }
 
     @Test void invalidReleaseAndForeignTargetAreRejectedBeforeRuntimeCommands() {
         release.setTargetProfileId("production");

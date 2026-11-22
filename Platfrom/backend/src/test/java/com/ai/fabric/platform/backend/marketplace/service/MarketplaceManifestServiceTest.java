@@ -1338,6 +1338,15 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void richDocumentRevisionUsesSupportedFormatsWithoutChangingApprovalOrIdentity() throws Exception {
+        var manifest=db.migration.V243__rich_document_catalogue_revisions.richManifest((ObjectNode)objectMapper.readTree(validDocumentDataManifest()));
+        var resolved=service.parseAndValidate(dataPlugin(),dataVersion(objectMapper.writeValueAsString(manifest)));
+        assertThat(resolved).isNotNull();
+        assertThat(manifest.at("/contributions/datasets/0/documentPolicy/maxSourceBytes").asInt()).isEqualTo(20*1024*1024);
+        assertThat(manifest.at("/contributions/datasets/0/documentPolicy/initialIndexRequiresConfirmation").asBoolean()).isTrue();
+    }
+
+    @Test
     void externalHttpDataManifestAcceptsBoundedNeutralProviderContract() {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
             dataPlugin(),

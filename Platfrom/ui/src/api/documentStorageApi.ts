@@ -79,7 +79,7 @@ export const uploadHostedDocument = (deploymentId: string, connectionId: string,
   input: { file: File; prefix: string; operationKey: string }, signal?: AbortSignal) =>
   platformRequest<HostedDocumentUpload>(`${connectionPath(deploymentId, connectionId)}/uploads?${new URLSearchParams({
     filename: input.file.name, prefix: input.prefix, operationKey: input.operationKey,
-  })}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: input.file, signal })
+  })}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: input.file, signal }, 'default', undefined, { timeoutMs: 90_000 })
 
 export const bindHostedDocumentStorage = (deploymentId: string, connectionId: string,
   body: { targetProfileId: string; prefix: string; operationKey: string }, signal?: AbortSignal) =>

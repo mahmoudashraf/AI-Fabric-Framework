@@ -39,6 +39,7 @@ class DocumentStoragePromotionSelectionServiceTest {
         when(uploads.findById("upload")).thenReturn(Optional.of(upload));
         selected=new DocumentStorageSelectionEntity();selected.setUploadId("upload");selected.setSourceId("stage-source");selected.setDatasetId("documents");selected.setPublicApproved(true);selected.setStatus("ACTIVE");
         when(selections.findByDeploymentIdAndTargetProfileIdAndReleaseIdOrderByUploadIdAsc("dep","stage","stage-release")).thenReturn(List.of(selected));
+        when(operations.activePreparation(any(),any())).thenReturn(new DeploymentDocumentKnowledgeOperationsService.RuntimeResponse(404,mapper.createObjectNode()));
     }
 
     @Test void freezesExactSourceIdentityWithoutVectorsOrStagingSourceIds() {
@@ -46,7 +47,25 @@ class DocumentStoragePromotionSelectionServiceTest {
         assertThat(snapshot).hasSize(1);assertThat(snapshot.get(0).path("uploadId").asText()).isEqualTo("upload");
         assertThat(snapshot.get(0).path("sha256").asText()).isEqualTo("a".repeat(64));
         assertThat(snapshot.toString()).doesNotContain("stage-source","vector","secret","accessKey");
-        verifyNoInteractions(operations);
+        verify(operations).activePreparation(new DeploymentTargetReference("dep","stage","stage-release"),"stage-source");
+        verify(operations,never()).index(any(),any(),any());
+    }
+
+    @Test void freezesOnlyTheActiveProcessingProfileAndRequiresItOnProduction() throws Exception {
+        var stageTarget=new DeploymentTargetReference("dep","stage","stage-release");
+        var processing=mapper.readTree("{\"chunkTokens\":400,\"overlapTokens\":60}");
+        when(operations.activePreparation(stageTarget,"stage-source")).thenReturn(new DeploymentDocumentKnowledgeOperationsService.RuntimeResponse(200,
+            mapper.createObjectNode().set("processing",processing)));
+        var snapshot=service.snapshot(deployment,staging,"prod");assertThat(snapshot.get(0).path("processing")).isEqualTo(processing);
+        var production=new DeploymentReleaseEntity();production.setId("prod-release");production.setTargetProfileId("prod");
+        production.setPromotionCandidateJson(mapper.createObjectNode().set("hostedDocumentSelection",snapshot).toString());
+        var own=new DocumentStorageSelectionEntity();own.setDatasetId("documents");own.setPublicApproved(true);own.setStatus("ACTIVE");own.setSourceId("prod-source");own.setUploadId("upload");
+        when(selections.findByUploadIdAndDeploymentIdAndTargetProfileIdAndReleaseId("upload","dep","prod","prod-release")).thenReturn(Optional.of(own));
+        var target=new DeploymentTargetReference("dep","prod","prod-release");
+        when(operations.detail(target,"prod-source")).thenReturn(new DeploymentDocumentKnowledgeOperationsService.RuntimeResponse(200,mapper.readTree("{\"source\":{\"status\":\"ACTIVE\",\"activeVersion\":1}}")));
+        assertThatThrownBy(() -> service.requireProductionEvidence(deployment,production)).hasMessageContaining("differs from the reviewed");
+        when(operations.activePreparation(target,"prod-source")).thenReturn(new DeploymentDocumentKnowledgeOperationsService.RuntimeResponse(200,mapper.createObjectNode().set("processing",processing)));
+        service.requireProductionEvidence(deployment,production);
     }
 
     @Test void differentConnectionOrUnreadablePurposeFailsBeforePromotion() {

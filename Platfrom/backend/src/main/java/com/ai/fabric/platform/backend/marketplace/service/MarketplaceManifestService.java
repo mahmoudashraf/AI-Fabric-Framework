@@ -3980,10 +3980,10 @@ public class MarketplaceManifestService {
             DOCUMENT_POLICY_FIELDS,
             prefix + "documentPolicy"
         );
-        requireExactStringSet(plugin, version, prefix + "documentPolicy.allowedMediaTypes",
-            documentPolicy.path("allowedMediaTypes"), Set.of("text/plain", "application/json"));
-        requireExactStringSet(plugin, version, prefix + "documentPolicy.allowedExtensions",
-            documentPolicy.path("allowedExtensions"), Set.of(".txt", ".json"));
+        requireSupportedDocumentSet(plugin, version, prefix + "documentPolicy.allowedMediaTypes",
+            documentPolicy.path("allowedMediaTypes"), Set.of("text/plain", "application/json", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "image/tiff"));
+        requireSupportedDocumentSet(plugin, version, prefix + "documentPolicy.allowedExtensions",
+            documentPolicy.path("allowedExtensions"), Set.of(".txt", ".json", ".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".tif", ".tiff"));
         JsonNode jsonContentKeys = documentPolicy.path("jsonContentKeys");
         if (!jsonContentKeys.isArray() || jsonContentKeys.isEmpty() || jsonContentKeys.size() > 8) {
             throw invalid(plugin, version, prefix + "documentPolicy.jsonContentKeys must contain between 1 and 8 keys.");
@@ -3995,7 +3995,7 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, prefix + "documentPolicy.jsonContentKeys contains an invalid or duplicate key.");
             }
         }
-        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxSourceBytes", 1, 10 * 1024 * 1024);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxSourceBytes", 1, 20 * 1024 * 1024);
         requirePositiveBound(plugin, version, prefix, documentPolicy, "maxSources", 1, 10_000);
         requirePositiveBound(plugin, version, prefix, documentPolicy, "maxTotalIndexedBytes", 1, 10L * 1024 * 1024 * 1024);
         requirePositiveBound(plugin, version, prefix, documentPolicy, "maxChunksPerSource", 1, 10_000);
@@ -4027,7 +4027,7 @@ public class MarketplaceManifestService {
         }
     }
 
-    private void requireExactStringSet(MarketplacePluginEntity plugin,
+    private void requireSupportedDocumentSet(MarketplacePluginEntity plugin,
                                        MarketplacePluginVersionEntity version,
                                        String field,
                                        JsonNode node,
@@ -4039,11 +4039,8 @@ public class MarketplaceManifestService {
         for (JsonNode entry : node) {
             String value = entry.asText("").trim().toLowerCase(Locale.ROOT);
             if (!supported.contains(value) || !normalized.add(value)) {
-                throw invalid(plugin, version, field + " contains an unsupported first-release value.");
+                throw invalid(plugin, version, field + " contains an unsupported or duplicate document format.");
             }
-        }
-        if (!normalized.equals(supported)) {
-            throw invalid(plugin, version, field + " must declare the complete first-release value set.");
         }
     }
 

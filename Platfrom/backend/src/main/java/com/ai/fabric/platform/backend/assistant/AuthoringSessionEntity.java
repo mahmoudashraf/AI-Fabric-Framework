@@ -13,7 +13,7 @@ public class AuthoringSessionEntity {
     @Column(nullable = false) public String actorId;
     @Column(nullable = false) public String customerId;
     @Column(nullable = false) public String resourceKind;
-    @Column(nullable = false) public String resourceId;
+    @Column(nullable = false, length = 512) public String resourceId;
     @Column(nullable = false) public String task;
     @Column(nullable = false) public String status;
     public String activeTurnId;

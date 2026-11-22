@@ -17,5 +17,5 @@ public class HostedDocumentStorageProperties {
     private String secretKey;
     private String sessionToken;
     private String readerPermissionsBoundaryArn;
-    private int maxObjectBytes = 1_048_576;
+    private int maxObjectBytes = 20_971_520;
 }

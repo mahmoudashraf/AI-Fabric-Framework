@@ -115,4 +115,33 @@ public class DeploymentDocumentKnowledgeController {
     private ResponseEntity<JsonNode> response(DeploymentDocumentKnowledgeOperationsService.RuntimeResponse response) {
         return ResponseEntity.status(response.status()).body(response.body());
     }
+
+    @GetMapping("/sources/{sourceId}/preparation")
+    public ResponseEntity<JsonNode> preparation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId) {
+        return response(service.preparation(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId));
+    }
+    @PostMapping("/sources/{sourceId}/preparation")
+    public ResponseEntity<JsonNode> savePreparation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId,@RequestBody JsonNode body) {
+        return response(service.savePreparation(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,body,false));
+    }
+    @PostMapping("/sources/{sourceId}/preparation/check")
+    public ResponseEntity<JsonNode> checkPreparation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId,@RequestBody JsonNode body) {
+        return response(service.savePreparation(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,body,true));
+    }
+    @GetMapping("/sources/{sourceId}/evaluations")
+    public ResponseEntity<JsonNode> evaluations(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId) {
+        return response(service.evaluations(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,null));
+    }
+    @GetMapping("/sources/{sourceId}/evaluations/{evaluationId}")
+    public ResponseEntity<JsonNode> evaluation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId,@PathVariable String evaluationId) {
+        return response(service.evaluations(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,evaluationId));
+    }
+    @PostMapping("/sources/{sourceId}/evaluations")
+    public ResponseEntity<JsonNode> startEvaluation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId,@RequestBody JsonNode body,@RequestHeader("Idempotency-Key") String key) {
+        return response(service.startEvaluation(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,body,key));
+    }
+    @PostMapping("/sources/{sourceId}/evaluations/{evaluationId}/cancel")
+    public ResponseEntity<JsonNode> cancelEvaluation(@PathVariable String deploymentId,@PathVariable String targetProfileId,@PathVariable String releaseId,@PathVariable String sourceId,@PathVariable String evaluationId) {
+        return response(service.cancelEvaluation(new DeploymentTargetReference(deploymentId,targetProfileId,releaseId),sourceId,evaluationId));
+    }
 }

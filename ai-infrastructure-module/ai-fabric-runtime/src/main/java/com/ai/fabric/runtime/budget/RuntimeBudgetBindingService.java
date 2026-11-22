@@ -206,6 +206,10 @@ public final class RuntimeBudgetBindingService {
         return recordVerifiedInteractiveIngress(identity, "configuration:author");
     }
 
+    public ChatReceipt recordVerifiedDocumentEvaluationIngress(RuntimeResolvedIdentity identity) {
+        return recordVerifiedInteractiveIngress(identity, "documents:evaluate");
+    }
+
     private ChatReceipt recordVerifiedInteractiveIngress(RuntimeResolvedIdentity identity, String requiredScope) {
         RuntimeAuthContext auth = requireVerifiedDeployment(identity);
         if (auth.getGrantedScopes() == null || !auth.getGrantedScopes().contains(requiredScope)) {

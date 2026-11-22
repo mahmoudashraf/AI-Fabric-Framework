@@ -24,6 +24,16 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class CustomerDocumentStorageServiceTest {
+    @Test void binaryDocumentUploadsRemainUnparsedSourceReceipts() {
+        for(var entry:Map.of("policy.pdf","application/pdf","guide.docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "legacy.doc","application/msword","scan.png","image/png").entrySet()) {
+            byte[] content={(byte)0xff,0x01,0x02};
+            when(provider.putObject(any(),any(),eq(content),eq(entry.getValue()),any())).thenReturn(new CustomerDocumentStorageProvider.StoredObject("etag","version",content.length));
+            var uploaded=service.upload("dep-owned","storage",entry.getKey(),"public/",UUID.randomUUID().toString(),content);
+            assertThat(uploaded.status()).isEqualTo("UPLOADED");assertThat(uploaded.contentType()).isEqualTo(entry.getValue());
+        }
+        verifyNoInteractions(bindings);
+    }
     final DeploymentRepository deployments=mock(DeploymentRepository.class);
     final DeploymentAccessService access=mock(DeploymentAccessService.class);
     final DocumentStorageConnectionRepository connections=mock(DocumentStorageConnectionRepository.class);
@@ -119,11 +129,11 @@ class CustomerDocumentStorageServiceTest {
     }
 
     @Test void filenamesPrefixesTypesSizeAndEncodingAreExecutionBoundaries() {
-        for(String filename:List.of("../guide.txt","folder\\guide.txt","guide.pdf","bad\n.txt"))
+        for(String filename:List.of("../guide.txt","folder\\guide.txt","guide.exe","bad\n.txt"))
             assertThatThrownBy(()->service.upload("dep-owned","storage",filename,"public/",UUID.randomUUID().toString(),bytes("guide"))).isInstanceOf(ResponseStatusException.class);
         for(String prefix:List.of("../staff/","/staff/","public//staff/","public/../../"))
             assertThatThrownBy(()->service.upload("dep-owned","storage","guide.txt",prefix,UUID.randomUUID().toString(),bytes("guide"))).isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(()->service.upload("dep-owned","storage","guide.txt","public/","large",new byte[CustomerDocumentStorageService.MAX_UPLOAD_BYTES+1])).hasMessageContaining("1 MiB");
+        assertThatThrownBy(()->service.upload("dep-owned","storage","guide.txt","public/","large",new byte[CustomerDocumentStorageService.MAX_UPLOAD_BYTES+1])).hasMessageContaining("20 MiB");
         assertThatThrownBy(()->service.upload("dep-owned","storage","guide.txt","public/","encoding",new byte[]{(byte)0xC3,0x28})).hasMessageContaining("UTF-8");
         assertThatThrownBy(()->service.upload("dep-owned","storage","guide.json","public/","json",bytes("{not-json"))).hasMessageContaining("valid JSON");
         assertThatThrownBy(()->service.upload("dep-owned","storage","guide.json","public/","trailing-json",bytes("{} {}"))).hasMessageContaining("valid JSON");

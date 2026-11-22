@@ -32,7 +32,11 @@ import java.util.*;
 /** Owns source-file storage, not document parsing, vectors or runtime manifests. */
 @Service
 public class CustomerDocumentStorageService {
-    public static final int MAX_UPLOAD_BYTES = 1024 * 1024;
+    public static final int MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+    private static final Map<String,String> DOCUMENT_TYPES = Map.of(
+        "txt","text/plain", "json","application/json", "pdf","application/pdf", "doc","application/msword",
+        "docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document", "png","image/png",
+        "jpg","image/jpeg", "jpeg","image/jpeg", "tif","image/tiff", "tiff","image/tiff");
     private final DeploymentRepository deployments;
     private final DeploymentAccessService access;
     private final DocumentStorageConnectionRepository connections;
@@ -62,7 +66,7 @@ public class CustomerDocumentStorageService {
 
     public Catalogue list(String deploymentId) {
         var deployment = requireDeployment(deploymentId);
-        return new Catalogue(provider.enabled(), MAX_UPLOAD_BYTES, List.of("txt", "json"),
+        return new Catalogue(provider.enabled(), MAX_UPLOAD_BYTES, DOCUMENT_TYPES.keySet().stream().sorted().toList(),
             connections.findByCustomerIdAndTenantIdOrderByCreatedAtDesc(deployment.getCustomerId(), deployment.getTenantId())
                 .stream().map(this::summary).toList());
     }
@@ -225,7 +229,9 @@ public class CustomerDocumentStorageService {
     }
 
     private String validateContents(String filename,byte[] bytes) {
-        if(bytes==null||bytes.length==0||bytes.length>MAX_UPLOAD_BYTES) throw invalid("Upload a non-empty TXT or JSON document of at most 1 MiB.");
+        if(bytes==null||bytes.length==0||bytes.length>MAX_UPLOAD_BYTES) throw invalid("Upload a supported document of at most 20 MiB.");
+        String extension=filename.substring(filename.lastIndexOf('.')+1).toLowerCase(Locale.ROOT);
+        if(!Set.of("txt","json").contains(extension)) return DOCUMENT_TYPES.get(extension);
         try { StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)); }
         catch(Exception error) { throw invalid("Documents must contain UTF-8 text."); }
         if(filename.toLowerCase(Locale.ROOT).endsWith(".json")) {
@@ -240,8 +246,8 @@ public class CustomerDocumentStorageService {
         String name=text(value,180,"Filename");
         String lower=name.toLowerCase(Locale.ROOT);
         if(name.contains("/")||name.contains("\\")||name.chars().anyMatch(Character::isISOControl)
-            ||!(lower.endsWith(".txt")||lower.endsWith(".json"))||name.equals(".txt")||name.equals(".json"))
-            throw invalid("Choose a TXT or JSON filename without folders or control characters.");
+            ||lower.lastIndexOf('.')<1||!DOCUMENT_TYPES.containsKey(lower.substring(lower.lastIndexOf('.')+1)))
+            throw invalid("Choose a PDF, Word, image, TXT or JSON filename without folders or control characters.");
         return name;
     }
 

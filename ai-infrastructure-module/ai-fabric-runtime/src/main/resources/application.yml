@@ -421,7 +421,7 @@ loomai:
       mounted-folder:
         root: ${LOOMAI_DOCUMENTS_MOUNTED_ROOT:}
     policy:
-      max-source-bytes: ${LOOMAI_DOCUMENTS_MAX_SOURCE_BYTES:1048576}
+      max-source-bytes: ${LOOMAI_DOCUMENTS_MAX_SOURCE_BYTES:20971520}
       max-sources: ${LOOMAI_DOCUMENTS_MAX_SOURCES:100}
       max-total-indexed-bytes: ${LOOMAI_DOCUMENTS_MAX_TOTAL_INDEXED_BYTES:104857600}
       max-chunks-per-source: ${LOOMAI_DOCUMENTS_MAX_CHUNKS_PER_SOURCE:100}
@@ -431,8 +431,8 @@ loomai:
       preview-max-characters-per-chunk: ${LOOMAI_DOCUMENTS_PREVIEW_MAX_CHARACTERS:500}
       discovery-page-size: ${LOOMAI_DOCUMENTS_DISCOVERY_PAGE_SIZE:50}
       trusted-auto-indexing-allowed: ${LOOMAI_DOCUMENTS_TRUSTED_AUTO_INDEXING_ALLOWED:false}
-      allowed-extensions: ${LOOMAI_DOCUMENTS_ALLOWED_EXTENSIONS:.txt,.json}
-      allowed-media-types: ${LOOMAI_DOCUMENTS_ALLOWED_MEDIA_TYPES:text/plain,application/json}
+      allowed-extensions: ${LOOMAI_DOCUMENTS_ALLOWED_EXTENSIONS:.txt,.json,.pdf,.docx,.doc,.png,.jpg,.jpeg,.tif,.tiff}
+      allowed-media-types: ${LOOMAI_DOCUMENTS_ALLOWED_MEDIA_TYPES:text/plain,application/json,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/tiff}
       json-content-keys: ${LOOMAI_DOCUMENTS_JSON_CONTENT_KEYS:content,text,body}
       allowed-metadata-keys: ${LOOMAI_DOCUMENTS_ALLOWED_METADATA_KEYS:originalFilename,locale,sourceCategory}
   smart-brain:

@@ -28,9 +28,9 @@ public class CustomerDocumentStorageController {
     public Upload upload(@PathVariable String deploymentId,@PathVariable String connectionId,
         @RequestParam String filename,@RequestParam(defaultValue="public/") String prefix,@RequestParam String operationKey,HttpServletRequest request) throws IOException {
         storage.requireConnection(deploymentId,connectionId);
-        if(request.getContentLengthLong()>CustomerDocumentStorageService.MAX_UPLOAD_BYTES) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,"Document exceeds the 1 MiB source limit.");
+        if(request.getContentLengthLong()>CustomerDocumentStorageService.MAX_UPLOAD_BYTES) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,"Document exceeds the 20 MiB source limit.");
         byte[] bytes=request.getInputStream().readNBytes(CustomerDocumentStorageService.MAX_UPLOAD_BYTES+1);
-        if(bytes.length>CustomerDocumentStorageService.MAX_UPLOAD_BYTES) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,"Document exceeds the 1 MiB source limit.");
+        if(bytes.length>CustomerDocumentStorageService.MAX_UPLOAD_BYTES) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,"Document exceeds the 20 MiB source limit.");
         return storage.upload(deploymentId,connectionId,filename,prefix,operationKey,bytes);
     }
     @PostMapping("/{connectionId}/prepare-selection") public SelectionResult selection(@PathVariable String deploymentId,@PathVariable String connectionId,@Valid @RequestBody PrepareSelection request) { return selections.prepare(deploymentId,connectionId,request); }

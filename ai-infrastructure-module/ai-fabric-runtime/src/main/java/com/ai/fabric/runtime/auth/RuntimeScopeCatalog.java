@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.auth;
 
 public final class RuntimeScopeCatalog {
+    public static final String DOCUMENTS_EVALUATE = "documents:evaluate";
 
     public static final String DEPLOYMENT_KNOWLEDGE_SPECIALIST =
         "specialist:deployment-knowledge-specialist@1";

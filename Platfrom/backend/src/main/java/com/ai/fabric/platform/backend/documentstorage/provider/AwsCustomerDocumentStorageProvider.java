@@ -327,7 +327,7 @@ public class AwsCustomerDocumentStorageProvider implements CustomerDocumentStora
             || !region().matches("(af|ap|ca|eu|il|me|mx|sa|us)-(central|east|west|north|south|northeast|northwest|southeast|southwest)-[0-9]")
             || properties.getBucketNamespace() == null || !properties.getBucketNamespace().matches("[a-z0-9][a-z0-9-]{1,29}")
             || properties.getControlPlaneId() == null || !properties.getControlPlaneId().matches("[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
-            || properties.getMaxObjectBytes() < 1 || properties.getMaxObjectBytes() > 1_048_576) {
+            || properties.getMaxObjectBytes() < 1 || properties.getMaxObjectBytes() > 20_971_520) {
             throw failure("HOSTED_DOCUMENT_STORAGE_CONFIGURATION_INVALID");
         }
     }

@@ -719,7 +719,7 @@ class AwsCustomerDocumentStorageProviderTest {
 
     @Test
     void rejectsOversizeEmptyAndIncorrectChecksumBeforeAnyAwsCalls() {
-        assertThatThrownBy(() -> provider.putObject(BUCKET, KEY, new byte[1_048_577], "text/plain", hex(BYTES)))
+        assertThatThrownBy(() -> provider.putObject(BUCKET, KEY, new byte[20_971_521], "text/plain", hex(BYTES)))
             .hasMessage("HOSTED_OBJECT_SIZE_INVALID");
         assertThatThrownBy(() -> provider.putObject(BUCKET, KEY, new byte[0], "text/plain", hex(BYTES)))
             .hasMessage("HOSTED_OBJECT_SIZE_INVALID");

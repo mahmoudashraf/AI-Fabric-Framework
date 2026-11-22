@@ -1,8 +1,8 @@
-export type AssistantTask = 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE'
+export type AssistantTask = 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE' | 'DOCUMENT_PREPARATION'
 export type AssistantSection = AssistantTask | 'DOCUMENTS' | 'LIVE_DATA' | 'STORAGE' | 'SEARCH' | 'INSTRUCTIONS' | 'ACTION_REVIEWS'
 export type AssistantEditorContext = { section: AssistantSection; selectedDefinitionIds?: string[] }
 export type AssistantScope = {
-  resourceKind: 'DEPLOYMENT_DRAFT' | 'PRIVATE_DATA_PLUGIN' | 'ENGAGE_APP'
+  resourceKind: 'DEPLOYMENT_DRAFT' | 'PRIVATE_DATA_PLUGIN' | 'ENGAGE_APP' | 'DOCUMENT_SOURCE'
   resourceId: string
   task: AssistantTask
   editorContext?: AssistantEditorContext

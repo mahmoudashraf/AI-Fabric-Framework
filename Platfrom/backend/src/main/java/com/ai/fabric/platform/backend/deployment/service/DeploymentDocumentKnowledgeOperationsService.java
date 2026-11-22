@@ -105,6 +105,47 @@ public class DeploymentDocumentKnowledgeOperationsService {
         return send(requireAccess(target, false, Operation.SOURCE_PREVIEW, null), "GET", sourcePath(sourceId) + "/preview", null, null, READ_SCOPE);
     }
 
+    public RuntimeResponse preparation(DeploymentTargetReference target, String sourceId) {
+        return send(requireAccess(target, false, Operation.READ, null), "GET", sourcePath(sourceId)+"/preparation", null, null, READ_SCOPE);
+    }
+    public RuntimeResponse activePreparation(DeploymentTargetReference target, String sourceId) {
+        return send(requireAccess(target, false, Operation.SOURCE_PREVIEW, null), "GET", sourcePath(sourceId)+"/preparation/active", null, null, READ_SCOPE);
+    }
+    public RuntimeResponse savePreparation(DeploymentTargetReference target, String sourceId, JsonNode body, boolean checkOnly) {
+        JsonNode safe = preparationBody(body);
+        String operationKey=checkOnly ? null : "document-preparation-"+java.util.UUID.randomUUID();
+        OperationAccess access = requireAccess(target, !checkOnly, checkOnly ? Operation.SOURCE_PREVIEW : Operation.SOURCE_INDEX, operationKey);
+        RuntimeResponse result = send(access,"POST",sourcePath(sourceId)+"/preparation"+(checkOnly ? "/check" : ""),safe,operationKey,checkOnly ? READ_SCOPE : INDEX_SCOPE);
+        if(!checkOnly) auditSuccess("DOCUMENT_PREPARATION_SAVED",access,result,Map.of("sourceId",bounded(sourceId,64)));
+        return result;
+    }
+    public RuntimeResponse evaluations(DeploymentTargetReference target,String sourceId,String evaluationId) {
+        String suffix = evaluationId == null ? "" : "/"+encode(requiredEvaluationId(evaluationId));
+        return send(requireAccess(target,false,Operation.READ,null),"GET",sourcePath(sourceId)+"/evaluations"+suffix,null,null,READ_SCOPE);
+    }
+    public RuntimeResponse startEvaluation(DeploymentTargetReference target,String sourceId,JsonNode body,String operationKey) {
+        String key=DeploymentOperationIdempotencyKey.require(operationKey);
+        JsonNode safe=boundedBody(body,Set.of("expectedRevision"));
+        OperationAccess access=requireAccess(target,true,Operation.SOURCE_PREVIEW,key);
+        RuntimeResponse result=send(access,"POST",sourcePath(sourceId)+"/evaluations",safe,key,"documents:evaluate");
+        auditSuccess("DOCUMENT_EVALUATION_STARTED",access,result,Map.of("sourceId",bounded(sourceId,64)));
+        return result;
+    }
+    public RuntimeResponse cancelEvaluation(DeploymentTargetReference target,String sourceId,String evaluationId) {
+        OperationAccess access=requireAccess(target,true,Operation.SOURCE_PREVIEW,null);
+        return send(access,"POST",sourcePath(sourceId)+"/evaluations/"+encode(requiredEvaluationId(evaluationId))+"/cancel",objectMapper.createObjectNode(),null,"documents:evaluate");
+    }
+    private String requiredEvaluationId(String value) {
+        if(value==null || !value.matches("eval-[a-f0-9-]{36}")) throw new ResponseStatusException(BAD_REQUEST,"A valid evaluation ID is required.");
+        return value;
+    }
+    private JsonNode preparationBody(JsonNode body) {
+        if(body==null || !body.isObject() || body.toString().length()>120_000 || !body.path("expectedRevision").canConvertToLong() || !body.path("configuration").isObject())
+            throw new ResponseStatusException(BAD_REQUEST,"Bounded document settings and an expected revision are required.");
+        body.fieldNames().forEachRemaining(field -> { if(!Set.of("configuration","expectedRevision").contains(field)) throw new ResponseStatusException(BAD_REQUEST,"Unsupported document settings field."); });
+        return body;
+    }
+
     public RuntimeResponse retrievalProof(DeploymentTargetReference target, JsonNode body) {
         JsonNode safe = boundedBody(body, Set.of("query", "limit"));
         return send(requireAccess(target, false, Operation.SOURCE_PREVIEW, null), "POST", "/api/documents/retrieval-proof", safe, null, READ_SCOPE);
@@ -280,10 +321,10 @@ public class DeploymentDocumentKnowledgeOperationsService {
                                  JsonNode body,
                                  String idempotencyKey,
                                  String scope) {
-        var response = transport.send(
-            access.context().runtimeBaseUrl(), method, path,
-            runtimeHeaders(access, List.of(scope)), body, idempotencyKey
-        );
+        var headers=runtimeHeaders(access,List.of(scope));
+        var response = path.endsWith("/preview") || path.endsWith("/index")
+            ? transport.send(access.context().runtimeBaseUrl(),method,path,headers,body,idempotencyKey,Duration.ofSeconds(80))
+            : transport.send(access.context().runtimeBaseUrl(),method,path,headers,body,idempotencyKey);
         return new RuntimeResponse(response.statusCode(), response.body());
     }
 

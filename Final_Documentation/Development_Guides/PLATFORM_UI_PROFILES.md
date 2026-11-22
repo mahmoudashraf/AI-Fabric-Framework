@@ -1,5 +1,11 @@
 # Platform UI Entry Points
 
+Document preparation and RAG evaluation (010.72) belong to the selected source
+under Brain Knowledge -> Documents, using Prepare / Index / Evaluate views and
+the existing shared assistant. Read DOCUMENT_INTELLIGENCE_IMPLEMENTATION.md for
+the source-scoped task, explicit evaluation allowance and release qualification.
+Do not infer that a documented candidate feature is deployed.
+
 The customer-wide 010.65 design expansion was rejected and rolled back on
 2026-11-07. Keep the earlier approved customer pages and the 010.64 Smart Brain
 workspace. Do not restore the removed customer shell/task redesign or its design

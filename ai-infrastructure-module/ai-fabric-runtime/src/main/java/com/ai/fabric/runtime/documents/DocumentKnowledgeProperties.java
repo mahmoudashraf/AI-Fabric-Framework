@@ -22,6 +22,13 @@ public class DocumentKnowledgeProperties {
     private int maxAutomaticDeleteAttempts = 3;
     private Connector connector = new Connector();
     private Policy policy = new Policy();
+    private String ocrExecutable = "/usr/bin/tesseract";
+    private List<String> ocrLanguages = new ArrayList<>(List.of("eng"));
+
+    public String getOcrExecutable() { return ocrExecutable; }
+    public void setOcrExecutable(String value) { ocrExecutable = value; }
+    public List<String> getOcrLanguages() { return ocrLanguages; }
+    public void setOcrLanguages(List<String> value) { ocrLanguages = value; }
 
     public boolean isEnabled() {
         return enabled;
@@ -224,7 +231,7 @@ public class DocumentKnowledgeProperties {
     }
 
     public static class Policy {
-        private long maxSourceBytes = 1_048_576;
+        private long maxSourceBytes = 20_971_520;
         private int maxSources = 100;
         private long maxTotalIndexedBytes = 104_857_600;
         private int maxChunksPerSource = 100;
@@ -234,8 +241,8 @@ public class DocumentKnowledgeProperties {
         private int previewMaxCharactersPerChunk = 500;
         private int discoveryPageSize = 50;
         private boolean trustedAutoIndexingAllowed;
-        private List<String> allowedExtensions = new ArrayList<>(List.of(".txt", ".json"));
-        private List<String> allowedMediaTypes = new ArrayList<>(List.of("text/plain", "application/json"));
+        private List<String> allowedExtensions = new ArrayList<>(List.of(".txt", ".json", ".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".tif", ".tiff"));
+        private List<String> allowedMediaTypes = new ArrayList<>(List.of("text/plain", "application/json", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "image/tiff"));
         private List<String> jsonContentKeys = new ArrayList<>(List.of("content", "text", "body"));
         private List<String> allowedMetadataKeys = new ArrayList<>(List.of(
             "originalFilename", "locale", "sourceCategory"

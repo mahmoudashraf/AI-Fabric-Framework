@@ -95,8 +95,9 @@ function sourceContract(kind: SourceKind, identity = 'source'): ExactObject {
     ingestionMode: 'EXTERNAL_DOCUMENT_STORAGE', updateStrategy: 'VERSIONED_REPLACE', storageScope: 'CUSTOMER_SCOPED', sharingScope: 'DEPLOYMENT_ONLY',
     sourceConnector: { connectorType: kind, storageOwnership: 'BOUND_CONNECTION', bindingRefField: 'documentStorageBindingRef', allowedOperations: ['LIST', 'READ', 'HEAD'], deleteSourceOnRemoval: false },
     documentPolicy: {
-      allowedMediaTypes: ['text/plain', 'application/json'], allowedExtensions: ['.txt', '.json'], jsonContentKeys: ['content', 'text', 'body'],
-      maxSourceBytes: 1048576, maxSources: 100, maxTotalIndexedBytes: 104857600, maxChunksPerSource: 100, maxChunkCharacters: 8000,
+      allowedMediaTypes: ['text/plain', 'application/json', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/tiff'],
+      allowedExtensions: ['.txt', '.json', '.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg', '.tif', '.tiff'], jsonContentKeys: ['content', 'text', 'body'],
+      maxSourceBytes: 20971520, maxSources: 100, maxTotalIndexedBytes: 104857600, maxChunksPerSource: 100, maxChunkCharacters: 8000,
       maxTotalCharacters: 250000, previewMaxChunks: 10, previewMaxCharactersPerChunk: 500, evidenceRetentionDays: 30, commandRetentionDays: 30,
       retentionBatchSize: 100, allowedMetadataKeys: ['originalFilename', 'locale', 'sourceCategory', 'publicationStatus'],
       initialIndexRequiresConfirmation: true, trustedAutoIndexingAllowed: false,

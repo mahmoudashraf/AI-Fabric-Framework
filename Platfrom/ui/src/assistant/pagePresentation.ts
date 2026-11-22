@@ -2,6 +2,7 @@ import type { AssistantEditorContext, AssistantScope, AssistantSection, Assistan
 
 type Page = { title: string; command: string; welcome: string }
 export const assistantPages: Record<AssistantSection, Page> = {
+  DOCUMENT_PREPARATION: { title: 'Document quality', command: 'Optimize document', welcome: 'I can inspect your selected excerpts, prepare chunking and OCR settings, and create test questions. Share evaluation results to improve the next candidate. Indexing stays under your control.' },
   ACTIONS: { title: 'AI capabilities', command: 'Prepare capabilities', welcome: 'Share API documentation. I can prepare customer capabilities, their inputs and connection settings.' },
   CONNECTIONS: { title: 'Connections', command: 'Prepare connections', welcome: 'Share connection documentation to prepare endpoints and existing secure binding references. Keep credentials in the secure connection form.' },
   KNOWLEDGE: { title: 'Knowledge', command: 'Prepare knowledge', welcome: 'Share source documentation to prepare this Brain\'s knowledge settings. Discovery, indexing and approval stay separate.' },

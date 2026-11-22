@@ -42,6 +42,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DeploymentDocumentKnowledgeOperationsServiceTest {
+    @Test
+    @SuppressWarnings({"rawtypes","unchecked"})
+    void documentPreparationAndEvaluationUseOwnedTargetAndNarrowScopes() throws Exception {
+        configureDocumentDeployment();
+        doReturn(runtimeResponse(200,"{}")).when(httpClient).send(any(),any());
+        var service=service();
+        service.savePreparation(target,"source-1",objectMapper.readTree("{\"expectedRevision\":3,\"configuration\":{}}"),false);
+        verify(targetContextService).resolve("dep-1","target-1","rel-1",true);
+        verify(runtimeAuthority).issuePlatformProxyHeaders(any(),any(),any(),any(),eq(List.of("documents:index")),any());
+        org.mockito.Mockito.clearInvocations(runtimeAuthority,targetContextService,httpClient);
+        service.startEvaluation(target,"source-1",objectMapper.readTree("{\"expectedRevision\":3}"),"evaluation-once");
+        verify(runtimeAuthority).issuePlatformProxyHeaders(any(),any(),any(),any(),eq(List.of("documents:evaluate")),any());
+        var request=ArgumentCaptor.forClass(HttpRequest.class);verify(httpClient).send(request.capture(),any());
+        assertThat(request.getValue().uri().toString()).isEqualTo("https://runtime.example/api/documents/sources/source-1/evaluations");
+        assertThat(request.getValue().headers().firstValue("Idempotency-Key")).contains("evaluation-once");
+    }
 
     private final DeploymentTargetContextService targetContextService = mock(DeploymentTargetContextService.class);
     private final DeploymentTargetReference target = new DeploymentTargetReference("dep-1", "target-1", "rel-1");

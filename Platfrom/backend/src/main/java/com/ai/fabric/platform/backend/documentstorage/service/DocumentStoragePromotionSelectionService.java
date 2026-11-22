@@ -54,6 +54,11 @@ public class DocumentStoragePromotionSelectionService {
             var item=result.addObject();item.put("uploadId",upload.getId());item.put("connectionId",connectionId);
             item.put("filename",upload.getFilename());item.put("sha256",upload.getSha256());
             item.put("datasetId",selected.getDatasetId());item.put("publicApproved",selected.isPublicApproved());
+            var preparation=operations.activePreparation(new DeploymentTargetReference(deployment.getId(),staging.getTargetProfileId(),staging.getId()),selected.getSourceId());
+            if(preparation!=null && preparation.statusCode()==200) {
+                if(!preparation.body().path("processing").isObject())throw conflict("Staging document preparation evidence is incomplete.");
+                item.set("processing",preparation.body().path("processing"));
+            } else if(preparation==null || preparation.statusCode()!=404) throw conflict("Read the active staging document preparation before promotion.");
         }
         if(result.isEmpty())throw conflict("Confirm the uploaded document selection on staging before promoting hosted knowledge.");
         return result;
@@ -78,6 +83,11 @@ public class DocumentStoragePromotionSelectionService {
             if(detail.statusCode()!=200||!"ACTIVE".equals(detail.body().path("source").path("status").asText())
                 ||detail.body().path("source").path("activeVersion").asLong(0)<1)
                 throw conflict("Production runtime has not confirmed the reviewed document source is active.");
+            if(item.has("processing")) {
+                var preparation=operations.activePreparation(new DeploymentTargetReference(deployment.getId(),release.getTargetProfileId(),release.getId()),selected.getSourceId());
+                if(preparation==null || preparation.statusCode()!=200 || !item.path("processing").equals(preparation.body().path("processing")))
+                    throw conflict("Production document preparation differs from the reviewed staging index. Apply the reviewed settings and reindex before activation.");
+            }
         }
     }
 

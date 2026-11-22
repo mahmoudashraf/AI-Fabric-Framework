@@ -69,6 +69,7 @@ import java.util.UUID;
 @Service
 @ConditionalOnProperty(prefix = "loomai.documents", name = "enabled", havingValue = "true")
 public class DocumentKnowledgeService {
+    private static final Set<String> EXTRACTION_METADATA_KEYS = Set.of("pageNumber", "extractionMethod", "documentFormat");
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() { };
     private static final Set<String> SYSTEM_METADATA_KEYS = Set.of(
@@ -291,6 +292,58 @@ public class DocumentKnowledgeService {
         return new RefreshResult("CHANGED", toSummary(sourceRepository.saveAndFlush(source)));
     }
 
+    public PreparationSnapshot preparation(RuntimeResolvedIdentity identity, String sourceId) {
+        DocumentSourceEntity source = requireSource(requireBoundary(identity), sourceId);
+        return preparationSnapshot(source);
+    }
+
+    public DocumentPreparation activePreparation(RuntimeResolvedIdentity identity, String sourceId) {
+        var source = requireSource(requireBoundary(identity), sourceId);
+        if(source.getActiveSourceVersion()==null) throw conflict("This document has no active index.");
+        var manifest=manifestRepository.findBySourceIdAndSourceVersion(sourceId,source.getActiveSourceVersion())
+            .orElseThrow(() -> conflict("Active document manifest is missing."));
+        try { return objectMapper.readValue(manifest.getPreparationJson()==null ? "{}" : manifest.getPreparationJson(),DocumentPreparation.class); }
+        catch(Exception failure) { throw new IllegalStateException("Active document preparation is invalid.",failure); }
+    }
+
+    @Transactional
+    public synchronized PreparationSnapshot savePreparation(RuntimeResolvedIdentity identity, String sourceId, PreparationUpdate update) {
+        DocumentSourceEntity source = requireSource(requireBoundary(identity), sourceId);
+        requireMutable(source);
+        if (update == null || update.expectedRevision() != source.getRowVersion()) throw conflict("Document settings changed. Reload before saving.");
+        DocumentPreparation candidate = validatePreparation(update.configuration());
+        DocumentPreparation previous = preparation(source);
+        if (!candidate.processing().equals(previous.processing())) {
+            source.setSourceVersion(Math.max(source.getSourceVersion(), source.getActiveSourceVersion() == null ? 0 : source.getActiveSourceVersion()) + 1);
+            source.setContentFingerprint(null);
+        }
+        source.setPreparationJson(writeJson(candidate));
+        source.setUpdatedAt(now());
+        return preparationSnapshot(sourceRepository.saveAndFlush(source));
+    }
+
+    public DocumentPreparation validatePreparation(DocumentPreparation value) {
+        if (value == null) throw badRequest("Document preparation settings are required.");
+        for (String language : value.processing().ocrLanguage().split("\\+"))
+            if (!properties.getOcrLanguages().contains(language)) throw badRequest("The selected OCR language is not installed on this runtime.");
+        return value;
+    }
+
+    private DocumentPreparation preparation(DocumentSourceEntity source) {
+        try { return objectMapper.readValue(source.getPreparationJson() == null ? "{}" : source.getPreparationJson(), DocumentPreparation.class); }
+        catch (Exception failure) { throw new IllegalStateException("Stored document preparation is invalid.", failure); }
+    }
+
+    private PreparationSnapshot preparationSnapshot(DocumentSourceEntity source) {
+        return new PreparationSnapshot(source.getId(), source.getRowVersion(), source.getSourceVersion(), source.getActiveSourceVersion(),
+            preparation(source), properties.getOcrLanguages(), java.nio.file.Files.isExecutable(java.nio.file.Path.of(properties.getOcrExecutable())),
+            source.getActiveSourceVersion() != null && source.getActiveSourceVersion() != source.getSourceVersion());
+    }
+
+    public record PreparationUpdate(long expectedRevision, DocumentPreparation configuration) { }
+    public record PreparationSnapshot(String sourceId, long revision, long sourceVersion, Long activeSourceVersion,
+        DocumentPreparation configuration, List<String> ocrLanguages, boolean ocrAvailable, boolean reindexRequired) { }
+
     public synchronized PreviewResult preview(RuntimeResolvedIdentity identity, String sourceId) {
         Boundary boundary = requireBoundary(identity);
         DocumentSourceEntity source = requireSource(boundary, sourceId);
@@ -309,7 +362,8 @@ public class DocumentKnowledgeService {
             prepared.plan().totalContentLength(),
             prepared.plan().chunks().size() > chunks.size(),
             chunks,
-            prepared.plan().warnings()
+            prepared.plan().warnings(),
+            prepared.extraction()
         );
     }
 
@@ -513,6 +567,23 @@ public class DocumentKnowledgeService {
             evidence,
             response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L
         );
+    }
+
+    public RetrievalProof retrieveSource(RuntimeResolvedIdentity identity, String sourceId, String query, DocumentPreparation.EvaluationOptions options) {
+        Boundary boundary = requireBoundary(identity);
+        DocumentSourceEntity source = requireSource(boundary, sourceId);
+        if (source.getActiveSourceVersion() == null) throw conflict("Index this document before evaluating its retrieval.");
+        Map<String, Object> filters = new LinkedHashMap<>(boundary.ownerMetadata());
+        filters.put(DocumentMetadataKeys.SOURCE_ID, sourceId);
+        filters.put(DocumentMetadataKeys.SOURCE_VERSION, source.getActiveSourceVersion());
+        AISearchResponse response = coreService.performSearch(AISearchRequest.builder().query(required(query, "query", 1000))
+            .entityType(properties.getEntityType()).limit(options.maxDocuments() * 5).threshold(options.similarityThreshold()).metadata(filters).build());
+        List<RetrievalEvidence> evidence = response == null || response.getResults() == null ? List.of() : response.getResults().stream()
+            .map(this::toRetrievalEvidence).filter(Objects::nonNull).filter(item -> sourceId.equals(item.sourceId()))
+            .filter(item -> Objects.equals(source.getActiveSourceVersion(), item.sourceVersion()))
+            .filter(item -> activeVersionFilter.accepts(properties.getEntityType(), item.metadata()))
+            .filter(item -> boundary.matchesOwner(item.metadata())).limit(options.maxDocuments()).toList();
+        return new RetrievalProof(query, evidence.size(), evidence, response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L);
     }
 
     public RetentionStatus retentionStatus(RuntimeResolvedIdentity identity) {
@@ -767,17 +838,26 @@ public class DocumentKnowledgeService {
             var resource = new FileSystemResource(materialized.path());
             var policy = SpringAiTrustedResourcePolicy.trustedRoot(materialized.trustedRoot());
             String extension = DocumentConnectorSupport.extension(current.objectReference());
-            var reader = ".json".equals(extension)
+            DocumentPreparation.Processing processing = preparation(source).processing();
+            org.springframework.ai.document.DocumentReader reader = ".json".equals(extension)
                 ? readerFactory.jsonReader(
                     resource,
                     policy,
                     properties.getPolicy().getJsonContentKeys().toArray(String[]::new)
                 )
                 : readerFactory.textReader(resource, policy);
+            if (ai.fabric.document.RichDocumentReader.FORMATS.contains(extension.substring(1))) {
+                var readOptions = new ai.fabric.document.DocumentReadOptions(processing.ocrMode(), processing.ocrLanguage(), processing.ocrDpi(),
+                    50, properties.getPolicy().getMaxTotalCharacters(), Math.min(properties.getPolicy().getMaxSourceBytes(), 50L * 1024 * 1024),
+                    16_000_000, java.time.Duration.ofSeconds(60), 20);
+                reader = new ai.fabric.document.RichDocumentReader(resource, policy, extension, readOptions,
+                    new ai.fabric.document.TesseractOcrEngine(java.nio.file.Path.of(properties.getOcrExecutable()), Set.copyOf(properties.getOcrLanguages())));
+            }
             Map<String, Object> optionalMetadata = new LinkedHashMap<>(readMetadata(source.getMetadataJson()));
             optionalMetadata.keySet().removeAll(SYSTEM_METADATA_KEYS);
             optionalMetadata.keySet().removeAll(DocumentMetadataKeys.ALL);
             optionalMetadata.remove("originalFilename");
+            optionalMetadata.keySet().removeAll(EXTRACTION_METADATA_KEYS);
             // Ownership is budgeted first; persisted optional metadata never supplies reserved fields.
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("tenantId", source.getTenantId());
@@ -792,6 +872,7 @@ public class DocumentKnowledgeService {
             Set<String> allowedKeys = new LinkedHashSet<>(properties.getPolicy().getAllowedMetadataKeys());
             allowedKeys.addAll(SYSTEM_METADATA_KEYS);
             allowedKeys.add("originalFilename");
+            allowedKeys.addAll(EXTRACTION_METADATA_KEYS);
             SpringAiDocumentIndexingOptions.Builder options = SpringAiDocumentIndexingOptions.builder()
                 .entityType(required(properties.getEntityType(), "loomai.documents.entity-type", 128))
                 .sourceId(source.getId())
@@ -801,8 +882,11 @@ public class DocumentKnowledgeService {
                 .visibility(source.getVisibility())
                 .operation(source.getActiveSourceVersion() == null ? AIProcessOperation.CREATE : AIProcessOperation.UPDATE)
                 .splitWithTokenTextSplitter(true)
-                .tokenChunkSize(800)
-                .maxDocuments(20)
+                .tokenChunkSize(processing.chunkTokens())
+                .overlapTokens(processing.overlapTokens())
+                .minChunkSizeChars(processing.minChunkChars())
+                .minChunkLengthToEmbed(processing.minEmbedChars())
+                .maxDocuments(50)
                 .maxChunks(properties.getPolicy().getMaxChunksPerSource())
                 .maxContentLength(properties.getPolicy().getMaxChunkCharacters())
                 .maxTotalContentLength(properties.getPolicy().getMaxTotalCharacters())
@@ -826,7 +910,10 @@ public class DocumentKnowledgeService {
                 );
             }
             DocumentIngestionManifest manifest = planningAdapter.manifest(plan);
-            return new PreparedDocument(plan, manifest, materialized.contentFingerprint());
+            return new PreparedDocument(plan, manifest, materialized.contentFingerprint(),
+                reader instanceof ai.fabric.document.RichDocumentReader rich ? rich.report() : null);
+        } catch (ai.fabric.document.DocumentReadException failure) {
+            throw new DocumentKnowledgeException(failure.code(), HttpStatus.UNPROCESSABLE_ENTITY, failure.getMessage());
         }
     }
 
@@ -851,6 +938,7 @@ public class DocumentKnowledgeService {
         entity.setState(DocumentManifestEntity.State.DRAFT);
         entity.setChunkCount(framework.chunks().size());
         entity.setWarningsJson(writeJson(prepared.plan().warnings()));
+        entity.setPreparationJson(writeJson(preparation(source)));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         manifestRepository.saveAndFlush(entity);
@@ -1223,7 +1311,7 @@ public class DocumentKnowledgeService {
         Map<String, Object> normalized = new LinkedHashMap<>();
         metadata.forEach((key, value) -> {
             if (!StringUtils.hasText(key) || !allowed.contains(key) || SYSTEM_METADATA_KEYS.contains(key)
-                || DocumentMetadataKeys.ALL.contains(key) || "originalFilename".equals(key)) {
+                || DocumentMetadataKeys.ALL.contains(key) || EXTRACTION_METADATA_KEYS.contains(key) || "originalFilename".equals(key)) {
                 throw badRequest("Document metadata key is not allowed: " + bounded(key, 64));
             }
             if (!(value instanceof String || value instanceof Number || value instanceof Boolean)) {
@@ -1301,9 +1389,16 @@ public class DocumentKnowledgeService {
                 return normalized;
             }
         }
-        return ".json".equals(DocumentConnectorSupport.extension(object.objectReference()).toLowerCase(Locale.ROOT))
-            ? "application/json"
-            : "text/plain";
+        return switch(DocumentConnectorSupport.extension(object.objectReference()).toLowerCase(Locale.ROOT)) {
+            case ".json" -> "application/json";
+            case ".pdf" -> "application/pdf";
+            case ".doc" -> "application/msword";
+            case ".docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case ".png" -> "image/png";
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".tif", ".tiff" -> "image/tiff";
+            default -> "text/plain";
+        };
     }
 
     private void enforceRegistrationLimits(Boundary boundary, long bytes) {
@@ -1495,7 +1590,9 @@ public class DocumentKnowledgeService {
             chunk.contentLength(),
             truncated,
             chunk.contentFingerprint(),
-            chunk.warnings()
+            chunk.warnings(),
+            chunk.indexDocument().vectorMetadata().get("pageNumber"),
+            chunk.indexDocument().vectorMetadata().get("extractionMethod")
         );
     }
 
@@ -1768,8 +1865,14 @@ public class DocumentKnowledgeService {
         int totalContentLength,
         boolean chunksTruncated,
         List<ChunkPreview> chunks,
-        List<DocumentIngestionWarning> warnings
-    ) { }
+        List<DocumentIngestionWarning> warnings,
+        ai.fabric.document.RichDocumentReader.Report extraction
+    ) {
+        public PreviewResult(String planId, SourceSummary source, int documentCount, int chunkCount, int totalContentLength,
+            boolean chunksTruncated, List<ChunkPreview> chunks, List<DocumentIngestionWarning> warnings) {
+            this(planId,source,documentCount,chunkCount,totalContentLength,chunksTruncated,chunks,warnings,null);
+        }
+    }
 
     public record ChunkPreview(
         String sourceDocumentId,
@@ -1781,8 +1884,15 @@ public class DocumentKnowledgeService {
         int contentLength,
         boolean truncated,
         String contentFingerprint,
-        List<DocumentIngestionWarning> warnings
-    ) { }
+        List<DocumentIngestionWarning> warnings,
+        Object pageNumber,
+        Object extractionMethod
+    ) {
+        public ChunkPreview(String sourceDocumentId,String chunkId,int chunkIndex,int chunkCount,String entityId,String contentPreview,
+            int contentLength,boolean truncated,String contentFingerprint,List<DocumentIngestionWarning> warnings) {
+            this(sourceDocumentId,chunkId,chunkIndex,chunkCount,entityId,contentPreview,contentLength,truncated,contentFingerprint,warnings,null,null);
+        }
+    }
 
     public record OperationResult(String outcome, SourceSummary source, ManifestSummary manifest) { }
 
@@ -1857,7 +1967,8 @@ public class DocumentKnowledgeService {
         boolean customerSourceObjectsDeleted
     ) { }
 
-    private record PreparedDocument(DocumentIngestionPlan plan, DocumentIngestionManifest manifest, String contentFingerprint) { }
+    private record PreparedDocument(DocumentIngestionPlan plan, DocumentIngestionManifest manifest, String contentFingerprint,
+        ai.fabric.document.RichDocumentReader.Report extraction) { }
     private record WorkEvaluation(
         boolean terminal,
         boolean successful,

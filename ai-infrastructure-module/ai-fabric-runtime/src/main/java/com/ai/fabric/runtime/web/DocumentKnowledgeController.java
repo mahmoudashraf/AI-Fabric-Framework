@@ -142,6 +142,28 @@ public class DocumentKnowledgeController {
         );
     }
 
+    @GetMapping("/sources/{sourceId}/preparation")
+    public DocumentKnowledgeService.PreparationSnapshot preparation(@PathVariable String sourceId, HttpServletRequest request) {
+        return service.preparation(authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "document preparation"), sourceId);
+    }
+    @GetMapping("/sources/{sourceId}/preparation/active")
+    public Object activePreparation(@PathVariable String sourceId, HttpServletRequest request) {
+        return service.activePreparation(authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "active document preparation"), sourceId);
+    }
+
+    @PostMapping("/sources/{sourceId}/preparation/check")
+    public Object checkPreparation(@PathVariable String sourceId, @RequestBody DocumentKnowledgeService.PreparationUpdate update, HttpServletRequest request) {
+        service.preparation(authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "document preparation check"), sourceId);
+        service.validatePreparation(update.configuration());
+        return Map.of("valid", true);
+    }
+
+    @PostMapping("/sources/{sourceId}/preparation")
+    public DocumentKnowledgeService.PreparationSnapshot savePreparation(@PathVariable String sourceId,
+        @RequestBody DocumentKnowledgeService.PreparationUpdate update, HttpServletRequest request) {
+        return service.savePreparation(authorize(request, RuntimeScopeCatalog.DOCUMENTS_INDEX, "document preparation save"), sourceId, update);
+    }
+
     @PostMapping("/sources/{sourceId}/reconcile")
     public OperationResult reconcile(
         @PathVariable String sourceId,

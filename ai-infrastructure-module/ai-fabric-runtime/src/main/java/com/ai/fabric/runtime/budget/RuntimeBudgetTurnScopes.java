@@ -83,6 +83,13 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         }
     }
 
+    public Turn openDocumentEvaluation(RuntimeResolvedIdentity verifiedIdentity) {
+        requireNoScope();
+        try { return open(budgets.recordVerifiedDocumentEvaluationIngress(verifiedIdentity), null); }
+        catch (BudgetException denied) { throw control(denied); }
+        catch (RuntimeBudgetBindingException denied) { throw control(denied); }
+    }
+
     /** Capture at model resolution, not inside an interceptor/SDK async callback on another thread. */
     @Override
     public OpenAiBudgetInvocation capture(OpenAiBudgetInvocation.Operation operation) {

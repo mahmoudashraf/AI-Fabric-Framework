@@ -42,12 +42,16 @@ type Props = {
   reviewHref?: string
 }
 
-type SourceRequest = { notice: string; load: (sessionId: string) => Promise<AssistantSession> }
+type SourceRequest = { notice: string; load: (sessionId: string) => Promise<AssistantSession>; scope?: AssistantScope; prepare?: boolean; cancel?: () => Promise<void> }
 type PendingSource = SourceRequest & { id: number; identity: string }
 const AssistantSourceContext = createContext<((request: SourceRequest) => void) | null>(null)
 export const useAssistantSource = () => useContext(AssistantSourceContext)
 
-export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, visibilityKey, guideOnly, links, setupLinks, reviewHref }: Props) {
+export function AssistantWorkspace({ scope: baseScope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, visibilityKey, guideOnly, links, setupLinks, reviewHref }: Props) {
+  const baseIdentity = baseScope ? scopeIdentity(baseScope) : null
+  const parentIdentity = `${baseIdentity}:${JSON.stringify(baseScope?.editorContext ?? null)}`
+  const [override, setOverride] = useState<{ parent: string | null; scope: AssistantScope } | null>(null)
+  const scope = override?.parent === parentIdentity ? override.scope : baseScope
   const identity = scope ? scopeIdentity(scope) : null
   const visibilityIdentity = visibilityKey ?? identity
   const [visibility, setVisibility] = useState({ identity: visibilityIdentity, open: initiallyOpen, activated: initiallyOpen })
@@ -56,12 +60,12 @@ export function AssistantWorkspace({ scope, children, onSaved, onBusyChange, edi
   const open = Boolean(scope && current.open)
   const [sourceRequest, setSourceRequest] = useState<PendingSource | null>(null)
   const sourceSequence = useRef(0)
-  useEffect(() => { setSourceRequest(null) }, [identity])
   const requestSource = useCallback((request: SourceRequest) => {
     if (!identity) return
-    setVisibility({ identity: visibilityIdentity, open: true, activated: true })
-    setSourceRequest({ ...request, id: ++sourceSequence.current, identity })
-  }, [identity, visibilityIdentity])
+    if (request.scope) setOverride({ parent: parentIdentity, scope: request.scope })
+    setVisibility({ identity: visibilityKey ?? (request.scope ? scopeIdentity(request.scope) : visibilityIdentity), open: true, activated: true })
+    setSourceRequest({ ...request, id: ++sourceSequence.current, identity: request.scope ? scopeIdentity(request.scope) : identity })
+  }, [identity, parentIdentity, visibilityIdentity, visibilityKey])
   const [activity, setActivity] = useState({ identity, busy: false })
   const busy = activity.identity === identity && activity.busy
   const [revision, setRevision] = useState(0)
@@ -114,22 +118,32 @@ function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, sourceRe
   // This scope-keyed owner survives the desktop/Drawer panel remount.
   const inputs = useAssistantPanelInputs()
   const [attaching, setAttaching] = useState(false), [sourceError, setSourceError] = useState('')
-  const attemptedSource = useRef<number | null>(null), live = useRef(true)
+  const attemptedSource = useRef<number | null>(null), live = useRef(true), sourceStopped = useRef(false)
   useEffect(() => { live.current = true; return () => { live.current = false } }, [])
   const attachSource = async () => {
     if (!sourceRequest || !controller.session || controller.busy || attaching) return
-    attemptedSource.current = sourceRequest.id; setAttaching(true); setSourceError('')
+    attemptedSource.current = sourceRequest.id; sourceStopped.current = false; setAttaching(true); setSourceError('')
     try {
       const before = new Set(controller.session.sources.map(source => source.id))
       const session = await sourceRequest.load(controller.session.id)
       if (!live.current) return
+      if (sourceStopped.current) throw new Error('Evaluation stopped. No optimization request was sent.')
       if (!await controller.refresh()) throw new Error('The source was attached, but the assistant session could not be refreshed. Retry to review it.')
       if (!live.current) return
+      if (sourceStopped.current) throw new Error('Evaluation stopped. No optimization request was sent.')
       const added = session.sources.filter(source => !before.has(source.id))
       inputs.setSourceIds(current => [...new Set([...current, ...added.map(source => source.id)])])
       inputs.setOperationIds(current => [...new Set([...current, ...added.flatMap(source => source.operations.map(operation).filter(Boolean).map(item => item!.id))])])
+      if (sourceRequest.prepare) await controller.submit({ query: '', command: 'PREPARE', editorContext: editorContext(scope),
+        previewOnly: false, sourceIds: added.map(source => source.id), operationIds: [],
+        validationFeedback: feedbackPolicy(controller.status.data?.validationFeedback, {}) })
     } catch (failure) { if (live.current) setSourceError(failure instanceof Error ? failure.message : 'The source could not be attached.') }
     finally { if (live.current) setAttaching(false) }
+  }
+  const stopSource = async () => {
+    sourceStopped.current = true
+    try { await sourceRequest?.cancel?.() }
+    catch (failure) { if (live.current) setSourceError(failure instanceof Error ? failure.message : 'The evaluation could not be stopped. Inspect its retained status.') }
   }
   useEffect(() => {
     if (sourceRequest && attemptedSource.current !== sourceRequest.id) void attachSource()
@@ -139,7 +153,8 @@ function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, sourceRe
   useLayoutEffect(() => { onBusyChange(controller.busy || attaching); return () => onBusyChange(false) }, [controller.busy, attaching, onBusyChange])
   const panel = <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
     {sourceRequest && <Box sx={{ p: 2, pb: 0 }}><Alert severity="info">{sourceRequest.notice}</Alert>
-      {attaching && <Alert severity="info" sx={{ mt: 1 }}>Attaching selected source metadata. No model request has started.</Alert>}
+      {attaching && <Alert severity="info" sx={{ mt: 1 }}>Preparing the selected context{sourceRequest.prepare ? ' for document optimization.' : '. No model request has started.'}</Alert>}
+      {attaching && sourceRequest.cancel && <Button color="error" onClick={() => void stopSource()}>Stop evaluation</Button>}
       {sourceError && <Alert severity="error" sx={{ mt: 1 }} action={<Button disabled={controller.busy || attaching} onClick={() => void attachSource()}>Retry</Button>}>{sourceError}</Alert>}
     </Box>}
     <AssistantPanel controller={{ ...controller, pending: controller.pending || attaching, busy: controller.busy || attaching }} inputs={inputs} scope={scope}

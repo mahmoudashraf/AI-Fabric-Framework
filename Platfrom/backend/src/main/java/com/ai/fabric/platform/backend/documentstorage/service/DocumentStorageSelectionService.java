@@ -75,7 +75,12 @@ public class DocumentStorageSelectionService {
         }
         DeploymentTargetReference target=new DeploymentTargetReference(deploymentId,request.targetProfileId(),request.releaseId());
         List<SelectionItem> results=new ArrayList<>();
-        for(var upload:selected) results.add(prepareOne(target,request,upload,prefix));
+        for(var upload:selected) {
+            JsonNode processing=null;
+            for(var item:read(release.getPromotionCandidateJson()==null ? "{}" : release.getPromotionCandidateJson()).path("hostedDocumentSelection"))
+                if(upload.getId().equals(item.path("uploadId").asText()) && item.path("processing").isObject()) processing=item.path("processing");
+            results.add(prepareOne(target,request,upload,prefix,processing));
+        }
         return new SelectionResult(results,results.stream().allMatch(value->"ACTIVE".equals(value.status())&&value.message()==null));
     }
 
@@ -91,7 +96,7 @@ public class DocumentStorageSelectionService {
             .map(value->new SelectionItem(value.getUploadId(),value.getSourceId(),value.getStatus(),null,value.getLastError())).toList();
     }
 
-    private SelectionItem prepareOne(DeploymentTargetReference target,PrepareSelection request,DocumentStorageUploadEntity upload,String prefix) {
+    private SelectionItem prepareOne(DeploymentTargetReference target,PrepareSelection request,DocumentStorageUploadEntity upload,String prefix,JsonNode reviewedProcessing) {
         var current=selections.findByUploadIdAndDeploymentIdAndTargetProfileIdAndReleaseId(upload.getId(),target.deploymentId(),target.targetProfileId(),target.releaseId());
         DocumentStorageSelectionEntity selection;
         if(current.isPresent()) {
@@ -126,6 +131,16 @@ public class DocumentStorageSelectionService {
             if("ACTIVE".equals(status)) {
                 selection.setStatus("ACTIVE");
             } else if("REGISTERED".equals(status) && !"INDEXING".equals(selection.getStatus())) {
+                if(reviewedProcessing!=null) {
+                    JsonNode preparation=accepted(operations.preparation(target,selection.getSourceId()));
+                    if(!reviewedProcessing.equals(preparation.path("configuration").path("processing"))) {
+                        var configuration=preparation.path("configuration").deepCopy();
+                        if(!(configuration instanceof com.fasterxml.jackson.databind.node.ObjectNode object))throw conflict("Production document settings are unavailable.");
+                        object.set("processing",reviewedProcessing);
+                        var update=mapper.createObjectNode().put("expectedRevision",preparation.path("revision").asLong()); update.set("configuration",object);
+                        accepted(operations.savePreparation(target,selection.getSourceId(),update,false));
+                    }
+                }
                 accepted(operations.preview(target,selection.getSourceId()));
                 // Persist index intent first. A timeout is retried using the same runtime command key.
                 selection.setStatus("INDEXING");selection.setUpdatedAt(Instant.now());selection=selections.saveAndFlush(selection);

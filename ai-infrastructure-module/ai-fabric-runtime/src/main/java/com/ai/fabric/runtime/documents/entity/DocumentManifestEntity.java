@@ -98,6 +98,9 @@ public class DocumentManifestEntity {
     @Column(name = "warnings_json", nullable = false, columnDefinition = "TEXT")
     private String warningsJson = "[]";
 
+    @Column(name = "preparation_json", nullable = false, columnDefinition = "TEXT")
+    private String preparationJson = "{}";
+
     @Column(name = "failure_code", length = 128)
     private String failureCode;
 

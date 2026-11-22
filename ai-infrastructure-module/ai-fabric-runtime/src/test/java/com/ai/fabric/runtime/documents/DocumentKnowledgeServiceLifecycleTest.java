@@ -217,6 +217,55 @@ class DocumentKnowledgeServiceLifecycleTest {
     }
 
     @Test
+    void preparationUsesRevisionGuardAndPreservesTheActiveIndexUntilExplicitReplacement() throws Exception {
+        writeSource("prepare.txt", "Approved policy and account procedures. ".repeat(70), 1);
+        var source=register("prepare.txt","prepare-register");
+        var indexed=service.index(tenantA(),source.sourceId(),"prepare-index"); complete(indexWorkIds(indexed));
+        service.reconcile(tenantA(),source.sourceId(),"prepare-reconcile");
+        var before=service.preparation(tenantA(),source.sourceId());
+        var profile=new DocumentPreparation(new DocumentPreparation.Processing(400,60,100,5,ai.fabric.document.DocumentReadOptions.OcrMode.AUTO,"eng",150),null,List.of());
+        var saved=service.savePreparation(tenantA(),source.sourceId(),new DocumentKnowledgeService.PreparationUpdate(before.revision(),profile));
+        assertThat(saved.sourceVersion()).isEqualTo(2); assertThat(saved.activeSourceVersion()).isEqualTo(1);
+        assertThat(saved.reindexRequired()).isTrue();
+        assertThat(service.activePreparation(tenantA(),source.sourceId()).processing().chunkTokens()).isEqualTo(800);
+        assertThatThrownBy(() -> service.savePreparation(tenantA(),source.sourceId(),new DocumentKnowledgeService.PreparationUpdate(before.revision(),profile)))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("changed");
+        int oldQueued=queuedDocuments.size();
+        var preview=service.preview(tenantA(),source.sourceId());
+        assertThat(queuedDocuments).hasSize(oldQueued); assertThat(preview.chunkCount()).isGreaterThan(1);
+        var replacement=service.index(tenantA(),source.sourceId(),"prepare-reindex"); complete(indexWorkIds(replacement));
+        service.reconcile(tenantA(),source.sourceId(),"prepare-reconcile-v2");
+        assertThat(service.activePreparation(tenantA(),source.sourceId()).processing()).isEqualTo(profile.processing());
+    }
+
+    @Test
+    void evaluationQuestionsDoNotInvalidateVectorsAndSourceSettingsCannotEscapeOwnership() throws Exception {
+        writeSource("questions.txt","Approved policy for customer-owned knowledge.",1);
+        var source=register("questions.txt","question-register");
+        var before=service.preparation(tenantA(),source.sourceId());
+        var profile=new DocumentPreparation(null,null,List.of(new DocumentPreparation.Question("q1","What is approved?","Customer-owned knowledge",false)));
+        var saved=service.savePreparation(tenantA(),source.sourceId(),new DocumentKnowledgeService.PreparationUpdate(before.revision(),profile));
+        assertThat(saved.sourceVersion()).isEqualTo(before.sourceVersion());
+        var foreign=newService(new DocumentRuntimeIdentity("tenant-a","other-customer","deployment-a","staging","release-a"));
+        assertThatThrownBy(() -> foreign.preparation(tenantA(),source.sourceId())).isInstanceOf(DocumentKnowledgeException.class);
+        verifyNoInteractions(queueService);
+    }
+
+    @Test
+    void wordDocumentsReachCanonicalChunksWithProtectedMetadata() throws Exception {
+        try(var word=new org.apache.poi.xwpf.usermodel.XWPFDocument();var output=Files.newOutputStream(sourceRoot.resolve("policy.docx"))) {
+            word.createParagraph().createRun().setText("Customers can return an unused item within thirty days."); word.write(output);
+        }
+        var source=register("policy.docx","word-register");
+        var preview=service.preview(tenantA(),source.sourceId());
+        assertThat(preview.extraction().format()).isEqualTo("docx"); assertThat(preview.extraction().ocrSections()).isZero();
+        assertThat(preview.chunks().getFirst().contentPreview()).contains("thirty days");
+        service.index(tenantA(),source.sourceId(),"word-index");
+        assertThat(queuedDocuments).allSatisfy(document -> assertThat(document.vectorMetadata()).containsEntry("customerId","customer-a")
+            .containsEntry("documentFormat","docx").containsEntry("extractionMethod","WORD_TEXT"));
+    }
+
+    @Test
     void jsonReaderUsesConfiguredContentFieldsAndCompletesTheIndexLifecycle() throws Exception {
         writeSource(
             "service-policy.json",

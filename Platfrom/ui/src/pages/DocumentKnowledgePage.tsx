@@ -90,6 +90,8 @@ import { customerDocumentStorageScope, requireFreshCustomerDocumentStorageScope,
   type CustomerDocumentStorageScope } from '../components/customer/customerDocumentStorageScope'
 import { hasApprovedAnonymousDocumentSource } from './documentKnowledgeAudience'
 import { HostedDocumentStorageSetup } from '../components/documents/HostedDocumentStorageSetup'
+import { DocumentPreparationPanel } from '../components/documents/DocumentPreparationPanel'
+import type { BrainEditorState } from '../brain/BrainWorkspaceContext'
 
 const DOCUMENT_PLUGIN_IDS = new Set([
   'mkp-data-document-knowledge-s3',
@@ -210,6 +212,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
   const [bindingForm, setBindingForm] = useState<BindingForm>(emptyBindingForm)
   const [bindingBaseline, setBindingBaseline] = useState<BindingForm>(emptyBindingForm)
   const [hostedEditor, setHostedEditor] = useState({ dirty: false, busy: false })
+  const [preparationEditor, setPreparationEditor] = useState<BrainEditorState>({ dirty: false, busy: false })
   const [storageEditorKey, setStorageEditorKey] = useState(0)
   const [selectedSourceId, setSelectedSourceId] = useState(initialSourceId)
   const [selectedReleaseId, setSelectedReleaseId] = useState(initialReleaseId)
@@ -395,6 +398,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
       queryClient.invalidateQueries({ queryKey: ['document-sources', ...scope] }),
       queryClient.invalidateQueries({ queryKey: ['document-source-detail', ...scope] }),
       queryClient.invalidateQueries({ queryKey: ['document-connector-status', ...scope] }),
+      queryClient.invalidateQueries({ queryKey: ['document-preparation', ...scope] }),
     ])
   }
 
@@ -594,12 +598,14 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
   const bindingDirty = workspaceView === 'storage' && JSON.stringify(bindingForm) !== JSON.stringify(bindingBaseline)
   const dialogDirty = Boolean(registrationSelection || removalSelection)
   const operationBusy = saveBindingMutation.isPending || deleteBindingMutation.isPending || registerMutation.isPending
-    || commandMutation.isPending || removeMutation.isPending || retentionMutation.isPending || hostedEditor.busy
+    || commandMutation.isPending || removeMutation.isPending || retentionMutation.isPending || hostedEditor.busy || preparationEditor.busy
   useBrainEditor(workspaceView ? {
-    dirty: Boolean(bindingDirty || hostedEditor.dirty || dialogDirty), busy: operationBusy,
+    dirty: Boolean(bindingDirty || hostedEditor.dirty || dialogDirty || preparationEditor.dirty), busy: operationBusy,
+    canSave: preparationEditor.canSave, save: preparationEditor.save, primaryLabel: preparationEditor.primaryLabel,
     message: dialogDirty ? 'Finish or cancel the document confirmation before changing its context.' : bindingDirty || hostedEditor.dirty ? 'Unsaved storage form changes. Use the relevant storage command or discard.'
       : 'Storage and indexing use their own explicit commands; uploading does not publish a release.',
-    discard: bindingDirty || hostedEditor.dirty || dialogDirty ? () => {
+    discard: bindingDirty || hostedEditor.dirty || dialogDirty || preparationEditor.dirty ? () => {
+      preparationEditor.discard?.()
       setBindingForm(bindingBaseline); setStorageEditorKey(value => value + 1); setHostedEditor({ dirty: false, busy: false })
       setRegistrationSelection(null); setRemovalSelection(null)
     } : undefined,
@@ -828,7 +834,7 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 750 }}>Connector and discovery</Typography>
-              <Typography variant="body2" color="text.secondary">Eligible .txt and configured .json objects inside the approved scope.</Typography>
+              <Typography variant="body2" color="text.secondary">PDF, Word, scanned images, TXT and configured JSON documents inside the approved scope.</Typography>
             </Box>
             <Stack direction="row" spacing={1}>
               <Chip
@@ -934,8 +940,6 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
                   </Stack>
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                  <Button size="small" variant="outlined" startIcon={<PreviewRoundedIcon />} disabled={!documentLive || previewMutation.isPending} onClick={() => previewMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId })}>Preview</Button>
-                  <Button size="small" variant="contained" startIcon={<PlayArrowRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index', operationKey: crypto.randomUUID() })}>Index</Button>
                   <Button size="small" variant="outlined" startIcon={<SyncRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'refresh', operationKey: crypto.randomUUID() })}>Refresh revision</Button>
                   <Button size="small" variant="outlined" startIcon={<FactCheckRoundedIcon />} disabled={!documentLive || !canOperate || commandMutation.isPending} onClick={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'reconcile', operationKey: crypto.randomUUID() })}>Reconcile</Button>
                   <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutlineRoundedIcon />} disabled={!documentLive || !canOperate || removeMutation.isPending} onClick={() => setRemovalSelection({ target: targetReference, source: selectedSource })}>Remove index</Button>
@@ -945,18 +949,13 @@ export function DocumentKnowledgePage({ initialReleaseId = '', initialSourceId =
               {commandCurrent && commandMutation.isError ? <Alert severity="error">{errorText(commandMutation.error)}</Alert> : null}
               {commandCurrent && commandMutation.data ? <Alert severity="success">Operation: {commandMutation.data.outcome}</Alert> : null}
 
-              {previewCurrent && previewMutation.isError ? <Alert severity="error">{errorText(previewMutation.error)}</Alert> : null}
-              {previewCurrent && previewMutation.data ? (
-                <Stack spacing={1.5}>
-                  <Typography variant="subtitle2">Bounded preview · {previewMutation.data.chunkCount} chunks · {previewMutation.data.totalContentLength} characters</Typography>
-                  {previewMutation.data.chunks.map((chunk) => (
-                    <Box key={chunk.chunkId} sx={{ borderLeft: '3px solid', borderColor: 'primary.main', pl: 2, py: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">Chunk {chunk.chunkIndex + 1}/{chunk.chunkCount}</Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{chunk.contentPreview}</Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : null}
+              {documentLive && <DocumentPreparationPanel key={[targetReference.deploymentId,targetReference.targetProfileId,targetReference.releaseId,selectedSource.sourceId].join(':')}
+                target={targetReference} sourceId={selectedSource.sourceId} canEdit={canOperate}
+                preview={previewCurrent ? previewMutation.data : undefined} previewBusy={previewMutation.isPending}
+                previewError={previewCurrent && previewMutation.error ? errorText(previewMutation.error) : undefined}
+                onPreview={() => previewMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId })}
+                onIndex={() => commandMutation.mutate({ target: targetReference, sourceId: selectedSource.sourceId, command: 'index', operationKey: crypto.randomUUID() })}
+                indexBusy={commandMutation.isPending || ['INDEXING','REPLACING'].includes(selectedSource.status)} onEditorState={setPreparationEditor} />}
 
               {detailSection ? (detailQuery.data?.manifests ?? []).filter(manifest => manifest.failureCode).map(manifest => <Alert key={manifest.manifestId} severity="error">Document version {manifest.sourceVersion}: {manifest.failureCode}{manifest.failureMessage ? ` / ${manifest.failureMessage}` : ''}</Alert>) : null}
               {(detailQuery.data?.manifests ?? []).length > 0 ? <CustomerAdvancedSection>

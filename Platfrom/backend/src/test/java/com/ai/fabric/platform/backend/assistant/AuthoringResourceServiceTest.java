@@ -92,6 +92,29 @@ class AuthoringResourceServiceTest {
         verifyNoInteractions(brains, validation);
     }
 
+    @Test void documentUndoRestoresTheStoredHumanReviewWithoutAllowingNewAiAttestations() throws Exception {
+        var documentAuthoring = mock(DocumentSourceAuthoring.class);
+        resources.setDocumentAuthoring(documentAuthoring);
+        String id = "brain|stage|release|source";
+        var original = json("""
+            {"processing":{},"evaluationOptions":{},"questions":[{"id":"q1","question":"Policy?","referenceAnswer":"30 days","reviewed":true}]}
+            """);
+        var allowed = List.of("/processing", "/evaluationOptions", "/questions");
+        when(documentAuthoring.load(id)).thenReturn(new AuthoringResourceService.Snapshot(OWNER,"Document",original,mapper.createObjectNode(),allowed,"1",true,""));
+        when(documentAuthoring.check(eq(id),any(),any())).thenReturn(mapper.createObjectNode());
+        when(documentAuthoring.save(eq(id),any(),any())).thenReturn(mapper.createObjectNode().put("revision",2).put("indexed",false));
+        var saved = resources.save("DOCUMENT_SOURCE",id,"DOCUMENT_PREPARATION",json("""
+            [{"path":"/questions","operation":"SET","value":[{"id":"q1","question":"Updated policy?","referenceAnswer":"30 days","reviewed":false}]}]
+            """));
+        when(documentAuthoring.load(id)).thenReturn(new AuthoringResourceService.Snapshot(OWNER,"Document",saved.configuration(),mapper.createObjectNode(),allowed,"2",true,""));
+        when(documentAuthoring.checkRestoration(eq(id),any(),any())).thenReturn(mapper.createObjectNode());
+        var restored = resources.undo("DOCUMENT_SOURCE",id,"DOCUMENT_PREPARATION",saved.diff());
+        assertThat(restored.configuration()).isEqualTo(original);
+        verify(documentAuthoring).checkRestoration(eq(id),any(),eq(original));
+        verify(documentAuthoring,times(1)).check(eq(id),any(),any());
+        verifyNoInteractions(brains,apps,plugins);
+    }
+
     @Test void anActionEditCallsExistingUpdateDraftWithOnlyActionsAndPreservesRichInputsAndSiblingActions() throws Exception {
         var draft = brainFixture();
         var saved = resources.save("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS", json("""

@@ -65,7 +65,7 @@ platform:
       access-key: ${LOOMAI_DOCUMENT_STORAGE_AWS_ACCESS_KEY_ID:}
       secret-key: ${LOOMAI_DOCUMENT_STORAGE_AWS_SECRET_ACCESS_KEY:}
       reader-permissions-boundary-arn: ${LOOMAI_DOCUMENT_STORAGE_READER_PERMISSIONS_BOUNDARY_ARN:}
-      max-object-bytes: 1048576
+      max-object-bytes: 20971520
   ai-fabric:
     framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.62}
     executor-rag-similarity-threshold: ${PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD:0.5}

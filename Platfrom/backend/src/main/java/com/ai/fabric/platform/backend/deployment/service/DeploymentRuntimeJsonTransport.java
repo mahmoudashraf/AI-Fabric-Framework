@@ -45,9 +45,15 @@ public class DeploymentRuntimeJsonTransport {
                          Map<String, String> headers,
                          JsonNode body,
                          String idempotencyKey) {
+        return send(baseUrl,method,path,headers,body,idempotencyKey,RUNTIME_TIMEOUT);
+    }
+
+    public Response send(String baseUrl,String method,String path,Map<String,String> headers,JsonNode body,String idempotencyKey,Duration timeout) {
+        if(timeout==null || timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(90))>0)
+            throw new IllegalArgumentException("A bounded runtime request deadline is required.");
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(runtimeUri(baseUrl, path))
-                .timeout(RUNTIME_TIMEOUT)
+                .timeout(timeout)
                 .header("Accept", "application/json");
             if (headers != null) headers.forEach(builder::header);
             if (StringUtils.hasText(idempotencyKey)) builder.header("Idempotency-Key", idempotencyKey);

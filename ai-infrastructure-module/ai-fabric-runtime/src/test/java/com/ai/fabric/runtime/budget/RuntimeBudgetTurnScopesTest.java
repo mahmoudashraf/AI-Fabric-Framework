@@ -30,6 +30,23 @@ import org.junit.jupiter.api.Test;
 
 class RuntimeBudgetTurnScopesTest extends RuntimeBudgetFixture.TestScope {
     @Test
+    void documentEvaluationHasItsOwnScopeAndSharesTheFundedInteractiveAllowance() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        var identity = identity("customer", "deployment", List.of("documents:evaluate"));
+        try (var turn = turns.openDocumentEvaluation(identity)) {
+            turn.verifyBeforeOrchestration();
+            assertThat(turn.chatReceipt()).isPresent();
+            assertThat(turns.capture(OpenAiBudgetInvocation.Operation.EMBEDDING)).isNotNull();
+            assertThat(turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION)).isNotNull();
+        }
+        assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(1);
+        assertThatThrownBy(() -> turns.openDocumentEvaluation(chatIdentity())).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(() -> turns.openDocumentEvaluation(identity("customer","deployment",List.of("documents:read"))))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertUnscopedDenied(turns);
+    }
+    @Test
     void explicitChildPropagationSharesTheParentReceiptAndDenialWithoutAnotherChatAdmission() throws Exception {
         var budgets = new RuntimeBudgetFixture().register();
         var turns = new RuntimeBudgetTurnScopes(budgets);
