@@ -18102,3 +18102,159 @@ test is being called hosted acceptance. UI extraction remains last.
   Coverage guide SMART_BRAIN_CONFIGURATION_FORM_COVERAGE.md linked from required
   PLATFORM_UI_PROFILES.md. Verification: verification-support/configuration-ui-controls/README.md.
   Final private proof ~/.codex/private/configuration-ui-coverage-20261122-polish/final-proof.private.json.
+
+## 2026-11-22 Fleet Framework 0.8.62 Adoption - In Progress
+
+- Owner explicitly requested upgrading Brains/deployments and LoomAI's Build
+  with AI assistant, with live verification. Latest public GitHub tag/Central
+  metadata confirmed0.8.62/a7693b9c; no public framework change/republication.
+  Preserve identities/configuration/credentials/storage/limits and stopped apps.
+- Private execution root ~/.codex/private/loomai-fleet-0862-20261122/ (0700),
+  normal own staff cookie sessions ACTIVE on BOTH control planes: MUST logout
+  both with this root's operations.mjs at completion, old-cookie-only proof.
+  No API-key fallback. Source artifacts stage dsa-c35135ca/prod dsa-57f666a9
+  registered in staging channel with actual manifest62/Central Core bytes.
+- Only source edits: product-parent framework59->62 and Desk57->62 pins. Commit/
+  push90643a33cc16264d7a063bb36b187ecb7afbdf55. CI Core45035572853/runtime45035572969/
+  Desk45035572832 ALL SUCCESS. Product217tests PASS/no skips; Desk local150cases
+  108pass/42PGskip, requiredPG CI passed; runtime CI complete passed. Needextract
+  actualCI test counts for final evidence, do not label localDesk0skip.
+- BOTH backends906 healthy/settingspreserved/schema241 unchanged. UI remains
+  5404944ba, do not deploy a nonexistent906 UI image. Runtime906 digest7e19d0ef...
+  (fullidentity in registered JSON); Desk906 digestafde9328.... Stageassistant
+  andDesk native20/3 public JARs62 hash-match Central; all resource/mount/sensitive
+  settings preserved. Production Desk deployedhealthy/nativeproof exec59756;
+  productionassistant rollout exec25557 (jobr1a56fxwfa0bqcktu6vy7aqr), observe.
+- Actual STAGING assistantUI PASS, normal Supabase customer: docs-only PREPARE
+  with zero hint ->1READ action+GETroute; naturalfollowup edit SAVED; 1attempt
+  each,0validationerrors,8unrelatedsections/no publication preserved. Desktop/
+  390px/noerrors. cas779fe950 andresource-free dep001767e8 deletednormally,
+  deletiondel68aae794 SUCCEEDED, customer signedout. Proofassistant-ui-staging/.
+  Production assistant native+sameUI test stillrequired after rollout completes.
+- Plan inventory covers7old running targets/5Brains: stageCP Acme depb9a09c0a
+  andSupportdepa9d6d646 (both52); prodCP oldHarbordep5fbdc125(stage), Support
+  dep79af290c(stage+prod), Northfielddep3c4dbe4f(stage+prod), all57. Current
+  Harbordep86ad8f93 already62 stayssamev11/rel-a9b54dbc, reverify only. Stopped
+  Northfieldstageolddepf023, Shopifydep8c3, migrationdepf6ab remainstopped.
+  All5drafts EXACTLY match their active published10configsections, nounrelated
+  edits to publish. New published versions all62/reindexfalse/configpreserved:
+  stageAcmever63d9eab8, stageSupportverf391d820, prodHarborverec42a4a6,
+  prodSupportver39c4356e, prodNorthfieldverfb59c4ff.
+- Apply stageCP Acme rel-4f3ff310 active, observerexec26885 (brains.mjs observe
+  staging dep-b9a09c0a staging). NormalCOLD_REPLACE: stopconnector~30s, oldruntime
+  ~60s; latestwait_for_coolify_runtime, noerror. Do not replay. ProductionCP
+  Support STAGING applyexec95970 launched, awaitreceipt thenobserver. Other
+  targets notapplied yet. Rootbrains.mjs serializes mutations with lock; observe
+  only reads and doesn't rewrite rolloutregistry. Don't run mutators concurrently.
+- Remaining: finish all7 applies through normal API/artifact; native.mjs checks
+  exactexistingIDs/health/limits/mounts/sensitiveenv/allpublicJAR62hashes; query.mjs
+  realread+followups then MANUAL semantic review into cp-id-host-quality JSON
+  before production apply. Bind actualactive apps normally (brains.mjs bind),
+  retainotherbindings. ActualEngage/normalcustomerSupport+specialist and Desk
+  journey verification; reverifyalready62Harbor. No model/profile/budget/infra
+  changes, reindex or hidden retries. Need final preservation/stopped-app/session
+  audit, sanitizeddatedreport, contextclosure anddocs-onlycommit/push.
+
+### Fleet 0.8.62 Checkpoint - 15:30 UTC
+
+- Original906 three CI workflows succeeded. All5 versions published as above.
+  StageAcme rel4f3ff310 VERIFIED/PASSED, native20+5publicJARhashes62 PASS, exact
+  activeconsumerboundnormally; query3/3HTTP200/historyfollowupPASS. Manualfinding:
+  last AI-knowledge-upload question overclaimed a procedure absent from its only
+  neutralAcmeonboarding source; retain as semanticfinding, not perfectquality.
+  Product217testsPASS; DeskCI1500skip inclrequiredPostgres, runtimeCIneedsfinal
+  logcount extraction. BOTHDesk906 healthy/native3JAR62hashesPASS. BOTHassistant
+  906 healthy/native20JAR62hashesPASS. BOTHbackends906/schema241 healthy; UI540.
+- Production assistant initial docsPREPARE SAVED/1attempt, but naturalfollowup
+  FAILED after3INVALID_OUTPUT attempts. Safe draft retained; generatedcas-e7e21...
+  anddep9d594f86 deletednormally/del9c723e6b, customer signedout. Exact missing
+  field was not retained by old generic error; DO NOT claim retroactive cause.
+  Originalfailure remains assistant-ui-production/ in fleetroot.
+- Private-only diagnostic fix118d492e93ab10b5c0d2b1d3401ee64a0e8b596f committed/
+  pushed. NO publicframeworkchange/newrelease. Existing validator outcomes remain;
+  runtime emits value-free envelope field/category on rejection; Platform forwards
+  only allowlisted code/path with server-owned expected-contract text to existing
+  boundedfeedback. Same3attempts/overalltimeout/1modelcall perruntimeHTTP/authority.
+  Focusedruntime71 + backend61 tests PASS/0skip. Initialtestcompileerrors corrected
+  andredlogretained; successfulfixedlogexists. CI backend45038181509 SUCCESS;
+  runtime45038181539 pending, watcherexec60375. No118deploymentyet.
+- Diagnostic rollout root ~/.codex/private/loomai-authoring-contract-20261122/:
+  snapshots4current906apps captured, ops wrapper REUSES fleetroot's normal
+  sessions (no duplicateauth). service-rollout/native/assistant-ui helpers there
+  target118; frameworkstill62. Stagebackend+assistant first, actualcustomerUI
+  two-turntest; thenproductionbackend+assistant andrepeat, retainingoldFAIL.
+  Do NOTrestart a CP backend while its own Brainapplys are in flight. Desk and
+  ordinaryBrainimages stay906; no needreregister118 as a generalruntimeartifact.
+- ActiveBrainreleases: stagingCP Supportdepa9 rel8b0b739c observer47485 atVERIFYING;
+  prodCP Supportstage rel855eefcf VERIFIED/native20+5PASS, bindphaseemptyactiveapp
+  setPASS, livequeriesexec26674. Northfieldstage reld54b9cc6 observer16573 at
+  waitconnector. OldHarborstage rel1c81a8df applyexec53631; needobserve. FirstAcme
+  observer26885 CLOSED; sourcequery9610 CLOSED. NewHarbor86 stillunchanged62.
+- Remaining2production targets notapplied: Support79 andNorthfield3c4. Their
+  stagequality JSON must be based onactualmanualanswerreview before brains.mjs
+  apply...production. Needallstagefinish/native/query/bind, prod2/native/query/
+  bind, actualEngageUI, normalcustomerSupport+specialist andDeskUIhandover,
+  reverifyHarbor86, finalexactconfig/IDs/limits/storage/otherbindings/stopped
+  audit/sessionrevocations. Do not silently broaden scopes/funding orresize.
+
+### Fleet 0.8.62 COMPLETE - 2026-11-22 16:00 UTC
+
+- All7older running targets/5Brains upgraded through normal publish/apply and
+  APPLIED_VERIFIED/PASSED. StageCP Acme depb9 ver63d9eab8/rel4f3ff310;
+  Supportdepa9 verf391d820/rel8b0b739c. ProdCP oldHarbor5f ver ec42a4a6/
+  stage1c81a8df; Support79 ver39c4356e/stage855eefcf/prodaa908aa1;
+  Northfield3c verfb59c4ff/staged54b9cc6/prod6cd0599f. CurrentHarbor86 remains
+  EXACTv11/ver26fb44f5/rela9b54dbc/sourceabc, native62 and3actualEngageanswers PASS.
+- CURRENT ordinaryBrainruntime/connector +BOTHDesk source90643a33cc16264d7a063bb36b187ecb7afbdf55.
+  CURRENT BOTHbackend+configurationassistant source118d492e93ab10b5c0d2b1d3401ee64a0e8b596f.
+  PublicFWstill0.8.62/a7693b9c; NO newpublicframeworkpatch/republication. BOTHUI
+  intentionally5404944ba7f2d59cbb6af3fd584972df35ecfce2, samecontainers/healthy.
+  Actualdigests in finalreport/privateproof. Corebytes6eac435220ddfcc2dd5f73954987fdee7977784d2cf389c820794af88d39f33a.
+  All20publicJAR/runtime+assistant,5/connector,3/Desk hashmatch62Central.
+- CI906 Core45035572853/runtime45035572969/Desk45035572832 ALL SUCCESS.
+  Runtime818/0skip, Desk150/0skip withrequiredPostgres. CI118 Core45038181509/
+  runtime45038181539 BOTH SUCCESS; runtime820/0skip plus78PGbudget+103transport.
+  Localproduct217/0skip; focuseddiagnosticsruntime71+backend61/0skip PASS.
+- Private118 only makes existing authoring-contract rejection actionable through
+  value-free allowlisted code/field and server-owned feedback, SAME3totalattempts,
+  timeout/authority/acceptance. Exact historicalinvalidfield wasNOTretained;
+  neverclaimretroactivecause. Sharedinferenceservice stillhasno savecredentials.
+- ActualnormalcustomerBuildwithAI: docs-onlyPrepare ->1READ+GETroute andnatural
+  followup SAVED onBOTHCPs; stageextended3turns andprodresponse-pageedit PASS,
+  1attempt/turn,0validationerrors, unrelatedsettings/noPublication preserved.
+  Originalprod3INVALID_OUTPUTfailure retained. SeparaterepeatedprodPREPARE
+  returnedNEEDS_INPUT/unnecessarysingle-endpointscopequestion; savesnothing;
+  kept asFAILoneclickqualitycase, NOT hidden/rerununtilpass. Allgenerated
+  sessions/resources deletednormally BEFOREcustomersignout. Responsepreset
+  contextualpermitsupto2; exactonesuggestionrequestnotseparatelyqualified.
+- Live21boundedservicequeries,12actualanonymousEngagequeries across4apps,
+  3normalcustomerSupportUIturns perCP inclgenuinesuccessfulworkspace-setup
+  specialist. History-onlyfollowups work; nointernaldomainquestions observed.
+  Serviceidentityspecialistdenial remains, no scopewidening. Northfieldstock/
+  comparisoncorrect; Harbor499+25=524,stock8/12/0,heightadjustable retained.
+  FullproductionDeskexplicitrequest->claim->bothhumanmessages->AIpaused->
+  explicitreturn->actualsourcedAIanswer PASS. Ownnewepisode
+  handover-df5707e827ad6037fe48970f2fcbd58a endedRETURNED_TO_AI;
+  agentandConsoleSSO signedout. No unrelatedhandovers touched.
+- FinalpreservationPASS: alloriginal10draftsections,ownership,oldimmutable
+  versions,credentials/storage/models/limits,activeappIDs/URLs/origins/domains/
+  auth preserved; normalbindingupdated6activeconsumers, unrelatedonesunchanged.
+  No reindex/vectorcopy/newinfra/billing/capacitychange. Bothcatalogues runtime
+  stage dsa-c35135ca/prod dsa-57f666a9 promotedproduction. Schema241 unchanged.
+  All72CoolifyappIDsretained;13stage+9prodstopped remainstopped. Native20updated
+  containers+currentHarborpair+BOTHUI healthy/0restarts. Auditinitiallyflagged
+  derivedbindingversion/releasecounts; exactownership+actualcounts PASS.
+- Honestlimits retained: neutralAcme overclaims AIknowledgeuploadprocedure not
+  inonboardingdoc; Northfieldcompoundreturns evidencenotretrieved/disclosed;
+  someovercautioushistorycaveats/condensedchecklistomissions; existing390px
+  source/toolrailcrowding. BroadpublicCI14IncidentRoomfails remainunrelated.
+  OverallPASS_WITH_QUALITY_FINDINGS, NOT perfectquality/allworkflowclaim.
+- Finalproof ~/.codex/private/loomai-fleet-0862-20261122/final-proof.private.json;
+  authoringproof ~/.codex/private/loomai-authoring-contract-20261122/.
+  BOTH OWN NORMAL STAFF SESSIONS REVOKED, oldcookie-onlyunauthenticated.
+  ALL requiredtest/browser/rollout/watchprocesses CLOSED; noownedinteractive
+  sessionactive. Gallery8766 untouched. User .gitignore/cache/media unchanged,
+  unstaged/unreverted. Finalsanitizedreport:
+  verification-support/framework-demos/2026-11-22_LOOMAI_FLEET_0862_UPGRADE.md.
+  Thisclosure supersedes all earlierin-progresscheckpoints; docsHEAD is not
+  an image revision. No further deploy needed for the finaldocs-onlycommit.
