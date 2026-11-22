@@ -18671,3 +18671,130 @@ test is being called hosted acceptance. UI extraction remains last.
   including new document-aware authoring, not the obsolete baseline alone.
   Final preservation/cleanup/logout/docs needed. Gallery8766 and unrelated
   .gitignore/cache/media/worktrees unchanged. Do not resize/add infrastructure.
+
+### Support Continuity Staging Rollout - 22 November, 20:50 UTC
+
+- Phase1 committed/pushed `aa676567fec097015583411e8f17c67338ab6044` on
+  Platform-V11 over183b104cd. Core image CI45067867589 SUCCESS. Full focused
+  Support+configuration-assistant package suite409 testsPASS/0skip, including
+ 3Postgres concurrency cases. UIbuildPASS, pack-host7PASS, manifest1PASS,
+  realpack/widget syntheticUI15 groupsPASS/manualphone screenshotchecked.
+  All required local test/browser/CI watcher sessions CLOSED.
+- STAGING backend+UI now both aa676567, healthy/0restarts, original env/native
+  limits/routes/mounts preserved. Backend migration244 applied;243 document
+  migrations preserved. Backenddigest dea277dcaf7942f618540832f8238222cfce425e91b7ad8ba4227bb6944a2df4,
+  UIdigest5bfe4758eb3d79c0296fcf78abf10695e11652c5282cd5826615d419c99016ec.
+  Coolify backendjob luywh5tqqj9n923vi1gqju0a/UIjobephv0ayk3u438dqtbjujql73
+  completed; helpersexec72963/44352 CLOSED. No production global rollout yet.
+- Diagnostic1.0.4 normally submitted/validated/published on staging; install
+  mpi-4ec19c79 updated preserving configuration/secret references. Normal Support
+  ver-d0634f1b published (framework63, reindexfalse). Provider/security/routing/
+  prompts unchanged. Already-qualified doc-capable artifact dsa-bd988400/c8b1
+  reused; no new runtime source/artifact/publicrelease.
+- EXISTING apply rel-1e99426a for stagingCPdep-a9d6d646 is PROVISIONING,
+  wait_for_coolify_runtime. Observe with ownroot support-release.mjs phase1 staging
+  observe; CURRENT RUNNING EXEC57298. Runtimeapp t13lod7vna43a9e9hgrbml3y is
+  running:healthy (native319e96471959,0restarts,started20:48:23), but normal
+  provisioning gate still waits on its deployment job. DO NOTreapply/cancel,
+  force readiness or bind before APPLIED_VERIFIED/PASSED. Keep investigating
+  through actual provider observations if it does not progress.
+- Remainingphase1: finishobserve -> `support-release.mjs phase1 staging bind`
+  -> `phase1-live.mjs staging` (fresh exclusive directory, customerbrowserauth,
+  originalscope restore +signout), manually review3actualanswers/status receipts,
+  write phase1-staging-quality.private.json PASS only on actual evidence.
+  Then rollout.mjs phase1 production backend/UI aa676567 (requiresstagequality),
+  support-release publish/apply/observe/bind forprod, phase1-live production.
+  Live script syntaxchecked but NOTexecuted yet. No paid model queries this task
+  yet. Helper initial nonexistent GET/deployments/:id was corrected to select
+  exact ID from GET/deployments; ownnormalstaffsessions remainvalid, noauthbypass.
+- Separate document-intelligence Supportprodrel-18e7fc5c nowAPPLIED_VERIFIED/PASSED;
+  external qualify-support-production/journey processes are no longer running.
+  Fresh read-only preservation snapshots saved as *-after-document-work for all
+  nonSupportBrains and hostapps; keep originals too. Don't restore prior Harbor/
+  Acme/Supportruntime changes from that accepted work. Their docverification
+  status stays separate, never reuse/revoke another task's sessions.
+- TWO OWN STAFF SESSIONS ACTIVE in ~/.codex/private/loomai-support-specialists-20261122/;
+  logout BOTH using THAT operations.mjs and prove oldcookiesfalse on completion.
+  phase1-live will separately signout its ownSupabasecustomerbrowser. No APIkey
+  fallback, impersonation or otherroot's auth. Gallery8766 unchanged.
+- PHASE2 STILL REQUIRED AFTERPHASE1: five read-only areas, bounded adaptive
+  resolution plans, real safe integration/handover projections and reusable
+  template revisions. Existing compiler permits <=8areas/resolutions and only
+  readActions, writePolicyDISABLED. Parent executes governed writes; use canonical
+  BuildwithAI for draftchanges, no second authoringengine. Newbackend routes
+  must preserve exact service-key whitelist, requester/consent/resource scope,
+  safe projections and truthful not-probed states. Generic kit must NOT inherit
+  LoomAI's private endpoints/permissions. Existing internaltemplate defaults differ
+  from liveoverlay; updateadditively, don'trewriteimmutablemanifests.
+- Need liveBuildwithAI regression (latest document-aware scenarios included),
+  full finalpreservation/native/settings/ownership checks, ownfixture cleanup,
+  sessionlogout, sanitizedreport+durableguides/context and finalcommit/push.
+  Do not finish after only phase1. Current private support-release.mjs has a
+  deliberate phase2 guard; implement/review that path before invoking it.
+
+### Support Checkpoint - 20:57 UTC
+
+- Staging live BuildwithAI regression PASSED8 independent cases plus natural
+  action rename/undo and BEHAVIOUR edit (10 actual model turns total). Three
+  actualUI documentation-only PREPAREs, multioperation, subset/hint and missing
+  host/credential stops. All temporary authoring sessions/Brains deleted via
+  normal customer APIs, no releases/infra created. Customer browser signedout,
+  no pageerrors. Root authoring-regression-staging/report.private.json PASS.
+  Helper authoring-regression.mjs reuses formal existing contracts and ownroot
+  staff only observes deletion receipts. Exec9900 CLOSED. Production regression
+  not run yet; don't claim its proof from staging alone.
+- Phase1Supportstage apply still same rel-1e99426a; runtime/firstconnector
+  deployment jobs finished. Normal security scrub invokes connector deployment
+  once more; currently wait_for_coolify_connector_after_database_credential_scrub.
+  Observer57298 ACTIVE. Do not duplicate apply/bypass gate. Bothstageglobalroles
+  aa676567 complete; upcomingstage bind+phase1-live still required. Allother
+  requiredtaskprocesses CLOSED. BOTHownnormalstaffsessions remainACTIVE.
+- Productized guides12/10 still describe the older request-only diagnostics/two
+  areas. Update them alongside phase2 and qualify current approved knowledge,
+  not just source files. ProductionSupport document-intelligence journey had
+  completed its process; preserve its new63 runtime/Data1.2/storage results.
+- Phase2 must keep specialists read-only; parent write/BuildwithAI authority
+  remains separate. New integration/handover projections must state whether they
+  read saved draft or exact app-assigned release and must not claim actual API,
+  agent-presence or message-delivery probes when none ran. Avoid adding a broad
+  permission-bypassing wrapper to existing viewer/editor services. Reuse
+  repository projections after explicit requester/consent/resource checks.
+
+### Support Specialists Qualification - 22 November, 21:20 UTC
+
+- Phase1 global backend/UI production now aa676567, healthy, schema244; original
+  infrastructure limits/env/routes/mounts preserved. Production Support normal
+  apply rel-01156f65 (ver-745b229a, existing c8b1/FW63 artifact) is still in its
+  normal connector credential-scrub deployment. Observe existing exec23698,
+  never replay apply. Once verified, bind and run phase1-live production.
+- Phase2 source adds exact service-authenticated integration/handover READ
+  projections under existing requester/ownership/resource/consent checks. Draft
+  capability metadata is explicitly not connectivity; handover reads exact
+  app-assigned verified release and never claims agent presence/delivery.
+  Diagnostic1.1.0 and V245 add catalogue snapshots, preserving historical
+  versions/drafts/offers/bindings. Generic template has five company-neutral
+  knowledge-only areas; private LoomAI overlay has five consent-bound areas.
+  Both have five adaptive plans, six manager decisions/four worker allowance,
+  max two parallel/75 seconds. Worker writePolicy remains DISABLED.
+- No compiler/runtime limit increase or framework release needed: compiled
+  generic bundle59650 bytes, private bundle64104, within existing65536 ceiling.
+  Initial longer IDs/objectives exceeded the limit; kept limit and tightened
+  configuration, not authorization. Focused Support+assistant+specialist suite
+  passed; 3 additive-template/real-Postgres migration tests passed after explicit
+  catalogue fixture seeding (these templates are normally published after DB
+  bootstrap). Node compose/default/continuity7 tests passed. Initial failed
+  bundle and missing-product-fixture attempts retained; no production bypass.
+- Production BuildwithAI: first3 real documentation PREPAREs, rename/undo and
+  BEHAVIOUR edit passed. Remaining5 stopped before provider calls because shared
+  internal authoring allowance reached100/100; staging91/100. Existing5USD/token
+  caps not exhausted. Asked owner whether to add50 turns per environment while
+  retaining spending/token caps; NO top-up performed. Retain actual failures,
+  not a claim of complete production regression. All temporary authoring Brains
+  and sessions deleted normally and customer browser signedout.
+- Own staff sessions BOTH remain active in support-specialists private root;
+  logout/prove oldcookie rejection at finish. Source tests and source commits
+  are not phase2 live proof. Next: CI, stage rollout/apply/bind and model checks,
+  update approved guides10/12 through normal upload/approval/indexing, stage
+  quality gate, production rollout/qualification, reusable installation proof,
+  final unrelated-resource/settings preservation and cleanup/report. BuildwithAI
+  rechecks require owner allowance answer. No infra or gallery8766 changes.

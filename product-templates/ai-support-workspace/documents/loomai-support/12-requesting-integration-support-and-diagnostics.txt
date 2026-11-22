@@ -1,8 +1,8 @@
-Title: Request integration support and control diagnostic access
+Title: Continue Support conversations, request help and control diagnostics
 Document ID: loomai-support-12
 Product: LoomAI Console - Integration support
 Audience: Signed-in customer administrators requesting help with their own setup
-Reviewed: 2026-11-03
+Reviewed: 2026-11-22
 
 Availability and ownership
 
@@ -16,6 +16,28 @@ A request belongs to its signed-in requester within the customer account. Other
 account members do not automatically receive access to it. The integration team
 uses separately authorized support access. You can ask a documentation question
 before creating a deployment and without granting diagnostic permission.
+
+Continue an ordinary Support conversation
+
+Opening Support resumes your last selected ordinary conversation. Reloading or
+closing and reopening the dock does not create a new conversation or replay a
+previous message. History reopens your own earlier conversations. New chat starts
+an empty conversation and keeps the old one in History; it does not inherit
+selected resources or diagnostic consent. History is scoped to the signed-in
+requester, not automatically shared with other members of the same workspace.
+
+You do not need a ticket to ask about your current deployment. Open Configure
+diagnostics in the chat, select the relevant Smart Brain and optionally its
+connected Engage app or connection, save, then grant Status-check permission.
+Use this Smart Brain can preselect the current Brain where available; review and
+save it before granting permission. Merely visiting a Brain or typing its ID
+does not authorize a lookup. Revocation stops new private reads but does not erase
+previously shared observations. Documentation help remains available without it.
+
+When an ordinary conversation is linked to a request, the request becomes its
+authoritative lifecycle. Use My requests for that conversation rather than a
+second ordinary-chat route. Resolving or cancelling the request revokes consent;
+an old ordinary-chat link cannot bypass that state.
 
 Submit a useful request
 
@@ -52,9 +74,16 @@ What diagnostics can and cannot establish
 Consented checks are bounded status and metadata projections: release and
 verification state, local app readiness, selected connection synchronization
 state and registered document-index state when the exact target is available.
+Integration checks can also report bounded saved-draft capability counts and
+whether a route is defined. This does not execute an API or prove its connection
+works. Use the existing Check setup workflow for actual connectivity checks.
+Human-support checks read app visibility and the exact assigned verified release
+configuration, not a newer draft. They do not probe agent presence, ticket-provider
+health or message delivery. Use actual conversation and request receipts for
+delivery outcomes, and Build with AI for requested draft changes.
 They do not expose credentials, raw logs, source file contents or business records.
 Current requester membership, request ownership, selected-resource ownership and
-consent are checked for each read.
+consent are checked for each read, for ordinary conversations as well as requests.
 
 Local readiness does not prove the public route or HTTPS works. Stored release
 state is not a fresh live-health probe. A last successful synchronization does

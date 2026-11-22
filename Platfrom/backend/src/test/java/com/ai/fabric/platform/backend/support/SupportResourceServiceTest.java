@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.support;
 import com.ai.fabric.platform.backend.aiworkspace.entity.AIWorkspaceInstallationEntity;
 import com.ai.fabric.platform.backend.aiworkspace.model.*;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.*;
@@ -21,6 +23,73 @@ import static org.mockito.Mockito.*;
 
 class SupportResourceServiceTest {
     @AfterEach void logout() { SecurityContextHolder.clearContext(); }
+
+    @Test void integrationProjectionIsBoundedSavedDraftMetadataNotCredentialsOrAConnectivityProbe() throws Exception {
+        var f = new SupportFixture(); var d = SupportFixture.deployment("dep-a", "customer-a", "tenant-a");
+        when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
+        var draft = new DeploymentDraftEntity(); draft.setRevisionNumber(7);
+        draft.setActionsConfigJson("""
+            {"actions":[{"name":"public_lookup","accessMode":"READ","route":{"url":"https://DO_NOT_DISCLOSE","headers":{"Authorization":"DO_NOT_DISCLOSE"}}},
+              {"name":"cancel","accessMode":"WRITE_ONLY","requiresConfirmation":true},
+              {"name":"update","accessMode":"READ_WRITE"}],"secret":"DO_NOT_DISCLOSE"}
+            """);
+        draft.setRoutingConfigJson("{\"actions\":{\"cancel\":{\"url\":\"DO_NOT_DISCLOSE\"}}}");
+        when(f.drafts.findTopByDeploymentIdOrderByRevisionNumberDesc(d.getId())).thenReturn(Optional.of(draft));
+        var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()));
+        var headers = f.headers(f.service.requireOwnedCase(c.id()));
+        var result = f.diagnostics.read("support_get_integration_status", headers);
+        var facts = result.resources().getFirst().facts();
+        assertThat(facts).containsEntry("draftRevision", 7).containsEntry("capabilityCount", 3)
+            .containsEntry("readCapabilityCount", 2).containsEntry("writeCapabilityCount", 2)
+            .containsEntry("observationBasis", "SAVED_DRAFT_CONFIGURATION")
+            .containsEntry("providerConnectivityProbed", false).containsEntry("actionsExecuted", false);
+        assertThat(f.json.writeValueAsString(result)).contains("public_lookup", "confirmationRequired\":true").doesNotContain("DO_NOT_DISCLOSE");
+        f.service.consent(c.id(), new ConsentChange(false, c.consent().version()));
+        clearInvocations(f.drafts);
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_integration_status", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
+        verifyNoInteractions(f.drafts);
+    }
+
+    @Test void missingOrMalformedDraftDoesNotInventWorkingIntegration() {
+        var f = new SupportFixture(); var d = SupportFixture.deployment("dep-a", "customer-a", "tenant-a");
+        when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
+        var c = f.create(true, new ResourceRef(ResourceType.DEPLOYMENT, d.getId()));
+        var headers = f.headers(f.service.requireOwnedCase(c.id()));
+        assertThat(f.diagnostics.read("support_get_integration_status", headers).resources().getFirst().facts()).containsEntry("code", "NO_SAVED_DRAFT");
+        var draft = new DeploymentDraftEntity(); draft.setActionsConfigJson("not-json");
+        when(f.drafts.findTopByDeploymentIdOrderByRevisionNumberDesc(d.getId())).thenReturn(Optional.of(draft));
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_integration_status", headers)).hasMessageContaining("SUPPORT_");
+    }
+
+    @Test void handoverUsesExactVerifiedAppReleaseNeverTheNewerDraftAndDoesNotClaimAgentPresence() throws Exception {
+        var f = new SupportFixture(); var d = SupportFixture.deployment("dep-a", "customer-a", "tenant-a");
+        when(f.deployments.findById(d.getId())).thenReturn(Optional.of(d));
+        var app = new AIWorkspaceInstallationEntity(); app.setInstallationId("app-a"); app.setCustomerId("customer-a"); app.setConsumerEntityId("consumer-a");
+        app.setConfigurationJson("{\"capabilities\":{\"handover\":true,\"tickets\":true},\"support\":{\"teamVisible\":true},\"private\":\"DO_NOT_DISCLOSE\"}");
+        var consumer = new PlatformConsumerEntity(); consumer.setId("consumer-a"); consumer.setCustomerId("customer-a");
+        consumer.setBoundDeploymentId(d.getId()); consumer.setBoundReleaseId("rel-exact"); consumer.setBoundTargetProfileId("stage");
+        when(f.apps.findByCustomerIdAndInstallationId("customer-a", "app-a")).thenReturn(Optional.of(app));
+        when(f.consumers.findById("consumer-a")).thenReturn(Optional.of(consumer));
+        var release = new DeploymentReleaseEntity(); release.setId("rel-exact"); release.setDeploymentId(d.getId());
+        release.setTargetProfileId("stage"); release.setDeploymentVersionId("version-exact"); release.setStatus("APPLIED_VERIFIED"); release.setVerificationStatus("PASSED");
+        when(f.releases.findById("rel-exact")).thenReturn(Optional.of(release));
+        var version = new DeploymentVersionEntity(); version.setDeploymentId(d.getId());
+        version.setBehaviorConfigJson("{\"conversationHandover\":{\"enabled\":true,\"userCanResumeAi\":true,\"channel\":{\"secret\":\"DO_NOT_DISCLOSE\"}}}");
+        when(f.versions.findById("version-exact")).thenReturn(Optional.of(version));
+        var c = f.create(true, new ResourceRef(ResourceType.ENGAGE_APP, "app-a"));
+        var headers = f.headers(f.service.requireOwnedCase(c.id()));
+        var result = f.diagnostics.read("support_get_handover_status", headers);
+        assertThat(result.resources().getFirst().facts()).containsEntry("handoverEnabledInAssignedRelease", true)
+            .containsEntry("handoverVisibleInApp", true).containsEntry("teamVisibleInApp", true)
+            .containsEntry("agentPresenceProbed", false).containsEntry("messageDeliveryProbed", false);
+        assertThat(f.json.writeValueAsString(result)).doesNotContain("DO_NOT_DISCLOSE");
+        verifyNoInteractions(f.drafts);
+        release.setVerificationStatus("FAILED"); clearInvocations(f.versions);
+        assertThat(f.diagnostics.read("support_get_handover_status", headers).resources().getFirst().facts()).containsEntry("code", "ASSIGNED_RELEASE_NOT_VERIFIED");
+        verifyNoInteractions(f.versions);
+        consumer.setBoundDeploymentId("foreign");
+        assertThatThrownBy(() -> f.diagnostics.read("support_get_handover_status", headers)).hasMessageContaining("SUPPORT_ACCESS_DENIED");
+    }
 
     @Test void deploymentProjectionReportsReleaseStatesWithoutMisrepresentingLatestAttemptAsServing() throws Exception {
         var f = new SupportFixture(); var d = SupportFixture.deployment("dep-customer", "customer-a", "tenant-a");

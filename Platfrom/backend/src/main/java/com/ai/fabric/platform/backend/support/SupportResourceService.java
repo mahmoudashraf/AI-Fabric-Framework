@@ -7,6 +7,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetReference;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.*;
@@ -28,13 +33,19 @@ public class SupportResourceService {
     private final VectorizationPlanRepository plans;
     private final VectorizationRunRepository runs;
     private final SupportDocumentStatusService documents;
+    private final DeploymentDraftRepository drafts;
+    private final DeploymentVersionRepository versions;
+    private final DeploymentTargetProfileRepository targets;
+    private final ObjectMapper mapper;
 
     public SupportResourceService(DeploymentRepository deployments, DeploymentReleaseRepository releases,
         AIWorkspaceInstallationRepository apps, PlatformConsumerRepository consumers, AIWorkspaceReadinessService readiness,
         VectorizationSourceConnectionRepository connections, VectorizationPlanRepository plans, VectorizationRunRepository runs,
-        SupportDocumentStatusService documents) {
+        SupportDocumentStatusService documents, DeploymentDraftRepository drafts, DeploymentVersionRepository versions,
+        DeploymentTargetProfileRepository targets, ObjectMapper mapper) {
         this.deployments = deployments; this.releases = releases; this.apps = apps; this.consumers = consumers;
         this.readiness = readiness; this.connections = connections; this.plans = plans; this.runs = runs; this.documents = documents;
+        this.drafts = drafts; this.versions = versions; this.targets = targets; this.mapper = mapper;
     }
 
     public void requireOwned(Requester owner, List<ResourceRef> refs) {
@@ -56,6 +67,14 @@ public class SupportResourceService {
             case DEPLOYMENT -> deploymentStatus(owner, ref, selected, principalId);
             case ENGAGE_APP -> engageReadiness(owner, ref);
             case CONNECTION -> connectionStatus(owner, ref);
+        };
+    }
+
+    public ResourceDiagnostic readDiagnostic(String action, Requester owner, ResourceRef ref, List<ResourceRef> selected, String principalId) {
+        return switch (action) {
+            case "support_get_integration_status" -> integrationStatus(owner, ref);
+            case "support_get_handover_status" -> handoverStatus(owner, ref);
+            default -> read(owner, ref, selected, principalId);
         };
     }
 
@@ -87,6 +106,9 @@ public class SupportResourceService {
             var release = new LinkedHashMap<String, Object>();
             release.put("releaseId", r.getId());
             put(release, "targetProfileId", r.getTargetProfileId());
+            put(release, "versionId", r.getDeploymentVersionId());
+            if (r.getTargetProfileId() != null) targets.findById(r.getTargetProfileId()).ifPresent(target ->
+                release.put("environment", safe(target.getEnvironmentName(), Set.of("staging", "production"))));
             release.put("status", safe(r.getStatus(), Set.of("PENDING", "VALIDATING", "APPLYING", "PROVISIONING", "VERIFYING", "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED", "PRE_APPLY_BLOCKED", "FAILED")));
             release.put("verificationStatus", safe(r.getVerificationStatus(), Set.of("PENDING", "RUNNING", "PASSED", "FAILED", "NOT_RUN", "BLOCKED")));
             put(release, "appliedAt", r.getAppliedAt());
@@ -112,6 +134,78 @@ public class SupportResourceService {
         }
         put(facts, "stateUpdatedAt", d.getUpdatedAt());
         return new ResourceDiagnostic(ref, recent.isEmpty() ? Availability.INCOMPLETE : Availability.CURRENT, Map.copyOf(facts));
+    }
+
+    private ResourceDiagnostic integrationStatus(Requester owner, ResourceRef ref) {
+        if (ref.type() != ResourceType.DEPLOYMENT) throw SupportPolicy.denied();
+        var deployment = deployment(owner, ref.id());
+        var draft = drafts.findTopByDeploymentIdOrderByRevisionNumberDesc(deployment.getId()).orElse(null);
+        if (draft == null) return new ResourceDiagnostic(ref, Availability.UNAVAILABLE, Map.of("code", "NO_SAVED_DRAFT"));
+        var routes = json(draft.getRoutingConfigJson()).path("actions");
+        var definitions = new ArrayList<Map<String, Object>>();
+        int total = 0, reads = 0, writes = 0;
+        for (var action : json(draft.getActionsConfigJson()).path("actions")) {
+            total++;
+            String access = safe(action.path("accessMode").asText(), Set.of("READ", "READ_WRITE", "WRITE_ONLY"));
+            if ("READ".equals(access) || "READ_WRITE".equals(access)) reads++;
+            if ("WRITE_ONLY".equals(access) || "READ_WRITE".equals(access)) writes++;
+            if (definitions.size() < 40) definitions.add(Map.of(
+                "actionId", action.path("name").asText().substring(0, Math.min(128, action.path("name").asText().length())),
+                "accessMode", access,
+                "confirmationRequired", action.path("requiresConfirmation").asBoolean(false),
+                "connectionRouteConfigured", action.path("route").isObject() || routes.path(action.path("name").asText()).isObject()));
+        }
+        var facts = new LinkedHashMap<String, Object>();
+        facts.put("observationBasis", "SAVED_DRAFT_CONFIGURATION");
+        facts.put("draftRevision", draft.getRevisionNumber());
+        facts.put("capabilityCount", total); facts.put("readCapabilityCount", reads); facts.put("writeCapabilityCount", writes);
+        facts.put("capabilities", definitions); facts.put("capabilitiesTruncated", total > definitions.size());
+        facts.put("providerConnectivityProbed", false); facts.put("actionsExecuted", false);
+        facts.put("guidance", "These are saved draft definitions, not proof that the serving release or upstream API works. Use Check setup for connection verification and Build with AI in AI capabilities for requested draft edits. No credentials or raw configuration are returned.");
+        put(facts, "stateUpdatedAt", draft.getUpdatedAt());
+        return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
+    }
+
+    private ResourceDiagnostic handoverStatus(Requester owner, ResourceRef ref) {
+        if (ref.type() != ResourceType.ENGAGE_APP) throw SupportPolicy.denied();
+        var installation = app(owner, ref.id());
+        var consumer = consumers.findById(installation.getConsumerEntityId()).orElseThrow(SupportPolicy::denied);
+        var facts = new LinkedHashMap<String, Object>();
+        facts.put("observationBasis", "EXACT_APP_ASSIGNED_RELEASE_CONFIGURATION");
+        facts.put("agentPresenceProbed", false); facts.put("messageDeliveryProbed", false); facts.put("ticketProviderProbed", false);
+        facts.put("guidance", "Configuration does not establish agent availability or message delivery. Use the actual conversation or My requests for delivery receipts. Draft edits belong in Build with AI; human transfer remains the conversation's handover control.");
+        if (consumer.getBoundDeploymentId() == null || consumer.getBoundReleaseId() == null || consumer.getBoundTargetProfileId() == null) {
+            facts.put("code", "NO_VERIFIED_ASSIGNMENT");
+            return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
+        }
+        deployment(owner, consumer.getBoundDeploymentId());
+        var release = releases.findById(consumer.getBoundReleaseId()).filter(r -> consumer.getBoundDeploymentId().equals(r.getDeploymentId())
+            && consumer.getBoundTargetProfileId().equals(r.getTargetProfileId())).orElseThrow(SupportPolicy::denied);
+        facts.put("releaseId", release.getId()); facts.put("targetProfileId", consumer.getBoundTargetProfileId());
+        if (!"APPLIED_VERIFIED".equals(release.getStatus()) || !"PASSED".equals(release.getVerificationStatus())) {
+            facts.put("code", "ASSIGNED_RELEASE_NOT_VERIFIED");
+            return new ResourceDiagnostic(ref, Availability.INCOMPLETE, Map.copyOf(facts));
+        }
+        var version = versions.findById(release.getDeploymentVersionId()).filter(v -> consumer.getBoundDeploymentId().equals(v.getDeploymentId()))
+            .orElseThrow(SupportPolicy::denied);
+        var handover = json(version.getBehaviorConfigJson()).path("conversationHandover");
+        var config = json(installation.getConfigurationJson());
+        facts.put("handoverEnabledInAssignedRelease", handover.path("enabled").asBoolean(false));
+        facts.put("handoverVisibleInApp", config.path("capabilities").path("handover").asBoolean(false));
+        facts.put("ticketsVisibleInApp", config.path("capabilities").path("tickets").asBoolean(false));
+        facts.put("teamVisibleInApp", config.path("support").path("teamVisible").asBoolean(false));
+        facts.put("userCanResumeAi", handover.path("userCanResumeAi").asBoolean(false));
+        put(facts, "observedReleaseAt", release.getUpdatedAt());
+        return new ResourceDiagnostic(ref, Availability.CURRENT, Map.copyOf(facts));
+    }
+
+    private JsonNode json(String value) {
+        try {
+            var result = mapper.readTree(value == null ? "{}" : value);
+            if (result == null || !result.isObject()) throw SupportPolicy.unavailable();
+            return result;
+        }
+        catch (Exception error) { throw SupportPolicy.unavailable(); }
     }
     private ResourceDiagnostic engageReadiness(Requester owner, ResourceRef ref) {
         var app = app(owner, ref.id());

@@ -2,7 +2,7 @@ Title: Configure support specialists and interpret resolution checks
 Document ID: loomai-support-10
 Product: LoomAI Platform - Support capabilities
 Audience: Customer administrators and support-workspace users
-Reviewed: 2026-10-31
+Reviewed: 2026-11-22
 
 What specialist assistance means
 
@@ -16,6 +16,29 @@ later configuration.
 Simple questions can be answered directly. A specialist or resolution check is
 useful when focused expertise or multiple authorized observations are needed;
 it is not a requirement that every message invoke every area.
+
+LoomAI Support areas and plans
+
+LoomAI's own Support installation has five read-only areas: Workspace and
+channels; Brain and release health; Knowledge and search; Tools and integrations;
+and Support and human handover. Its plans cover workspace/data investigation,
+knowledge freshness, API/MCP setup, launch readiness and safe next-step guidance.
+The manager chooses useful workers and their order; these are not fixed steps.
+The configured limits are six manager decisions, four worker invocations, up to
+two independent workers in parallel and a 75-second deadline per invocation.
+An incomplete or failed worker must not be hidden as a completed diagnosis.
+
+The reusable Support Kit starts with company-neutral product/setup, service
+policy, data-quality, integration and human-support areas. Its knowledge-only
+defaults do not install LoomAI's private diagnostics or grant access to another
+company's resources. The customer can attach their own installed READ tools and
+approved sources using the same editor and release process.
+
+Specialists diagnose and propose; they never publish, apply, activate, delete,
+change credentials, submit tickets or transfer a conversation themselves. Draft
+configuration changes use the existing Build with AI panel on the relevant Brain
+page. The parent conversation's installed ticket and human-handover controls
+retain their own authorization and confirmation requirements.
 
 Configure useful areas
 

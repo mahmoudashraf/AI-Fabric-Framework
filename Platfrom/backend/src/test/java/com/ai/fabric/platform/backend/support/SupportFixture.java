@@ -45,6 +45,8 @@ class SupportFixture {
   final DeploymentRepository deployments = mock(DeploymentRepository.class);
   final DeploymentTargetProfileRepository targets = mock(DeploymentTargetProfileRepository.class);
   final DeploymentReleaseRepository releases = mock(DeploymentReleaseRepository.class);
+  final DeploymentDraftRepository drafts = mock(DeploymentDraftRepository.class);
+  final DeploymentVersionRepository versions = mock(DeploymentVersionRepository.class);
   final AIWorkspaceInstallationRepository apps = mock(AIWorkspaceInstallationRepository.class);
   final PlatformConsumerRepository consumers = mock(PlatformConsumerRepository.class);
   final AIWorkspaceReadinessService readiness = mock(AIWorkspaceReadinessService.class);
@@ -117,7 +119,7 @@ class SupportFixture {
             users, links, new PlatformCustomerAccessService(users, customers, mock(com.ai.fabric.platform.backend.security.service.CustomerStaffAccessPolicy.class)));
     resources =
         new SupportResourceService(
-            deployments, releases, apps, consumers, readiness, connections, plans, runs, documents);
+            deployments, releases, apps, consumers, readiness, connections, plans, runs, documents, drafts, versions, targets, json);
     contextStore = new SupportIntegrationContextStore(jdbc, json);
     conversations = transactional(new SupportConversationScopeService(jdbc, settings, requesters, json, resources));
     when(ticketClient.spaceId()).thenReturn("support-binding");

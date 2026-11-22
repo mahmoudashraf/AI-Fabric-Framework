@@ -1,0 +1,675 @@
+{
+  "generic": {
+    "enabled": true,
+    "areas": [
+      {
+        "id": "product-setup",
+        "name": "Product and setup",
+        "purpose": "Explain the installed company's products, setup and customer channels from approved knowledge.",
+        "instructions": "Use only this company's approved knowledge and authorized observations. Ask targeted non-secret questions. Do not invent integrations, account state or completed changes. Continue documentation help without private diagnostics.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": []
+      },
+      {
+        "id": "service-policy",
+        "name": "Service and policy",
+        "purpose": "Explain approved service policies, eligibility and customer options without inventing commitments.",
+        "instructions": "Distinguish approved policy, advice and verified observations. Do not invent refunds, entitlements or guarantees. Missing company policy is uncertainty, not permission to borrow LoomAI policy or endpoints.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": []
+      },
+      {
+        "id": "data-quality",
+        "name": "Knowledge and data quality",
+        "purpose": "Explain documented source freshness, missing information and data-quality procedures.",
+        "instructions": "Use approved knowledge and explicitly installed authorized READ tools. Do not claim freshness, indexing or repair was checked without its observation. Do not request internal knowledge-domain names.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": []
+      },
+      {
+        "id": "tools-integrations",
+        "name": "Tools and integrations",
+        "purpose": "Explain documented integration and authentication setup for this company's service.",
+        "instructions": "Never request raw keys or pretend to test an external system. READ tools must be explicitly configured for this company. Suggested changes are proposals, not completed operations; preserve authorization and confirmation.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": []
+      },
+      {
+        "id": "human-support",
+        "name": "Requests and human support",
+        "purpose": "Explain configured request and human-support options and their separate lifecycles.",
+        "instructions": "No specialist writes or handover. Parent controls perform installed actions only on user request with required confirmation. Ticket receipts do not prove a person joined or a problem was solved. Do not invent agent availability.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": []
+      }
+    ],
+    "resolutions": [
+      {
+        "id": "setup-and-support",
+        "name": "Setup and support",
+        "objective": "Choose useful product and policy expertise, then synthesize approved guidance and missing facts. Do not require every worker.",
+        "areaIds": [
+          "product-setup",
+          "service-policy"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "data-quality-review",
+        "name": "Knowledge quality review",
+        "objective": "Choose useful product and data expertise to distinguish missing knowledge from documented freshness procedures. Never invent a source check.",
+        "areaIds": [
+          "product-setup",
+          "data-quality"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "integration-review",
+        "name": "Integration review",
+        "objective": "Review documented integration prerequisites and setup. Choose workers, order and parallelism as useful. Distinguish proposed configuration from an executed operation.",
+        "areaIds": [
+          "tools-integrations",
+          "product-setup"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "service-readiness-review",
+        "name": "Service readiness review",
+        "objective": "Assess stated setup and optional service/support prerequisites using approved knowledge. Documentation does not prove live health.",
+        "areaIds": [
+          "product-setup",
+          "service-policy",
+          "human-support"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "safe-next-step",
+        "name": "Safe next step",
+        "objective": "Choose useful policy, integration and support expertise and propose the smallest next step with verification. Specialists never execute writes or change permissions.",
+        "areaIds": [
+          "service-policy",
+          "tools-integrations",
+          "human-support"
+        ],
+        "allowParallel": true
+      }
+    ],
+    "limits": {
+      "maxDecisions": 6,
+      "maxWorkerInvocations": 4,
+      "maxParallelWorkers": 2,
+      "deadlineSeconds": 75
+    }
+  },
+  "loomai": {
+    "enabled": true,
+    "areas": [
+      {
+        "id": "workspace",
+        "name": "Workspace and channels",
+        "purpose": "Engage branding, website/standalone delivery, identity, domains and selected-app local readiness.",
+        "instructions": "Use approved guides and consent-bound selected-app observations. Parameterless tools resolve selected resources on the backend; never infer identifiers or request credentials. Missing selection or consent is not a completed check. Local readiness does not prove HTTPS, upstream connectivity or customer delivery. Continue documentation help without private diagnostics.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": [
+          "support_get_engage_readiness"
+        ]
+      },
+      {
+        "id": "brain",
+        "name": "Brain and release health",
+        "purpose": "Saved drafts, published versions, target releases, verification and safe publishing; selected-Brain recorded states.",
+        "instructions": "Use selected-Brain release observations, not this Support runtime's state. Keep staging and production distinct. A newest failed attempt does not prove the older serving release failed; historical verification does not prove current live health. Report recorded state and timestamps, not an unperformed probe. Never publish, apply, roll back, restart or delete. Return a proposed next step and its verification or confirmation requirement, not a fabricated repair.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": [
+          "support_get_deployment_status"
+        ]
+      },
+      {
+        "id": "knowledge",
+        "name": "Knowledge and search",
+        "purpose": "Document access, upload, approval, indexing, source freshness and answer quality; exact selected-target observations.",
+        "instructions": "Separate storage upload, approved discovery, indexing and answer quality. Select the connected Engage app for exact target/release document observations; connection sync is not document-source indexing. Active/candidate versions do not prove upstream storage has no newer objects. No deleting, reindexing, approval changes or access expansion. Do not ask for internal domains or namespaces. Missing selection or permission permits documentation guidance, not a private read.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": [
+          "support_get_deployment_status",
+          "support_get_connection_sync_status"
+        ]
+      },
+      {
+        "id": "tools",
+        "name": "Tools and integrations",
+        "purpose": "Action/API/MCP setup, imports, authorization, confirmation and evidence; saved capability metadata.",
+        "instructions": "Use installed action contracts and approved guides. Integration observations describe saved draft metadata, not the serving release or a successful API call. They do not probe connectivity or execute actions. Never request raw keys or infer that a route works because it exists. Requested draft changes use canonical Build with AI on AI capabilities or Connections, not a second writer. Check setup is the existing compound connectivity check. Public MCP and business-authorized connections are supported; personal-account connections remain deferred.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": [
+          "support_get_integration_status",
+          "support_get_connection_sync_status"
+        ]
+      },
+      {
+        "id": "handover",
+        "name": "Support and human handover",
+        "purpose": "Support history, requests, consent, Desk handover and return to AI; exact app-assigned handover configuration.",
+        "instructions": "Use approved guides, actual request receipts and exact app-assigned verified release metadata. Configuration is not agent presence, delivery or ticket-provider health. A case summary can be absent in ordinary chat; do not create a ticket merely to diagnose. Tickets and human conversations have separate lifecycle states. Do not create, cancel, resolve or transfer inside a specialist. Parent controls perform governed actions only on user request with required confirmation. Never claim a person joined without its real receipt.",
+        "vectorSpaces": [
+          "document"
+        ],
+        "readActions": [
+          "support_get_case_summary",
+          "support_get_handover_status"
+        ]
+      }
+    ],
+    "resolutions": [
+      {
+        "id": "workspace-data",
+        "name": "Workspace and data investigation",
+        "objective": "Choose useful channel, release or knowledge expertise for the stated issue. Synthesize observations, uncertainty and the smallest safe next step; no writes or unconsented reads.",
+        "areaIds": [
+          "workspace",
+          "brain",
+          "knowledge"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "knowledge-freshness",
+        "name": "Knowledge freshness investigation",
+        "objective": "Distinguish upload, discovery, indexing and answer quality for the exact assigned target/release. Report timestamps, unprobed sources and the next explicit indexing or evaluation step.",
+        "areaIds": [
+          "knowledge",
+          "brain"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "integration-setup",
+        "name": "API and MCP setup review",
+        "objective": "Review API/MCP setup, authorization and website identity. Separate draft definitions from actual connectivity; requested changes use Build with AI, never specialist writes.",
+        "areaIds": [
+          "tools",
+          "workspace"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "launch-readiness",
+        "name": "Launch readiness review",
+        "objective": "Review relevant release and channel prerequisites. Separate recorded verification, local configuration and unperformed live checks; do not infer full readiness or activate anything.",
+        "areaIds": [
+          "brain",
+          "workspace"
+        ],
+        "allowParallel": true
+      },
+      {
+        "id": "next-step",
+        "name": "Safe next-step guidance",
+        "objective": "Propose a safe next step and verification using useful tool or human-support expertise. Draft edits use Build with AI; tickets and handover use governed parent controls, not specialist writes.",
+        "areaIds": [
+          "tools",
+          "handover"
+        ],
+        "allowParallel": true
+      }
+    ],
+    "limits": {
+      "maxDecisions": 6,
+      "maxWorkerInvocations": 4,
+      "maxParallelWorkers": 2,
+      "deadlineSeconds": 75
+    }
+  },
+  "prompts": {
+    "answerGenerationPrompt": "Answer the current question naturally and directly, using the supplied conversation, approved knowledge and authorized observations. Use short headings only when they genuinely help; do not force Evidence/Outcome sections. Preserve the user's issue order. Distinguish documented procedures, saved draft configuration, recorded release verification and an actual live probe. A returned selection or consent requirement is not a completed resource check: explain the next UI step plainly, without presenting internal codes as the answer. State what remains unknown and propose a useful next step. Never claim an unexecuted repair, successful write, agent presence or message delivery. Keep actual receipts and pending confirmations intact.",
+    "systemAddition": "Support continuity and specialist assistance: ordinary questions do not require a ticket. Use the existing conversation history for follow-ups. Explain missing selection or diagnostic consent using the Support diagnostic controls; do not ask for secrets or internal domains. Simple documentation questions can be answered directly. Choose a specialist or adaptive resolution only when its declared expertise materially helps. The manager chooses workers and order within its configured allowance, not a fixed mandatory checklist. Specialists are read-only. Draft configuration changes belong in canonical Build with AI; publish/apply/activation and destructive changes remain explicit governed operations. Parent conversation ticket/handover controls retain their actual confirmation and authorization contracts. Do not equate draft metadata, recorded verification or local readiness with an unperformed live API, HTTPS, indexing, agent-presence or delivery probe."
+  },
+  "diagnostics": {
+    "schemaVersion": 1,
+    "pluginId": "mkp-action-loomai-support-diagnostics",
+    "version": "1.1.0",
+    "pluginType": "ACTION",
+    "displayName": "LoomAI support diagnostics",
+    "description": "Consent-bound, read-only conversation diagnostics for owned Brain releases, knowledge, capability configuration, Engage readiness and human-support configuration. No raw configuration, credentials or private logs.",
+    "compatibility": {
+      "requiredCapabilities": [
+        "actions"
+      ]
+    },
+    "pricing": {
+      "pricingModel": "FREE"
+    },
+    "permissions": {
+      "contributesActions": true,
+      "requiresExternalHttpExecution": true,
+      "requiresDeploymentSecrets": true
+    },
+    "installForm": [
+      {
+        "id": "caseSummaryUrl",
+        "label": "Approved case summary endpoint binding",
+        "type": "url",
+        "required": true
+      },
+      {
+        "id": "deploymentStatusUrl",
+        "label": "Approved deployment status endpoint binding",
+        "type": "url",
+        "required": true
+      },
+      {
+        "id": "engageReadinessUrl",
+        "label": "Approved workspace readiness endpoint binding",
+        "type": "url",
+        "required": true
+      },
+      {
+        "id": "connectionSyncUrl",
+        "label": "Approved connection sync endpoint binding",
+        "type": "url",
+        "required": true
+      },
+      {
+        "id": "diagnosticServiceKey",
+        "label": "Diagnostic service credential reference",
+        "type": "secretRef",
+        "required": true
+      },
+      {
+        "id": "integrationStatusUrl",
+        "label": "Approved integration configuration endpoint binding",
+        "type": "url",
+        "required": true
+      },
+      {
+        "id": "handoverStatusUrl",
+        "label": "Approved handover configuration endpoint binding",
+        "type": "url",
+        "required": true
+      }
+    ],
+    "contributions": {
+      "actions": [
+        {
+          "actionId": "support_get_case_summary",
+          "adapterType": "connector-http",
+          "description": "Read the authorized support case summary and selected resource references. Targets are selected on the case, not inferred from chat identifiers. Requires current diagnostic consent.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "objects": [
+              {
+                "sourcePath": "supportCase",
+                "target": "caseSummary",
+                "includeFields": [
+                  "reference",
+                  "summary",
+                  "status",
+                  "consent.granted",
+                  "resources"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "caseSummaryUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        },
+        {
+          "actionId": "support_get_deployment_status",
+          "adapterType": "connector-http",
+          "description": "Read release status and registered-document index observations for conversation- or request-selected owned deployments. Select the connected Engage app for exact target/release index observations. No attached item or model-supplied identifier is required. Registered index state does not prove upstream storage freshness.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "lists": [
+              {
+                "sourcePath": "resources",
+                "target": "deploymentObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "resource.id",
+                  "availability",
+                  "facts.deploymentStatus",
+                  "facts.liveHealthProbed",
+                  "facts.stateUpdatedAt"
+                ]
+              },
+              {
+                "sourcePath": "resources.0.facts.releases",
+                "target": "releaseObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "releaseId",
+                  "targetProfileId",
+                  "status",
+                  "verificationStatus",
+                  "appliedAt",
+                  "observedAt",
+                  "versionId",
+                  "environment"
+                ]
+              },
+              {
+                "sourcePath": "resources.0.facts.documentIndexing",
+                "target": "documentIndexSummary",
+                "maxItems": 8,
+                "includeFields": [
+                  "availability",
+                  "code",
+                  "targetProfileId",
+                  "releaseId",
+                  "registeredSourceCount",
+                  "sourcesByStatus",
+                  "sourcesWithActiveVersion",
+                  "sourcesWithNewerCandidate",
+                  "latestSourceStateUpdatedAt",
+                  "observedAt",
+                  "observationBasis",
+                  "upstreamStorageProbed",
+                  "guidance"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "deploymentStatusUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        },
+        {
+          "actionId": "support_get_engage_readiness",
+          "adapterType": "connector-http",
+          "description": "Read safe local readiness information for conversation- or request-selected owned Engage apps. The overall localReadinessPassed value covers the local checks; a bounded checklist may omit detail and cannot prove full readiness. This does not verify live delivery or HTTPS. No attached item or model-supplied identifier is required.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "lists": [
+              {
+                "sourcePath": "resources",
+                "target": "readinessObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "resource.id",
+                  "availability",
+                  "facts.installationStatus",
+                  "facts.localReadinessPassed",
+                  "facts.deliveryProbed",
+                  "facts.guidance"
+                ]
+              },
+              {
+                "sourcePath": "resources.0.facts.checks",
+                "target": "readinessCheckSummary",
+                "maxItems": 40,
+                "includeFields": [
+                  "code",
+                  "status"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "engageReadinessUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        },
+        {
+          "actionId": "support_get_connection_sync_status",
+          "adapterType": "connector-http",
+          "description": "Read recorded sync status for conversation- or request-selected owned integration connections, not document-file versions. No attached item or model-supplied identifier is required. Never return source records, raw logs or credentials.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "lists": [
+              {
+                "sourcePath": "resources",
+                "target": "syncObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "resource.id",
+                  "availability",
+                  "facts.connectionStatus",
+                  "facts.connectionUpdatedAt",
+                  "facts.code",
+                  "facts.syncState",
+                  "facts.stateUpdatedAt",
+                  "facts.lastRunStatus",
+                  "facts.lastRunCompletedAt",
+                  "facts.lastSuccessfulSyncAt",
+                  "facts.liveProviderProbed"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "connectionSyncUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        },
+        {
+          "actionId": "support_get_integration_status",
+          "adapterType": "connector-http",
+          "description": "Review conversation-selected owned Brain SAVED DRAFT capability metadata. This does not test connectivity, execute actions or prove the serving release is configured the same way.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "lists": [
+              {
+                "sourcePath": "resources",
+                "target": "integrationObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "resource.id",
+                  "availability",
+                  "facts.observationBasis",
+                  "facts.draftRevision",
+                  "facts.capabilityCount",
+                  "facts.readCapabilityCount",
+                  "facts.writeCapabilityCount",
+                  "facts.capabilities",
+                  "facts.capabilitiesTruncated",
+                  "facts.providerConnectivityProbed",
+                  "facts.actionsExecuted",
+                  "facts.guidance",
+                  "facts.stateUpdatedAt",
+                  "facts.code"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "integrationStatusUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        },
+        {
+          "actionId": "support_get_handover_status",
+          "adapterType": "connector-http",
+          "description": "Review handover/ticket visibility and handover settings from the selected owned app and its EXACT assigned verified release. This does not probe agent presence, ticket-provider health or message delivery.",
+          "category": "support-diagnostics",
+          "readOnly": true,
+          "anonymousAllowed": false,
+          "confirmationRequired": false,
+          "groundingEligible": true,
+          "readActionResolutionEligible": true,
+          "requiredScopes": [
+            "support:diagnostics:read"
+          ],
+          "params": [],
+          "llmFacts": {
+            "copyFields": [
+              "observedAt",
+              "availability",
+              "requirement"
+            ],
+            "lists": [
+              {
+                "sourcePath": "resources",
+                "target": "handoverObservations",
+                "maxItems": 8,
+                "includeFields": [
+                  "resource.id",
+                  "availability",
+                  "facts.observationBasis",
+                  "facts.releaseId",
+                  "facts.targetProfileId",
+                  "facts.handoverEnabledInAssignedRelease",
+                  "facts.handoverVisibleInApp",
+                  "facts.ticketsVisibleInApp",
+                  "facts.teamVisibleInApp",
+                  "facts.userCanResumeAi",
+                  "facts.agentPresenceProbed",
+                  "facts.messageDeliveryProbed",
+                  "facts.ticketProviderProbed",
+                  "facts.observedReleaseAt",
+                  "facts.guidance",
+                  "facts.code"
+                ]
+              }
+            ]
+          },
+          "route": {
+            "method": "POST",
+            "managedUrlField": "handoverStatusUrl",
+            "managedHeaderSecretRefFields": {
+              "X-LOOMAI-SUPPORT-SERVICE-KEY": "diagnosticServiceKey"
+            },
+            "response": {
+              "success-http-status": [
+                200
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
