@@ -106,7 +106,7 @@ class RuntimeAdminOverviewControllerTest {
             var before = migrationOverview(controller, authProperties);
             assertThat(before).containsEntry("available", true);
             assertThat((List<String>) before.get("appliedMigrationIds")).contains("provider-budget-accounting-v1")
-                .doesNotContain("provider-budget-validity-extensions-v1", "provider-budget-accounting-v19");
+                .doesNotContain("provider-budget-validity-extensions-v1", "provider-budget-accounting-v19", "loomai-document-preparation-evaluation-v1");
             assertThat((List<Map<String, String>>) before.get("applied")).contains(Map.of("id", "provider-budget-accounting-v1",
                 "version", "19", "description", "provider budget accounting", "state", "SUCCESS"));
 
@@ -117,14 +117,14 @@ class RuntimeAdminOverviewControllerTest {
             assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("25");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
-            assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1")
+            assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1", "loomai-document-preparation-evaluation-v1")
                 .doesNotContain("provider-budget-accounting-v19", "provider-budget-validity-extensions-v20");
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "provider-budget-validity-extensions-v1",
                 "version", "20", "description", "provider budget validity extensions", "state", "SUCCESS"));
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("document-storage-scope-v22");
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "release-scoped-retirement-v24",
                 "version", "24", "description", "release scoped retirement", "state", "SUCCESS"));
-            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 4);
+            assertThat((List<?>) after.get("appliedMigrationIds")).hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 5);
         }
     }
 
