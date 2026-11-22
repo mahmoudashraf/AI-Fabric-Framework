@@ -18474,3 +18474,69 @@ test is being called hosted acceptance. UI extraction remains last.
   changes. Root user worktree/cache/media remain untouched. Public dirty root
   was not reset or overwritten. Local UI fixture preview on5175 may still run;
   gallery8766 must stay untouched. Continue from evidence, not duplicate commands.
+
+### Document Intelligence Live Qualification Checkpoint - 22 November, 19:35 UTC
+
+- User's active request remains publication, deployment and the real document
+  upload -> AI preparation -> indexing -> evaluation/refinement journey. Do not
+  stop at publication or local tests. Production has NOT changed in this run.
+- Public framework 0.8.63 is published, release workflow 45053773862 succeeded,
+  seven representative Central artifact hashes and an empty-cache consumer build
+  passed. Public release source 2888f0549b34dec97f6b5d3b37afa72387f1a5b4.
+  Never republish/retag. The separate dirty original public worktree is untouched.
+- Staging backend/UI/shared assistant source is 4a3a56e8ff07d55c168c1668e61e6ad2616fc9a4;
+  all three serving processes verified, backend schema243. Acme dep-b9a09c0a
+  retains its owned staging runtime/connector/storage/app URLs. Original CPU,
+  memory and volumes were compared and preserved. No paid infrastructure changes.
+- Staging caught and corrected optional-ledger startup wiring (6443d6781) and
+  preparation requesting50 sections against configured20 (80f3f3fb4). Typed reader
+  errors now reach a 422 instead of500. All842 runtime tests passed at that source.
+  Acme release rel-e42b989b is APPLIED_VERIFIED/PASSED at80f3f3fb4, and both Engage
+  installations retained their stable IDs/configuration/URLs when rebound.
+- Real customer UI uploaded a PDF to existing hosted S3, approved/registered it,
+  AI saved400-token chunks/50 overlap and five synthetic questions (reviewed:false),
+  and explicit indexing activated candidate2. Evaluation then exposed a Boot4
+  Jackson3/Jackson2 tree HTTP mismatch. Internal evaluation did retrieve evidence
+  and answer seven-working-day delivery correctly, but its HTTP body was wrong.
+  Do NOT call that full journey passed. The own qualification index/session were
+  cleaned; original source objects and audit receipts remain. Old original sources
+  were not deleted. All failed/incomplete candidate artifact channels are quarantined.
+- Runtime correction c8b1ef457066b3e00b4fdfe226cec8747909e2dd converts evaluation
+  start/list/get/cancel results to ordinary Map/List values without touching global
+  serialization or authorization. Its actual Jackson3 HTTP contract tests passed.
+  Full843-test runtime rerun is in progress; log runtime-http-corrected-full-tests.log.
+  Image workflow45061307996 is in progress, not deployed yet. Framework remains63.
+- Private evidence/helpers: ~/.codex/private/document-intelligence-0863 (0700).
+  operations.mjs uses task-owned NORMAL staff cookies, not internal-admin headers.
+  Both staff sessions are ACTIVE; logout BOTH staging/production there and verify
+  old cookies unauthenticated at completion. Customer browser attempts signed out.
+- finish-staging-http.mjs is running (exec20837): waits exact c8b1 image CI, registers
+  immutable artifact, archives prior source/binding snapshots, applies same published
+  ver-4c8090c6 to the same Acme target, requires verified release, rebinds existing
+  consumers, then runs journey.mjs with JOURNEY_ATTEMPT=5. Do not replay its apply.
+  Inspect staging-http-final-qualification.log and retained receipts first.
+- Journey helper now uses real UI writes, customer bearer readbacks for immutable
+  upload receipts (Chromium evicted a POST response body), larger durable inspector
+  buffers, required-label-safe locators and exact uploaded UUID in discovery rows.
+  Attempt5 uses fresh source keys because a removed registration remains a tombstone.
+  Earlier attempts are retained, not erased. New output is journey-staging-dep-b9a09c0a-5.
+  Four files: PDF/DOCX/PNG/scanned PDF; real AI/eval, cancellation, stale409, outsider
+  denial, desktop/phone screenshots, own index/session cleanup and sign-out.
+  Report ends CAPTURED_FOR_MANUAL_QUALITY_REVIEW, NEVER automatic quality PASS.
+- Inspect real answers/metrics/screenshots, then explicitly save staging-journey-quality
+  PASS only if warranted. qualify-production.mjs is prepared but NOT started: global
+  backend/assistant/UI source4a3, registered runtime c8b1, normal Harbor dep-86ad8f93
+  upgrade/binding and real UI journey. It gates on that manual staging quality proof.
+  Harbor is production Console but physical staging. Then qualify actual production
+  LoomAI Support dep-79af290c using real support fixtures, not furniture facts; its
+  normal upgrade is additionally gated on production-journey-quality PASS.
+- Real Support fixtures are generated from committed support guide14. Private
+  support-production-{runtime,connector}-{app,env,native}-before snapshots exist.
+  Existing Support app/connector are healthy. Runtime source/config and real model
+  answers, source isolation, cleanup, stable bindings and final normal staff logout
+  still need end-to-end completion. Hosted selected-file promotion is not yet live-
+  qualified by this run; do not imply that source-scoped evaluation proves promotion.
+- Preserve unrelated root .gitignore/cache/media/skill work and gallery8766. Final
+  sanitized verification docs/010.72/working-context status must reflect actual final
+  images, releases, quality and residual limits; broad pre-existing backend fixtures
+  and public Incident Room CI remain separate, not an all-green broad suite.

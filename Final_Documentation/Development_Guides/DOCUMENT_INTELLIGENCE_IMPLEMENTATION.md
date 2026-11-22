@@ -35,9 +35,12 @@ checks. A provider returning unrelated records cannot make them answer evidence.
 The database evaluation foreign key includes source ownership. Extracted page
 attribution is server-owned and cannot be supplied as caller metadata.
 
-documents:evaluate is separate from documents:read and chat:query. It opens an
-existing funded interactive turn; embedding/answer/judge provider calls retain
-normal accounting. No business actions are executed. A run has finite work,
+documents:evaluate is separate from documents:read and chat:query. With the
+optional provider-budget ledger enabled, it opens an existing funded interactive
+turn and preserves admission/interruption checks. Other deployments use their
+configured provider credentials, as existing chat does; evaluation still records
+model calls and usage and labels its accounting mode. A funded denial never
+falls back to unguarded credentials. No business actions are executed. A run has finite work,
 context, output and time allowances. Paid usage returning after cancellation is
 still recorded; cancellation never becomes a successful score. Restarted orphan
 runs are marked INTERRUPTED rather than silently rerun.
@@ -53,6 +56,10 @@ The optional framework ai-fabric-document-readers module uses PDFBox/POI and an
 OcrEngine SPI. Tesseract is server-installed; never accept document-supplied
 executables/flags. The framework README describes parser limits and the
 cooperative Java deadline. The serving Dockerfile installs English OCR.
+The runtime inherits the canonical indexing document-count ceiling (currently
+20) for both page extraction and planning, capped at 50. It does not request a
+larger planning allowance than the server permits. Typed reader/limit failures
+are returned as actionable document errors, not a generic server failure.
 
 RagEvaluationProvider is the evaluator SPI. The default runtime judge returns
 structured numeric faithfulness, relevance and reference-agreement metrics.
@@ -78,7 +85,7 @@ Real OCR qualification uses ai-fabric-document-readers/qualification.Dockerfile
 and TesseractQualification; the framework CI runs the same generated image and
 scanned-PDF checks. No production files or credentials are required.
 
-Private Platform worktree, after installing the matching framework snapshot:
+Private Platform worktree, using the matching released framework dependencies:
 
 ```sh
 mvn -B -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -am '-Dtest=Document*Test,RuntimeBudgetTurnScopesTest' -Dsurefire.failIfNoSpecifiedTests=false test

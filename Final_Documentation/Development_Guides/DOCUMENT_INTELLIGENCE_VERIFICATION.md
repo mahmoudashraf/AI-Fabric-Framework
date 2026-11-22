@@ -1,4 +1,37 @@
-# Document Intelligence Local Verification
+# Document Intelligence Verification
+
+## Release Qualification In Progress - 22 November 2026
+
+- Framework 0.8.63 is published to Maven Central from public commit
+  `2888f0549b34dec97f6b5d3b37afa72387f1a5b4`. The release workflow passed;
+  downloadable artifact hashes and an empty-cache consumer build were checked.
+  The full 31-module release reactor passed. Do not republish or retag it.
+- Compatible backend, Console and shared assistant images at private source
+  `4a3a56e8ff07d55c168c1668e61e6ad2616fc9a4` passed image CI and staging health.
+  The backend applied forward migration 243. Production rollout is still held.
+- Staging exposed two runtime integration defects: a required dependency on the
+  optional provider-budget ledger, and a 50-section preparation request against
+  the runtime's 20-section safety ceiling. Runtime source
+  `80f3f3fb4f389a81562b8607eeac61ac88138c13` fixes both, preserves typed reader
+  failures, and passes all 842 runtime tests. Failed source artifacts were moved
+  out of the staging promotion channel; historical release evidence is retained.
+- Acme staging release rel-e42b989b passed normal release verification at that
+  source. Real customer upload, AI preparation and explicit indexing then passed,
+  but evaluation exposed a Jackson 2 tree / Jackson 3 HTTP response mismatch.
+  Runtime c8b1ef457066b3e00b4fdfe226cec8747909e2dd corrects the four evaluation
+  response endpoints with ordinary JSON values. Its HTTP tests pass; image CI and
+  full live qualification are in progress. No production quality PASS is implied.
+- The focused backend release suite passed 607 tests. Broader existing backend
+  integration fixtures still fail on legacy schema/credential setup. Public
+  broad-app CI retains the known Incident Room failures. Neither is reported
+  as a fully green broad suite.
+- Private operational receipts are under
+  `/Users/mahmoudashraf/.codex/private/document-intelligence-0863`.
+  Task-owned normal staff sessions for both control planes must be revoked at
+  completion. No infrastructure sizing, paid capacity or billing changes were
+  made. Existing running resources and hosted storage are reused.
+
+## Original Local Candidate Evidence
 
 Date: 22 November 2026. Candidate only; not a production deployment receipt.
 
