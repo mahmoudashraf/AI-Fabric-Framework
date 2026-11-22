@@ -1,6 +1,10 @@
 {
   "schemaVersion": "loomai-conversational-quality-defaults-v1",
-  "revision": 1,
+  "revision": 2,
+  "decisionRecovery": {
+    "maxRepairRounds": 3,
+    "repairAdmissionTimeoutMs": 30000
+  },
   "openaiModel": "gpt-5.4-mini-2026-03-17",
   "openaiMaxTokens": 2048,
   "behaviourSelections": {

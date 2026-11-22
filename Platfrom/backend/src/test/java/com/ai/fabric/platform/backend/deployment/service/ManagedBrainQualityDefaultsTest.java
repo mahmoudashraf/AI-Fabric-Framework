@@ -61,7 +61,7 @@ class ManagedBrainQualityDefaultsTest {
     }
 
     @Test
-    void providerDefaultsAreBoundedAndDoNotGrantCapabilitiesOrRecovery() throws Exception {
+    void providerDefaultsEnableBoundedInternalRecoveryWithoutGrantingToolsOrFanout() throws Exception {
         ObjectNode provider = (ObjectNode) mapper.readTree("{\"llmProvider\":\"openai\",\"vectorStrategy\":\"milvus\"}");
         ManagedBrainQualityDefaults.seedProviderConfig(provider);
         JsonNode snapshot = provider.deepCopy();
@@ -69,6 +69,8 @@ class ManagedBrainQualityDefaultsTest {
         assertThat(provider).isEqualTo(snapshot);
         assertThat(provider.path("vectorStrategy").asText()).isEqualTo("milvus");
         assertThat(provider.path("openaiMaxTokens").asInt()).isEqualTo(2048);
+        assertThat(provider.at("/decisionRecovery/maxRepairRounds").asInt()).isEqualTo(3);
+        assertThat(provider.at("/decisionRecovery/repairAdmissionTimeoutMs").asInt()).isEqualTo(30000);
         JsonNode executor = provider.at("/orchestrationModeOverrides/executor");
         assertThat(executor.path("knowledgeBaseOverviewEnabled").asBoolean()).isTrue();
         assertThat(executor.at("/readActionResolution/planningMode").asText()).isEqualTo("ITERATIVE");

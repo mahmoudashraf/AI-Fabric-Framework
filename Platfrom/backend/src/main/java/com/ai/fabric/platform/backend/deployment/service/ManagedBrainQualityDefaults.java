@@ -42,6 +42,7 @@ public final class ManagedBrainQualityDefaults {
     }
 
     public static void seedProviderConfig(ObjectNode provider) {
+        if (!provider.has("decisionRecovery")) provider.set("decisionRecovery", POLICY.path("decisionRecovery").deepCopy());
         if ("openai".equals(provider.path("llmProvider").asText()) && !provider.has("openaiMaxTokens")) {
             provider.put("openaiMaxTokens", openAiMaxTokens());
         }

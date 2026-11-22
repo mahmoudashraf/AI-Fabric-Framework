@@ -46,10 +46,10 @@ public class DeploymentDraftValidationService {
         "NONE", "RAG_IF_ACTIONS_INSUFFICIENT", "PARALLEL_ACTIONS_AND_RAG"
     );
     private static final Map<String, Set<String>> SUPPORTED_SEMANTIC_RECOVERY_VALUES = Map.of(
-        "extractionFailure", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY"),
+        "extractionFailure", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY", "LLM_REPAIR_THEN_CONTEXT_ANSWER"),
         "missingTarget", Set.of("LLM_REPAIR_THEN_CLARIFY"),
-        "missingVectorSpace", Set.of("LLM_REPAIR_THEN_CLARIFY", "BOUNDED_ALLOWED_FAN_OUT"),
-        "invalidVectorSpace", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY"),
+        "missingVectorSpace", Set.of("LLM_REPAIR_THEN_CLARIFY", "BOUNDED_ALLOWED_FAN_OUT", "LLM_REPAIR_THEN_CONTEXT_ANSWER"),
+        "invalidVectorSpace", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPAIR_THEN_CLARIFY", "LLM_REPAIR_THEN_CONTEXT_ANSWER"),
         "unknownAction", Set.of("LLM_REPAIR_THEN_FAIL", "LLM_REPLAN_TO_INFORMATION"),
         "actionDomainMismatch", Set.of("DENY_AND_FAIL", "DENY_AND_LLM_REPLAN", "DENY_AND_ALLOWED_RAG"),
         "advancedNoEvidence", Set.of("RETURN_NO_EVIDENCE", "BOUNDED_ALLOWED_SPACE_RECOVERY")
@@ -1914,6 +1914,7 @@ public class DeploymentDraftValidationService {
         validateProviderBaseUrls(providerNode, issues);
         validatePurposeSpecificLlmProviders(providerNode, issues);
         validateOrchestrationModeOverrides(providerNode, issues);
+        validateDecisionRecovery(providerNode, issues);
         validateProviderTuning(providerNode, issues);
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);
@@ -2026,6 +2027,25 @@ public class DeploymentDraftValidationService {
                 "$.orchestrationModeOverrides.executor.semanticRecovery.missingVectorSpace",
                 "BOUNDED_ALLOWED_FAN_OUT requires explicit rag.fanoutEnabled=true and rag.maxSpaces between 1 and 12 to bound retrieval execution."
             ));
+        }
+    }
+
+    private void validateDecisionRecovery(JsonNode provider, List<DraftValidationIssue> issues) {
+        JsonNode recovery = provider.path("decisionRecovery");
+        if (recovery.isMissingNode()) return;
+        if (!recovery.isObject()) {
+            issues.add(error("providers", "DECISION_RECOVERY_OBJECT_REQUIRED", "$.decisionRecovery",
+                "Internal decision recovery must be an object."));
+            return;
+        }
+        for (String field : List.of("maxRepairRounds", "repairAdmissionTimeoutMs")) {
+            JsonNode value = recovery.path(field);
+            if (value.isMissingNode()) continue;
+            int min = "maxRepairRounds".equals(field) ? 0 : 1000;
+            int max = "maxRepairRounds".equals(field) ? 10 : 300000;
+            if (!value.isIntegralNumber() || !value.canConvertToInt() || value.intValue() < min || value.intValue() > max)
+                issues.add(error("providers", "DECISION_RECOVERY_LIMIT_INVALID", "$.decisionRecovery." + field,
+                    field + " must be a whole number from " + min + " to " + max + "."));
         }
     }
 

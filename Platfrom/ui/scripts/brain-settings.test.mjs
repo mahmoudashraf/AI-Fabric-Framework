@@ -56,6 +56,25 @@ test('a focused no-op preserves the exact object, including unknown and inactive
   assert.deepEqual(providerConfig, before)
 })
 
+test('decision recovery limits round-trip only their nested settings without touching connections', () => {
+  const base = { ...structuredClone(providerConfig), decisionRecovery: { maxRepairRounds: 3,
+    repairAdmissionTimeoutMs: 30000, futureOption: 'preserve' } }
+  const saved = helpers.readProviderForm(base)
+  assert.equal(saved.decisionRecoveryMaxRepairRounds, '3')
+  assert.equal(saved.decisionRecoveryRepairAdmissionTimeoutMs, '30000')
+  const next = helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved,
+    decisionRecoveryMaxRepairRounds: '5', decisionRecoveryRepairAdmissionTimeoutMs: '45000' })
+  assert.deepEqual(next, { ...base, decisionRecovery: { maxRepairRounds: 5,
+    repairAdmissionTimeoutMs: 45000, futureOption: 'preserve' } })
+  assert.equal('decisionRecoveryMaxRepairRounds' in next, false)
+  assert.equal('decisionRecoveryRepairAdmissionTimeoutMs' in next, false)
+  assert.deepEqual(base.decisionRecovery, { maxRepairRounds: 3, repairAdmissionTimeoutMs: 30000, futureOption: 'preserve' })
+  const empty = helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved,
+    decisionRecoveryMaxRepairRounds: '', decisionRecoveryRepairAdmissionTimeoutMs: '' })
+  assert.equal(empty.decisionRecovery.maxRepairRounds, null)
+  assert.equal(empty.decisionRecovery.repairAdmissionTimeoutMs, null)
+})
+
 test('a model edit does not normalize storage, defaults, metadata, or recovery policies', () => {
   const saved = helpers.readProviderForm(providerConfig)
   const next = helpers.buildFocusedProviderConfigDraft(providerConfig, saved, { ...saved, openaiModel: 'new-model' })

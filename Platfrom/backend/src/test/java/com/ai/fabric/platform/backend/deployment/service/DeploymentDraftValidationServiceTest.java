@@ -25,6 +25,32 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"-1", "11", "1.5", "\"three\"", "null", "true"})
+    void decisionRecoveryRejectsUnboundedOrNonIntegralRepairLimits(String value) throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = actionAccessModeDraft();
+        var providers = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(draft.getProviderConfigJson());
+        providers.putObject("decisionRecovery").set("maxRepairRounds", mapper.readTree(value));
+        draft.setProviderConfigJson(providers.toString());
+        assertThat(service.validate(draft).issues()).anySatisfy(issue -> {
+            assertThat(issue.code()).isEqualTo("DECISION_RECOVERY_LIMIT_INVALID");
+            assertThat(issue.path()).isEqualTo("$.decisionRecovery.maxRepairRounds");
+        });
+    }
+
+    @Test
+    void decisionRecoveryAcceptsExplicitFiniteSettingsWithoutRewritingTheDraft() throws Exception {
+        var mapper = new ObjectMapper();
+        var draft = actionAccessModeDraft();
+        var providers = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(draft.getProviderConfigJson());
+        providers.putObject("decisionRecovery").put("maxRepairRounds", 5).put("repairAdmissionTimeoutMs", 45000);
+        draft.setProviderConfigJson(providers.toString());
+        String before = draft.getProviderConfigJson();
+        assertThat(service.validate(draft).publishReady()).isTrue();
+        assertThat(draft.getProviderConfigJson()).isEqualTo(before);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"READ", "READ_WRITE", "WRITE_ONLY", "read", "read_write", "write_only",
         "\t ReAd \r\n", "\n Read_Write\t", "\twrite_ONLY "})
     void validateAcceptsNativeActionAccessModesWithoutRewritingDraft(String mode) throws Exception {

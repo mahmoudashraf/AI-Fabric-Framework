@@ -403,12 +403,14 @@ public class DeploymentService {
             boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
             boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
             boolean managedMcpRequired = com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(readJson(version.getActionsConfigJson()));
+            boolean decisionRecoveryRequired = DeploymentDecisionRecoveryConfig.requested(readJson(version.getProviderConfigJson()));
             if (artifact.capabilityManifest() == null || artifact.capabilityManifest().isEmpty()) {
                 return !requirements.capabilityManifestRequired()
                     && !documentKnowledgeRequired
                     && !externalHttpIntegrationRequired
                     && !customerBackendIngestionRequired
-                    && !managedMcpRequired;
+                    && !managedMcpRequired
+                    && !decisionRecoveryRequired;
             }
             DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
                 sourceCapabilityManifestService.normalize(artifact.capabilityManifest());
@@ -423,6 +425,7 @@ public class DeploymentService {
             }
             sourceCapabilityManifestService.requireSupports(artifact.capabilityManifest(), requirements);
             if (managedMcpRequired) sourceCapabilityManifestService.requireManagedMcpSupport(artifact.capabilityManifest());
+            if (decisionRecoveryRequired) DeploymentDecisionRecoveryConfig.requireSupport(artifact.capabilityManifest());
             if (documentKnowledgeRequired) {
                 sourceCapabilityManifestService.requireDocumentKnowledgeSupport(artifact.capabilityManifest());
             }
@@ -1924,6 +1927,7 @@ public class DeploymentService {
         boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
         boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
         boolean managedMcpRequired = com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(readJson(version.getActionsConfigJson()));
+        boolean decisionRecoveryRequired = DeploymentDecisionRecoveryConfig.requested(readJson(version.getProviderConfigJson()));
         boolean operationalDrainRequired = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled").asBoolean(false);
         boolean taskReceiptsRequired = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler
             .requiresReceipts(behaviorConfig, readJson(version.getActionsConfigJson()));
@@ -1932,7 +1936,8 @@ public class DeploymentService {
             && !externalHttpIntegrationRequired
             && !customerBackendIngestionRequired
             && !managedMcpRequired
-            && !operationalDrainRequired) {
+            && !operationalDrainRequired
+            && !decisionRecoveryRequired) {
             if (!StringUtils.hasText(sourceArtifactId)) {
                 return;
             }
@@ -2006,6 +2011,7 @@ public class DeploymentService {
             requirements
         );
         if (managedMcpRequired) sourceCapabilityManifestService.requireManagedMcpSupport(manifest);
+        if (decisionRecoveryRequired) DeploymentDecisionRecoveryConfig.requireSupport(manifest);
         if (operationalDrainRequired) {
             com.ai.fabric.platform.backend.deployment.operations.lifecycle.RuntimeDrainArtifactGate.require(manifest);
         }

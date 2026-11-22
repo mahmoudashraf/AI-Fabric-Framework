@@ -67,6 +67,8 @@ type ProviderFormState = {
   orchestrationTemperature: string
   orchestrationMaxTokens: string
   orchestrationTimeout: string
+  decisionRecoveryMaxRepairRounds: string
+  decisionRecoveryRepairAdmissionTimeoutMs: string
   semanticRecoveryExtractionFailure: string
   semanticRecoveryMissingTarget: string
   semanticRecoveryMissingVectorSpace: string
@@ -213,10 +215,12 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   orchestrationTemperature: '',
   orchestrationMaxTokens: '',
   orchestrationTimeout: '',
-  semanticRecoveryExtractionFailure: 'LLM_REPAIR_THEN_FAIL',
+  decisionRecoveryMaxRepairRounds: '3',
+  decisionRecoveryRepairAdmissionTimeoutMs: '30000',
+  semanticRecoveryExtractionFailure: 'LLM_REPAIR_THEN_CONTEXT_ANSWER',
   semanticRecoveryMissingTarget: 'LLM_REPAIR_THEN_CLARIFY',
-  semanticRecoveryMissingVectorSpace: 'LLM_REPAIR_THEN_CLARIFY',
-  semanticRecoveryInvalidVectorSpace: 'LLM_REPAIR_THEN_FAIL',
+  semanticRecoveryMissingVectorSpace: 'LLM_REPAIR_THEN_CONTEXT_ANSWER',
+  semanticRecoveryInvalidVectorSpace: 'LLM_REPAIR_THEN_CONTEXT_ANSWER',
   semanticRecoveryUnknownAction: 'LLM_REPAIR_THEN_FAIL',
   semanticRecoveryActionDomainMismatch: 'DENY_AND_LLM_REPLAN',
   semanticRecoveryAdvancedNoEvidence: 'RETURN_NO_EVIDENCE',
@@ -328,6 +332,8 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'orchestrationTemperature',
   'orchestrationMaxTokens',
   'orchestrationTimeout',
+  'decisionRecoveryMaxRepairRounds',
+  'decisionRecoveryRepairAdmissionTimeoutMs',
   'semanticRecoveryExtractionFailure',
   'semanticRecoveryMissingTarget',
   'semanticRecoveryMissingVectorSpace',
@@ -457,10 +463,9 @@ const SEMANTIC_RECOVERY_FIELDS: Array<{
   {
     key: 'semanticRecoveryExtractionFailure',
     label: 'Invalid or incomplete extraction',
-    helperText: 'A bounded model repair runs first. Choose whether unresolved output fails or asks the user.',
+    helperText: 'Internal intent attributes are repaired before a final answer using available context and chat history.',
     options: [
-      { value: 'LLM_REPAIR_THEN_FAIL', label: 'Repair, then fail' },
-      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+      { value: 'LLM_REPAIR_THEN_CONTEXT_ANSWER', label: 'Repair, then answer from context' },
     ],
   },
   {
@@ -474,9 +479,9 @@ const SEMANTIC_RECOVERY_FIELDS: Array<{
   {
     key: 'semanticRecoveryMissingVectorSpace',
     label: 'Missing knowledge-source decision',
-    helperText: 'Strict mode clarifies. Bounded fan-out may search only server-allowed sources.',
+    helperText: 'Keep source selection internal. Optional fan-out searches only approved sources within their limits.',
     options: [
-      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+      { value: 'LLM_REPAIR_THEN_CONTEXT_ANSWER', label: 'Repair, then answer from context' },
       { value: 'BOUNDED_ALLOWED_FAN_OUT', label: 'Bounded allowed-source fan-out' },
     ],
   },
@@ -485,8 +490,7 @@ const SEMANTIC_RECOVERY_FIELDS: Array<{
     label: 'Invalid knowledge-source decision',
     helperText: 'Unknown or disallowed source identifiers are never replaced from query text.',
     options: [
-      { value: 'LLM_REPAIR_THEN_FAIL', label: 'Repair, then fail' },
-      { value: 'LLM_REPAIR_THEN_CLARIFY', label: 'Repair, then clarify' },
+      { value: 'LLM_REPAIR_THEN_CONTEXT_ANSWER', label: 'Repair, then answer from context' },
     ],
   },
   {
@@ -1201,6 +1205,7 @@ function buildVendorSetupGuides(
 
 function readProviderForm(config: unknown): ProviderFormState {
   const record = isRecord(config) ? config : {}
+  const decisionRecovery = isRecord(record.decisionRecovery) ? record.decisionRecovery : {}
   const orchestrationModeOverrides = isRecord(record.orchestrationModeOverrides)
     ? record.orchestrationModeOverrides
     : {}
@@ -1235,26 +1240,28 @@ function readProviderForm(config: unknown): ProviderFormState {
     orchestrationTemperature: readString(record, 'orchestrationTemperature'),
     orchestrationMaxTokens: readString(record, 'orchestrationMaxTokens'),
     orchestrationTimeout: readString(record, 'orchestrationTimeout'),
-    semanticRecoveryExtractionFailure: readString(
+    decisionRecoveryMaxRepairRounds: readString(decisionRecovery, 'maxRepairRounds', '3'),
+    decisionRecoveryRepairAdmissionTimeoutMs: readString(decisionRecovery, 'repairAdmissionTimeoutMs', '30000'),
+    semanticRecoveryExtractionFailure: currentContextRecoveryPolicy(readString(
       semanticRecovery,
       'extractionFailure',
       DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryExtractionFailure,
-    ).toUpperCase(),
+    ).toUpperCase()),
     semanticRecoveryMissingTarget: readString(
       semanticRecovery,
       'missingTarget',
       DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryMissingTarget,
     ).toUpperCase(),
-    semanticRecoveryMissingVectorSpace: readString(
+    semanticRecoveryMissingVectorSpace: currentContextRecoveryPolicy(readString(
       semanticRecovery,
       'missingVectorSpace',
       DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryMissingVectorSpace,
-    ).toUpperCase(),
-    semanticRecoveryInvalidVectorSpace: readString(
+    ).toUpperCase()),
+    semanticRecoveryInvalidVectorSpace: currentContextRecoveryPolicy(readString(
       semanticRecovery,
       'invalidVectorSpace',
       DEFAULT_PROVIDER_FORM_STATE.semanticRecoveryInvalidVectorSpace,
-    ).toUpperCase(),
+    ).toUpperCase()),
     semanticRecoveryUnknownAction: readString(
       semanticRecovery,
       'unknownAction',
@@ -1562,15 +1569,28 @@ function applyMilvusProvisioningConfig(config: Record<string, unknown>, form: Pr
   }
 }
 
+function currentContextRecoveryPolicy(value: string): string {
+  return ['LLM_REPAIR_THEN_FAIL', 'LLM_REPAIR_THEN_CLARIFY'].includes(value)
+    ? 'LLM_REPAIR_THEN_CONTEXT_ANSWER' : value
+}
+
 function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState): Record<string, unknown> {
   const nextConfig = cloneJson(isRecord(baseConfig) ? baseConfig : {}) as Record<string, unknown>
   providerFormKeys.forEach((key) => {
-    if (SEMANTIC_RECOVERY_FORM_KEYS.has(key)) {
+    if (SEMANTIC_RECOVERY_FORM_KEYS.has(key) || key === 'decisionRecoveryMaxRepairRounds'
+      || key === 'decisionRecoveryRepairAdmissionTimeoutMs') {
       return
     }
     const value = form[key]
     nextConfig[key] = typeof value === 'string' ? value.trim() : value
   })
+  nextConfig.decisionRecovery = {
+    ...(isRecord(nextConfig.decisionRecovery) ? nextConfig.decisionRecovery : {}),
+    maxRepairRounds: form.decisionRecoveryMaxRepairRounds.trim() === ''
+      ? null : Number(form.decisionRecoveryMaxRepairRounds),
+    repairAdmissionTimeoutMs: form.decisionRecoveryRepairAdmissionTimeoutMs.trim() === ''
+      ? null : Number(form.decisionRecoveryRepairAdmissionTimeoutMs),
+  }
   const orchestrationModeOverrides = cloneJson(
     isRecord(nextConfig.orchestrationModeOverrides) ? nextConfig.orchestrationModeOverrides : {},
   ) as Record<string, unknown>
@@ -2662,10 +2682,25 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                         </Grid>
                         <Grid item xs={12}>
                           <Alert severity="info">
-                            These are server-owned recovery decisions. Strict defaults expose unresolved model output
-                            instead of guessing from query words. Optional recovery remains bounded by the {deploymentTerm.lowercase}
-                            action and knowledge-source allowlists.
+                            Internal planning is repaired without asking your users for technical details. When repairs
+                            stop, the assistant answers from available context and chat history. Access checks,
+                            confirmations and provider spending limits still apply. Publish and update a compatible runtime
+                            before these draft settings take effect.
                           </Alert>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField disabled={!canEdit || saveMutation.isPending} fullWidth required type="number"
+                            label="Maximum repair rounds" value={formState.decisionRecoveryMaxRepairRounds}
+                            onChange={(event) => handleFieldChange('decisionRecoveryMaxRepairRounds', event.target.value)}
+                            inputProps={{ min: 0, max: 10, step: 1 }}
+                            helperText="Up to 0-10 corrections shared across this request, subject to extraction and provider limits. A final context-answer attempt is separate. More rounds can increase latency and cost." />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField disabled={!canEdit || saveMutation.isPending} fullWidth required type="number"
+                            label="Repair admission window (ms)" value={formState.decisionRecoveryRepairAdmissionTimeoutMs}
+                            onChange={(event) => handleFieldChange('decisionRecoveryRepairAdmissionTimeoutMs', event.target.value)}
+                            inputProps={{ min: 1000, max: 300000, step: 1000 }}
+                            helperText="Stop starting new repairs after this window. In-flight calls retain their provider timeout; the final context-answer attempt remains available." />
                         </Grid>
                         {SEMANTIC_RECOVERY_FIELDS.map((field) => (
                           <Grid item xs={12} md={field.key === 'semanticRecoveryMissingTarget' ? 12 : 6} key={field.key}>

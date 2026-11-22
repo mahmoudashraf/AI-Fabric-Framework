@@ -17618,3 +17618,100 @@ test is being called hosted acceptance. UI extraction remains last.
   commitisnotthenativeimageSHA. Unrelated.gitignore/tsbuildinfo/untrackeduserfiles
   remainuntouched. No furtherpublication/runtimeapplyorcapacitychangeisneededfor
   thisboundedfix; broaderqualityfollowupsrequireseparatescopedinvestigation.
+
+## 2026-11-22 - 010.71 Internal Decision Recovery Implementation In Progress
+
+- Owner requested a change plan, then full implementation and live verification.
+  Plan: 010_71_BOUNDED_INTENT_ROUTING_REPAIR_AND_CONTEXT_ANSWER_PLAN.md in the
+  existing Implementation directory. User explicitly wants configurable internal
+  model repairs, followed by one model answer from available context/history,
+  not a routing error or request for an internal domain. Security/provider/funding
+  failures are not semantic repairs and cannot be concealed as successful work.
+- Public worktree: ~/.codex/worktrees/routing-recovery-0861, branch
+  codex/routing-recovery-0861, based on immutable public 09a0d7d1 / 0.8.60. New
+  source is WIP, NOT committed/published; version has NOT yet been bumped to61.
+  Never mutate the published .60 tag/artifacts. Private branch remains Platform-V11.
+- Implemented WIP public: request-shared transient DecisionRecoveryBudget,
+  DecisionRecoveryProperties (3 rounds, 30000ms repair admission window, one final
+  answer separately allowed), InternalDecisionRecoveryService and pipeline step64,
+  resource prompts with trusted roles, source-selection repair and context answer,
+  typed INTERNAL_DECISION_UNRESOLVED instead of domain clarifications, routing
+  entry hooks, existing extraction engine shared budget/latest-candidate repair,
+  typed provider-vs-model-output failure handling. Successful siblings preserved;
+  only named invalid/missing fields can be completed. New semantic enum value
+  LLM_REPAIR_THEN_CONTEXT_ANSWER defaults; old values retained for explicit legacy
+  configs/imports but Console normalizes internal-repair choices to context mode.
+- Core compilation PASS. First114 focused tests PASS. First full core run had
+  mock-signature failures (fixed by retaining 3arg extraction call when recovery
+  absent) and old clarification/default assertions. Next1191 core tests had only
+  six old-policy expectations; updated those. Current core/chat test exec19330
+  running, log /tmp/loomai-recovery-0861-core-chat-tests.log. Source changed during
+  this run after compilation, so run a final fresh suite before release.
+- Added service tests: 3round latest routing candidate, source ceiling, shared
+  compound budget/one final answer, native history/attached context, no-facts
+  answer, real receipt/pending preservation, hard-denial/provider/cancel/strict
+  task exclusions. New tests also cover prepared READ vs raw/unusable canaries,
+  malformed output recovery, budget/deadline semantics and conversation recording.
+  Recovery final output is recorded after early termination and retained by the
+  normalizer instead of being overwritten by a canned compound status wrapper.
+- Private WIP: provider config decisionRecovery object (maxRepairRounds and
+  repairAdmissionTimeoutMs), normal Advanced form mapping/controls, finite-budget
+  validation, generated env settings, source artifact capability gate
+  internal-decision-recovery-v1, managed Brain bootstrap defaults revision2 and
+  runtime manifest. No Java runtime code/new API/DB migration yet required.
+- Existing UI settings26 tests PASS (before additional round-trip test);
+  Console/Engage preview production build PASS with existing large-bundle warning.
+  Backend173 focused tests PASS, before new limit-validation tests. Logs:
+  /tmp/loomai-recovery-0861-{backend-tests,ui-settings,ui-build}.log.
+- New exact time semantics: admission deadline stops new repairs, not an in-flight
+  provider HTTP call; that keeps its provider timeout. Final answer is separate
+  and still subject to actual funding/provider limits. No async model calls or
+  background orphaned retries are introduced. Max extraction-call limit remains.
+- TODO before release: finish latest source tests and full 30module suite; qualify
+  real-provider/failure-injection context answer; expose settings live via normal
+  Core/runtime CI. Bump public/current private pins to61 only after source ready,
+  publish immutable new patch, verify Central and checksums, deploy Core stage/prod,
+  register .61 artifacts and upgrade/bind Harbor on its SAME existing staging
+  target. Capture all actual live samples, preserve settings/storage/credentials/
+  app identity/capacity/counters, promote qualified package, docs/commit/push.
+- Last verified deployed state is still .60/e531/Harborv8 rel4a4caa6a. NO .61 live
+  change, infrastructure mutation, auth session or business write has happened.
+  Previous private helper root context-attachments-0860 has REVOKED sessions;
+  create a new private task helper root and own normal sessions when needed.
+  Gallery8766 remains untouched. Unrelated .gitignore/tsbuildinfo and user untracked
+  files must not be staged or reverted. Do not stop at the plan; user asked full
+  implementation and live verification.
+
+### 010.71 Release Checkpoint - 2026-11-22 03:07 UTC
+
+- Public final source committed/pushed: 25eecf29e6595fc754436edb9ba94662e267c467,
+  immutable tag ai-fabric-framework-v0.8.61. Publication requested once; Central
+  availability/CI is still being observed. Never repeat or move this release tag.
+- Local 30-module release-profile install PASS: 2592 reported tests / 408 suites,
+  0 failures/errors, 2 explicit real-provider cases skipped in default run. Final
+  Core/chat rerun after latest routing-feedback source change PASS (1202 Core and
+  97 chat tests). Final opt-in real-provider tests 2/2 PASS against existing Harbor
+  model gpt-5.4-mini-2026-03-17; forced routing exhaustion compares 499/249 with250
+  saving, and no-current-stock case honestly reports missing stock. No model swap.
+- Source review findings fixed before publication: preserve receipts/pending state
+  during provider outage; consume internal markers on failed final narration or
+  mixed genuine hard failures; include managed tone/breadth/presentation guidance;
+  retain weak authorized retrieval matches with uncertainty; remove final weak-
+  fanout domain-question constructor. Latest malformed/invalid routing candidate
+  stays feedback only, never installed as an executable route. All source guards
+  pass; expected local Javadoc link warning is nonfatal.
+- Private backend206 targeted tests PASS; UI27 settings/browser tests PASS, final
+  build PASS; runtime818 tests PASS against local61, including provider-accounting,
+  task and document/auth regression coverage. Parent/default framework version and
+  runtime manifest/test expectations now61. No DB schema/new endpoint required.
+- New private task root ~/.codex/private/routing-recovery-0861 has original six-
+  service/app/config/native snapshots and TWO new normal PLATFORM_ADMIN sessions.
+  They MUST be revoked with cookie-only inactive verification before completion.
+  Prior010.70 sessions remain revoked. Existing services still60/e531/Harborv8;
+  no live software apply or infrastructure/billing mutation has occurred yet.
+- Next: Central all-module/signature/fresh-consumer proof; commit/push only scoped
+  private source, await Core/runtimeCI; roll Core staging/prod with env/capacity
+  unchanged; register61; live Advanced form5/45000->3/30000; publish/apply Harbor
+  same existing target, native checksum proof, exact Engage bind, READ-only desktop/
+  phone tests and honest quality review; promote package, docs, logout both sessions.
+  Required execution continues; do not finish at this checkpoint.

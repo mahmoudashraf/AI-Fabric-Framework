@@ -1339,6 +1339,10 @@ class RailwayProvisioningPlanServiceTest {
             {
               "llmProvider": "openai",
               "embeddingProvider": "openai",
+              "decisionRecovery": {
+                "maxRepairRounds": 5,
+                "repairAdmissionTimeoutMs": 45000
+              },
               "orchestrationModeOverrides": {
                 "executor": {
                   "vectorSpaceSelectionRequired": true,
@@ -1368,6 +1372,10 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_ORCHESTRATION_DECISION_RECOVERY_ENABLED", "true")
+            .containsEntry("AI_ORCHESTRATION_DECISION_RECOVERY_FINAL_CONTEXT_ANSWER_ENABLED", "true")
+            .containsEntry("AI_ORCHESTRATION_DECISION_RECOVERY_MAX_REPAIR_ROUNDS", "5")
+            .containsEntry("AI_ORCHESTRATION_DECISION_RECOVERY_REPAIR_ADMISSION_TIMEOUT_MS", "45000")
             .containsEntry(
                 "AI_ORCHESTRATION_MODES_EXECUTOR_VECTOR_SPACE_SELECTION_REQUIRED",
                 "true"

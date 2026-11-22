@@ -690,6 +690,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeOrchestrationModeOverrides(runtimeEnv, providerConfig);
+        addRuntimeDecisionRecovery(runtimeEnv, providerConfig);
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig, behaviorConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(
             runtimeEnv,
@@ -1408,6 +1409,17 @@ public class RailwayProvisioningPlanService {
             addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "actionDomainMismatch", "ACTION_DOMAIN_MISMATCH");
             addSemanticRecoveryEnv(runtimeEnv, semanticRecovery, "advancedNoEvidence", "ADVANCED_NO_EVIDENCE");
         }
+    }
+
+    private void addRuntimeDecisionRecovery(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
+        JsonNode recovery = providerConfig.path("decisionRecovery");
+        if (!recovery.isObject()) return;
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ORCHESTRATION_DECISION_RECOVERY_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ORCHESTRATION_DECISION_RECOVERY_FINAL_CONTEXT_ANSWER_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ORCHESTRATION_DECISION_RECOVERY_MAX_REPAIR_ROUNDS",
+            Integer.toString(recovery.path("maxRepairRounds").asInt(3))));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ORCHESTRATION_DECISION_RECOVERY_REPAIR_ADMISSION_TIMEOUT_MS",
+            Integer.toString(recovery.path("repairAdmissionTimeoutMs").asInt(30000))));
     }
 
     private void addReadActionResolutionBudgetEnv(List<RailwayEnvVarSummary> runtimeEnv,
