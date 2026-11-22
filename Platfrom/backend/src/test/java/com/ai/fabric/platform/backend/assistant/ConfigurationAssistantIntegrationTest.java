@@ -107,6 +107,56 @@ class ConfigurationAssistantIntegrationTest {
         verify(runtime, never()).generate(any());
         assertThat(assistant.get(id).path("activeTurnId").isNull()).isTrue();
     }
+    @Test void actionPreparationScopeIsExplicitAndDoesNotLeakIntoOrdinaryFollowups() throws Exception {
+        String id = actionSession();
+        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Single endpoint", "text/plain",
+            "Base URL https://catalog.example. GET /products, public READ, no authentication.", null, null));
+        String sourceId = imported.at("/sources/0/id").asText();
+        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(), null,
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of("products"))), "prepare-actions");
+        await(id);
+        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("Explain the selected route only.", true,
+            List.of(sourceId), List.of()), "explain-actions");
+        await(id);
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(captured.capture());
+        var first = captured.getAllValues().getFirst();
+        assertThat(first.at("/catalogue/preparationScope/operationSelection").asText()).isEqualTo("ALL_SELECTED_SOURCE_OPERATIONS");
+        assertThat(first.at("/catalogue/preparationScope/sourceIds/0").asText()).isEqualTo(sourceId);
+        assertThat(first.at("/catalogue/preparationScope/operationIds")).isEmpty();
+        assertThat(first.at("/catalogue/editorContext/selectedDefinitionIds/0").asText()).isEqualTo("products");
+        assertThat(first.at("/sources/0/content").asText()).contains("GET /products");
+        assertThat(captured.getAllValues().getLast().at("/catalogue/preparationScope").isMissingNode()).isTrue();
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void explicitOperationSubsetDoesNotSendOtherOperationsOrDeselectedSources() throws Exception {
+        String id = actionSession();
+        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("API", "application/json", """
+            {"openapi":"3.0.3","info":{"title":"Catalog","version":"1"},"servers":[{"url":"https://catalog.example"}],
+             "paths":{"/products":{"get":{"operationId":"listProducts","responses":{"200":{"description":"Products"}}}},
+                      "/private-notes":{"get":{"operationId":"privateNotes","responses":{"200":{"description":"Notes"}}}}}}
+            """, null, null));
+        String sourceId = imported.at("/sources/0/id").asText();
+        var operations = imported.at("/sources/0/operations"); assertThat(operations).hasSize(2);
+        String operationId = null;
+        for (var operation : operations) if ("/products".equals(operation.path("path").asText())) operationId = operation.path("id").asText();
+        assertThat(operationId).isNotBlank();
+        assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Unselected", "text/plain", "Unselected source canary", null, null));
+        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(operationId), null,
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "selected-operation");
+        await(id);
+        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
+        var input = captured.getValue();
+        assertThat(input.at("/catalogue/preparationScope/operationSelection").asText()).isEqualTo("SELECTED_OPERATION_IDS");
+        assertThat(input.at("/catalogue/preparationScope/operationIds/0").asText()).isEqualTo(operationId);
+        assertThat(input.path("sources")).hasSize(1);
+        assertThat(input.at("/sources/0/content").asText()).contains("listProducts").doesNotContain("privateNotes", "/private-notes");
+        assertThat(input.toString()).doesNotContain("Unselected source canary");
+    }
+    private String actionSession() throws Exception {
+        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("ACTIONS"))).thenAnswer(call -> snapshot());
+        var result = output("EXPLAIN"); result.putArray("changes"); when(runtime.generate(any())).thenReturn(result);
+        return assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "ACTIONS")).path("id").asText();
+    }
     @Test void sameTaskPageFocusIsCapturedPerTurnWithoutLeakingIntoLaterRequests() throws Exception {
         String id = create();
         assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(), List.of(), null, "PREPARE",

@@ -390,6 +390,12 @@ public class ConfigurationAssistantService {
         input.set("currentConfiguration", changes.project(resource.configuration()));
         ObjectNode catalogue = resource.catalogue().deepCopy();
         if (turn.has("editorContext")) catalogue.set("editorContext", changes.project(turn.get("editorContext")));
+        if ("PREPARE".equals(turn.path("command").asText()) && "ACTIONS".equals(session.task)) {
+            var scope = catalogue.putObject("preparationScope");
+            scope.put("operationSelection", turn.path("operationIds").isEmpty() ? "ALL_SELECTED_SOURCE_OPERATIONS" : "SELECTED_OPERATION_IDS");
+            scope.set("sourceIds", turn.path("sourceIds").deepCopy());
+            scope.set("operationIds", turn.path("operationIds").deepCopy());
+        }
         JsonNode findings;
         try {
             findings = resources.check(session.resourceKind, session.resourceId, resource, resource.configuration());

@@ -57,6 +57,18 @@ class AuthoringInstructionsTest {
         assertThat(context.has("query")).isFalse();
         assertThat(system).isEqualTo(AuthoringInstructions.system(request()));
     }
+    @Test void preparationScopeGuidesTheModelWithoutSuppressingRealQuestionsOrGrantingAuthority() {
+        var instructions = AuthoringInstructions.system(request());
+        assertThat(instructions).contains("catalogue.preparationScope", "ALL_SELECTED_SOURCE_OPERATIONS",
+            "SELECTED_OPERATION_IDS restricts preparation", "narrower current user focus",
+            "One fully documented operation is sufficient", "Do not ask whether additional undocumented",
+            "record nonessential", "genuinely missing or conflicting material endpoint",
+            "Never invent endpoints, credentials, trusted IDs or business facts",
+            "not permission to execute, publish or include unselected material",
+            "Use NEEDS_INPUT for missing essential information");
+        assertThat(AuthoringInstructions.system(feedbackRequest(ConfigurationAuthoringRequest.Task.BEHAVIOUR, 1)))
+            .doesNotContain("catalogue.preparationScope");
+    }
 
     @Test void wholeJsonRetryContextContainsOnlySafeFindingsAndTheExecutionSchema() throws Exception {
         var request = wholeJsonRetryRequest();

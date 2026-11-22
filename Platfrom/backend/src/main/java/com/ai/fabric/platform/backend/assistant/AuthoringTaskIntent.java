@@ -50,6 +50,9 @@ final class AuthoringTaskIntent {
             throw bad("Select at most sixteen editor definitions with bounded identifiers.");
         String resolved = prepare ? section.intent + " for this resource. Use the selected documentation, current configuration and available contracts. "
             + "Preserve unrelated settings. Ask only for essential missing facts or genuinely ambiguous scope; do not ask the user to write configuration syntax."
+            + (section == Section.ACTIONS ? " The selected documentation defines the operation scope. Prepare its supported operations, narrowed by explicit operation or editor selections and the user's focus hint. "
+                + "One fully documented operation is sufficient; do not ask whether additional undocumented operations exist or request another scope confirmation. "
+                + "Ask only when a material endpoint, input, authorization binding or business requirement is genuinely missing or conflicting." : "")
             + (query.isBlank() ? "" : "\n\nOptional focus from the user:\n" + query) : query;
         return new Resolved(resolved, command, new EditorContext(section.name(), List.copyOf(ids)));
     }

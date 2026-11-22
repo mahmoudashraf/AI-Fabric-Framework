@@ -29,6 +29,17 @@ class AuthoringTaskIntentTest {
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", hint, "PREPARE", null).query()).endsWith(hint);
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", null, "PREPARE", null).query()).doesNotContain("Optional focus");
     }
+    @Test void actionPreparationUsesSelectedDocumentationWithoutInventingAnExtraScopeGate() {
+        var result = AuthoringTaskIntent.resolve("ACTIONS", "Only the availability endpoint.", "PREPARE", null);
+        assertThat(result.query()).contains("selected documentation defines the operation scope",
+            "narrowed by explicit operation or editor selections", "One fully documented operation is sufficient",
+            "do not ask whether additional undocumented operations exist", "authorization binding");
+        assertThat(result.query()).endsWith("Only the availability endpoint.");
+        assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())
+            .isEqualTo("Explain this route only.");
+        assertThat(AuthoringTaskIntent.resolve("MODELS", "", "PREPARE", null).query())
+            .doesNotContain("ALL_SELECTED_SOURCE_OPERATIONS", "operation scope", "undocumented operations");
+    }
     @Test void theHttpTurnContractDeserializesTypedIntentAndEditorContext() throws Exception {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var request = mapper.readValue("""

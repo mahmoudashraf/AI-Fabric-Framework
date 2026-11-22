@@ -27,6 +27,17 @@ final class AuthoringInstructions {
     private static final Map<ConfigurationAuthoringRequest.Task, String> TASKS = Map.ofEntries(
         Map.entry(ConfigurationAuthoringRequest.Task.ACTIONS, """
             Propose complete action definitions, parameters and routes; preserve other definitions.
+            For preparation, catalogue.preparationScope describes the user's explicit selection:
+            ALL_SELECTED_SOURCE_OPERATIONS means the supported operations in the selected source
+            content; SELECTED_OPERATION_IDS restricts preparation to those supplied operations.
+            Respect selected editor definitions and any narrower current user focus. This is draft
+            preparation only, not permission to execute, publish or include unselected material.
+            One fully documented operation is sufficient. Do not ask whether additional undocumented
+            operations exist or reconfirm the supplied scope when it already supports a proposal.
+            Derive ordinary draft names and labels from the documented operation; record nonessential
+            descriptive choices as assumptions instead of blocking. Ask focused questions only for
+            genuinely missing or conflicting material endpoint, input, authorization binding or
+            business requirements. Never invent endpoints, credentials, trusted IDs or business facts.
             READ needs vectors only if its declared retrieval contract needs them.
             Use the catalogue collectionShapes and routeChangeExample as configuration facts.
             routingConfig.actions is an object map: SET each exact escaped route entry, never
