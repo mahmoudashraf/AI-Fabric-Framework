@@ -1,8 +1,8 @@
 # 010.71 Bounded Intent/Routing Repair And Final Context Answer
 
 - Created: 2026-11-22.
-- Status: implementation qualified locally; .62 publication and hosted verification pending.
-- Baseline: framework 0.8.60; private image source `e5319e190`; Harbor v8 /
+- Status: implemented and live-qualified on .62 for the approved ordinary-chat recovery scope.
+- Initial baseline: framework 0.8.60; private image source `e5319e190`; Harbor v8 /
   `rel-4a4caa6a`. These are the previous task's verified identities, not a new
   health check or evidence that this plan is implemented.
 - Related: 010.70 and
@@ -415,3 +415,49 @@ the unchanged Harbor model, including the exact terminal-failure handoff. Runtim
 consumer passed. Actual Central consumption, new CI images and .62 hosted
 verification still remain. All temporary admin sessions are revoked during the
 publication wait. Do not move the .61 tag or duplicate either upload.
+
+### Final .62 Deployment And Live Qualification
+
+Completed on2026-11-22. Central publication44987599185 succeeded with one upload,
+all30 modules/signatures and a clean Maven consumer verified. Exact public source
+is `a7693b9c27853acdb3023fd8295b168bdcbfcf2b`; private backend/runtime source is
+`abc04c00e1aee5c9b69e0f72ed062503b557955c`. Core/backend44989116032 and runtime
+44989116043 CI passed. Backend rolled through staging then production; the
+unchanged UI remains on d3712b981. Both control planes remain at schema241.
+
+Harbor v11 `ver-26fb44f5` / `rel-a9b54dbc` is APPLIED_VERIFIED/PASSED, with
+reindexRequired=false and its exact existing Engage consumer bound and ready.
+All20 runtime and5 connector public JARs match the actual Central .62 checksums.
+The previous .61 artifact is incompatible with the new version; the explicitly
+selected .62 image digest is
+`sha256:732078e5af898b7855a79290ceb0295896a5a3a31a1449df08c93b112e986d3c`.
+
+The live desktop/390px run retained12 requests: all HTTP200/INFORMATION_PROVIDED,
+no internal-domain question and no ERROR result. Crucially, the original Browse
+question again exhausted3 invalid-category repairs. This time its final context
+answer succeeded, with answerSource=AVAILABLE_CONTEXT_RECOVERY,
+responseGenerationPath=DECISION_RECOVERY_CONTEXT_ANSWER, no new retrieval and no
+action execution. A recorded explicit follow-up retrieved the catalogue. This
+proves the actual hosted handoff, not merely a mocked or lucky non-failure path.
+
+The Advanced UI saved5/45000, reloaded, then restored3/30000 without changing
+other draft fields. Native runtime flags confirm those effective limits, recovery
+enabled and final-context answering enabled. Attachment/history comparisons,
+delivery and compound follow-ups retained their evidence and did not request a
+domain. Both distinct no-SKU items retained499/249 prices,8/12 stock and height
+adjustment; the price difference was correctly250.
+
+Both runtime packages were then promoted to production availability. Six native
+services are healthy with zero restarts; resource limits, mounts, models, storage,
+credentials, app URL/branding and unrelated bindings are preserved. The lab still
+has13 enquiries: zero business writes. Both temporary normal admin sessions are
+revoked and old-cookie-only probes are unauthenticated. No infrastructure or
+billing settings changed. Other running Brains were not silently upgraded.
+
+Remaining limits are separate from this completed recovery scope: the starter
+can still need an explicit catalogue follow-up; care guidance lacks approved
+evidence; some model caveats underuse broader history; delivery-threshold wording
+was imprecise at the untested exact500 boundary. The unchanged widget tool rail
+also overlays some text at390px. No blanket perfect-answer/mobile-layout claim
+is made. Broad Incident Room CI and older backend fixtures retain their separately
+documented baseline failures. See the dated verification record for details.

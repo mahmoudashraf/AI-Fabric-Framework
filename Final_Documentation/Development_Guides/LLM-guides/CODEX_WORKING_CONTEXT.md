@@ -17952,3 +17952,122 @@ test is being called hosted acceptance. UI extraction remains last.
   internalPlanningErrors=0, qualifyForPromotion=true ONLY after actual review.
   Then finalize promotes both artifacts, checks6services/env/oldbindings/13writes0,
   logs outboth. Update final docs/status and commit docs separately from image SHA.
+
+### 010.71 .62 Central Ready / Images Building - 2026-11-22 05:23 UTC
+
+- .62 Central release44987599185 completed SUCCESS, unlike the old .61 timeout.
+  Exactly ONE upload: Sonatype eac3525a-b0a8-4f4e-83b0-3c1c697854fc; audit logged
+  PASS/no poll timeout. ALL30 modules /118 artifact/signature availability checks
+  PASS. Fresh empty-Maven consumer compile PASS, actual Central Core SHA
+  6eac435220ddfcc2dd5f73954987fdee7977784d2cf389c820794af88d39f33a.
+  Public tag/source remainsa7693b9c... with no rewriting/reupload.
+- Private deployment branch pushed normally ONCE to exactabc04c00e1aee5c9b69e0f72ed062503b557955c.
+  Core/backendi44989116032 and runtime44989116043 are building it. Required exec
+  26631 runs watch-private-ci.mjs. All publication/watch/audit/module/fresh-consumer
+  and git-push sessions are CLOSED; this is the only current required exec.
+- NEW OWN NORMAL ADMIN SESSIONS ARE ACTIVE in BOTH environments in private .62
+  root. They were recreated after Central became ready. Revoke them at final
+  verification and prove cookie-only inactive; do not reuse revoked .61 files.
+- No .62 live image is deployed yet. Existing live BOTH Core/backend/UI d371 and
+  Harbor v10 /rel7e5cdc24 b54/.61 remain. UI source must STAYd371; new CoreCI builds
+  backend only. Once backend/Core run succeeds, stage BACKEND thenprod BACKEND via
+  .62root service-rollout and sourceabc; do NOT request an absent UI image forabc.
+  Wait bothCI complete before register-runtime/newHarbor .62 apply.
+- .62 broad framework-verify44987576591 passed release/provider guards, vector
+  contracts and fails its real-apps step on the SAME14 Incident Room methods as
+  .61run44979095590 (unmatched=[]). Detailed log/baseline comparison private.
+  This is not new or all-green broadCI; no unrelated IncidentRoom changes made.
+- Generic readonly contingency helpers audit-publication.mjs, central-status.mjs
+  and wait-existing-publication.mjs now safely derive actual .62source/upload IDs.
+  audit-publication WAS run successfully; status and existing-upload watcher were
+  NOT needed/run. Do not dispatch an unnecessary status job now: Central is ready.
+- Private doc checkpoint a0c8e5cb1 is backed up on origin/codex/decision-recovery-0862,
+  separate from image sourceabc. New verification/context edits remain WIP. User
+  .gitignore and UI build cache remain unrelated/dirty and MUST NOT be staged.
+- Continue actual backend/runtime release qualification from the preceding NEXT
+  list: native backend health/schema241 preserved, register artifact bothCPstage,
+  live UI roundtrip, sameHarbor publish/apply reindexfalse, .62nativechecksums,
+  exactexistingEngagebind, original-question live desktop/phone samples, honest
+  quality review. Promote ONLY if no internal-planning ERROR and reviewed. Then
+  finalizer checks resources/credentials/oldconsumer bindings/counter13/zero writes,
+  logs outboth. Do NOT stop at this checkpoint or claim live .62 adoption yet.
+
+### 010.71 .62 Applied Request - 2026-11-22 05:31 UTC
+
+- BOTH .62 image workflows PASS: Core/backend44989116032, runtime44989116043.
+  Backend imageabc digestsha256:17ec0df51b1cc59656c2d0fdadd5d3a38b18409b11c09d45e5568fbf9457fd01
+  is now deployed/healthy at BOTH control planes, zero restarts, unchanged env/
+  resources/mounts/schema241. UI remainsd371 atbothCPs, intentionally unchanged.
+- Runtime imageabc digestsha256:732078e5af898b7855a79290ceb0295896a5a3a31a1449df08c93b112e986d3c
+  has its embedded manifest62 and Core6eac... Central checksum verified. Registered
+  staging-channel packages: stage dsa-d5bb6ffd; productionCP dsa-620be729.
+- NEW .62 normal-session UI roundtrip5/45000 ->reload ->3/30000 PASS, with unrelated
+  configuration preserved and390px/nooverflow/noerrors. Corrected UI helper waits
+  actual assistant/Drawer CSS hidden, not just accessibility visibility. Photos
+  and proof are in .62root, not old .61 evidence.
+- Harbor NEW v11 ver-26fb44f5 published with framework62, reindexRequired=false;
+  previous .61 source is actually incompatible with this version, newartifact
+  explicitlyaccepted. SAMEtarget dtp-coolify-staging-behavior apply requested once
+  rel-a9b54dbc. Sole required exec45736 runs harbor-upgrade.mjs observe; status was
+  PROVISIONING/PENDING. No extra application/infra was provisioned. Do not repeat
+  publish/apply; observe this existing release until verified.
+- All image/registration/UI/push sessions are CLOSED. OWN NORMAL ADMIN SESSIONS
+  remain ACTIVE in both environments and MUST be revoked at completion. No other
+  required exec except45736. No final .62 quality-review or promotion yet.
+- NEXT once rel-a9b54dbc APPLIED_VERIFIED/PASSED: run harbor-native.mjs with that
+  release (ALL20+5 public JAR hashes62, resources/credentials preserved), then
+  harbor-upgrade.mjs bind EXACTcurrentEngageconsumer preservingotherbindings; run
+  harbor-live.mjs (allquestions/attempts retained, originalstarter included). Inspect
+  actual content + decisionRecovery metadata, especially no exhausted planning
+  ERROR. Final context fallback is separately covered by the3 real-provider tests;
+  do not claim stochastic live exhaustion if not observed. Record source-choice
+  misses as quality findings, never hidden retries. Only then write matching
+  live-quality-review/internalPlanningErrors0/qualifyForPromotiontrue and run
+  finalize-rollout.mjs. It checks BOTHbackendabc, BOTHUId371, Harborruntime/connector
+  abc, recoveryenv3/30000/enabledtrue, .62release/app/readiness, unchangedconfigs/
+  otherconsumers and13enquiries/zero writes; promotes bothartifacts and logsoutboth.
+  Then updatefinal docs/status, commitdocsonly, normalpush; actualimageSHAstaysabc.
+
+### 010.71 COMPLETE - 2026-11-22 05:44 UTC
+
+- Approved ordinary-chat recovery scope COMPLETE on .62. Public sourcea7693b9c,
+  immutabletag ai-fabric-framework-v0.8.62, Central44987599185 SUCCESS/oneupload
+  eac3525a-b0a8-4f4e-83b0-3c1c697854fc, all30modules/118signature-artifact checks
+  andfreshconsumer PASS. Actual Core6eac435220ddfcc2dd5f73954987fdee7977784d2cf389c820794af88d39f33a.
+- Private backend/runtime sourceabc04c00e1aee5c9b69e0f72ed062503b557955c. CI Core
+  44989116032/runtime44989116043 SUCCESS. BOTH backendabc deployedhealthy, schema241
+  unchanged. BOTH UI intentionallyd3712b981bdb563a43bed37d4fad52a0f4ced95e, healthy.
+- Harbor v11 ver-26fb44f5 /rel-a9b54dbc APPLIED_VERIFIED/PASSED, reindexfalse.
+  Runtime/connectorabc image732078e5af898b7855a79290ceb0295896a5a3a31a1449df08c93b112e986d3c;
+  ALL20+5public JARs62 matchCentral, no mixed versions. Originalresources/creds/
+  models/storage preserved. Exact existingEngageconsumerboundv11 ACTIVE/ready;
+  otherKitconsumer/unrelatedbindings unchanged. No new app/address/infra/billing.
+- LIVE .62:12requests, allHTTP200/INFORMATION_PROVIDED, zeroERROR/internaldomain
+  questions. Critically SAMEstarter exhausted3invalid-category repairs; ACTUAL
+  finalContextAnswerAttemptedtrue, answerSourceAVAILABLE_CONTEXT_RECOVERY, path
+  DECISION_RECOVERY_CONTEXT_ANSWER, no newretrieval, actions[]. Four extractioncalls
+  (initial+3repairs), then genuine contextgeneration. Explicit recordedfollowup
+  fetchedcatalogue. It is NOT claimed the starter succeeded in fetching on turn1.
+  Attachment/history/compounddelivery/phone comparisons worked;2noSKUitems retain
+  prices499/249, stocks8/12,heighttrue, correct250difference. AdvancedUI5/45000 ->
+  reload ->3/30000 PASS and unrelatedfieldspreserved. Nativeenvbothflags true,
+  effective3/30000. Desktop/390px nooverflow/noJSerrors; images inspected.
+- FINALIZE PASSED: packages stagingCPdsa-d5bb6ffd and prodCPdsa-620be729 promoted
+  production;6serviceshealthy/zeroRestarts, otherbindings/config preserved,
+  13enquiries/zeroBusinessWrites. BOTH OWN ADMIN SESSIONS REVOKED and oldcookie-only
+  unauthenticated inbothenvs. ALL requiredtest/browser/deploy/watchsessions CLOSED.
+  No activeownedauthsession; no APIkeyfallback. Gallery8766 untouched.
+- Honestlimits in finalqualityreview: starter canneedexplicitcataloguefollowup,
+  careapprovedevidence absent, overnarrow missing-evidence caveats, imprecise500+
+  deliverythreshold wording(notqualifiedatexact500), oldfloatingwidgetrail
+  occludessometext390px (UIunchanged, not perfectmobileclaim). BroadCI still14same
+  IncidentRoom failnames, no unmatched; earlierbackend119/oldnavfixture baseline
+  debtunchanged. Do not treat12HTTP200 as perfectallquestionquality/fleetupgrade.
+- Private proofs: ~/.codex/private/routing-recovery-0862/final-rollout-proof.private.json,
+  live-quality-review.private.json, live-cases.private.json, harbor-native-rel-a9b54dbc.private.json,
+  ui-recovery-proof.private.json, currentnormal-sessionlogoutproofs. Public rawauth/
+  requestlogs NOT committed. Finalplan010.71 + verification-support/decision-recovery/
+  2026-11-22.md record completion; olderpendingcheckpoints are history, not current.
+- Other running Brains were NOT silently upgraded;62package is now qualified/
+  promoted for normal explicit publish/apply. Docs-only HEAD/push is separate from
+  actual imageabc and unchanged UId371. Keepuser .gitignore/cache/media unrelated.
