@@ -2,7 +2,7 @@ Title: Connect approved documents and verify indexing
 Document ID: loomai-support-07
 Product: LoomAI Platform - Document Knowledge
 Audience: Customer administrators responsible for deployment knowledge
-Reviewed: 2026-11-04
+Reviewed: 2026-11-22
 
 Purpose and availability
 
@@ -26,12 +26,17 @@ Prepare and connect
 
 1. Choose documents you own or are authorized to use. Remove credentials, private
    customer records and content unsuitable for the intended answer audience.
-   The support document package accepts plain-text files and configured JSON
-   content fields; do not assume PDF, scans or arbitrary file formats work.
+   With framework 0.8.63 and the rich-document plugin revision applied, supported
+   sources include text PDFs, scanned PDFs, Word DOCX/DOC, PNG, JPEG and TIFF,
+   alongside TXT and configured JSON. Older TXT/JSON-only source policies are
+   not widened automatically; update the document plugin and publish/apply the
+   compatible Brain before indexing the additional formats.
 2. In Kit Document storage or deployment Document Knowledge, choose Use LoomAI
    storage or Connect my storage. For hosted storage, create a named connection,
    prepare its private bucket, choose a purpose prefix and bind it to customer
-   staging. Upload UTF-8 TXT or supported JSON files of at most 1 MiB each.
+   staging. Hosted uploads accept the supported formats up to 20 MiB per file.
+   Choose a purpose folder inside the applied reader's approved prefix; storing
+   a file elsewhere does not grant that runtime discovery or read access.
    Upload success means stored, not indexed or published. For BYO storage, have
    your administrator supply endpoint, region, bucket, prefix and read-only
    credentials through the connection form. Never put keys in chat or documents.
@@ -47,8 +52,12 @@ Discover, review, approve and index
 5. Register the chosen source with a meaningful Source category, such as support
    or policy, and the correct Visibility. Confirm the source and audience approval.
    If the package allows anonymous answers, approve only public-safe material.
-6. Select the registered source and Preview. Review the bounded extracted chunks
-   before indexing. The preview is not the entire file and does not activate it.
+6. Select the registered source, then Prepare. Optimize with AI can prepare
+   chunking settings, evaluation options and synthetic test questions from a
+   bounded sample. Review them and Inspect extracted chunks before indexing.
+   AI preparation does not index, publish or change document approval. The
+   standard runtime permits 20 pages or text sections per source plan. English
+   OCR is installed; inspect scanned text. Word embedded images are not OCR'd.
    Stop if extraction is incomplete, misleading or exposes restricted content.
 7. Select Index. An accepted request means work was submitted, not completed.
    Inspect source and version details, use Reconcile to check the recorded work,
@@ -58,6 +67,13 @@ Discover, review, approve and index
    Verify. Inspect the returned source, version and chunk evidence. Then try the
    actual Engage app: retrieval proof and a useful final AI answer are different
    checks, and the app may be assigned to another target release.
+
+The source's Evaluate view runs real retrieval, answers and model-judged quality
+checks. Review generated questions/references before treating them as expected
+results. A completed run is not necessarily a good answer. Evaluate and optimize
+with AI shares the actual results with the same assistant. Review the candidate,
+explicitly reindex if processing changed, and compare matching questions again.
+See LoomAI document preparation and evaluation for detailed settings and limits.
 
 For hosted uploads, the selected-file indexing control uses these same runtime
 registration, preview and reconciliation operations. Approve anonymous public

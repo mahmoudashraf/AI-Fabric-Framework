@@ -18626,6 +18626,97 @@ test is being called hosted acceptance. UI extraction remains last.
   status remain required. Hosted selected-file promotion remains not live-qualified
   by this run; do not misrepresent upload/evaluation proof as promotion proof.
 
+### Document Intelligence Production Continuation - 22 November, 20:36 UTC
+
+- Framework63 is already published; NEVER republish/retag. Global backend/UI/
+  assistant are healthy on both control planes. Final ordinary runtime is c8b1ef4.
+- Harbor rel-1d456cd2 is APPLIED_VERIFIED and rebound. Its full real four-format
+  journey attempt3 passed source evaluation (8 initial+5 repeat cases), negatives,
+  cleanup and customer sign-outs. Earlier attempt1 uploaded outside its existing
+  approved prefix; attempt2 retained an actual generated-title retrieval miss.
+  Do not claim a different question set fixes that earlier miss.
+- Harbor standalone attempt5 now ALSO proves newly uploaded Word-source RAG:
+  actual source doc-df0877b4942e8491233f21903ca5c7b9 activev3 was retrieved;
+  correct75kg/three-month answer, model USE_RAG_ONLY, own conversation and index
+  deleted, both customer sign-outs passed. Private production-journey-quality is
+  PASS with explicit limits. Technical test defaults to conversational mode with
+  retrieval disabled; use the real Customer experience for knowledge acceptance.
+- Production Support ver-e5b37a7f is applying rel-18e7fc5c. Exec4109 runs
+  qualify-support-production.mjs: observe, require verified, bind existing app,
+  native proof, then journey.mjs with real support guide14 PDF/DOCX/PNG/scannedPDF.
+  Do not replay apply. Log support-production-qualification.log.
+- IMPORTANT correction to earlier native preflight notes: actual Support's
+  existing runtime is dms30vacr6a3ni7lcvdxczex, connector m13g9mt0tj82n3glzjqv86j3,
+  as recorded in rel-aa908aa1. The old support-production-runtime-* snapshot
+  accidentally selected unrelated od7j...; it was only READ, never upgraded.
+  Native verifier now checks UUID against the selected release. Actual Support
+  app baseline comes from this task's production-apps-before, and native baseline
+  from the matching earlier same-day0862 receipt (provenance recorded privately).
+  Actual c8b1 native proof now PASSES with zero restarts, original app limits,
+  route, ports/network settings and matching native limits/volumes preserved.
+  Platform is still waiting for connector verification; this is NOT app binding
+  or end-to-end Support quality completion yet.
+- Production Support journey will use the ACTUAL Console Support Engage workspace
+  for its ordinary chat check, not the chat-only Technical test. Its useful PDF
+  index is retained; duplicate format test indices and source-assistant sessions
+  are removed. The support conversation remains as normal support audit (no
+  customer conversation-deletion API). Inspect actual answers/evidence/layout.
+- Both NORMAL task staff sessions remain ACTIVE in document-intelligence-0863.
+  Revoke both via operations.mjs logout and prove old cookies unauthenticated at
+  completion. Final sanitized report/docs and git commit/push are still required.
+
+### Document Intelligence Final Live Qualification - 22 November, 20:57 UTC
+
+- Framework0.8.63 publication is complete and immutable. Global Platform backend,
+  UI and shared assistant were deployed/qualified at4a3a56e8f on both control planes.
+  Final ordinary runtime source is c8b1ef457066b3e00b4fdfe226cec8747909e2dd, all843
+  tests passed. Acme rel-08954e78, Harbor rel-1d456cd2 and ACTUAL production
+  Support rel-18e7fc5c are all APPLIED_VERIFIED/PASSED with existing apps rebound.
+- All three real four-format UI journeys passed upload/approval/AI preparation/
+  preview/explicit index/evaluation/actual-result-to-AI/refinement/reindex when
+  required/repeat evaluation, cancellation, stale409, outsider404 and sign-outs.
+  Each primary run has8 initial+5 repeat cases; this is not a perfect-quality score.
+  Harbor's actual Engage RAG selected its new Word source and answered75kg/3months.
+  Production Support's real Engage explained scanned PDFs,20MiB and the source
+  workflow correctly. Source-scoped evaluation is separate from ordinary chat.
+- Corrected real support guide07 (old TXT/JSON/1MiB claim) and guide14 (ambiguous
+  OCR modes); qualified4+7 additional cases. Retained CURRENT sources are
+  doc-2da209bb8a9c9943424ec77e95629ded (guide07 TXT) and
+  doc-549b35e2472333a6c5108b1adf3f3879 (guide14 PDF, activev2).
+  Obsolete doc-1947f53eabbaacbd2c61df9e19a50573 and doc-392cc482064bd978f0c2330b04e7525a
+  are DELETED indices. Replacement was active before explicit UI removal. S3
+  originals/receipts remain; no source-object deletion was performed.
+- Final new-conversation Support question confirmed20MiB using current sources;
+  saved source/evaluation desktop390px revisit PASS, signed out. All temporary
+  source assistant sessions and own fictional/test indices were removed. Actual
+  Support conversations remain normal audit; no customer deletion API exists.
+- Preserve quality limits: earlier generic title retrieval miss; wrong synthetic
+  unanswerable reference from truncated sample and misleading judge score; and
+  a multi-part Support specialist answer that missed20MiB despite evidence. Direct
+  question passed; do not claim the compound reasoning is fixed. No late framework
+  patch, forced routing, lexical validator or model-answer rewrite was introduced.
+  Technical test still defaults to chat-only mode; actual Engage proves retrieval.
+  Hosted selected-file promotion remains unit-qualified, NOT live-qualified here.
+- Final resource proof compares all six existing runtime/connector application
+  identities and original limits/ports/network/routes, plus native runtime source,
+  mounts/limits/health/zero restarts. Correct Support UUID is dms30vacr6a3ni7lcvdxczex;
+  its matching earlier0862 native baseline plus this task's original app settings
+  are recorded privately. No new infrastructure, sizing/capacity/billing change.
+- BOTH normal task staff sessions were REVOKED using this task's operations.mjs.
+  logout-staging/production proofs show oldCookieAuthenticated:false. Do not use
+  the renamed revoked cookies or revive the sessions for routine follow-up.
+- Raw evidence/helpers: ~/.codex/private/document-intelligence-0863. The canonical
+  sanitized report is verification-support/document-intelligence/2026-11-22_RELEASE.md.
+  Individual failed harness attempts remain (scope, nullable TXT diagnostics,
+  completed-run selection/label matching, compound evidence shape). They are not
+  silent green retries. Existing broad backend fixtures/Incident Room CI remain.
+- Concurrent source commit aa676567f added Support history/new-chat/diagnostics
+  after this task's baseline. Preserve it when synchronizing final docs; do not
+  reset or redeploy over it. That source/UI was not published by this run; its
+  absent live New support chat button caused a harness lookup failure AFTER both
+  old indices were successfully retired. Use exact serving image evidence, not
+  the latest shared worktree files, to interpret current UI capabilities.
+
 ### Support Continuity Implementation Checkpoint - 22 November, 20:41 UTC
 
 - Latest owner task: implement history + ordinary-chat diagnostics first, then
@@ -18798,3 +18889,12 @@ test is being called hosted acceptance. UI extraction remains last.
   quality gate, production rollout/qualification, reusable installation proof,
   final unrelated-resource/settings preservation and cleanup/report. BuildwithAI
   rechecks require owner allowance answer. No infra or gallery8766 changes.
+
+### Cross-Task Status Reconciliation - 22 November, 20:58 UTC
+
+Both concurrent entries above are preserved. The 20:41 Support checkpoint's
+pending document release is superseded by Document Intelligence Final Live
+Qualification at20:57: rel-18e7fc5c is verified/rebound and its real document
+journey is complete with the named quality limits. Document-intelligence staff
+sessions are revoked. This does not revoke/reuse the separate Support-specialists
+task's sessions, publish its aa676567f UI, or complete its remaining phases.
