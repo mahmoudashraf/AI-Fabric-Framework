@@ -6,10 +6,37 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
 import static org.assertj.core.api.Assertions.*;
 
 class SupportSpecialistDefaultsTest {
     final ObjectMapper json = new ObjectMapper();
+
+    @Test void correctedProfilesPassTheActualTemplateParserNotJustTheRuntimeCompiler() throws Exception {
+        Path root = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+        while (root != null && !Files.isDirectory(root.resolve("product-templates/ai-support-workspace"))) root = root.getParent();
+        assertThat(root).isNotNull();
+        for (String name : Set.of("ai-support-workspace", "loomai-support-workspace")) {
+            boolean internal = name.startsWith("loomai-");
+            var source = (ObjectNode) json.readTree(Files.readString(root.resolve("product-templates/ai-support-workspace/manifests/"+name+".1.3.0.manifest.json")));
+            var defaults = V245__support_specialist_template_defaults.defaults();
+            var bad = V245__support_specialist_template_defaults.revise(source,defaults,internal);
+            var plugin = new MarketplacePluginEntity(); plugin.setId(source.path("pluginId").asText()); plugin.setPluginType("TEMPLATE");
+            var version = new MarketplacePluginVersionEntity(); version.setPluginId(plugin.getId()); version.setVersion(source.path("version").asText());
+            version.setManifestJson(json.writeValueAsString(bad));
+            var parser = new MarketplaceManifestService(json);
+            assertThatThrownBy(() -> parser.parseAndValidate(plugin,version)).hasMessageContaining("must agree with executionExtensions");
+            var corrected = V246__support_template_extension_contract.corrected(source,defaults,internal);
+            version.setManifestJson(json.writeValueAsString(corrected));
+            assertThatCode(() -> parser.parseAndValidate(plugin,version)).doesNotThrowAnyException();
+            assertThat(corrected.at("/contributions/template/deploymentBehavior").has("executionExtensions")).isFalse();
+            assertThat(V246__support_template_extension_contract.corrected(corrected,defaults,internal)).isEqualTo(corrected);
+        }
+    }
 
     @Test void fiveAreasAndAdaptivePlansCompileInsideExistingBudgetsWithoutWritesOrPrivateGenericTools() throws Exception {
         var defaults = V245__support_specialist_template_defaults.defaults();

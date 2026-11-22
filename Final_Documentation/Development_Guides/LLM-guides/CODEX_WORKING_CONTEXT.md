@@ -18898,3 +18898,47 @@ Qualification at20:57: rel-18e7fc5c is verified/rebound and its real document
 journey is complete with the named quality limits. Document-intelligence staff
 sessions are revoked. This does not revoke/reuse the separate Support-specialists
 task's sessions, publish its aa676567f UI, or complete its remaining phases.
+
+### Support Staging Contract Finding - 21:33 UTC
+
+- Phase1 production Support rel-01156f65 is APPLIED_VERIFIED/PASSED and its
+  existing app rebound. Normal customer live history/new/reopen/consent/status/
+  revocation/isolation all captured and browser signedout. Source metadata and
+  canonical restored transcript match real Harbor releases. Narration remains
+  overly formal; phase2 replaces Support answer guidance, not model output.
+- Phase2 backend160b92142 staged job fymtm9v1lyqgholovkd4vwpv FAILED startup:
+  V245 mistakenly used runtime executionExtensions instead of template
+  defaultExecutionExtensions. It applied245 before catalogue startup validation
+  rejected generic1.5.0. Original aa676567 backend remains running healthy,
+  API200. No production phase2 backend/runtime deployment. Do NOTedit/rechecksum
+  V245 or bypass startup checks. V246 forward correction preserves invalid seed
+  payload/hash as REJECTED only when unreferenced, publishes corrected additive
+  templates and uses proper allowed/default fields. Startup skips unreviewed/
+  rejected audit payloads; published manifests remain validated, and template
+  bootstrap now explicitly requires PUBLISHED. Actual full manifest-parser
+  regression reproduces/fixes the mismatch; migration/contract tests passed.
+  Final combined suite exec currently25065 CLOSED; new final exec recorded in
+  tool output and phase2-final-tests.log must be observed before release.
+- Current stage UI35d05edde verified healthy/settingspreserved. Backend and UI
+  have deliberately distinct exact image sources: CI correctly skips unaffected
+  roles. Failed initial backend35 image pull occurred BEFORE mutation and is
+  preserved as *ui-only-tag-preflight-failure. Corrective backend needs its own
+  actual successful image CI proof. Preserve failed stage deployment folder;
+  retry only reviewed corrected source, schema246, no duplicate active jobs.
+- Real production guide10/12 normal customer upload/approval/preview/index PASS,
+  sources doc-78236d2d3b68e9464dddc99d639605ea and
+  doc-aca936af6ec7d82790014746a921fe6c ACTIVE. Only their two old indexed versions
+  retired, no source objects deleted. Initial browser response cache eviction
+  recovered by observing the existing uploaded object's matching digest through
+  the same normal customer API; no duplicate upload. Owner browser signedout.
+  Stage Support has no hosted storage connection; don't copy production private
+  credentials or create new buckets to manufacture parity. Source guides updated;
+  no claim that the stage approved pack was refreshed by production indexing.
+- Own staff sessions BOTH active; BuildwithAI allowance answer still pending,
+  no topup or funding/capacity change. Production8-case regression remains3
+  PREPAREs+followup/undo/BEHAVIOUR PASS, remaining5 provider turn allowance blocks;
+  stage earlier8-case regression PASS. All its temporary resources deleted.
+  Remaining: corrected CI/stage backend, normal phase2 Support publish/apply/bind,
+  specialist-live.mjs staging/manualquality, production backend/apply/quality,
+  generic template bootstrap reuse check, final resource/settings audit +logout
+  BOTH own sessions and verification report. No public framework change.

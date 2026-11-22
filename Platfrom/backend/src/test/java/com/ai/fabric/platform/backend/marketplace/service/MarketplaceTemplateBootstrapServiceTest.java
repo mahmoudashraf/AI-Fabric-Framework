@@ -215,4 +215,18 @@ class MarketplaceTemplateBootstrapServiceTest {
             .isEqualTo("{\"historical\":true}");
         verifyNoInteractions(manifests, plugins);
     }
+
+    @ParameterizedTest
+    @CsvSource({"SUBMITTED,true", "SUBMITTED,false", "REJECTED,true", "REJECTED,false", "VALIDATED,true", "DRAFT,false"})
+    void unpublishedExplicitVersionsCannotCrossThePublicationBoundary(String status, boolean configurationOnly) {
+        var plugin = new MarketplacePluginEntity(); plugin.setId("template"); plugin.setStatus("ACTIVE");
+        var version = new MarketplacePluginVersionEntity(); version.setVersion("1.0.0"); version.setStatus(status);
+        when(catalog.requirePluginEntity("template")).thenReturn(plugin);
+        when(catalog.requirePluginVersionEntity("template","1.0.0")).thenReturn(version);
+        var service = new MarketplaceTemplateBootstrapService(catalog,manifests,compiler,installs,installRepository,deploymentRepository,deployments,audit,mapper);
+        var request = new CreateMarketplaceTemplateBootstrapRequest("1.0.0","Test","staging",null,null,null,null);
+        assertThatThrownBy(() -> { if(configurationOnly) service.bootstrapConfiguration("template",request); else service.bootstrap("template",request); })
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Only published Marketplace templates");
+        verifyNoInteractions(manifests,compiler,installs,installRepository,deploymentRepository,deployments,audit);
+    }
 }

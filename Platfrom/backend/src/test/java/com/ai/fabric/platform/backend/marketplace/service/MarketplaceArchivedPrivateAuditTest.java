@@ -7,6 +7,18 @@ import java.util.List;
 import static org.mockito.Mockito.*;
 
 class MarketplaceArchivedPrivateAuditTest {
+    @Test void rejectedAndUnreviewedPayloadsDoNotGateStartupButPublishedVersionsStillValidate() {
+        var plugins = mock(MarketplacePluginRepository.class); var versions = mock(MarketplacePluginVersionRepository.class);
+        var manifests = mock(MarketplaceManifestService.class); var plugin = new MarketplacePluginEntity(); plugin.setId("public-template");
+        var version = new MarketplacePluginVersionEntity(); version.setPluginId(plugin.getId());
+        when(plugins.findAll()).thenReturn(List.of(plugin)); when(versions.findAll()).thenReturn(List.of(version));
+        for (String state : List.of("REJECTED", "SUBMITTED")) {
+            version.setStatus(state); new MarketplaceCatalogStartupValidator(plugins,versions,manifests).afterSingletonsInstantiated();
+        }
+        verifyNoInteractions(manifests);
+        version.setStatus("PUBLISHED"); new MarketplaceCatalogStartupValidator(plugins,versions,manifests).afterSingletonsInstantiated();
+        verify(manifests).parseAndValidate(plugin,version);
+    }
     @Test void archivedUnsupportedPrivateVersionsAreRetainedButNotValidatedAsExecutableCatalogueEntries() {
         var plugins = mock(MarketplacePluginRepository.class);
         var versions = mock(MarketplacePluginVersionRepository.class);

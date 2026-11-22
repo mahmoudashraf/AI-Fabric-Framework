@@ -148,6 +148,16 @@ workflow with the selected target preserved; it never publishes or applies.
 Source import alone does not invoke AI or index customer knowledge. Actual
 validation warnings/failures remain visible even if a candidate was saved.
 Keep model text intact; human status labels use exact protocol states only.
+
+Console Support's dock and Support page share canonical runtime history. The
+host restores an owned conversation; do not add a second local transcript store.
+History, explicit New chat and Configure diagnostics use the same controls in
+both presentations. Ordinary chat can select resources and grant diagnostic
+consent without a ticket; new chat never inherits either. Ticket adoption uses
+the ticket's authoritative episode, not a parallel ordinary conversation.
+Support specialists are read-only; requested configuration edits still use the
+canonical Build with AI panel. Read SUPPORT_CONTINUITY_AND_SPECIALISTS.md before
+changing these boundaries. This is not the rejected customer-wide redesign.
 Session management and raw references belong under session options/Advanced.
 Manual action/plugin editors remain the single editable implementation, opened
 explicitly from the outcome table rather than automatically mounting on entry.
