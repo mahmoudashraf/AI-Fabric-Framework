@@ -33,7 +33,8 @@ class AuthoringTaskIntentTest {
         var result = AuthoringTaskIntent.resolve("ACTIONS", "Only the availability endpoint.", "PREPARE", null);
         assertThat(result.query()).contains("selected documentation defines the operation scope",
             "narrowed by explicit operation or editor selections", "One fully documented operation is sufficient",
-            "do not ask whether additional undocumented operations exist", "authorization binding");
+            "do not ask whether additional undocumented operations exist", "authorization binding",
+            "essential missing information, not a descriptive assumption", "never its secret value");
         assertThat(result.query()).endsWith("Only the availability endpoint.");
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())
             .isEqualTo("Explain this route only.");

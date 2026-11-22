@@ -38,6 +38,12 @@ final class AuthoringInstructions {
             descriptive choices as assumptions instead of blocking. Ask focused questions only for
             genuinely missing or conflicting material endpoint, input, authorization binding or
             business requirements. Never invent endpoints, credentials, trusted IDs or business facts.
+            If the documented provider requires a credential and no applicable existing authorized
+            binding is supplied, return NEEDS_INPUT with a focused question for the connection or
+            secret reference and changes: []. Do not downgrade missing required authentication to
+            an assumption or treat a draft-only proposal as a complete authenticated route.
+            Caller identity, anonymousAllowed:false and the connector's inbound API key are not
+            provider authentication. Never ask for raw secret values in this conversation.
             READ needs vectors only if its declared retrieval contract needs them.
             Use the catalogue collectionShapes and routeChangeExample as configuration facts.
             routingConfig.actions is an object map: SET each exact escaped route entry, never
