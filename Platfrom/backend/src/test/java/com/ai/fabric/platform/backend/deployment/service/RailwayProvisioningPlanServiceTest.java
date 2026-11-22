@@ -138,6 +138,37 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void largeSpecialistBundleUsesSignedVersionArtifactAndDisabledConfigurationClearsBothTransports() throws Exception {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        when(artifacts.specialistAssistanceArtifactUrl(org.mockito.ArgumentMatchers.any()))
+            .thenReturn("https://platform.example/specialist-assistance.json?sig=synthetic");
+        var mapper = new ObjectMapper();
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), mapper);
+        var behavior = SpecialistAssistanceFixtures.behavior(mapper);
+        for (var area : behavior.at("/specialistAssistance/areas")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) area).put("instructions", "Approved instruction. ".repeat(180));
+        }
+        behavior = new SpecialistAssistanceCompiler(mapper).compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
+        assertThat(com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.requiresArtifact(behavior, mapper)).isTrue();
+        var version = version(); version.setBehaviorConfigJson(behavior.toString());
+        var env = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+        assertThat(env).containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64", "")
+            .containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_URL", "https://platform.example/specialist-assistance.json?sig=synthetic")
+            .containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", behavior.at("/specialistAssistance/contentHash").asText());
+        version.setBehaviorConfigJson(new com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService(mapper)
+            .defaultConfig("CONVERSATIONAL").toString());
+        assertThat(envMap(service.buildPlan(deployment(), version).services().runtime().env()))
+            .containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64", "")
+            .containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_URL", "")
+            .containsEntry("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", "");
+    }
+
+    @Test
     void ticketOnlyActionsReceiveTargetScopedManagedConnectorEnvironmentWithoutHumanChannel() {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

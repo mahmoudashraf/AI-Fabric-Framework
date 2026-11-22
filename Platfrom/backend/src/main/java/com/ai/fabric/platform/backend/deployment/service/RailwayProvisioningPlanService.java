@@ -393,8 +393,12 @@ public class RailwayProvisioningPlanService {
             JsonNode compiled = assistance.path("compiled");
             String hash = assistance.path("contentHash").asText();
             compiler.verifyCompiled(compiled, hash);
-            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64",
+            boolean artifactDelivery = com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery
+                .requiresArtifact(behaviorConfig, objectMapper);
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64", artifactDelivery ? "" :
                 java.util.Base64.getEncoder().encodeToString(compiler.serialized(compiled).getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_URL", artifactDelivery
+                ? artifactService.specialistAssistanceArtifactUrl(version) : ""));
             runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", hash));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_MANIFESTS_ENABLED", "true"));
             JsonNode limits = assistance.path("limits");
@@ -402,6 +406,10 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_MANAGER_DECISIONS", limits.path("maxDecisions").asText()));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_WORKER_INVOCATIONS", limits.path("maxWorkerInvocations").asText()));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_SPECIALIST_CHAINS_MAX_PARALLEL_WORKERS", limits.path("maxParallelWorkers").asText()));
+        } else {
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_URL", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH", ""));
         }
         if (managedTasksEnabled) {
             var compiler = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper);

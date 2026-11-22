@@ -608,6 +608,9 @@ public class DeploymentBehaviorCatalogService {
         LinkedHashSet<String> migrationIds = new LinkedHashSet<>(behavior.requiredRuntimeMigrationIds());
         LinkedHashSet<String> verificationPackIds = new LinkedHashSet<>(behavior.baselineVerificationPackIds());
         LinkedHashSet<String> executionExtensions = stringSet(behaviorConfig.path("executionExtensions"));
+        if (com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.requiresArtifact(behaviorConfig, objectMapper)) {
+            capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.CAPABILITY);
+        }
         boolean managedTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
         if (managedTasks) {
             capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CAPABILITY);

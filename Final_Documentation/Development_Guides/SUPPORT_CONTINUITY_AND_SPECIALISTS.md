@@ -117,6 +117,19 @@ Node consistency tests
 prevent drift; compiler tests verify both profiles within the existing 65536-byte
 runtime bundle limit. No framework limit increase follows from this feature.
 
+Compiled bundles above 16384 UTF-8 bytes use a signed, version-specific
+`specialist-assistance.json` artifact instead of nested base64 in provider shell
+commands. This protects the provider's OS argument-size boundary. Apply requires
+the selected runtime image's `signed-specialist-bundle-bootstrap-v1` capability
+before provisioning; old images remain usable for smaller inline bundles.
+The private runtime entrypoint downloads over HTTPS, enforces the existing
+65536-byte limit, verifies the published SHA-256 digest and exports the existing
+base64 setting locally. The unchanged framework loader verifies it again.
+Download/hash failures stop startup without falling back to stale configuration.
+Disabled specialists explicitly clear both transports and their hash. Signed
+artifact access retains existing version ownership and signature rules; it is
+not an unauthenticated configuration catalogue or a new AI execution engine.
+
 Approved Support guides 10 and 12 describe the customer workflow. Source edits
 are not live indexing evidence: upload, approval, preview and indexing must be
 observed through the existing owned document workflow before retiring an older

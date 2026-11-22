@@ -392,6 +392,34 @@ class DeploymentServiceApplyGuardTest {
     }
 
     @Test
+    void largeSpecialistTransportRejectsOldRuntimeBeforeApprovalOrProvisioning() throws Exception {
+        var artifact = prepareTokenApply();
+        version.setProviderConfigJson("{\"aiStateStorageMode\":\"CUSTOMER_POSTGRES\"}");
+        var behavior = com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.behavior(objectMapper);
+        for (var area : behavior.at("/specialistAssistance/areas")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) area).put("instructions", "Approved instruction. ".repeat(180));
+        }
+        behavior = new com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler(objectMapper)
+            .compileBehavior(behavior, com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceFixtures.authority());
+        version.setBehaviorConfigJson(behavior.toString());
+        var requirements = new DeploymentBehaviorCatalogService(objectMapper).releaseRequirements(behavior);
+        var manifest = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(artifact.getCapabilityManifestJson());
+        manifest.set("supportedExecutionExtensions", objectMapper.valueToTree(requirements.executionExtensions()));
+        manifest.set("capabilities", objectMapper.valueToTree(requirements.capabilities().stream()
+            .filter(value -> !com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.CAPABILITY.equals(value)).toList()));
+        manifest.set("migrationIds", objectMapper.valueToTree(requirements.migrationIds()));
+        manifest.set("verificationPackIds", objectMapper.valueToTree(requirements.verificationPackIds()));
+        var normalized = capabilityManifestService.normalize(manifest);
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", "approval", "target-staging", "runtime"))
+            .hasMessageContaining(com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.CAPABILITY);
+        verifyNoInteractions(deploymentOperationApprovalService, deploymentReleaseExecutionService, platformAuditService);
+        verify(releaseRepository, never()).save(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void productionQualifiedArtifactPassesStagingChannelGuardWithoutSkippingLaterChecks() throws Exception {
         var artifact = prepareTokenApply();
         artifact.setPromotionChannel("production");

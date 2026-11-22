@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import org.slf4j.Logger;
@@ -44,19 +46,22 @@ public class DeploymentArtifactService {
     private final PlatformSecretService platformSecretService;
     private final PlatformAuditService platformAuditService;
     private final DeploymentAccessService deploymentAccessService;
+    private final ObjectMapper objectMapper;
 
     public DeploymentArtifactService(DeploymentRepository deploymentRepository,
                                      DeploymentVersionRepository versionRepository,
                                      PlatformDeliveryProperties deliveryProperties,
                                      PlatformSecretService platformSecretService,
                                      PlatformAuditService platformAuditService,
-                                     DeploymentAccessService deploymentAccessService) {
+                                     DeploymentAccessService deploymentAccessService,
+                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.deliveryProperties = deliveryProperties;
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
         this.deploymentAccessService = deploymentAccessService;
+        this.objectMapper = objectMapper;
     }
 
     public DeploymentArtifactBundleSummary getBundleSummary(String deploymentId, String versionId) {
@@ -147,6 +152,28 @@ public class DeploymentArtifactService {
                                        String signature) {
         return authorizeArtifactAccess(deploymentId, versionId, "deployment-manifest.json", expires, signature)
             .getManifestJson();
+    }
+
+    public String specialistAssistanceArtifactUrl(DeploymentVersionEntity version) {
+        return artifactUrl(version, "specialist-assistance.json");
+    }
+
+    public String readSpecialistAssistanceArtifact(String deploymentId, String versionId,
+                                                  Long expires, String signature) {
+        DeploymentVersionEntity version = authorizeArtifactAccess(
+            deploymentId, versionId, "specialist-assistance.json", expires, signature);
+        try {
+            var behavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (!SpecialistAssistanceCompiler.enabled(behavior)) {
+                throw new ResponseStatusException(NOT_FOUND, "Specialist assistance is not enabled in this version.");
+            }
+            var config = behavior.path("specialistAssistance");
+            var compiler = new SpecialistAssistanceCompiler(objectMapper);
+            compiler.verifyCompiled(config.path("compiled"), config.path("contentHash").asText());
+            return compiler.serialized(config.path("compiled"));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+            throw new IllegalStateException("Stored specialist assistance configuration is invalid.", invalid);
+        }
     }
 
     public DeploymentVersionEntity getVersion(String deploymentId, String versionId) {

@@ -119,6 +119,16 @@ public class DeploymentArtifactsController {
             .body(deploymentArtifactService.readManifestArtifact(deploymentId, versionId, expires, signature));
     }
 
+    @GetMapping("/specialist-assistance.json")
+    public ResponseEntity<String> getSpecialistAssistanceArtifact(@PathVariable String deploymentId,
+                                                                  @PathVariable String versionId,
+                                                                  @RequestParam(name = "expires", required = false) Long expires,
+                                                                  @RequestParam(name = "sig", required = false) String signature) {
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .body(deploymentArtifactService.readSpecialistAssistanceArtifact(deploymentId, versionId, expires, signature));
+    }
+
     private ResponseEntity<String> yamlResponse(String filename, String body) {
         return ResponseEntity.ok()
             .contentType(YAML_MEDIA_TYPE)

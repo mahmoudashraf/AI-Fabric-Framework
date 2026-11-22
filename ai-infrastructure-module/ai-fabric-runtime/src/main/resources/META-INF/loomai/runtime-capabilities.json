@@ -66,6 +66,7 @@
     "specialist-chains",
     "published-specialist-assistance-v1",
     "conversational-specialist-assistance",
+    "signed-specialist-bundle-bootstrap-v1",
     "completed-turn-presentations-v1",
     "provider-webhook-ingress"
   ],

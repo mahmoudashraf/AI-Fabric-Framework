@@ -19019,3 +19019,36 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   neutral bootstrap UI proof; final nonSupport drafts/versions/releases and native
   resource/env/limit preservation; sessioncleanup; sanitizedverification report,
   source context/docs finalcommit/push. Do not stop afterPhase1 or source tests.
+
+### Support Specialist Transport Correction - 22:18 UTC
+
+- Source cdbed8535 backend/UI is healthy on staging/schema247. Compound diagnostic
+  1.2.0 installation and publication ver-9195948d succeeded. Its apply rel-090a532c
+  FAILED before Java startup: nested base64 environment transport produced a
+  134281-byte provider shell command, above the Linux single-argument boundary.
+  No production phase2 rollout. Failed proof is retained privately; never print
+  raw deployment commands because encoded environment contains credentials.
+- Normal software recovery rel-43a09363 applies the last verified phase1 version
+  ver-d0634f1b/artifact dsa-bd988400 to the SAME existing staging target. Both owned
+  services observed running:healthy; release still completing normal provisioning
+  and verification. Observe it before another apply, no duplicate recovery.
+- Corrective source introduces signed, version-specific specialist artifact
+  bootstrap for compiled bundles above16384bytes, preserving the65536byte runtime
+  maximum and exact published hash. Small historical bundles keep inline delivery.
+  New runtime capability is required by the existing apply compatibility guard
+  BEFORE approval consumption/provisioning, proven by focused tests. Disabled
+  config clears both transports/hash. Private image entrypoint downloads HTTPS,
+  bounds size and verifies hash, then exports existing base64 locally. No public
+  framework change: framework remains0.8.63 and its loader rechecks the bundle.
+- Transport focused backend101PASS; entrypoint2PASS. Full private runtime suite
+  currently running (exec26475, phase2-runtime-full-tests.log), observe its exit.
+  Recovery observer exec23893 is read-only. Own staff sessions BOTH still active;
+  logout both at finish. Current user BuildwithAI allowance question unanswered,
+  no funding/limit/infra changes; production authoring still100/100 blocked.
+- Need new backend/runtime CI, exact immutable image proof/normal registration,
+  stagebackend correction then reapply ALREADY published specialist version919
+  with qualified URL-bootstrap image; bind and real5area/5plan quality tests.
+  Keep failed stage apply/evidence, use explicit new attempt. Then production
+  backend/UI + Support normal publish/apply/bind, realquality, generic bootstrap,
+  preservation audit and sanitized verification record. UI can retain exactcdb
+  source; do not require a nonexistent UI image for a backend-only change.
