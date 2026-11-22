@@ -32,7 +32,7 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
   const auth = usePlatformAuth()
   const latestAuth = useRef(auth); latestAuth.current = auth
   const support = useCustomerSupport()
-  const { attachController, selectedRequest } = support
+  const { attachController, selectedRequest, selectedConversation, conversationSelection, setBusy } = support
   const dark = useTheme().palette.mode === 'dark'
   const latestTheme = useRef(dark); latestTheme.current = dark
   const latestVisibility = useRef(visible); latestVisibility.current = visible
@@ -50,6 +50,7 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
     let mounted: SupportExperienceController | undefined
     let adapter: ReturnType<typeof createConsoleSupportApi> | undefined
     let releaseState: (() => void) | undefined
+    let releaseChatState: (() => void) | undefined
     const abort = new AbortController()
     const assertOwner = () => {
       const latest = latestAuth.current
@@ -69,8 +70,9 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
     setReady(false); setError(null)
     const start = async () => {
       assertOwner()
-      const initial = approvedBootstrap(await getSupportWorkspace(undefined, abort.signal))
+      const initial = approvedBootstrap(await getSupportWorkspace(undefined, abort.signal, conversationSelection.id, conversationSelection.create))
       assertOwner()
+      selectedConversation(initial.conversationId)
       let first: ConsoleSupportWorkspaceBootstrap | undefined = initial
       const fetchWorkspace = async (requestId?: string) => {
         assertOwner()
@@ -84,6 +86,7 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
       frame = await createIsolatedWorkspaceHost<SupportChatApi>({ url: initial.workspaceAssetUrl, integrity: initial.workspaceIntegrity }, { layer: latestLayer.current })
       if (!active) { frame.destroy(); return }
       workspaceFrame.current = frame
+      releaseChatState = frame.maxMode.onStateChange(state => { if (active) setBusy(state.busy) })
       const host: SupportHostAdapter = { runtimeCredentialMode: 'host-mediated',
         apiBaseUrl: new URL('/api/support', new URL(getPlatformApiBaseUrl(), document.baseURI)).href,
         getIdentityAccessToken: token,
@@ -125,10 +128,10 @@ export function SupportWorkspace({ visible, layer, presentation = 'page' }: { vi
       if (active) setError(supportErrorMessage(cause))
     })
     return () => {
-      active = false; abort.abort(); releaseState?.(); attachController(null)
+      active = false; abort.abort(); releaseState?.(); releaseChatState?.(); setBusy(false); attachController(null)
       current.current = null; workspaceFrame.current = null; mounted?.destroy(); if (!mounted) frame?.destroy(); adapter?.destroy()
     }
-  }, [identity, retry, attachController, selectedRequest])
+  }, [identity, retry, attachController, selectedRequest, selectedConversation, conversationSelection, setBusy])
   useEffect(() => { current.current?.setVisible(visible) }, [visible])
   useEffect(() => { current.current?.setTheme(dark ? 'dark' : 'light') }, [dark])
   useEffect(() => { workspaceFrame.current?.setLayer(layer) }, [layer])

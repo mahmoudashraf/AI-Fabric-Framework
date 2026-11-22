@@ -5,10 +5,10 @@ import SupportAgentOutlined from '@mui/icons-material/SupportAgentOutlined'
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded'
 import RemoveRounded from '@mui/icons-material/RemoveRounded'
 import SwapHorizRounded from '@mui/icons-material/SwapHorizRounded'
-import TuneRounded from '@mui/icons-material/TuneRounded'
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded'
 import { useCustomerSupport } from './CustomerSupportContext'
 import { SupportWorkspace } from './SupportWorkspace'
+import { SupportConversationControls } from './SupportConversationControls'
 
 export function CustomerSupportAssistant({ bottomOffset = 0, initiallyMinimized = false }: { bottomOffset?: number; initiallyMinimized?: boolean } = {}) {
   const support = useCustomerSupport()
@@ -36,12 +36,12 @@ export function CustomerSupportAssistant({ bottomOffset = 0, initiallyMinimized 
       {inPage && <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
         <Stack direction="row" spacing={0.75} alignItems="center"><SupportAgentOutlined fontSize="small" color="secondary" /><Typography variant="subtitle2">LoomAI Support</Typography></Stack>
         <Stack direction="row" spacing={0.25}>
-          {support.requestId && <Tooltip title="Configure diagnostics"><IconButton size="small" aria-label="Configure diagnostics" onClick={() => support.setDiagnosticsOpen(true)}><TuneRounded fontSize="small" /></IconButton></Tooltip>}
+          <SupportConversationControls />
         </Stack>
       </Stack>}
       {!inPage && <Stack data-testid="support-dock-controls" spacing={0.5} sx={{ position: 'fixed', bottom: bottomOffset + 24, ...controlPosition,
         zIndex: 1102, pointerEvents: 'auto', p: 0.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1, boxShadow: 2 }}>
-        {support.requestId && <Tooltip title="Configure diagnostics"><IconButton size="small" aria-label="Configure diagnostics" onClick={() => support.setDiagnosticsOpen(true)}><TuneRounded fontSize="small" /></IconButton></Tooltip>}
+        <SupportConversationControls direction="column" />
         <Tooltip title="Support and requests"><IconButton component={Link} to={openFull} size="small" aria-label="Open support page"><OpenInFullRounded fontSize="small" /></IconButton></Tooltip>
         <Tooltip title={`Move support to the ${support.side === 'right' ? 'left' : 'right'}`}><IconButton size="small" aria-label={`Move support to the ${support.side === 'right' ? 'left' : 'right'}`} onClick={support.changeSide}><SwapHorizRounded fontSize="small" /></IconButton></Tooltip>
         <Tooltip title="Minimize support"><IconButton size="small" aria-label="Minimize support" onClick={() => support.setMinimized(true)}><RemoveRounded fontSize="small" /></IconButton></Tooltip>

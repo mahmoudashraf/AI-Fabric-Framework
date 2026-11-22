@@ -63,6 +63,7 @@ public class SupportTicketService {
     public JsonNode createForConversation(Create input, String key, SupportConversationScopeService.Scope scope, Map<String,String> headers) {
         settings.requireEnabled(); requesters.requireActive(scope.requester());
         if (!scope.conversationId().equals(input.existingConversationId())) throw SupportPolicy.denied();
+        conversations.context(scope, true);
         var ticket = client.request(scope.requester(), "POST", "/requests", input, key, headers, scope.runtimePrincipal(), scope.conversationId());
         ensureContext(scope.requester(), ticket);
         return ticket;

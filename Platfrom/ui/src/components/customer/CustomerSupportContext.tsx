@@ -10,6 +10,10 @@ type SupportContext = {
   customerId: string; actorId: string; ownerKey: string; requestId: string | null
   side: 'left' | 'right'; changeSide(): void; minimized: boolean; setMinimized(value: boolean): void
   diagnosticsOpen: boolean; setDiagnosticsOpen(value: boolean): void
+  conversationId: string | null; selectedConversation(id: string): void
+  conversationSelection: { id?: string; create: boolean; revision: number }
+  openConversation(id?: string): void
+  busy: boolean; setBusy(value: boolean): void
   attachController(controller: SupportExperienceController | null): void
   selectedRequest(id: string | null): void
   openChat(): void; openRequestForm(): void; showRequests(): void; openRequest(id: string): void
@@ -37,6 +41,10 @@ function ScopedCustomerSupportProvider({ children, customerId, actorId, subject 
   const key = `loomai:console:support-kit:${customerId}:${actorId}:${subject || actorId}`
   const [settings, setSettings] = useState(() => preferences(key))
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversationSelection, setConversationSelection] = useState<{ id?: string; create: boolean; revision: number }>({ create: false, revision: 0 })
+  const [busy, setBusy] = useState(false)
+  const selectedConversation = useCallback((id: string) => setConversationId(id), [])
   const controller = useRef<SupportExperienceController | null>(null)
   const desiredView = useRef<View>(settings.requestId ? { kind: 'request', id: settings.requestId } : { kind: 'chat' })
   useEffect(() => { try { sessionStorage.setItem(key, JSON.stringify(settings)) } catch { /* UI preferences are optional. */ } }, [key, settings])
@@ -68,10 +76,19 @@ function ScopedCustomerSupportProvider({ children, customerId, actorId, subject 
   const openRequestForm = useCallback(() => show({ kind: 'form' }), [show])
   const openRequest = useCallback((id: string) => show({ kind: 'request', id }), [show])
   const setMinimized = useCallback((minimized: boolean) => setSettings(value => value.minimized === minimized ? value : { ...value, minimized }), [])
+  const openConversation = useCallback((id?: string) => {
+    if (busy) return
+    desiredView.current = { kind: 'chat' }
+    setSettings(value => ({ ...value, requestId: null, minimized: false }))
+    setConversationId(null)
+    setConversationSelection(value => ({ id, create: !id, revision: value.revision + 1 }))
+    if (location.pathname.startsWith('/support/')) navigate('/support', { replace: true })
+  }, [busy, location.pathname, navigate])
   return <Context.Provider value={{ customerId, actorId, ownerKey: key, requestId: settings.requestId,
     side: settings.side, changeSide: () => setSettings(value => ({ ...value, side: value.side === 'right' ? 'left' : 'right' })),
     minimized: settings.minimized, setMinimized,
-    diagnosticsOpen, setDiagnosticsOpen, attachController, selectedRequest, openChat, openRequestForm, showRequests, openRequest }}>{children}</Context.Provider>
+    diagnosticsOpen, setDiagnosticsOpen, conversationId, selectedConversation, conversationSelection, openConversation, busy, setBusy,
+    attachController, selectedRequest, openChat, openRequestForm, showRequests, openRequest }}>{children}</Context.Provider>
 }
 
 export function useCustomerSupport() {

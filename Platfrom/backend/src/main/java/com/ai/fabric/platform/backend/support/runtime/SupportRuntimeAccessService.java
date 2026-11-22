@@ -66,7 +66,9 @@ public class SupportRuntimeAccessService {
     }
 
     public Access resolveConversation(String conversationId) {
-        return conversationAccess(conversations.current(conversationId));
+        var scope = conversations.current(conversationId);
+        var adopted = cases.findContextByPrincipal(scope.runtimePrincipal(), false);
+        return adopted.isPresent() ? resolveEpisode(adopted.orElseThrow().ticketId(), conversationId) : conversationAccess(scope);
     }
 
     public Access conversationAccess(SupportConversationScopeService.Scope scope) {
@@ -110,7 +112,9 @@ public class SupportRuntimeAccessService {
 
     public Bootstrap bootstrap(String caseId) { return bootstrap(resolve(caseId), caseId); }
 
-    public Bootstrap bootstrapConversation() { return bootstrap(conversationAccess(conversations.create()), null); }
+    public Bootstrap bootstrapConversation() { return bootstrapConversation(null); }
+    public Bootstrap bootstrapConversation(String id) { return bootstrap(conversationAccess(conversations.resume(id)), null); }
+    public Bootstrap newConversation() { return bootstrap(conversationAccess(conversations.create()), null); }
 
     private Bootstrap bootstrap(Access access, String caseId) {
         var configuration = json(access.installation().getConfigurationJson());

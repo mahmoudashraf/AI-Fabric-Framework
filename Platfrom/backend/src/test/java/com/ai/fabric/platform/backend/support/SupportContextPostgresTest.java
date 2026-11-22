@@ -121,6 +121,55 @@ class SupportContextPostgresTest {
   }
 
   @Test
+  void concurrentConversationResumeAndConsentRevocationUseTheSameRequesterAuthorityLock() throws Exception {
+    String schema = "continuity_" + UUID.randomUUID().toString().replace("-", "");
+    var admin = new JdbcTemplate(new DriverManagerDataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword()));
+    admin.execute("create schema " + schema);
+    var data = new DriverManagerDataSource(POSTGRES.getJdbcUrl()+"&currentSchema="+schema, POSTGRES.getUsername(), POSTGRES.getPassword());
+    var pool = Executors.newFixedThreadPool(2);
+    var release = new CountDownLatch(1);
+    try {
+      var f = new SupportFixture(data);
+      var start = new CountDownLatch(1);
+      Callable<String> resume = () -> {
+        f.login("alice");
+        try { start.await(); return f.conversations.resume(null).conversationId(); }
+        finally { SecurityContextHolder.clearContext(); }
+      };
+      var first = pool.submit(resume); var second = pool.submit(resume); start.countDown();
+      String id = first.get(15,TimeUnit.SECONDS);
+      assertThat(second.get(15,TimeUnit.SECONDS)).isEqualTo(id);
+      f.login("alice");
+      var consent = f.conversations.consent(id,new ConsentChange(true,0));
+      var locked = new CountDownLatch(1);
+      var transaction = new TransactionTemplate(new DataSourceTransactionManager(data));
+      var reader = pool.submit(() -> {
+        f.login("alice");
+        try { return transaction.execute(status -> {
+          var c = f.conversations.context(f.conversations.current(id),true);
+          assertThat(c.consent().granted()).isTrue(); locked.countDown();
+          try { assertThat(release.await(10,TimeUnit.SECONDS)).isTrue(); }
+          catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+          return null;
+        }); } finally { SecurityContextHolder.clearContext(); }
+      });
+      assertThat(locked.await(5,TimeUnit.SECONDS)).isTrue();
+      var revoking = new CountDownLatch(1);
+      var revoke = pool.submit(() -> {
+        f.login("alice"); revoking.countDown();
+        try { return f.conversations.consent(id,new ConsentChange(false,consent.consent().version())); }
+        finally { SecurityContextHolder.clearContext(); }
+      });
+      assertThat(revoking.await(5,TimeUnit.SECONDS)).isTrue();
+      assertThatThrownBy(() -> revoke.get(200,TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+      release.countDown();
+      reader.get(5,TimeUnit.SECONDS);
+      assertThat(revoke.get(5,TimeUnit.SECONDS).consent().granted()).isFalse();
+      assertThat(f.conversations.context(id).revision()).isEqualTo(2);
+    } finally { release.countDown(); pool.shutdownNow(); pool.awaitTermination(5,TimeUnit.SECONDS); admin.execute("drop schema " + schema + " cascade"); }
+  }
+
+  @Test
   void retirementDropsOnlyDisposableTicketTablesPreservingContextDocumentsAndAiState() {
     String schema = "support_" + UUID.randomUUID().toString().replace("-", "");
     var admin =

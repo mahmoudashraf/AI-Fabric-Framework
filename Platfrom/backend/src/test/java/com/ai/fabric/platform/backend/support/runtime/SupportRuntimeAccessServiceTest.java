@@ -373,13 +373,28 @@ class SupportRuntimeAccessServiceTest {
   }
 
   @Test
+  void adoptedGeneralConversationUsesTheTicketsAuthoritativeEpisodeInsteadOfAnAlwaysOpenScope() {
+    var requester = new com.ai.fabric.platform.backend.support.SupportContracts.Requester("customer-a","alice",null,null);
+    var scope = new SupportConversationScopeService.Scope("chat-1","private-case-principal",requester);
+    when(conversations.current("chat-1")).thenReturn(scope);
+    when(cases.findContextByPrincipal("private-case-principal",false)).thenReturn(Optional.of(
+        new com.ai.fabric.platform.backend.support.SupportIntegrationContextStore.Context("support-space","sup-1",requester,
+            "private-case-principal",List.of(),new com.ai.fabric.platform.backend.support.SupportContracts.Consent(false,0,java.time.Instant.now(),null),
+            0,java.time.Instant.now(),java.time.Instant.now())));
+    var episode = owner("support-deployment","support-staging","support-owner","support-tenant");
+    when(cases.requireOwnedConversation("sup-1","chat-1")).thenReturn(episode);
+    assertThat(service.resolveConversation("chat-1").owned()).isSameAs(episode);
+    verify(cases).requireOwnedConversation("sup-1","chat-1");
+  }
+
+  @Test
   void ordinaryAiChatBootstrapDoesNotDependOnDeskTicketProviderAvailability() {
     var owner =
         new com.ai.fabric.platform.backend.support.SupportContracts.Requester(
             "customer-a", "alice", "user-issuer", "user-subject");
     var scope =
         new SupportConversationScopeService.Scope("casual-chat", "private-case-principal", owner);
-    when(conversations.create()).thenReturn(scope);
+    when(conversations.resume(null)).thenReturn(scope);
     when(supportSettings.binding())
         .thenReturn(
             new com.ai.fabric.platform.backend.support.SupportContracts.RuntimeBinding(
