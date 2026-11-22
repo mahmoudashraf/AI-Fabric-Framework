@@ -85,9 +85,6 @@ public class MarketplaceTemplateBootstrapService {
             throw new ResponseStatusException(CONFLICT,
                 "Marketplace template is retired for new deployments: " + plugin.getId() + "@" + version.getVersion());
         }
-        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Only published Marketplace templates can create deployments.");
-        }
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
         if (!"TEMPLATE".equals(parsed.pluginType())) {

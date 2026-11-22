@@ -86,7 +86,10 @@ invalid generated snapshots retain their payloads and hashes as rejected audit
 records; they cannot bootstrap a deployment. The corrective migration refuses
 to reject either if an installation or offer references it. Startup excludes
 unreviewed/rejected authoring payloads, while published definitions still require
-the actual manifest parser; new template creation requires publication.
+the actual manifest parser. Explicit draft-template configuration bootstrap keeps
+its existing parser and ownership checks; creating a draft is not deployment or
+permission to execute its actions. No extra publication gate is added to that
+authoring flow. The rejected malformed seed still fails parsing if selected.
 Existing customer drafts,
 immutable published versions, offer pins and app assignments are not silently
 repinned. A newly reviewed offer can select the new template revision; the

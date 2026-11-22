@@ -18942,3 +18942,20 @@ task's sessions, publish its aa676567f UI, or complete its remaining phases.
   specialist-live.mjs staging/manualquality, production backend/apply/quality,
   generic template bootstrap reuse check, final resource/settings audit +logout
   BOTH own sessions and verification report. No public framework change.
+
+### Support Authoring Boundary Correction - 21:36 UTC
+
+The temporary PUBLISHED-only template-bootstrap gate from17af59d1a was NOT
+deployed and is removed. Existing tests intentionally permit explicit draft/
+submitted/validated template configuration bootstrap after manifest/ownership
+checks; creating configuration is not deployment or action authority. Preserve
+that flow, do not rewrite those tests to add an unnecessary approval barrier.
+Actual deployment publication/execution contracts and owned installed action
+permissions remain unchanged. V246's rejected malformed seeds fail their actual
+manifest parser if explicitly selected. Startup does not treat unreviewed or
+rejected audit payloads as serving catalogue definitions. New combined corrected
+suite uses package ** patterns (earlier .* selection omitted nested classes),
+exec19537, phase2-final-corrected-tests.log. Observe final exit before rollout.
+CI17af59d1a45072710255 passed but contains the now-removed gate; do not deploy it.
+Next commit has corrected backend code; UI remains exact35d05edde. Rebuild only
+backend, keep both failed stage folders and normal oldaa676567 healthy service.
