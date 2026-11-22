@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -99,6 +100,12 @@ public class DocumentKnowledgeService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private volatile RetentionCleanupResult lastRetentionCleanup;
+    private int maxReaderDocuments = 20;
+
+    @Autowired(required = false)
+    public void setIndexingLimits(ai.fabric.config.AIIndexingProperties indexing) {
+        maxReaderDocuments = Math.min(50, indexing.getDocuments().getMaxDocumentsPerPlan());
+    }
 
     public DocumentKnowledgeService(
         DocumentKnowledgeProperties properties,
@@ -848,7 +855,7 @@ public class DocumentKnowledgeService {
                 : readerFactory.textReader(resource, policy);
             if (ai.fabric.document.RichDocumentReader.FORMATS.contains(extension.substring(1))) {
                 var readOptions = new ai.fabric.document.DocumentReadOptions(processing.ocrMode(), processing.ocrLanguage(), processing.ocrDpi(),
-                    50, properties.getPolicy().getMaxTotalCharacters(), Math.min(properties.getPolicy().getMaxSourceBytes(), 50L * 1024 * 1024),
+                    maxReaderDocuments, properties.getPolicy().getMaxTotalCharacters(), Math.min(properties.getPolicy().getMaxSourceBytes(), 50L * 1024 * 1024),
                     16_000_000, java.time.Duration.ofSeconds(60), 20);
                 reader = new ai.fabric.document.RichDocumentReader(resource, policy, extension, readOptions,
                     new ai.fabric.document.TesseractOcrEngine(java.nio.file.Path.of(properties.getOcrExecutable()), Set.copyOf(properties.getOcrLanguages())));
@@ -886,7 +893,7 @@ public class DocumentKnowledgeService {
                 .overlapTokens(processing.overlapTokens())
                 .minChunkSizeChars(processing.minChunkChars())
                 .minChunkLengthToEmbed(processing.minEmbedChars())
-                .maxDocuments(50)
+                .maxDocuments(maxReaderDocuments)
                 .maxChunks(properties.getPolicy().getMaxChunksPerSource())
                 .maxContentLength(properties.getPolicy().getMaxChunkCharacters())
                 .maxTotalContentLength(properties.getPolicy().getMaxTotalCharacters())
@@ -914,6 +921,12 @@ public class DocumentKnowledgeService {
                 reader instanceof ai.fabric.document.RichDocumentReader rich ? rich.report() : null);
         } catch (ai.fabric.document.DocumentReadException failure) {
             throw new DocumentKnowledgeException(failure.code(), HttpStatus.UNPROCESSABLE_ENTITY, failure.getMessage());
+        } catch (ai.fabric.indexing.document.model.DocumentIngestionException failure) {
+            if (failure.getCause() instanceof ai.fabric.document.DocumentReadException readFailure)
+                throw new DocumentKnowledgeException(readFailure.code(), HttpStatus.UNPROCESSABLE_ENTITY, readFailure.getMessage());
+            if (failure.getCode() != ai.fabric.indexing.document.model.DocumentIngestionFailureCode.DOCUMENT_LIMIT_EXCEEDED) throw failure;
+            throw new DocumentKnowledgeException(failure.getCode().name(), HttpStatus.UNPROCESSABLE_ENTITY,
+                "Document preparation exceeds this runtime's document, chunk or metadata limits. Reduce the source size or adjust its preparation settings.");
         }
     }
 

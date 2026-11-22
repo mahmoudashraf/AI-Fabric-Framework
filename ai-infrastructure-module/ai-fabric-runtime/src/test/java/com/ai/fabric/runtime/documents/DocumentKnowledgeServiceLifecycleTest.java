@@ -151,8 +151,10 @@ class DocumentKnowledgeServiceLifecycleTest {
         DocumentChunkIdentity identity = new DocumentChunkIdentity();
         DocumentEntityPolicyValidator entityPolicy = new DocumentEntityPolicyValidator(configurationLoader);
         DocumentManifestOperations manifestOperations = new DocumentManifestOperations(identity, entityPolicy);
+        var indexingLimits = new AIIndexingProperties.DocumentProperties();
+        indexingLimits.setMaxDocumentsPerPlan(20);
         planningAdapter = new SpringAiDocumentIndexingAdapter(
-            new AIIndexingProperties.DocumentProperties(),
+            indexingLimits,
             identity,
             new DocumentMetadataNormalizer(),
             entityPolicy,
@@ -213,6 +215,33 @@ class DocumentKnowledgeServiceLifecycleTest {
         assertThat(preview.chunks()).isNotEmpty();
         assertThat(preview.chunks().getFirst().contentPreview()).hasSizeLessThanOrEqualTo(120);
         assertThat(preview.toString()).doesNotContain(sourceRoot.toString());
+        verifyNoInteractions(queueService);
+    }
+
+    @Test
+    void previewUsesTheConfiguredDocumentCountWithoutRaisingItsSafetyCeiling() throws Exception {
+        var indexing = new AIIndexingProperties();
+        indexing.getDocuments().setMaxDocumentsPerPlan(1);
+        service.setIndexingLimits(indexing);
+        writeSource("bounded.txt", "Approved support instructions for a bounded document. ".repeat(10), 1);
+        var source = register("bounded.txt", "register-one-document");
+        assertThat(service.preview(tenantA(), source.sourceId()).documentCount()).isEqualTo(1);
+        verifyNoInteractions(queueService);
+    }
+
+    @Test
+    void pdfPageAllowanceUsesTheSameConfiguredCeiling() throws Exception {
+        var indexing = new AIIndexingProperties();
+        indexing.getDocuments().setMaxDocumentsPerPlan(1);
+        service.setIndexingLimits(indexing);
+        try (var pdf = new org.apache.pdfbox.pdmodel.PDDocument()) {
+            pdf.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            pdf.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            pdf.save(sourceRoot.resolve("two-pages.pdf").toFile());
+        }
+        var source = register("two-pages.pdf", "register-over-page-limit");
+        assertThatThrownBy(() -> service.preview(tenantA(), source.sourceId()))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("page allowance");
         verifyNoInteractions(queueService);
     }
 
