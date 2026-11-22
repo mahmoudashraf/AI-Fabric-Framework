@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,7 @@ public class DocumentEvaluationService {
     private final DocumentRuntimeIdentity identities;
     private final DocumentEvaluationRepository repository;
     private final DocumentEvaluationModels models;
-    private final RuntimeBudgetTurnScopes turns;
+    private RuntimeBudgetTurnScopes turns;
     private final ObjectMapper mapper;
     private final List<RagEvaluationProvider> alternatives;
     private final String providerId;
@@ -37,15 +38,17 @@ public class DocumentEvaluationService {
     private final ConcurrentMap<String, Running> active = new ConcurrentHashMap<>();
 
     public DocumentEvaluationService(DocumentKnowledgeService documents, DocumentRuntimeIdentity identities, DocumentEvaluationRepository repository,
-        DocumentEvaluationModels models, RuntimeBudgetTurnScopes turns, ObjectMapper mapper, List<RagEvaluationProvider> alternatives,
+        DocumentEvaluationModels models, ObjectMapper mapper, List<RagEvaluationProvider> alternatives,
         @Value("${loomai.documents.evaluation-provider:structured-model-judge}") String providerId,
         @Value("${loomai.documents.evidence-retention:P30D}") java.time.Duration retention) {
-        this.documents=documents; this.identities=identities; this.repository=repository; this.models=models; this.turns=turns; this.mapper=mapper;
+        this.documents=documents; this.identities=identities; this.repository=repository; this.models=models; this.mapper=mapper;
         this.alternatives=List.copyOf(alternatives); this.providerId=providerId;
         if(retention==null || retention.compareTo(java.time.Duration.ofDays(1))<0 || retention.compareTo(java.time.Duration.ofDays(3650))>0)
             throw new IllegalArgumentException("Document evaluation retention must be between 1 and 3650 days.");
         this.retention=retention;
     }
+    @Autowired(required = false)
+    public void setBudgetTurns(RuntimeBudgetTurnScopes turns) { this.turns = turns; }
     public synchronized ObjectNode start(RuntimeResolvedIdentity identity, String sourceId, long expectedRevision) {
         var snapshot = documents.preparation(identity, sourceId);
         if (snapshot.revision() != expectedRevision) throw error(HttpStatus.CONFLICT, "Document settings changed. Reload before evaluating.");
@@ -62,6 +65,7 @@ public class DocumentEvaluationService {
             .put("createdAt", entity.getCreatedAt().toString()).put("releaseId", boundary.releaseId()).put("sourceVersion", snapshot.activeSourceVersion())
             .put("candidateSourceVersion", snapshot.sourceVersion()).put("reindexRequired", snapshot.reindexRequired()).put("providerId", providerId)
             .put("rubricVersion", "document-rag-v1").put("modelJudged", true).put("deadlineSeconds", 120)
+            .put("accountingMode", turns == null ? "DEPLOYMENT_PROVIDER" : "PROVIDER_BUDGET")
             .put("maxModelCalls", Math.min(snapshot.configuration().questions().size(), snapshot.configuration().evaluationOptions().maxQuestions()) * 2)
             .put("modelCalls", 0).put("syntheticReferences", snapshot.configuration().questions().stream().anyMatch(q -> !q.reviewed())) ;
         result.set("configuration", mapper.valueToTree(snapshot.configuration())); result.putArray("cases"); result.putArray("usage");
@@ -92,9 +96,9 @@ public class DocumentEvaluationService {
         return get(identity,sourceId,id);
     }
     private void execute(Running run, RuntimeResolvedIdentity identity, DocumentKnowledgeService.PreparationSnapshot snapshot) {
-        try (var turn = turns.openDocumentEvaluation(identity)) {
-            turn.verifyBeforeOrchestration();
-            synchronized(run) { if(run.terminal) return; run.result.put("status","RUNNING"); run.result.set("accountingReceipt",mapper.valueToTree(turn.chatReceipt().orElse(null))); persist(run); }
+        try (var turn = turns == null ? null : turns.openDocumentEvaluation(identity)) {
+            if (turn != null) turn.verifyBeforeOrchestration();
+            synchronized(run) { if(run.terminal) return; run.result.put("status","RUNNING"); run.result.set("accountingReceipt",mapper.valueToTree(turn == null ? null : turn.chatReceipt().orElse(null))); persist(run); }
             var options = snapshot.configuration().evaluationOptions();
             RagEvaluationProvider provider = "structured-model-judge".equals(providerId) ? models.judge(identity,response -> usage(run,response))
                 : alternatives.stream().filter(p -> providerId.equals(p.id())).findFirst().orElseThrow(() -> new IllegalStateException("Configured evaluation provider is unavailable."));
@@ -125,7 +129,7 @@ public class DocumentEvaluationService {
                 } catch (CancellationException cancelled) { throw cancelled; }
                 catch (StaleEvaluation stale) { throw stale; }
                 catch (RuntimeException failure) {
-                    if(turn.interruption().isPresent()) throw failure;
+                    if(turn != null && turn.interruption().isPresent()) throw failure;
                     result.put("status","FAILED").put("error","This case failed in "+result.path("phase").asText().toLowerCase()+". No score was fabricated.");
                 }
                 synchronized(run) { if(run.terminal) return; run.result.withArray("cases").add(result); persist(run); }

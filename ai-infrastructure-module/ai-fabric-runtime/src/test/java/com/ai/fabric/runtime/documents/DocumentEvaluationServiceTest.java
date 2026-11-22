@@ -40,7 +40,8 @@ class DocumentEvaluationServiceTest {
             assertThat(sample.evidence()).singleElement().satisfies(e -> assertThat(e.content()).contains("thirty days"));
             return new RagEvaluationResult(id(),"fixture-v1",Map.of("faithfulness",new RagEvaluationResult.Metric(RagEvaluationResult.Metric.Status.SCORED,.9,"Supported by the excerpt.")));}};
         when(models.judge(eq(identity),any())).thenReturn(judge);
-        service=new DocumentEvaluationService(documents,boundaries,repository,models,turns,mapper,List.of(),"structured-model-judge",java.time.Duration.ofDays(30));
+        service=new DocumentEvaluationService(documents,boundaries,repository,models,mapper,List.of(),"structured-model-judge",java.time.Duration.ofDays(30));
+        service.setBudgetTurns(turns);
     }
     @AfterEach void close(){if(service!=null)service.close();}
     @Test void evaluatesRealRetrievedEvidenceAndRecordsTheExactActiveAndCandidateVersions() throws Exception {
@@ -50,6 +51,32 @@ class DocumentEvaluationServiceTest {
         assertThat(result.path("indexedProcessing").path("chunkTokens").asInt()).isEqualTo(800);
         assertThat(result.path("cases").get(0).path("answer").asText()).contains("thirty days");
         verify(turns).openDocumentEvaluation(identity);verify(turn).close();
+    }
+    @Test void startsWithoutTheOptionalLedgerAndUsesDeploymentProviderAccounting() throws Exception {
+        setup();service.close();
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+            .withInitializer(context -> context.getBeanFactory().setConversionService(org.springframework.boot.convert.ApplicationConversionService.getSharedInstance()))
+            .withPropertyValues("loomai.documents.enabled=true")
+            .withBean(DocumentKnowledgeService.class, () -> documents)
+            .withBean(DocumentRuntimeIdentity.class, () -> boundaries)
+            .withBean(DocumentEvaluationRepository.class, () -> repository)
+            .withBean(DocumentEvaluationModels.class, () -> models)
+            .withBean(ObjectMapper.class, () -> mapper)
+            .withBean(DocumentEvaluationService.class)
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                service=context.getBean(DocumentEvaluationService.class);
+                var result=await(service.start(identity,"source",3).path("id").asText(),"COMPLETED");
+                assertThat(result.path("accountingMode").asText()).isEqualTo("DEPLOYMENT_PROVIDER");
+                assertThat(result.path("accountingReceipt").isNull()).isTrue();
+                verifyNoInteractions(turns);
+            });
+    }
+    @Test void fundedAdmissionFailureNeverFallsBackToDeploymentCredentials() throws Exception {
+        setup();when(turns.openDocumentEvaluation(identity)).thenThrow(new IllegalStateException("Budget denied"));
+        var result=await(service.start(identity,"source",3).path("id").asText(),"FAILED");
+        assertThat(result.path("accountingMode").asText()).isEqualTo("PROVIDER_BUDGET");
+        verifyNoInteractions(models);
     }
     @Test void caseFailureRetainsTheAnswerAndNeverInventsAScore() throws Exception {
         setup();when(models.judge(eq(identity),any())).thenReturn(new RagEvaluationProvider(){public String id(){return "failing";}public RagEvaluationResult evaluate(RagEvaluationSample sample){throw new IllegalStateException("provider failed");}});
