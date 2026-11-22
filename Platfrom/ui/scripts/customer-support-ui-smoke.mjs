@@ -122,6 +122,8 @@ try {
     if (path === '/api/deployments/overview') return json([{ id: 'current-deployment', name: 'Current deployment', archivedAt: null }, { id: 'archived-deployment', name: 'Archived deployment', archivedAt: at }])
     if (path === '/api/platform/customers/customer-one/ai-workspace-installations') return json([
       { installationId: 'current-app', customerId: 'customer-one', displayName: 'Current app', deploymentId: 'current-deployment' },
+      { installationId: 'duplicate-app-one', customerId: 'customer-one', displayName: 'Matching app', deploymentId: 'current-deployment', deliveryMode: 'embedded', status: 'ACTIVE' },
+      { installationId: 'duplicate-app-two', customerId: 'customer-one', displayName: 'Matching app', deploymentId: 'current-deployment', deliveryMode: 'embedded', status: 'DRAFT' },
       { installationId: 'foreign-app', customerId: 'another-customer', displayName: 'Foreign app', deploymentId: 'current-deployment' },
       { installationId: 'obsolete-app', customerId: 'customer-one', displayName: 'App on archived deployment', deploymentId: 'archived-deployment' }])
     if (path === '/api/support/requests') {
@@ -331,6 +333,11 @@ try {
   assert.equal(await consent.isChecked(), false)
   await dialog.getByRole('combobox', { name: 'Affected resources (optional)', exact: true }).click()
   await page.getByRole('option', { name: 'Current deployment', exact: true }).waitFor()
+  const duplicateChoices = page.getByRole('option', { name: /^Matching app \(Engage app/ })
+  assert.equal(await duplicateChoices.count(), 2)
+  assert.notEqual(await duplicateChoices.nth(0).getAttribute('aria-label'), await duplicateChoices.nth(1).getAttribute('aria-label'))
+  assert.match(await duplicateChoices.nth(0).innerText(), /Website widget - Active/)
+  assert.match(await duplicateChoices.nth(1).innerText(), /Website widget - Draft/)
   assert.equal(await page.getByRole('option', { name: 'Foreign app', exact: true }).count(), 0)
   assert.equal(await page.getByRole('option', { name: 'Archived deployment', exact: true }).count(), 0)
   assert.equal(await page.getByRole('option', { name: 'App on archived deployment', exact: true }).count(), 0)
