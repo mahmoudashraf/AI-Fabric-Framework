@@ -34,6 +34,8 @@ class SupportSpecialistDefaultsTest {
             version.setManifestJson(json.writeValueAsString(corrected));
             assertThatCode(() -> parser.parseAndValidate(plugin,version)).doesNotThrowAnyException();
             assertThat(corrected.at("/contributions/template/deploymentBehavior").has("executionExtensions")).isFalse();
+            if (!internal) assertThat(corrected.at("/contributions/template/promptConfig/systemPrompt"))
+                .isEqualTo(source.at("/contributions/template/promptConfig/systemPrompt"));
             assertThat(V246__support_template_extension_contract.corrected(corrected,defaults,internal)).isEqualTo(corrected);
         }
     }

@@ -37,6 +37,9 @@ public class V246__support_template_extension_contract extends BaseJavaMigration
             for (var extension : extensions) if ("SPECIALIST_ASSISTANCE".equals(extension.asText())) present = true;
             if (!present) extensions.add("SPECIALIST_ASSISTANCE");
         }
+        // LoomAI Console navigation/diagnostic guidance is an installation policy, not another company's support UX.
+        if (!internal) ((ObjectNode) result.at("/contributions/template/promptConfig"))
+            .set("systemPrompt", source.at("/contributions/template/promptConfig/systemPrompt").deepCopy());
         return result;
     }
     private static void requireUnused(Connection c, String versionId) throws Exception {

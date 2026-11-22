@@ -67,6 +67,9 @@ LoomAI diagnostic service bindings. Customers attach their own approved knowledg
 and explicitly installed READ tools through the existing Support capabilities
 editor. The LoomAI private overlay is an installation configuration, not a new
 framework behavior type.
+The reusable template also retains its company-neutral system prompt: internal
+Console diagnostic controls and Build with AI navigation are not assumed to
+exist in another company's end-user support experience.
 
 Plans use native SpecialistChain resources. The LLM manager chooses relevant
 workers, order, sequential/independent parallel checks, clarification and
