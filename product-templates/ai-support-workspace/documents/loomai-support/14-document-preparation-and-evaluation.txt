@@ -1,0 +1,73 @@
+LoomAI document preparation and evaluation
+
+Purpose
+Make approved business documents useful to a Smart Brain, inspect the extracted
+text and test answers before relying on the new index. Document preparation
+requires a compatible runtime and a source policy that allows the file format.
+Historical TXT/JSON-only policies are not widened automatically. Choose the
+supported newer document plugin revision and publish/apply the updated Brain.
+
+Supported files
+The document reader supports text PDFs, scanned PDFs, DOCX, legacy DOC, PNG,
+JPEG and TIFF. Existing TXT and configured JSON sources remain supported.
+Hosted uploads accept files up to 20 MiB. Uploading stores an original file in
+private S3-compatible storage; it does not mean extraction or indexing passed.
+Encrypted documents are not supported. Word text and tables are extracted, but
+images embedded inside Word documents are not OCR'd.
+
+Prepare a document
+Open Smart Brain, Knowledge, Documents and select a registered source. Use
+Prepare, Index and Evaluate in that order. Inspect extracted chunks to check
+readable text and page attribution. OCR reads scanned pages or images. English
+OCR is installed in the standard serving image. Other OCR languages require
+operator installation before they can be selected.
+
+Optimize with AI
+Choose Optimize with AI to share a bounded extracted sample with the existing
+Build with AI assistant. It can prepare chunking settings, evaluation options
+and example test questions. No detailed prompt is required. It cannot change
+credentials, ownership, document approval or source visibility. Saving AI
+settings does not index documents, publish a release or activate an app.
+
+Advanced processing settings
+Chunk targets range from 100 to 800 tokens. Overlap can repeat up to half a
+chunk and never crosses an input page or section boundary. Smaller chunks can
+focus narrow questions; overlap uses additional embedding and vector storage.
+Minimum chunk and indexed-text lengths control tiny fragments. OCR modes are
+automatic when PDF text is missing, every PDF page, or text only. Higher OCR
+resolution uses more memory and processing time. Always inspect OCR output.
+
+Index deliberately
+Changing processing settings creates a candidate source version. The old active
+index remains searchable until the replacement finishes. Preview is not an
+indexing receipt. Select Index or Reindex candidate and inspect its actual
+status. Accepted queue work and completed indexing are different states.
+
+Evaluate real retrieval and answers
+Add questions or let AI prepare them. Reference answers are optional. Review
+questions and references before treating them as expected results. AI-generated
+references are synthetic, not independent ground truth. A run tests the active
+indexed source version, not an unindexed candidate, using actual retrieval,
+the configured answer model and an evaluation provider.
+
+The standard evaluation reports source support, answer relevance and reference
+agreement when a reference exists. Missing or failed scores are not replaced
+with zero. Scores are model judgments, not guarantees. Runs use the configured
+models and funded AI allowance. They read only the selected approved source
+and do not execute business actions. Runs have finite question, context, output
+and time limits and can be stopped. Completed partial evidence is retained.
+
+Improve and compare
+Evaluate and optimize with AI first runs the saved test questions, then sends
+the actual results and document sample to the same assistant. Review the saved
+candidate, explicitly reindex and evaluate again. A settings save alone is not
+proof of improved answers. Compare matching questions and the same evaluator
+rubric, and inspect the actual answer and retrieved excerpts.
+
+Storage and promotion
+Original documents stay in private S3-compatible storage. Preparation profiles,
+test plans and evaluation receipts live in the runtime operational database.
+Vectors stay in the selected vector service. Hosted promotion carries the exact
+selected file identities and active staging processing profile. Production
+indexes its own selected originals; vectors are not copied. Staging-only files
+are not automatically published to production.

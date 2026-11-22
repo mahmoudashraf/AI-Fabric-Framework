@@ -18436,3 +18436,41 @@ test is being called hosted acceptance. UI extraction remains last.
   Sanitized record: `verification-support/framework-demos/2026-11-22_ASSISTANT_PREPARATION_SCOPE.md`.
   A final documentation-only HEAD is not an image revision; no additional
   deployment is needed for the documentation commit.
+
+## 2026-11-22 Document Intelligence 0.8.63 Release - In Progress
+
+- Owner explicitly requested framework publication, compatible deployments and
+  live upload -> AI optimization -> indexing -> evaluation qualification.
+  Candidate implementation private26866f7d2 merged latest preparation-scope
+  fixes from a30ea1b12 into codex/document-intelligence; no rollback of 1cad.
+- Public source2888f0549b34dec97f6b5d3b37afa72387f1a5b4 pushed main. Full31-module
+  release-profile install PASS, release guards PASS, real Tesseract PNG/scanned
+  PDF and legacy DOC PASS. Release ai-fabric-framework-v0.8.63 created ONCE;
+  Central workflow45053773862 is in progress. Do not republish an uncertain run.
+  Broad framework CI45053097702 has passing provider registry/container checks;
+  its full examples lane must be read separately (older Incident Room failures
+  were pre-existing). A tag is not proof of Central consumer availability.
+- Private release pins and capability metadata now target0.8.63, including
+  product provider-budget modules. Runtime tests and focused backend/access/
+  document gates are running locally before private publication.
+- Evidence/helpers: ~/.codex/private/document-intelligence-0863 (0700). BOTH
+  task-owned normal staff sessions are ACTIVE there. Use its operations.mjs
+  logout for BOTH control planes and verify old cookies unauthenticated at end.
+  Other task roots' revoked sessions must not be reused. Preflight snapshots
+  retain all app IDs, original service images/settings, Brain drafts/releases.
+- Planned first live targets reuse existing managed storage/resources: staging
+  CP Acme dep-b9a09c0a and production CP Harbor dep-86ad8f93, both already on
+  dtp-coolify-staging-behavior physical staging. No new server/bucket/paid capacity
+  requested. Backend/UI/shared assistant are staged before production; runtime
+  upgrade must use normal immutable source registration/publish/apply/verify.
+  Old format policies need explicit catalogue revision selection, not mutation.
+- Broad backend run was NOT GREEN and stopped after confirmed pre-existing
+  integration fixture failures. Retained backend-full-tests.log and findings in
+  the private root. Old security directory expectation was updated to delegation-
+  filtered 200/empty and explicit operator create403, without production security
+  changes. Legacy external-integration fixture credential/schema failures remain
+  separate; do not claim all backend tests passed or weaken their real guards.
+- No deployment has occurred yet at this checkpoint. No infrastructure/billing
+  changes. Root user worktree/cache/media remain untouched. Public dirty root
+  was not reset or overwritten. Local UI fixture preview on5175 may still run;
+  gallery8766 must stay untouched. Continue from evidence, not duplicate commands.

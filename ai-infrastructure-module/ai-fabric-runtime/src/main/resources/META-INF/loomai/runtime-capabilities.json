@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.62",
+  "aiFabricVersion": "0.8.63",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -54,6 +54,9 @@
     "runtime-release-scoped-drain-v1",
     "milvus-token-authentication-v1",
     "document-ingestion-core",
+    "rich-document-extraction-v1",
+    "document-preparation-v1",
+    "document-rag-evaluation-v1",
     "document-source-connectors",
     "document-version-lifecycle",
     "external-http-integration",
@@ -95,6 +98,8 @@
     ,"document-source-register-refresh"
     ,"document-source-list-detail"
     ,"document-preview"
+    ,"document-preparation"
+    ,"document-evaluation"
     ,"document-index-reconcile"
     ,"document-delete-index"
     ,"document-retrieval-proof"
@@ -121,6 +126,7 @@
     ,"loomai-conversation-handover-v1"
     ,"loomai-conversation-orchestration-state-v1"
     ,"loomai-document-ingestion-v1"
+    ,"loomai-document-preparation-evaluation-v25"
     ,"integration-connector-state-v1"
     ,"provider-budget-accounting-v1"
     ,"provider-budget-validity-extensions-v1"

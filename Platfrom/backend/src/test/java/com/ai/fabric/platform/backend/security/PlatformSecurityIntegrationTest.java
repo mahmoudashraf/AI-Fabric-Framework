@@ -350,9 +350,16 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
-    void customerAndTenantAdministrationRequirePlatformAdminAndBindingOverrideCatalogIsAdminOnly() throws Exception {
+    void customerAdministrationRequiresAdminAndTheOperatorDirectoryRemainsDelegationScoped() throws Exception {
         mockMvc.perform(get("/api/platform/customers")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(content().json("[]"));
+
+        mockMvc.perform(post("/api/platform/customers")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Unassigned operator must not create a customer\"}"))
             .andExpect(status().isForbidden());
 
         var customerResult = mockMvc.perform(post("/api/platform/customers")
