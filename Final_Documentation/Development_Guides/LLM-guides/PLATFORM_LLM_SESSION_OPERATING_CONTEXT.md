@@ -188,6 +188,9 @@ answer from permitted history, explicit attachments and already approved evidenc
 Do not replace model output with canned text or phrase-match away the question.
 
 The final answer performs no new retrieval/tool call and cannot replay writes.
+A model-generated parameter rejected by an action contract remains non-executable,
+but exhausting its repairs can still lead to a context answer. Execution validity
+must not be confused with permission to provide a truthful, answer-only response.
 Preserve actual receipts and pending confirmations, including during provider
 failure. Actual access denial, funding exhaustion, provider outage and strict
 specialist/Task schemas remain real boundaries, not semantic repair candidates.

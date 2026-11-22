@@ -1,7 +1,7 @@
 # 010.71 Bounded Intent/Routing Repair And Final Context Answer
 
 - Created: 2026-11-22.
-- Status: owner-approved direction; implementation and live qualification requested.
+- Status: implementation qualified locally; .62 publication and hosted verification pending.
 - Baseline: framework 0.8.60; private image source `e5319e190`; Harbor v8 /
   `rel-4a4caa6a`. These are the previous task's verified identities, not a new
   health check or evidence that this plan is implemented.
@@ -336,7 +336,7 @@ Central, image, Harbor binding and live result evidence will be appended after
 the verified rollout. Existing storage, credentials and infrastructure are not
 being replaced or resized.
 
-### Current External Release Gate
+### Publication Gate History
 
 Framework source `25eecf29e6595fc754436edb9ba94662e267c467` is committed/pushed
 under immutable tag `ai-fabric-framework-v0.8.61`. Its signed bundle uploaded
@@ -346,10 +346,10 @@ reports PUBLISHING,31 components, zero errors/warnings. No tag move, duplicate
 upload or publisher rerun is appropriate. Actual Central availability and fresh
 consumption remain prerequisites for the hosted rollout.
 
-Implementation code is in private commit `b54af2591`; the deployment branch and
-all running services remain on the previous verified release. Production and
-staging Core UI/backend deployment, Harbor apply/binding and live chat checks
-are NOT yet complete. The implementation is not a claim of live adoption.
+Implementation code is in private commit `b54af2591`. At this checkpoint the
+deployment branch and running services still used the previous verified release;
+the following dated checkpoints record subsequent progress. Implementation alone
+is not a claim of live adoption.
 
 Local framework2592 reported tests, final Core1202/chat97 regressions, two real
 provider cases, runtime818, focused backend206 and UI27/build passed. A full
@@ -359,11 +359,59 @@ also retains the known Incident Room failure. These broad-suite gaps are not
 claimed green or fixed by this patch. See
 `verification-support/decision-recovery/2026-11-22.md` for separate evidence.
 
-Both task-owned normal admin sessions were revoked during the external wait,
+Both task-owned normal admin sessions were revoked during that external wait,
 with old-cookie-only inactive proof. Fresh normal sign-in is required for any
 subsequent Platform operation. No live capacity, credentials, storage, bindings
 or business data have been changed by this release attempt.
 
+### Central Consumption Verified, 2026-11-22
+
+The existing upload subsequently became available without a duplicate upload.
+All30 modules passed118 artifact/signature availability checks. A minimal consumer
+compiled with an empty Maven repository using Central; its Core checksum matches
+the published artifact. The publisher job's earlier poll timeout remains a failed
+job, not a successful CI claim.
+
+Private image source `b54af25910caaa9a61d0089fc2553a3a6b5e8bb0` was then pushed
+normally to Platform-V11. Core image workflow44983369043 and runtime workflow
+44983369091 are building this exact source. New normal task-owned staff sessions
+were created for the controlled rollout and must be revoked when it finishes.
+No live rollout is claimed at this checkpoint.
+
 Plan created before implementation. No runtime changes, publication, deployment
 or live query were performed in preparing this document. Append implementation,
 exact effective settings, tests and live evidence as they are completed.
+
+### Live Canary Finding And .62 Correction
+
+The .61 implementation was published and applied to Harbor v10, with exact
+native Central checksums and preserved storage, credentials, models, bindings and
+capacity. A Platform-only reindex-comparison correction ensured the recovery
+settings do not rebuild the knowledge index. Core source d3712b981 is healthy on
+both control planes; the unchanged UI will retain that source during .62 adoption.
+
+Live testing retained13 samples. One exhausted all3 repairs on an unsupported
+model-generated action category but returned an intent-analysis ERROR instead of
+the final context answer. The handoff whitelist omitted
+ACTION_PARAMETER_CONTRACT_INVALID. The .61 package was NOT promoted to production
+availability. This finding must not be treated as a successful completion.
+
+The .62 correction permits that terminal model-parameter failure to reach the
+existing answer-only fallback. The rejected candidate remains non-executable;
+parameter validation, source authorization, provider failures, protected mixed
+action/confirmation failures and strict Task contracts stay intact. This is not
+coercion of invalid fields or an extra tool call.
+
+Public .62 source `a7693b9c27853acdb3023fd8295b168bdcbfcf2b` is committed/pushed
+under its own `ai-fabric-framework-v0.8.62` tag. Publication44987599185 was requested
+once. Private backend/runtime pin source is `abc04c00e1aee5c9b69e0f72ed062503b557955c`,
+backed up on a feature branch but not yet pushed to the deployment branch.
+
+Local qualification:36-module test/install,2630 reported tests,0 failures/errors,
+6 optional provider checks skipped by default;30-module actual release-profile
+packaging passed separately. Three recovery real-provider cases then passed on
+the unchanged Harbor model, including the exact terminal-failure handoff. Runtime
+818, focused backend184, handoff/recovery33, release guards and local minimal
+consumer passed. Actual Central consumption, new CI images and .62 hosted
+verification still remain. All temporary admin sessions are revoked during the
+publication wait. Do not move the .61 tag or duplicate either upload.

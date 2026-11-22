@@ -17787,3 +17787,168 @@ test is being called hosted acceptance. UI extraction remains last.
   private code/image source, pushPlatform-V11 normally once, then continue planned
   Core/runtimeCI, controlled rollout and Harbor qualification. If external state
   stays pending, final status MUST say live qualification is NOT complete.
+
+### 010.71 Live Rollout Checkpoint - 2026-11-22 04:22 UTC
+
+- Existing Central upload became available without re-upload/re-tag. All30 modules
+  and118 artifact/signature checks PASS; empty-Maven-repository consumer compile
+  PASS, Core SHA matches Central. Original publisher poll-timeout CI is still a
+  failed job; actual consumption is separately verified.
+- Private b54af2591 pushed normally. Core44983369043 and runtime44983369091 PASS.
+  Core backend/UI at BOTH control planes now b54, native healthy/zero restarts,
+  unchanged resources/env/mounts/schema241. Runtime image b54 digest
+  sha256:d65ded178577df3cfd1bc36f1479eafe97935d043cc615708dc17141ecaa021a
+  registered channel staging: stage dsa-0001a43b, prod dsa-6d6955ba. Central Core
+  SHA verified inside the actual image. Other Brains remain untouched.
+- Normal-session live Recovery policy save5/45000 -> reload -> save3/30000 passed,
+  all unrelated fields preserved. Initial phone harness waited for a background
+  role hidden by the expected auto-open assistant modal; corrected dismissal order
+  passed. Final screenshots must also wait for drawer exit animation, not capture
+  it mid-dismiss. ui-final-verify.mjs fixes that wait and should be rerun after
+  the Core correction; no extra draft saves are needed.
+- First Harbor publication ver-9518de90 (v9) unexpectedly had reindexRequired=true.
+  STOPPED BEFORE APPLY; no release/new runtime/binding/index operation occurred.
+  Root cause: DeploymentConfigCompiler excludes orchestrationModeOverrides from
+  index comparison but not new runtime-only decisionRecovery. Fixed that single
+  exclusion plus tests and explanatory Advanced copy in d3712b981bdb563a43bed37d4fad52a0f4ced95e.
+  Four focused compiler regressions PASS, UI27 PASS. First test compile attempt
+  referenced a non-existent accessor; corrected to the published manifest before
+  passing. Supplemental older navigation browser fixture failed to render its
+  first Runtime connections page; unchanged5e7fd8aac baseline is being checked
+  in exec41036, not a claim of a live navigation failure.
+- Core-only correction CI44984547424 builds d371; watcher exec51057 is required.
+  NO framework re-publication or runtime rebuild is required. Runtime staysb54;
+  release-source.private.json now has source=b54 and coreSource=d371. Final native
+  proof must compare Core services to coreSource and Harbor to source, not demand
+  identical private source hashes for unchanged components.
+- Current pre-correction Core snapshots are in private root/core-reindex-fix;
+  original initial snapshots and b54 verified receipts remain intact. Once Core
+  correction CI passes, run service-rollout for staging backend/UI then production
+  backend/UI with LOOMAI_ROLLOUT_EVIDENCE_ROOT=<root>/core-reindex-fix and source d371.
+  This preserves resources again and proves the exact corrected Core images.
+- First publication intent/version/validation proofs renamed with suffix
+  -initial-reindex-flag, retained rather than hidden/deleted. Current Harbor draft
+  revision is10 after publication, configured snapshot revision9; configs match
+  exactly. Before the intentional corrected second publication, preserve the
+  UI-saved snapshot then refresh expected revision ONLY after rechecking every
+  Config field. Publish a new immutable version, require reindexRequired=false,
+  compatible .61 artifact/rejected .60, apply same target, observe verified release,
+  native checksum proof, exact Engage consumer bind, READ-only live desktop/phone
+  checks, quality review and package promotion. Harbor currently still v8/.60.
+- New OWN normal admin sessions are ACTIVE in both control planes. Revoke both
+  at the end and prove old-cookie-only unauthenticated. operations.mjs has no API
+  key fallback. Gallery8766 untouched. No infra/billing change or business write.
+
+### 010.71 Canary Gap And .62 Work - 2026-11-22 04:49 UTC
+
+- Core correction d371 CI44984547424 PASS; BOTH backend/UI staging/prod nowd371,
+  healthy/zero restarts/resources/env/mounts preserved/schema241. Harbor corrected
+  v10 ver-029cc928 / rel-7e5cdc24 APPLIED_VERIFIED/PASSED, reindexRequired=false.
+  Runtime/connector b54/.61 all20+5 public JAR checksums match Central, resources/
+  credentials/storage unchanged. Exact Engage consumerboundv10 ACTIVE/ready; all
+  other consumers unchanged,13 enquiries before/after, zero business writes.
+- Live .61 run13 samples: HTTP200 all, but Browse-no-attachment returned ERROR
+  after3 correct bounded repairs for ACTION_PARAMETER_CONTRACT_INVALID(category).
+  finalContextAnswerAttempted=false because IntentExtractionStep's recoverable
+  issue whitelist omits that issue. DO NOT claim completion or promote .61.
+  Saved061-live-review.private.json marks NOT_QUALIFIED_FOR_PRODUCTION_PROMOTION;
+  .61 finalize-rollout.mjs now explicitly refuses promotion for this result.
+- A separate first Browse starter validly but incorrectly chose RAG instead of
+  available4 public READ tools; explicit catalogue question worked. Kept all13
+  samples, no hidden retry: live-cases includes first miss/error and subsequent
+  explicit follow-up. Attachment/history comparisons, summaries, delivery and
+  compound delivery worked, phone nooverflow/errors; care lacks approved evidence.
+- New public worktree ~/.codex/worktrees/routing-recovery-0862, branch
+  codex/routing-recovery-0862 based immutable .61 source25eecf29. Not committed or
+  published yet. Source fix is ONE whitelist addition for the invalid parameter
+  issue, leaving actual validation/non-execution/provider/strictTask/mixed protected
+  failures intact. New ActionContractDecisionRecoveryTest has3 cases;33 focused
+  tests PASS (initial fixture import/5-arg engine overload/history owner mistakes
+  corrected before passing, raw logs retained). Added third opt-in real-provider
+  test for actual extraction-to-final-generation handoff, not just service direct.
+- Mechanical public version62 bump70 files excludes historical release notes.
+  New docs/release-notes/0.8.62.md. Full normal reactor install running exec80103
+  with log in ~/.codex/private/routing-recovery-0862/framework-release-install.log.
+  Command mistakenly requested nonexistent central-release profile: it is a normal
+  install/test run, NOT release-profile qualification. Once it completes, run the
+  actual -Prelease install (or packaging with tests already recorded) before tag.
+- New private evidence root routing-recovery-0862 mode700; helpers copied from.61
+  mechanically changing versions/roots/operation keys. operations.mjs still has
+  normal-session REQUIRED, no API-key fallback. .62 preflight done and all SIX
+  current service snapshots saved. Both new task sessions REVOKED with cookie-only
+  inactive proofs; no active owned sessions in either .61 or .62 root now.
+- Private UNCOMMITTED .62 pins: ai-infrastructure-module/pom.xml framework.version,
+  runtime capability JSON, backend application.yml and3 runtime-test expectations.
+  No UI source change: UI MUST remain existing d371. Selected .62 backend/runtime
+  source will be new commit; record uiSource=d371 and coreSource/new source in
+  release-source JSON. CoreCI will build backend only; do NOT try to deploy missing
+  UI image for the new SHA. Existing .61 UI is the identical configured editor.
+- .62 helper details: register-runtime expects new backend proof; harbor-upgrade
+  no longer falsely requires old .61 artifact incompatible (same API capability),
+  but explicitly requires/selects qualified .62. Native checksum proof still
+  requires ALL public JARs62. finalize requires live-quality-review with exact
+  release, internalPlanningErrors=0 and qualifyForPromotion=true; UI source checked
+  separately. ui-recovery now waits actual panel/Drawer CSS hidden before phone
+  screenshots and Save draft settled. .62 harbor-live retains every attempt and
+  can use ONE explicit catalogue follow-up when Browse produces no cards, recording
+  each sample. Source-choice quality is separate from the final-answer contract.
+- NEXT: finish normal and correct release profile builds; run new3 real-provider
+  cases using existing unchanged Harbor provider key/model via real-provider.mjs
+  (never print key). Runtime818 + focused backend; public release guards/consumer.
+  Commit/push/tag .62 ONCE, wait actual Central without duplicate upload, fresh
+  consumer/module checks. Commit selected private .62 pins, save source+uiSource,
+  push normally once, Core/backend+runtime CI. Fresh login both envs, backend-only
+  stage thenprod rollout, register package stagechannel bothCPs, UI roundtrip,
+  publish/apply SAME Harbor target with reindexfalse, native checksums, exactbind,
+  live samples including original Browse question, quality review before promotion.
+  Revoke all own sessions at end. No paid infra changes; gallery8766 untouched.
+
+### 010.71 .62 Publication Checkpoint - 2026-11-22 05:02 UTC
+
+- Public .62 COMMITTED/PUSHED sourcea7693b9c27853acdb3023fd8295b168bdcbfcf2b,
+  immutabletag ai-fabric-framework-v0.8.62, GitHub release created ONCE by private
+  publish-framework.mjs. Central workflow44987599185 is running; sole required
+  exec34783 runs new DYNAMIC wait-public.mjs. It checks this actual source/run and
+  .62 artifacts, never .61 IDs. If job fails only its publication poll, inspect
+  actual logs/upload ID and poll existing upload; do NOT re-upload/tagmove.
+- Public full NORMAL36-module install PASS:2630 tests/416 suites,0fail/0error,
+  6opt-in skips (3recovery +3connectivity). Actual30-module -Prelease packaging
+  separately PASS with tests skipped after fullrun. New3 real-provider tests
+  explicitly enabled PASS on unchanged gpt-5.4-mini-2026-03-17: correct250 saving,
+  unknown stock disclosed, invalid-category terminal handoff produces general
+  guidance without tool execution. Focused handoff33, backend184, runtime818,
+  releaseguards and minimalconsumer all PASS. Test/packaging/real logs and summary
+  in private routing-recovery-0862/local-qualification.private.json. All test and
+  git-push sessions are CLOSED; no owned auth session remains active.
+- Private code .62 pins COMMITTEDabc04c00e1aee5c9b69e0f72ed062503b557955c and backed
+  up on origin/codex/decision-recovery-0862. RemotePlatform-V11 remainsd371, so NO
+  private .62 image CI/live rollout yet. Uncommitted docs update plan/verification/
+  this guide; user .gitignore/cache/media remain untouched. Do NOT stage allprivate.
+- Source JSON in .62 root: source/coreSource=abc04c00e..., uiSource=d3712b981b...,
+  publicSource=a7693b9c..., framework62. Only new BACKEND/Core image is required;
+  unchanged UI source staysd371 (no UI image will exist forabc). Runtime image is
+  rebuilt atabc against actual published public62. Finalizer checks UI separately.
+- Prepared .62 helpers audit: removed unsafe mechanically copied
+  wait-existing-publication.mjs with old .61 IDs; ONLY use new dynamic wait-public
+  now. The latter throws on failed CI even after possible upload; investigate then
+  implement a new read-only existing-upload watcher with ACTUAL .62 ID if needed.
+  central-modules/fresh-consumer are version/root62. They must run AFTER actual
+  availability. No fresh-m2/public-consumer-proof exists yet unless watcher succeeds.
+- .62 preflight snapshots complete, baseline BOTH Core/UI d371; Harbor runtime/
+  connectorb54 digestd65ded... with v10/rel7e5cdc24/.61. App ACTIVE/ready, own exact
+  consumer boundv10, otherKitconsumer unchanged,13enquiries. ALL .62 preflight and
+  .61 task sessions revoked. Explicitly login('staging')/login('production') only
+  after Central is ready for rollout, and revoke again at end. No API-key fallback.
+- NEXT after Central: allmodule signatures/freshconsumer; read remotePlatformV11
+  and pushabc normally ONCE after private-push-intent. watch-private-ci needs
+  BOTH backend/Core +runtime CI forabc. Stage BACKEND rollout thenprod BACKEND only,
+  keep UI d371. Register62 artifacts stagechannel bothCPs; UI recovery5/45000 ->
+  reload ->3/30000 using unchanged editor/updatedbackend. Publish/apply sameHarbor
+  target, require reindexfalse; native .62 checksums; exactEngagebind; harbor-live
+  includes all starters + recorded explicit catalogue follow-ups if no cards.
+  Do NOT hide a valid-but-wrong RAG choice as success. Require no internal-planning
+  ERROR in new .62 samples and inspect fallback diagnostics; controlled real-provider
+  handoff alreadyqualified. Save live-quality-review with matchingrelease,
+  internalPlanningErrors=0, qualifyForPromotion=true ONLY after actual review.
+  Then finalize promotes both artifacts, checks6services/env/oldbindings/13writes0,
+  logs outboth. Update final docs/status and commit docs separately from image SHA.

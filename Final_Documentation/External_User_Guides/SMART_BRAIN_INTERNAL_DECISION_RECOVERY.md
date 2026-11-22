@@ -17,6 +17,8 @@ Open your Smart Brain -> Advanced -> Recovery policy.
 Save the shared draft, then use Updates to review, publish and apply a compatible
 runtime. Saving does not change an already applied release. The runtime must
 advertise `internal-decision-recovery-v1`; older images cannot apply these settings.
+Changing these repair limits does not require reindexing knowledge. Actual
+embedding or indexed-data changes still use the normal reindexing checks.
 
 The saved provider configuration is:
 
