@@ -97,4 +97,12 @@ concurrent unrelated edits, all three RAG choices, read-only access, numeric
 validation, discard, task switching and 1280/390/320px light/dark views.
 Backend contract regression: DeploymentDraftValidationServiceTest and
 RailwayProvisioningPlanServiceTest. See the task verification record for actual
-deployed UI source and live save/reload/restoration evidence.
+deployed UI source and live save/reload/restoration evidence in
+`verification-support/configuration-ui-controls/README.md`.
+
+Final UI source `5404944ba7f2d59cbb6af3fd584972df35ecfce2` is deployed and native-
+verified on staging and production (CI 45027515729 SUCCESS). All three RAG modes,
+all ten controls and exact original-draft restoration passed in live UI checks
+on both environments. Running releases, backend/framework and infrastructure
+settings were not changed. Automated results: 32 UI cases, 173 existing backend
+contract tests and production UI build PASS.

@@ -18071,3 +18071,34 @@ test is being called hosted acceptance. UI extraction remains last.
 - Other running Brains were NOT silently upgraded;62package is now qualified/
   promoted for normal explicit publish/apply. Docs-only HEAD/push is separate from
   actual imageabc and unchanged UId371. Keepuser .gitignore/cache/media unrelated.
+
+## 2026-11-22 Configuration Form Audit - Complete
+
+- CURRENT UI BOTH control planes: source5404944ba7f2d59cbb6af3fd584972df35ecfce2,
+  CI45027515729 SUCCESS, digest304f8a7742c418625ef34041803aff8090a9f22dbe85c640b93bd4b5efc5c6c6.
+  Stagejobvo7spv97g510361u9jw3qfip then prodkvj4uz13wmni0182t5mmv4uu healthy,
+  zero restarts; env/mounts/limits/routes/ports unchanged. Feature1bc144fc0 and
+  mobilepolish5404944ba committed/pushed. Subsequent docs HEAD is not image source.
+- Knowledge > Search settings > Answers & sources owns all ten previously missing
+  supported executor retrieval/read-planning controls. Three RAG modes, inherited
+  overrides, bounded fanout and Advanced read budgets/source-planning flags.
+  ragRequiredWithReadActions remains derived, never a second saved property.
+  Scoped AND legacy provider saves merge only edited fields. Unknown/current/
+  inactive values preserved; JSON optional for these settings and still available
+  for expert payloads. No arbitrary full-JSON visual-builder completeness claim.
+- 32 actual UI/mapper/browser cases PASS, 173 existing backend contract tests PASS,
+  production build PASS. Desktop/mobile320/390, light/dark; final live1440/390 on
+  BOTH CPs PASS incl all three modes/inheritance/allten, reload/discard/numeric
+  rejection and exact original config restoration. Mobile RAG label fits and
+  selected task rail item visible. Six saves per Brain per qualification; only
+  audit/revision metadata advances. No publish/apply/AI request from opening.
+- StageNorthfielddep-f023c863 and prodHarbordep-86ad8f93 configs restored EXACTLY;
+  every other config object and release list unchanged. Harbor app unchanged.
+  BOTH backendabc04c00e1aee5c9b69e0f72ed062503b557955c, schema241, framework0.8.62
+  and runtime/connector containers/images unchanged. No billing/capacity changes.
+- ALL required processes closed, both own normal staff sessions REVOKED; old
+  cookie-only unauthenticated. Unrelated .gitignore/cache/media remain unstaged
+  and unreverted.
+  Coverage guide SMART_BRAIN_CONFIGURATION_FORM_COVERAGE.md linked from required
+  PLATFORM_UI_PROFILES.md. Verification: verification-support/configuration-ui-controls/README.md.
+  Final private proof ~/.codex/private/configuration-ui-coverage-20261122-polish/final-proof.private.json.
