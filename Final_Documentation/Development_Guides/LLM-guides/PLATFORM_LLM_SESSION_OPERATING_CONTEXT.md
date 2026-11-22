@@ -178,6 +178,25 @@ are not item content. Retain existing credential exclusions and resource bounds;
 no new semantic validator or broad confidentiality classifier follows from this
 decision. See 010.70 for actual implementation and deployment status.
 
+### Internal Decision Recovery (Owner Decision, 2026-11-22)
+
+An ordinary chat user must not be asked to choose an internal knowledge domain,
+namespace, vector space or missing planning attribute. Use typed structural
+findings to ask the model to repair its latest candidate within a request-shared,
+configured allowance. If that decision remains unresolved, allow one final model
+answer from permitted history, explicit attachments and already approved evidence.
+Do not replace model output with canned text or phrase-match away the question.
+
+The final answer performs no new retrieval/tool call and cannot replay writes.
+Preserve actual receipts and pending confirmations, including during provider
+failure. Actual access denial, funding exhaustion, provider outage and strict
+specialist/Task schemas remain real boundaries, not semantic repair candidates.
+No model answer can be promised during total provider failure. A repair-admission
+window stops new repairs, not an in-flight provider call. Keep budgets and these
+limits visible in Advanced and diagnostics. See 010.71 and
+`External_User_Guides/SMART_BRAIN_INTERNAL_DECISION_RECOVERY.md`; release/adoption
+evidence belongs in `CODEX_WORKING_CONTEXT.md`, not in this owner decision.
+
 ## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
 
 An explicit configuration request authorizes the assistant to save changes to

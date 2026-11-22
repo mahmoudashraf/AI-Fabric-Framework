@@ -17715,3 +17715,75 @@ test is being called hosted acceptance. UI extraction remains last.
   same existing target, native checksum proof, exact Engage bind, READ-only desktop/
   phone tests and honest quality review; promote package, docs, logout both sessions.
   Required execution continues; do not finish at this checkpoint.
+
+### 010.71 Publication Delay - 2026-11-22 03:50 UTC
+
+- Central release44979109847 completed FAILURE solely because the plugin's30min
+  publication poll timed out AFTER successful signed bundle upload03:13:15. Exact
+  existing Sonatype deployment0d9af9bb-4160-4de5-9a73-a8ece3ca7e11 is PUBLISHING,
+  31 reported components, zero errors/warnings (read-only status workflow44982071913).
+  Never re-upload/re-tag/rerun publisher for this existing deployment. Existing
+  tag/source remains25eecf29. Poll actual Central availability instead. CI's failure
+  must not be reported as success; source/tests/build/upload succeeded separately.
+- Public framework-verify44979095590 passes release guards, vector contracts,
+  framework reactor, restored-suite compilation, minimal consumer and standalone
+  agentic consumer. Broad real-app step fails the existing Incident Room14 cases;
+  the .60 baseline44968421628 also failed. No Incident Room fix is in010.71.
+- Private b54af2591 remains LOCAL ONLY until Central artifacts are available;
+  no private push/Core/runtimeCI/live upgrade has occurred. Six original services
+  remain60/e531/Harborv8. Native .61 images/Harbor verification are still pending.
+- Final-source local runtime818 rerun PASS, UI27/frozen build PASS. Broadened full
+  backend suite is running (exec82802, /tmp/loomai-recovery-0861-backend-full.log),
+  exposing old fixture/schema assertions beyond focused206 tests. Baseline branch
+  codex/decision-recovery-baseline-0861 at5e7fd8aac, separate worktree same basename,
+  reproduces all6 selected failing suites:110 tests,1 failure/92 setup errors.
+  The scoped operator list expectation predates customer-granted staff access;
+  credential fixtures capture an old deploymentID; old PostgreSQL/schema/template
+  fixtures omit newer columns or use retired templates. A supplemental baseline
+  run also reproduces lifecycle/quota/H2-profile gaps (11tests,1failure/4errors).
+  Do not weaken production auth or change unrelated migrations to green these.
+- Read-only live schema proof confirms platform_secrets.target_profile_id exists
+  in BOTH control planes. Legacy operator API keys are not configured in either,
+  so no live operator token was fabricated or granted. Proof outsideGit:
+  existing-backend-gap-proof.private.json. No production security change was made.
+- Current only publication watcher exec83779 runs wait-existing-publication.mjs;
+  it observes the existing upload for30min and exits2 if still external-pending.
+  It can write public-consumer-proof.private.json when actual signed artifacts are
+  available despite the upload job's poll timeout. Then run all-module availability
+  and fresh-consumer checks; do not require a second upload. Root backend full
+  exec82802 may still be running. Both OWN normal admin sessions remain active and
+  MUST be revoked before stopping. Gallery8766 remains untouched.
+- CUA attempt could not access Central UI (IABempty, nativeChromeAXtimeout); its
+  completion summary was already sent. No browser page or user tab was changed.
+  All remaining operational scripts use the task-private proof root and existing
+  image-only deployment workflow. New policy/verification documents are uncommitted
+  outside b54; image source must remain the actual selected code commit, not a
+  later documentation-only HEAD. Continue the requested end-to-end qualification
+  if publication becomes available; otherwise report the external blocker honestly.
+
+### 010.71 Qualification/Session Checkpoint - 2026-11-22 04:00 UTC
+
+- Full private backend sweep completed:6001 tests,10 failures/109 errors/1 skip.
+  ALL119 failed cases reproduce by identical class/test names on unchanged5e7fd8aac
+  in the isolated baseline worktree (198 selected baseline tests, three logs:
+  backend-baseline, backend-baseline-lifecycle, backend-baseline-remaining). No
+  production/test source was edited to hide these existing failures. New/scoped206
+  backend checks, runtime818(final rerun), UI27/build and framework2592 remain PASS.
+  Do not report the entire backend or broad real-app CI as green.
+- Both temporary normal admin sessions have now been REVOKED; cookie-only probes
+  confirm authenticated=false in both environments. Old secret files are renamed
+  admin-{environment}-revoked-{timestamp}.private.json; timestamped logout proofs
+  retained. operations.mjs now REQUIRES a normal owned session for ALL Platform API
+  calls; there is NO API-key fallback. Explicitly login('staging') and
+  login('production') again before any live control-plane verification/rollout.
+  This did not sign out the user's browser. No active task session remains now.
+- Remaining required exec is83779 (existing-publication watcher), observing the
+  original .61 upload, not publishing another. All other task test/CI-observer
+  sessions are finished. Original gallery8766 remains unrelated/untouched.
+- Private feature/code commit remainsb54af2591; documentation checkpoint commit
+  will follow and be backed up under codex/decision-recovery-0861 WITHOUT advancing
+  remotePlatform-V11 or starting a known missing-dependency runtime build. If
+  publication becomes available in this turn, select/record the exact desired
+  private code/image source, pushPlatform-V11 normally once, then continue planned
+  Core/runtimeCI, controlled rollout and Harbor qualification. If external state
+  stays pending, final status MUST say live qualification is NOT complete.

@@ -336,6 +336,34 @@ Central, image, Harbor binding and live result evidence will be appended after
 the verified rollout. Existing storage, credentials and infrastructure are not
 being replaced or resized.
 
+### Current External Release Gate
+
+Framework source `25eecf29e6595fc754436edb9ba94662e267c467` is committed/pushed
+under immutable tag `ai-fabric-framework-v0.8.61`. Its signed bundle uploaded
+successfully. Job44979109847 subsequently failed only its30-minute Sonatype
+publication poll. Existing deployment `0d9af9bb-4160-4de5-9a73-a8ece3ca7e11`
+reports PUBLISHING,31 components, zero errors/warnings. No tag move, duplicate
+upload or publisher rerun is appropriate. Actual Central availability and fresh
+consumption remain prerequisites for the hosted rollout.
+
+Implementation code is in private commit `b54af2591`; the deployment branch and
+all running services remain on the previous verified release. Production and
+staging Core UI/backend deployment, Harbor apply/binding and live chat checks
+are NOT yet complete. The implementation is not a claim of live adoption.
+
+Local framework2592 reported tests, final Core1202/chat97 regressions, two real
+provider cases, runtime818, focused backend206 and UI27/build passed. A full
+backend sweep reports6001 tests with119 failed cases; all119 reproduce on the
+pre-change commit in198 selected baseline tests. Broad framework real-app CI
+also retains the known Incident Room failure. These broad-suite gaps are not
+claimed green or fixed by this patch. See
+`verification-support/decision-recovery/2026-11-22.md` for separate evidence.
+
+Both task-owned normal admin sessions were revoked during the external wait,
+with old-cookie-only inactive proof. Fresh normal sign-in is required for any
+subsequent Platform operation. No live capacity, credentials, storage, bindings
+or business data have been changed by this release attempt.
+
 Plan created before implementation. No runtime changes, publication, deployment
 or live query were performed in preparing this document. Append implementation,
 exact effective settings, tests and live evidence as they are completed.
