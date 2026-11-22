@@ -19138,3 +19138,19 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   finalize verification README (currently incremental/untracked) and commit docs.
   Approved50turn additions BOTH already completed via signed runtime topup API:
   effective150 each,2Mtokens/USD5/expiry/usage preserved. Never add another50.
+
+### Support Authoring Route Guidance Checkpoint - 23:26 UTC
+
+- Stage backend83ebaa30a/UI3a03df18e remain healthy. Support guidance version
+  verb1373eed/release rel0d3b1065 is still in its normal provisioning/verification
+  flow; do not bind the older verified proof or restart backend mid-apply.
+- Fresh unbound Brain defaults exposed missing route guidance: the authoring
+  catalogue taught only relative paths, causing requests for an API host already
+  present in selected documentation. Catalogue now describes existing absolute
+  url/path/source-projection forms and instructs use of documented absolute URLs
+  when global upstream is unbound. Missing actual host still needs user input;
+  existing upstream/auth bindings are preserved. No runtime/framework change.
+- Corrected assistant/applyguard/draft-validation suite423PASS. This source still
+  requires CI, staging backend deployment and full eight-case live authoring
+  qualification before production. Prior failed live attempts remain evidence,
+  not blanket PASS. Both own staff sessions remain active until final cleanup.

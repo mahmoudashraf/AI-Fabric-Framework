@@ -43,6 +43,9 @@ class AuthoringResourceContractsTest {
         assertThat(example.at("/value/response/success-http-status/0").asInt()).isEqualTo(200);
         assertThat(example.path("path").asText()).isEqualTo("/routingConfig/actions/lookup_record");
         assertThat(example.at("/value/response").has("message")).isFalse();
+        assertThat(catalogue.at("/routeTargetForms/url").asText()).contains("selected API documentation");
+        assertThat(catalogue.at("/routeTargetForms/path").asText()).contains("connector.upstream.base-url");
+        assertThat(catalogue.path("routingRules").asText()).contains("If upstream is unbound", "use an absolute url", "Never invent a host");
     }
     @Test void readMemoryExampleUsesActualRecordIdentityWithoutInventingAnIndex() {
         var mapper = new ObjectMapper();
