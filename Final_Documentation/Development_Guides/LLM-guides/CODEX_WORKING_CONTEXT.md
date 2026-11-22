@@ -19154,3 +19154,52 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   requires CI, staging backend deployment and full eight-case live authoring
   qualification before production. Prior failed live attempts remain evidence,
   not blanket PASS. Both own staff sessions remain active until final cleanup.
+
+### Support Worker / Manager Input Checkpoint - 23:34 UTC
+
+- Stage guidance rel0d3b1065/verb1373eed APPLIED_VERIFIED/PASSED and bound. Bundle
+  64958bytes/10invocations, hash verified in Java environment, child writes off.
+- ebd0a84bd backend CI45083221038 passed; staging backend rollout in progress,
+  after the specialist query run completed and signed its customer out.
+- Latest staging 15-query attempt7 retained two unnecessary direct specialist
+  CLARIFICATION_REQUIRED results. Native target resolution requests an attachment
+  when the model marks requiresTargetResolution; these tools are parameterless
+  and resolve selected resources through authenticated backend context. No access
+  or attachment target is synthesized to bypass it. Other cases gathered actual
+  facts. Workspace/integration plans used two worker observations; some plans
+  still completed with no workers. Parent direct READ recovery sometimes supplied
+  correct facts, but this is not full plan-quality qualification.
+- Generic compiler prompt refinement in progress: target resolution follows each
+  declared tool's required inputs, parameterless tools need no attachment. Manager
+  is told preparation status is not an observation and missing initial results
+  require investigation when facts are needed. No semantic keyword matching,
+  forced worker sequence, output replacement or framework change. Full compiler/
+  Support tests and bounded bundle-size checks running. Need publish/apply/bind
+  updated compiled prompts normally, repeat failed areas/plans plus natural tests,
+  final-source authoring regression, then honest staging gate/production rollout.
+
+- Worker/manager guidance and Support/compiler/authoring/draft/apply tests426PASS.
+  The broad suite exposed a stale pre-task test expecting historical1.0.1 despite
+  accepted public Support1.3.0; it now checks actual accepted and historical pins,
+  without changing catalogue data. Compiled bundle bounds remain enforced.
+- Absolute-route catalogue stage8case result7/8 plus followup/undo/BEHAVIOUR.
+  Selected-operation-only put an absolute URL in path and exhausted corrections,
+  leaving one visible validation error (no publication). Catalogue now explicitly
+  shows absolute url versus relative path forms and forbids discarding a supplied
+  host when correcting a path error. Generic model guidance, no hidden rewrite.
+- Read-only budget observation: staging134/150 and production110/150. Same2Mtoken
+  andUSD5caps, not stopped. Final stage full8case(+followup/BEHAVIOUR) fits; do not
+  spend the remainder on unbounded repeats or request/add unapproved topups.
+
+### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
+
+- Owner explicitly requested plan review first. New implementation plan 010.73
+  proposes genuine hybrid retrieval for documents AND entities, then optional
+  learned reranking, shared evaluation/customer settings and AI optimization.
+- The same plan covers exact-snapshot S3 discovery, bulk indexing over existing
+  queues/receipts and the shared assistant's reviewed operational coordination.
+  Includes security, spending, migration, rollout and live-qualification gates.
+- Planning-only work: no application code, live configuration, credentials,
+  infrastructure, releases or deployments changed. Do not treat the proposed
+  capabilities or sample profile as implemented/default-enabled. Independent
+  Support work and its active sessions/checkpoints above remain untouched.

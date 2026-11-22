@@ -31,6 +31,11 @@ final class AuthoringResourceContracts {
             catalogue.set("routeTargetForms", mapper.valueToTree(Map.of("url", "Absolute HTTP(S) endpoint URL from selected API documentation or an authorized current binding",
                 "path", "Relative operation path; requires configured connector.upstream.base-url",
                 "source-projection", "Existing installed source projection, not an invented upstream")));
+            catalogue.put("routeExampleRules", "Examples are schematic, not provider configuration. Derive the host and operation from the selected documentation. An absolute endpoint belongs in the route's url field, never its path field. If validation says a relative path needs an upstream, use the documented absolute url form; do not discard a supplied host or retain a path-only route with an unbound upstream.");
+            catalogue.set("absoluteUrlRouteChangeExample", mapper.valueToTree(Map.of(
+                "path", "/routingConfig/actions/lookup_record", "operation", "SET", "value", Map.of(
+                    "method", "GET", "url", "https://api.example.invalid/v1/records", "request", Map.of("query", Map.of("id", "{{params.recordId}}")),
+                    "response", Map.of("success-http-status", List.of(200), "result", Map.of("record", "{{body.record}}"))))));
             catalogue.set("routeChangeExample", mapper.valueToTree(Map.of(
                 "path", "/routingConfig/actions/lookup_record", "operation", "SET", "value", Map.of(
                     "method", "GET", "path", "/v1/records", "request", Map.of("query", Map.of("id", "{{params.recordId}}")),

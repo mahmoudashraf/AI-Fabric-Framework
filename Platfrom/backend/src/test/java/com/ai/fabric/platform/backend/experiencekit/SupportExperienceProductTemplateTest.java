@@ -70,8 +70,10 @@ class SupportExperienceProductTemplateTest {
 
     @Test void supportExperienceCandidatesCannotReplaceAcceptedCatalogueDefaults() throws Exception {
         var catalogue = read("catalog.json");
-        assertThat(catalogue.path("entries").get(1).path("manifest").asText())
-            .isEqualTo("manifests/ai-support-workspace.1.0.1.manifest.json");
+        JsonNode accepted = catalogue.path("entries").get(1);
+        assertThat(accepted.path("manifest").asText()).isEqualTo("manifests/ai-support-workspace.1.3.0.manifest.json");
+        assertThat(accepted.at("/currentRelease/productionDefaultAccepted").asBoolean()).isTrue();
+        assertThat(accepted.path("historicalManifest").asText()).isEqualTo("manifests/ai-support-workspace.1.0.1.manifest.json");
         assertThat(catalogue.path("supportExperienceCandidates")).hasSize(4);
         for (JsonNode candidate : catalogue.path("supportExperienceCandidates")) {
             assertThat(candidate.path("publicationScope").asText()).isEqualTo("SOURCE_ONLY");

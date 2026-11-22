@@ -89,6 +89,15 @@ parallel workers and 75 seconds. Each target can run once. Requested parallel
 results remain all-required; failures and incomplete findings stay visible.
 Simple questions may use direct approved retrieval without a specialist.
 
+Compiler guidance separates worker-tool input requirements from conversation
+attachment targeting. Parameterless diagnostic tools resolve selected resources
+through the authenticated backend; they do not need an invented attachment or
+customer-supplied internal ID. Tools that genuinely require identifiers retain
+their declared inputs. The manager chooses its next check from the question and
+approved targets; internal preparation status is not a worker observation, and
+an empty initial result list is not evidence of denied access. These are prompt
+instructions, not forced worker sequences or a new semantic rejection gate.
+
 Worker writes are disabled. Parent conversation ticket/handover controls retain
 their actual authority and confirmation requirements. Draft configuration edits
 use canonical Build with AI; there is no second Support draft writer. Publish,

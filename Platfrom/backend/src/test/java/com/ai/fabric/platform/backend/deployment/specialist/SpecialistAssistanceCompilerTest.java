@@ -138,12 +138,13 @@ class SpecialistAssistanceCompilerTest {
         assertThat(manager.at("/spec/capabilities/actions/visible")).isEmpty();
         String readPrompt = resource(compiled, "SpecialistPromptProfile", "assist-area-account").at("/spec/constraints").asText();
         assertThat(readPrompt).startsWith(behavior.at("/specialistAssistance/areas/1/instructions").asText())
-            .contains("When the question needs current observations", "within caller authority",
-                "Documentation-only questions do not require live reads", "checks were not performed or failed");
+            .contains("For current facts", "within caller authority", "each tool's required inputs",
+                "never demand an attachment for a parameterless tool", "Documentation needs no live read",
+                "Distinguish guidance from observations", "failed/unperformed checks");
         assertThat(resource(compiled, "SpecialistPromptProfile", "assist-area-setup").at("/spec/constraints").asText())
-            .doesNotContain("When the question needs current observations");
+            .doesNotContain("For current facts");
         assertThat(resource(compiled, "SpecialistPromptProfile", "assist-manager-investigate").at("/spec/constraints").asText())
-            .doesNotContain("When the question needs current observations");
+            .doesNotContain("For current facts");
 
         ((ObjectNode) behavior.at("/specialistAssistance/areas/1")).putArray("readActions");
         JsonNode withoutReads = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority())
@@ -151,7 +152,7 @@ class SpecialistAssistanceCompilerTest {
         assertThat(resource(withoutReads, "Specialist", "assist-area-account").at("/spec/mode").asText())
             .isEqualTo("navigator_deep");
         assertThat(resource(withoutReads, "SpecialistPromptProfile", "assist-area-account").at("/spec/constraints").asText())
-            .doesNotContain("When the question needs current observations");
+            .doesNotContain("For current facts");
         assertThat(mapper.convertValue(withoutReads.path("invocations").get(1).path("requiredScopes"), List.class))
             .containsExactly("specialist:assist-area-account@1");
     }
@@ -210,7 +211,8 @@ class SpecialistAssistanceCompilerTest {
         JsonNode first = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
         ((ObjectNode) behavior.at("/specialistAssistance/areas/0")).put("instructions", "Use a different approved product guide and report uncertainty.");
         JsonNode second = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
-        assertThat(second.toString()).contains("empty completedResults at startup is not an access failure");
+        assertThat(second.toString()).contains("Preparation status is not a worker observation",
+            "missing completedResults means investigate with an approved worker");
         assertThat(second.at("/specialistAssistance/contentHash")).isNotEqualTo(first.at("/specialistAssistance/contentHash"));
         assertThat(first.at("/specialistAssistance/areas/0/instructions").asText()).contains("approved product setup");
         ((ObjectNode) behavior.at("/specialistAssistance/resolutions/0")).put("allowParallel", false);
