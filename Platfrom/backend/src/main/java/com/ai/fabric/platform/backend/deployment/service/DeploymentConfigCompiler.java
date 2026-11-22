@@ -617,6 +617,7 @@ public class DeploymentConfigCompiler {
         if (comparable instanceof ObjectNode objectNode) {
             // Runtime orchestration policy does not change stored vectors or their indexed representation.
             objectNode.remove("orchestrationModeOverrides");
+            objectNode.remove("decisionRecovery");
         }
         return comparable;
     }

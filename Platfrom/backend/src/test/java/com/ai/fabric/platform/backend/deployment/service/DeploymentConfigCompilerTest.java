@@ -605,6 +605,42 @@ class DeploymentConfigCompilerTest {
     }
 
     @Test
+    void decisionRecoveryLimitsDoNotRequireReindexButRemainInPublishedConfiguration() throws Exception {
+        DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
+        draft.setEntityConfigJson(validDocumentEntityConfig(false));
+        DeploymentVersionEntity activeVersion = activeVersionFor(draft);
+        ObjectNode provider = (ObjectNode) objectMapper.readTree(draft.getProviderConfigJson());
+        provider.set("decisionRecovery", objectMapper.readTree("{\"maxRepairRounds\":3,\"repairAdmissionTimeoutMs\":30000}"));
+        draft.setProviderConfigJson(provider.toString());
+
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isFalse();
+        var compiled = compiler.compile(deployment(), draft, "ver-recovery", "Recovery", false);
+        assertThat(objectMapper.readTree(compiled.manifestJson()).at("/providerConfig/decisionRecovery"))
+            .isEqualTo(provider.path("decisionRecovery"));
+
+        activeVersion = activeVersionFor(draft);
+        ((ObjectNode) provider.path("decisionRecovery")).put("maxRepairRounds", 5);
+        draft.setProviderConfigJson(provider.toString());
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isFalse();
+        provider.remove("decisionRecovery");
+        draft.setProviderConfigJson(provider.toString());
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isFalse();
+    }
+
+    @Test
+    void embeddingChangesWithDecisionRecoveryStillRequireReindex() throws Exception {
+        DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
+        draft.setEntityConfigJson(validDocumentEntityConfig(false));
+        DeploymentVersionEntity activeVersion = activeVersionFor(draft);
+        ObjectNode provider = (ObjectNode) objectMapper.readTree(draft.getProviderConfigJson());
+        provider.set("decisionRecovery", objectMapper.readTree("{\"maxRepairRounds\":3,\"repairAdmissionTimeoutMs\":30000}"));
+        provider.put("embeddingProvider", "gemini");
+        draft.setProviderConfigJson(provider.toString());
+
+        assertThat(compiler.requiresReindex(draft, activeVersion)).isTrue();
+    }
+
+    @Test
     void embeddingProviderChangeStillRequiresReindex() {
         DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
         draft.setEntityConfigJson(validDocumentEntityConfig(false));

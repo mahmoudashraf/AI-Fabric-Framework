@@ -2685,7 +2685,8 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                             Internal planning is repaired without asking your users for technical details. When repairs
                             stop, the assistant answers from available context and chat history. Access checks,
                             confirmations and provider spending limits still apply. Publish and update a compatible runtime
-                            before these draft settings take effect.
+                            before these draft settings take effect. Changing these repair limits does not require
+                            reindexing your knowledge.
                           </Alert>
                         </Grid>
                         <Grid item xs={12} md={6}>
