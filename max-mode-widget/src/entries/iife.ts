@@ -20,6 +20,7 @@ import type { MaxModeWidgetConfig } from "@/config";
 import { getWidgetConfig, getWidgetStorageKey } from "@/config";
 import type { SharedAttachment } from "@/context";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
+import { sameAttachment } from "@/attachmentSelection";
 import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget, isWidgetMounted, setWidgetConnection, setWidgetTheme, setWidgetReadOnly } from "@/mount";
 import { createWorkspaceHost, destroyWorkspaceHost, WorkspaceHostError, type WorkspaceHostApi } from "../workspaceHost";
 
@@ -202,11 +203,7 @@ function queueAttachment(item: SharedAttachment) {
   try {
     const key = getWidgetStorageKey(PENDING_ATTACHMENTS_KEY);
     const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
-    const alreadyQueued = Array.isArray(existing) && existing.some((entry) =>
-      entry?.type === item.type &&
-      ((entry?.data?.id && entry.data.id === item.data.id) ||
-        (entry?.data?.sku && entry.data.sku === item.data.sku)),
-    );
+    const alreadyQueued = Array.isArray(existing) && existing.some((entry) => entry && sameAttachment(entry, item));
     if (alreadyQueued) {
       return;
     }

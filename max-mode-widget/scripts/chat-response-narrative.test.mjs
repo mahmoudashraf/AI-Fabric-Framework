@@ -36,6 +36,7 @@ const { useChatFlow } = load('../src/hooks/useChatFlow.ts', {
   },
   '@/api/client': { isPublicRuntimeSessionInvalidatedError: () => false },
   '@/attachments': { toRuntimeAttachments: () => [] },
+  '@/attachmentSelection': load('../src/attachmentSelection.ts'),
   '@/config': config,
   '@/utils': {
     hasShopifyRequestContext: () => true,
@@ -120,6 +121,7 @@ const { ActionResultRenderer } = load('../src/components/ActionResultRenderer.ts
   '@/utils': { formatFieldName: value => value, formatFieldValue: value => String(value) },
   '@/shopifyMcpResults': shopify,
   '@/actionPresentation': { resolveActionPresentation: () => null },
+  '@/attachmentSelection': load('../src/attachmentSelection.ts'),
   '@/config': config,
   './ActionPresentationSurface': {},
 })

@@ -3,6 +3,7 @@ import type { MaxModePresentationResultReference } from "@/actionPresentation";
 import { presentationReferenceAttachmentId } from "@/actionPresentation";
 import { CURRENT_PAGE_ATTACHMENT_TYPE } from "@/pageAttachment";
 import { explicitAttachmentVectorSpace } from "@/requestSemantics";
+import { explicitAttachmentContent } from "@/attachmentContent";
 
 export const ACTION_RESULT_ATTACHMENT_TYPE = "action-result-context";
 
@@ -31,20 +32,9 @@ export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeA
   }
 
   const data = item.data || {};
-  const contentParts: string[] = [];
-  if (data.sku) contentParts.push(`SKU: ${data.sku}`);
-  if (data.name) contentParts.push(data.name);
-  if (data.title) contentParts.push(data.title);
-  if (data.description) contentParts.push(data.description);
-  if (data.content) contentParts.push(data.content);
-  if (data.price) contentParts.push(`Price: ${data.price} ${data.currency || "USD"}`);
-  if (data.category) contentParts.push(`Category: ${data.category}`);
-  if (data.availability) contentParts.push(`Availability: ${data.availability}`);
-  if (data.status) contentParts.push(`Status: ${data.status}`);
-  if (data.orderId) contentParts.push(`Order ID: ${data.orderId}`);
-  if (data.orderNumber) contentParts.push(`Order #${data.orderNumber}`);
+  const content = explicitAttachmentContent(data);
 
-  const sourceMetadata: Record<string, any> = { ...(data.metadata || {}) };
+  const sourceMetadata = { ...(explicitAttachmentContent(data.metadata || {}).value as Record<string, any>) };
   const vectorSpace = explicitAttachmentVectorSpace(data);
 
   delete sourceMetadata.productVariantId;
@@ -76,12 +66,16 @@ export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeA
     discountValue: data.discountValue,
     score: data.score,
     similarity: data.similarity,
+    attachmentKind: "EXPLICIT_USER_ITEM",
+    trust: "USER_PROVIDED",
+    actionEligible: false,
+    contentTruncated: content.truncated,
   });
 
   return removeEmptyOptionalFields({
-    id: cleanValue(data.id || data.orderId?.toString() || data.sku || `attachment-${index}`),
+    id: cleanValue(String(data.id ?? data.orderId ?? data.sku ?? `attachment-${index}`)),
     vectorSpace,
-    contentText: contentParts.join(" | "),
+    contentText: content.text,
     metadata,
     source: item.type,
     url: cleanValue(data.url),
@@ -96,10 +90,10 @@ export function toActionResultAttachedItem(reference: MaxModePresentationResultR
     data: {
       id: presentationReferenceAttachmentId(reference),
       title: reference.label,
-      content: summarizeSafeData(reference.safeData),
+      content: explicitAttachmentContent(reference.safeData).text,
       metadata: {
         attachmentKind: "ACTION_RESULT_CONTEXT",
-        trust: "REQUIRES_SERVER_RESOLUTION",
+        trust: "USER_PROVIDED",
         actionEligible: false,
         resultReferenceKey: reference.key,
         resultScope: reference.scope,
@@ -137,7 +131,7 @@ function actionResultRuntimeAttachment(item: AttachedItem, index: number): Runti
   const metadata = removeUndefinedValues({
     ...(data.metadata || {}),
     attachmentKind: "ACTION_RESULT_CONTEXT",
-    trust: "REQUIRES_SERVER_RESOLUTION",
+    trust: "USER_PROVIDED",
     actionEligible: false,
     title,
   });
@@ -147,22 +141,6 @@ function actionResultRuntimeAttachment(item: AttachedItem, index: number): Runti
     metadata,
     source: ACTION_RESULT_ATTACHMENT_TYPE,
   });
-}
-
-function summarizeSafeData(value: Readonly<Record<string, unknown>>): string {
-  return Object.entries(value)
-    .filter(([key, entry]) => key !== "presentationKey" && isDisplayScalar(entry))
-    .slice(0, 24)
-    .map(([key, entry]) => `${formatKey(key)}: ${String(entry)}`)
-    .join(" | ");
-}
-
-function isDisplayScalar(value: unknown): value is string | number | boolean {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-}
-
-function formatKey(value: string): string {
-  return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim();
 }
 
 function firstString(...values: unknown[]): string | undefined {

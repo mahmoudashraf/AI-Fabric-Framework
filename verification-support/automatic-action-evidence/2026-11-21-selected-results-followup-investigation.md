@@ -176,6 +176,19 @@ confirmation permission may be widened.
 Framework changes are proposed, not implemented or published. Obtain owner
 review/approval before the next framework patch.
 
+The owner accepted this direction and requested an initial plan on 2026-11-22.
+[010.70 implementation plan](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_70_LLM_CONTEXT_ROUTING_AND_SELECTED_RESULT_RELIABILITY_PLAN.md)
+separates framework routing, protected widget evidence handoff and widget-only
+identity fixes. Preparing that plan did not implement or deploy the changes.
+
+The owner's subsequent 2026-11-22 clarification supersedes the narrower proposed
+handoff policy above: explicit attachment approves the full selected UI item's
+data as user-provided AI context, even when fields were omitted from automatic
+Selected evidence. Automatic inclusion remains projection-controlled; ownership,
+action authority and credential protections are unchanged. The revised 010.70
+does not require a server resolver just to include explicit attachment content.
+This policy update does not change any of the recorded live findings.
+
 ## Evidence And Closure
 
 Private raw requests, responses, diagnostic metadata and screenshots:

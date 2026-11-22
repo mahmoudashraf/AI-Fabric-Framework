@@ -24,6 +24,7 @@ const { useChatFlow } = load('../src/hooks/useChatFlow.ts', {
     resolvedChatMessageUrl: () => '/api/chat/me/query', postChatQuery: () => new Promise(resolve => { pending = resolve }) },
   '@/api/client': { isPublicRuntimeSessionInvalidatedError: () => false },
   '@/attachments': { toRuntimeAttachments: () => [] },
+  '@/attachmentSelection': load('../src/attachmentSelection.ts', {}),
   '@/config': config,
   '@/utils': { hasShopifyRequestContext: () => false, normalizeMessageContent: value => value,
     withRequestContext: (payload, context) => ({ ...payload, context }) },

@@ -5,6 +5,7 @@ import { Button } from "@/ui/button";
 import { Card, CardContent } from "@/ui/card";
 
 import type { AttachedItem } from "@/types";
+import { explicitAttachmentContent } from "@/attachmentContent";
 
 export function AttachmentsRow({
   items,
@@ -52,9 +53,10 @@ export function AttachmentsRow({
                   {items.map((item, idx) => {
                     const isAISearch = item.type === "ai-search";
                     const isCurrentPage = item.type === "current-page";
+                    const contentTruncated = !isAISearch && !isCurrentPage && explicitAttachmentContent(item.data).truncated;
                     return (
                       <motion.div
-                        key={`${item.type}-${item.data?.id || idx}`}
+                        key={item.selectionKey || `${item.type}-${item.data?.id || idx}`}
                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: -10 }}
@@ -95,6 +97,7 @@ export function AttachmentsRow({
                               >
                                 {item.data.title || item.data.productName || item.data.name || `Item ${item.data.id || ""}`}
                               </p>
+                              {contentTruncated && <p className="text-[10px] text-muted-foreground">Content shortened for AI</p>}
                             </div>
                             <Button
                               size="icon"

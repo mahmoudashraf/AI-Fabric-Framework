@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import type { RefObject } from "react";
 
-import type { Document } from "@/types";
+import type { AttachedItem, Document } from "@/types";
+import { attachedActionItem, matchesAttachment, sameAttachment, type AttachmentItemSource } from "@/attachmentSelection";
 
 type ToastFn = (opts: any) => void;
 
@@ -14,7 +15,7 @@ export function useAttachmentsController({
   toast,
 }: {
   enabled?: boolean;
-  attachedItems: Array<{ type: string; data: any }>;
+  attachedItems: AttachedItem[];
   setAttachedItems: (updater: any) => void;
   setCollectingItem: (value: { title: string; type: string } | null) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
@@ -22,18 +23,16 @@ export function useAttachmentsController({
 }) {
   const isItemAttached = useCallback(
     (itemId: string) => {
-      return attachedItems.some((item) => (item.data.id && item.data.id === itemId) || (item.data.sku && item.data.sku === itemId));
+      return attachedItems.some((item) => matchesAttachment(item, itemId));
     },
     [attachedItems],
   );
 
   const handleReattachItem = useCallback(
-    (item: { type: string; data: any }) => {
+    (item: AttachedItem) => {
       if (!enabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
-      setAttachedItems((prev: Array<{ type: string; data: any }>) => {
-        const exists = prev.some(
-          (existing) => existing.type === item.type && (existing.data.id === item.data.id || existing.data.sku === item.data.sku),
-        );
+      setAttachedItems((prev: AttachedItem[]) => {
+        const exists = prev.some((existing) => sameAttachment(existing, item));
         if (exists) return prev;
         return [...prev, item];
       });
@@ -42,51 +41,11 @@ export function useAttachmentsController({
   );
 
   const handleAttachActionResultItem = useCallback(
-    (item: any) => {
+    (item: any, source?: AttachmentItemSource) => {
       if (!enabled) { toast({ title: 'Attachments unavailable', description: 'Attachments are disabled for this workspace.' }); return; }
-      const normalizedItem: any = {};
-
-      const hasProductFields = item.sku || item.Sku || item.price !== undefined || item.Price !== undefined;
-      const hasOrderFields = item.orderId || item.OrderId || item.orderNumber || item.OrderNumber;
-      const hasReviewFields = item.rating !== undefined && (item.comment || item.Comment);
-      const hasCouponFields = item.code || item.Code || item.discountType || item.DiscountType;
-
-      let itemType = "item";
-      if (hasProductFields && !hasOrderFields) itemType = "product";
-      else if (hasOrderFields) itemType = "order";
-      else if (hasReviewFields) itemType = "review";
-      else if (hasCouponFields) itemType = "coupon";
-
-      if (itemType === "product") {
-        normalizedItem.id = item.id || item.Id || item.ID;
-        normalizedItem.sku = item.sku || item.Sku || item.SKU;
-        normalizedItem.name = item.name || item.Name || item.title || item.Title;
-        normalizedItem.description = item.description || item.Description || "";
-        normalizedItem.price = item.price ?? item.Price;
-        normalizedItem.category = item.category || item.Category;
-        normalizedItem.brand = item.brand || item.Brand;
-        normalizedItem.inStockQty = item.inStockQty ?? item.InStockQty ?? item.stockQuantity ?? item.StockQuantity;
-        normalizedItem.imageUrl = item.imageUrl || item.ImageUrl || item.image || item.Image;
-        normalizedItem.rating = item.rating ?? item.Rating;
-        normalizedItem.reviewCount = item.reviewCount ?? item.ReviewCount;
-        Object.keys(item).forEach((key) => {
-          const lowerKey = key.toLowerCase();
-          if (normalizedItem[lowerKey] === undefined && item[key] !== undefined) {
-            normalizedItem[lowerKey] = item[key];
-          }
-        });
-      } else {
-        Object.keys(item).forEach((key) => {
-          const lowerKey = key.charAt(0).toLowerCase() + key.slice(1);
-          normalizedItem[lowerKey] = item[key];
-        });
-      }
-
-      const title = normalizedItem.name || normalizedItem.productName || normalizedItem.title || `Item ${normalizedItem.id || ""}`;
-
-      const isAlreadyAttached = attachedItems.some(
-        (attached) => attached.type === itemType && (attached.data.id === normalizedItem.id || attached.data.sku === normalizedItem.sku),
-      );
+      const attachment = attachedActionItem(item, source);
+      const title = attachment.data.name || attachment.data.productName || attachment.data.title || `Item ${attachment.data.id ?? ""}`;
+      const isAlreadyAttached = attachedItems.some((attached) => sameAttachment(attached, attachment));
       if (isAlreadyAttached) {
         toast({
           title: "Already Attached",
@@ -96,7 +55,8 @@ export function useAttachmentsController({
         return;
       }
 
-      setAttachedItems((prev: Array<{ type: string; data: any }>) => [...prev, { type: itemType, data: normalizedItem }]);
+      setAttachedItems((prev: AttachedItem[]) => prev.some((attached) => sameAttachment(attached, attachment))
+        ? prev : [...prev, attachment]);
 
       toast({
         title: "💬 Added to Chat",

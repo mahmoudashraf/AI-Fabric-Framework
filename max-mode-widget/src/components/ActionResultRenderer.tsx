@@ -13,6 +13,7 @@ import {
 } from "@/actionPresentation";
 import { getWidgetConfig } from "@/config";
 import { ActionPresentationSurface } from "./ActionPresentationSurface";
+import { attachmentItemKey, type AttachmentItemSource } from "@/attachmentSelection";
 
 type ResultRecord = Record<string, any>;
 
@@ -230,7 +231,7 @@ export const ActionResultRenderer = ({
   messageId: string;
   expandedCount: number;
   onExpand: (count: number) => void;
-  onAttach?: (item: any) => void;
+  onAttach?: (item: any, source?: AttachmentItemSource) => void;
   isAttached?: (itemId: string) => boolean;
   actionName?: string;
   onPresentationAsk?: (query: string, references: readonly MaxModePresentationResultReference[]) => Promise<void> | void;
@@ -288,7 +289,7 @@ export const ActionResultRenderer = ({
   }
 
   // Render a product card with image
-  const renderProductCard = (item: any, idx: number) => {
+  const renderProductCard = (item: any, idx: number, collection = "$") => {
     // Handle different field casing from API (Name vs name, ImageUrl vs imageUrl, etc.)
     const name = item.name || item.Name || item.title || item.Title || "Product";
     const price = item.price ?? item.Price;
@@ -307,7 +308,9 @@ export const ActionResultRenderer = ({
     const available = item.available ?? item.Available ?? item.availableForSale ?? item.AvailableForSale;
     const storefrontUrl = item.storefrontUrl || item.StorefrontUrl || item.url || item.Url;
     const itemId = item.id || item.Id || sku;
-    const isItemAlreadyAttached = isAttached && itemId ? isAttached(itemId) : false;
+    const source = { messageId, actionName, collection, index: idx };
+    const selectionKey = attachmentItemKey(item, source)!;
+    const isItemAlreadyAttached = isAttached ? isAttached(selectionKey) : false;
     const stockLabel =
       available === false
         ? "Unavailable"
@@ -343,7 +346,7 @@ export const ActionResultRenderer = ({
             } text-white shadow-lg border border-white/30 hover:scale-110 transition-all`}
             onClick={(e) => {
               e.stopPropagation();
-              onAttach(item);
+              onAttach(item, source);
             }}
             title={isItemAlreadyAttached ? "Already in Chat" : "Attach to Chat"}
           >
@@ -413,9 +416,11 @@ export const ActionResultRenderer = ({
   };
 
   // Render generic item card (non-product)
-  const renderGenericCard = (item: any, idx: number) => {
+  const renderGenericCard = (item: any, idx: number, collection = "$") => {
     const itemId = item.id || item.Id || item.sku || item.Sku;
-    const isItemAlreadyAttached = isAttached && itemId ? isAttached(itemId) : false;
+    const source = { messageId, actionName, collection, index: idx };
+    const selectionKey = attachmentItemKey(item, source)!;
+    const isItemAlreadyAttached = isAttached ? isAttached(selectionKey) : false;
 
     return (
       <Card
@@ -436,7 +441,7 @@ export const ActionResultRenderer = ({
             } text-white shadow-lg border border-white/30 hover:scale-110 transition-all z-10`}
             onClick={(e) => {
               e.stopPropagation();
-              onAttach(item);
+              onAttach(item, source);
             }}
             title={isItemAlreadyAttached ? "Already in Chat" : "Attach to Chat"}
           >
@@ -530,12 +535,12 @@ export const ActionResultRenderer = ({
                 {hasProducts ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {visibleItems.map((item: any, idx: number) =>
-                      isProductLike(item) ? renderProductCard(item, idx) : renderGenericCard(item, idx)
+                      isProductLike(item) ? renderProductCard(item, idx, arrayKey) : renderGenericCard(item, idx, arrayKey)
                     )}
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {visibleItems.map((item: any, idx: number) => renderGenericCard(item, idx))}
+                    {visibleItems.map((item: any, idx: number) => renderGenericCard(item, idx, arrayKey))}
                   </div>
                 )}
                 {remaining > 0 && (

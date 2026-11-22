@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useId, useState } from "react";
+import { sameAttachment } from "@/attachmentSelection";
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
@@ -214,10 +215,7 @@ export function MessageBubble({
             <div className="mb-3 space-y-2">
               {message.attachedItems.map((item, idx) => {
                 const isAISearch = item.type === "ai-search";
-                const isAlreadyAttached = attachedItems.some(
-                  (attached) =>
-                    attached.type === item.type && (attached.data.id === item.data.id || attached.data.sku === item.data.sku),
-                );
+                const isAlreadyAttached = attachedItems.some((attached) => sameAttachment(attached, item));
                 return (
                   <div
                     key={idx}
@@ -489,7 +487,7 @@ export function MessageBubble({
               expandedCount={expandedCount}
               onExpand={(count) => onExpandActionResults(message.id, count)}
               isAttached={isItemAttached}
-              onAttach={(item) => onAttachActionResultItem(item)}
+              onAttach={onAttachActionResultItem}
               actionName={primaryActionName}
               onPresentationAsk={onPresentationAsk}
               onAttachPresentationResult={onAttachPresentationResult}
@@ -508,7 +506,7 @@ export function MessageBubble({
                   expandedCount={expandedCount}
                   onExpand={(count) => onExpandActionResults(message.id, count)}
                   isAttached={isItemAttached}
-                  onAttach={(item) => onAttachActionResultItem(item)}
+                  onAttach={onAttachActionResultItem}
                   actionName={candidate.actionName}
                   onPresentationAsk={onPresentationAsk}
                   onAttachPresentationResult={onAttachPresentationResult}
@@ -529,7 +527,7 @@ export function MessageBubble({
                 expandedCount={expandedCount}
                 onExpand={(count) => onExpandActionResults(message.id, count)}
                 isAttached={isItemAttached}
-                onAttach={(item) => onAttachActionResultItem(item)}
+                onAttach={onAttachActionResultItem}
                 actionName={primaryActionName}
                 onPresentationAsk={onPresentationAsk}
                 onAttachPresentationResult={onAttachPresentationResult}
@@ -756,7 +754,7 @@ export function MessageBubble({
                           expandedCount={expandedCount}
                           onExpand={(count) => onExpandActionResults(message.id, count)}
                           isAttached={isItemAttached}
-                          onAttach={(item) => onAttachActionResultItem(item)}
+                          onAttach={onAttachActionResultItem}
                           actionName={extractActionName(subResult.data) || extractActionName(subResult)}
                           onPresentationAsk={onPresentationAsk}
                           onAttachPresentationResult={onAttachPresentationResult}

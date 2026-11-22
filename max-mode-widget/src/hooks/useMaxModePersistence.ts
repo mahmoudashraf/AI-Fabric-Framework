@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { useMaxModeContextOptional } from "@/context";
 import { restoreConfirmationHistory } from "@/confirmationState";
+import { sameAttachment } from "@/attachmentSelection";
 
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { ChatMessage, Document } from "@/types";
@@ -63,11 +64,7 @@ export function useMaxModePersistence({
       setAttachedItems((prev) => {
         const newItems = hostInitialAttachments.filter(
           (hostAttachment) =>
-            !prev.some(
-              (existing) =>
-                existing.type === hostAttachment.type &&
-                (existing.data.id === hostAttachment.data.id || existing.data.sku === hostAttachment.data.sku),
-            ),
+            !prev.some((existing) => sameAttachment(existing, hostAttachment)),
         );
         return newItems.length > 0 ? [...prev, ...newItems] : prev;
       });
@@ -78,10 +75,7 @@ export function useMaxModePersistence({
       setAttachedItems((prev) => {
         const newItems = pending.filter(
           (p) =>
-            !prev.some(
-              (existing) =>
-                existing.type === p.type && (existing.data.id === p.data.id || existing.data.sku === p.data.sku),
-            ),
+            !prev.some((existing) => sameAttachment(existing, p)),
         );
         return [...prev, ...newItems];
       });

@@ -12,10 +12,12 @@ import {
 } from "react";
 import React from "react";
 import { getWidgetConfig, getWidgetStorageKey, type MaxModeWidgetConfig } from "./config";
+import { sameAttachment } from "./attachmentSelection";
 
 export interface SharedAttachment {
   type: string;
   data: any;
+  selectionKey?: string;
   /** Optional host-owned label for contextual tool scope presentation. */
   contextLabel?: string;
 }
@@ -132,12 +134,7 @@ export function MaxModeProvider({ children, config }: { children: ReactNode; con
 
   const addPendingAttachment = useCallback((attachment: SharedAttachment) => {
     setPendingAttachments((prev) => {
-      const exists = prev.some(
-        (a) =>
-          a.type === attachment.type &&
-          (a.data.id === attachment.data.id ||
-            a.data.sku === attachment.data.sku),
-      );
+      const exists = prev.some((existing) => sameAttachment(existing, attachment));
       if (exists) return prev;
       const newAttachments = [...prev, attachment];
       try {

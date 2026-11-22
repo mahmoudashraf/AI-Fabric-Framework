@@ -156,6 +156,28 @@ See `Final_Documentation/External_User_Guides/SMART_BRAIN_ACTION_EVIDENCE.md`;
 actual publication/adoption evidence belongs in `CODEX_WORKING_CONTEXT.md` and
 the dated verification record, not this owner decision.
 
+### Explicit UI Attachments (Owner Decision, 2026-11-22)
+
+Explicitly attaching an item in the widget approves the full UI-provided item
+data for AI context, not just its automatic `llmFacts` projection. This applies
+to the selected item's data object, including nested business fields, not only
+the fields rendered as visible labels. Do not silently whitelist familiar fields
+or require a server-owned evidence resolver merely to include user-shared data.
+
+Automatic/Selected remains the policy for automatic action-result inclusion.
+An empty Selected projection must not fall back to raw data in that path. An
+explicitly attached item is a separate user-input path and can include UI fields
+omitted from Selected. Merely returning or displaying a card is not attachment
+consent. Do not include other records, hidden backend data or execution envelopes.
+
+Approval to use attached content does not establish factual correctness, fresh
+business validation, ownership of a referenced resource or action authority.
+Keep conversation access, document/source authorization, confirmation and budgets.
+Platform/provider credentials, authorization headers and private execution context
+are not item content. Retain existing credential exclusions and resource bounds;
+no new semantic validator or broad confidentiality classifier follows from this
+decision. See 010.70 for actual implementation and deployment status.
+
 ## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
 
 An explicit configuration request authorizes the assistant to save changes to

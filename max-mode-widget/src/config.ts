@@ -178,6 +178,8 @@ export interface MaxModeThemeConfig {
 export interface MaxModeHostAttachment {
   type: string;
   data: Record<string, any>;
+  /** Stable local selection identity; never an authorization claim. */
+  selectionKey?: string;
   /** Optional host-owned label used to identify the active contextual tool scope. */
   contextLabel?: string;
 }

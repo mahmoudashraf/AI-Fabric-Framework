@@ -9,6 +9,7 @@ import {
 } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { toRuntimeAttachments } from "@/attachments";
+import { sameAttachment } from "@/attachmentSelection";
 import { emitEvent } from "@/config";
 import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
@@ -347,17 +348,7 @@ export function useChatFlow({
 function mergeAttachments(persistent: AttachedItem[], ephemeral: AttachedItem[]): AttachedItem[] {
   const merged = [...persistent];
   for (const candidate of ephemeral) {
-    const candidateId = candidate?.data?.id;
-    const candidateSku = candidate?.data?.sku;
-    const exists = merged.some((existing) => {
-      if (existing.type !== candidate.type) {
-        return false;
-      }
-      if (candidateId && existing.data?.id) {
-        return existing.data.id === candidateId;
-      }
-      return Boolean(candidateSku && existing.data?.sku === candidateSku);
-    });
+    const exists = merged.some((existing) => sameAttachment(existing, candidate));
     if (!exists) {
       merged.push(candidate);
     }

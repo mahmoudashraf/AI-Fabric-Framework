@@ -7,6 +7,7 @@
 import { useState, useCallback } from "react";
 import { emitEvent } from "@/config";
 import type { SharedAttachment } from "@/context";
+import { sameAttachment } from "@/attachmentSelection";
 
 export interface UseMaxModeReturn {
   /** Whether the widget is currently open */
@@ -54,12 +55,7 @@ export function useMaxMode(): UseMaxModeReturn {
       return;
     }
     setPendingAttachments((prev) => {
-      const exists = prev.some(
-        (a) =>
-          a.type === attachment.type &&
-          ((a.data.id && a.data.id === attachment.data.id) ||
-            (a.data.sku && a.data.sku === attachment.data.sku)),
-      );
+      const exists = prev.some((existing) => sameAttachment(existing, attachment));
       if (exists) return prev;
       return [...prev, attachment];
     });

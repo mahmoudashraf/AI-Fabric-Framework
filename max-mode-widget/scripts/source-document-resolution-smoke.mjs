@@ -181,6 +181,7 @@ const { useChatFlow } = loadSource('../src/hooks/useChatFlow.ts', {
   },
   '@/api/client': { isPublicRuntimeSessionInvalidatedError: () => false },
   '@/attachments': { toRuntimeAttachments: (attachments) => attachments },
+  '@/attachmentSelection': loadSource('../src/attachmentSelection.ts'),
   '@/config': config,
   '@/utils': {
     hasShopifyRequestContext: () => false,

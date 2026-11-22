@@ -67,6 +67,24 @@ is separate: it retains actual IDs for conversational follow-ups. It does not
 grant access or make a vector collection, and is not required merely to expose
 an action result to answer generation.
 
+## Explicit UI Attachments
+
+Owner decision, 2026-11-22: when a user explicitly attaches an item in the widget,
+its full UI-provided item data is approved for AI context. This can include fields
+omitted from the action's Selected projection. Keep nested values, numbers, false
+and zero rather than reducing the record to familiar product fields.
+
+Automatic/Selected still controls action evidence included automatically. A card
+appearing on screen is not consent to attach it. Selecting one item must not
+include neighboring records or fetch fields that were never supplied to the UI.
+Do not use model Selected fields as a privacy filter for customer-visible data.
+
+Attachments are user-provided context, not verified business facts or permission
+to execute an action. Credentials, authorization headers and private execution
+context remain outside item content; existing content bounds remain. Plan 010.70
+tracks implementation and rollout. Source fixes are implemented and locally
+tested; live adoption is not yet qualified at this checkpoint.
+
 Neither preparation mode changes answer-breadth profiles, authentication,
 ownership, document approval, configured confirmation or spending limits. General
 advice belongs to the existing Grounded/Advisory/Exploratory answer profiles.

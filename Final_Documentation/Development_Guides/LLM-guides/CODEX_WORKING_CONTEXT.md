@@ -17458,3 +17458,81 @@ test is being called hosted acceptance. UI extraction remains last.
   requiresownerreviewapproval; NOTimplemented. Previous10-case9PASS1PARTIAL only
   qualifiesthosesamples, nottheseadditionaljourneys. Rawproof private
   ~/.codex/private/harbor-followup-20261121; safe report has no credentials.
+
+## 2026-11-22 Context Routing And Selected-Result Initial Plan
+
+- Owner accepted the LLM-driven fix direction and requested an initial plan,
+  including attachment data loss and false multi-selection duplicates when
+  they are not framework defects. Plan 010.70 is ready for review; implementation
+  has NOT started. No framework publication/deployment is authorized by this
+  planning-only checkpoint.
+- Scope: bounded framework context-only routing correction; generic widget
+  approved-evidence handoff, with a possible small existing runtime/conversation
+  adapter after discovery; widget-only scoped record identity correction.
+- Existing action-result reference shape is not proof of a complete server
+  resolver. Widget message IDs are currently local timestamps. Confirm canonical
+  evidence/turn persistence before choosing the smallest adapter; do not add a
+  separate result store or forward raw action output. Preserve Auto/Selected,
+  owner/source restrictions, confirmation and execution budgets.
+- Plan includes regression/negative tests and the exact failed Harbor journeys.
+  No keyword routing, forced fan-out, model upgrade or extra AI rounds. Care's
+  zero-document search remains a separate untraced finding. No live queries,
+  configuration, code, release or infrastructure changes in this planning turn.
+
+### Explicit Attachment Policy Clarification, 2026-11-22
+
+- LATEST owner decision supersedes the initial narrow handoff proposal: explicit
+  widget attachment approves the full selected UI item's data for AI context,
+  including business fields omitted from automatic Selected/llmFacts. Automatic
+  inclusion without user attachment remains projection-controlled; an empty
+  Selected projection must not fall back to raw data in that automatic path.
+- Revised 010.70 to prefer full generic item serialization through the existing
+  attachment/chat contract. No new server resolver or evidence store merely for
+  attachment approval. Retain nested values/0/false/null and stable item identity.
+  Keep user input distinct from verified server facts, preserve conversation/
+  resource ownership, action permissions, confirmation, budgets and credential
+  exclusions; no hidden-data lookup, neighboring records or execution envelopes.
+- Recorded in operating context and action-evidence guide as approved but NOT
+  implemented. Source docs only; no runtime/widget code, live query, publication,
+  configuration, deployment or infrastructure change in this clarification turn.
+
+## 2026-11-22 010.70 Implementation In Progress
+
+- Owner now requested implementation of revised 010.70. Scope includes bounded
+  framework routing, full explicit UI attachment data and multi-selection; normal
+  automatic action evidence remains Auto/Selected controlled. No infrastructure
+  change or unrelated deployment upgrade is authorized.
+- Public isolated worktree ~/.codex/worktrees/context-attachments-0860, branch
+  codex/context-attachments-0860, commit 09a0d7d1 (0.8.60 candidate). Not pushed,
+  tagged or published yet. 53 focused tests and the entire 30-module TEST reactor
+  PASS. Version60 release-profile INSTALL is running (exec75467), logging to
+  /tmp/loomai-context-0860-release-reactor.log; do not claim publication from it.
+  Aggregate framework release guards PASS for60. No prompt/model/budget changes.
+- Private working tree: widget generic full-item JSON content (existing 2000char
+  bound, visible truncation, nested/0/false/null, credential-key exclusions), shared
+  source-scoped selection identity used in cards/hooks/history/persistence/React/
+  IIFE. Custom result selection preserves its projected nested data as user input.
+  New unit/hook and real-card/request browser tests PASS at1280/390/nooverflow.
+  Full widget prepublishOnly PASS after correcting test dependency/virtual-entry
+  harness issues; suggestions/race and source-document regressions PASS. Console
+  production build PASS. Root framework pin/runtime manifest/backend default and
+  version assertions updated to60; private runtime tests pending public install.
+- New verification-support/context-attachments/2026-11-22.md and revised010.70
+  track incomplete publication/build/live adoption. Existing .gitignore and UI
+  tsbuildinfo changes are unrelated; do not stage/revert them or untracked media.
+- Read-only preflight completed: same backend e01 and UIef4 on both environments,
+  healthy. Harbor v7/rel2d still current. Private evidence/helper root:
+  ~/.codex/private/context-attachments-0860. One normal production admin session
+  was created from existing private auth registry; admin-production.private.json
+  holds it, must normal-logout/revoke at closure. No staging session yet. Helper's
+  initial wrong auth endpoint/nonexistent GET deployment URI corrected; valid
+  session/draft/releases/workspace reads PASS. No deployment/config/assignment,
+  infrastructure change, live chat query or business write yet. Gallery8766 stays.
+- UPDATE: final60 release-profile INSTALL completed PASS, 2568tests/404suites/
+  0fail/0error/0skip. Minimal consumer compile PASS. Public09a0d7d14e83411c4775c97f4015bd280935fa53
+  pushedmain and immutabletag ai-fabric-framework-v0.8.60; GitHubRelease created,
+  Central run44968474640 INPROGRESS. No duplicate upload/tag replacement. Private
+  runtime tests exec67617 running against local public60 install, log
+  /tmp/loomai-context-0860-private-runtime-tests.log. Widget final fullsuite and
+  extra cross-source-ID desktop/phone browser case PASS. Private source commit/
+  push/build/deploy still pending; no live software changes yet.
