@@ -114,7 +114,7 @@ class RuntimeAdminOverviewControllerTest {
                 .locations("classpath:db/runtime-migration").load();
             v20.migrate(); v20.validate();
             beans.addBean("flyway", v20);
-            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("24");
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("25");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1")
