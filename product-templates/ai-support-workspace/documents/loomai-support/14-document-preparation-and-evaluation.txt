@@ -12,6 +12,7 @@ The document reader supports text PDFs, scanned PDFs, DOCX, legacy DOC, PNG,
 JPEG and TIFF. Existing TXT and configured JSON sources remain supported.
 Hosted uploads accept files up to 20 MiB. Uploading stores an original file in
 private S3-compatible storage; it does not mean extraction or indexing passed.
+The standard runtime allows up to 20 pages or text sections per source plan.
 Encrypted documents are not supported. Word text and tables are extracted, but
 images embedded inside Word documents are not OCR'd.
 
@@ -53,7 +54,8 @@ the configured answer model and an evaluation provider.
 The standard evaluation reports source support, answer relevance and reference
 agreement when a reference exists. Missing or failed scores are not replaced
 with zero. Scores are model judgments, not guarantees. Runs use the configured
-models and funded AI allowance. They read only the selected approved source
+models and record their usage. Funded deployments retain their AI allowance
+checks. Runs read only the selected approved source
 and do not execute business actions. Runs have finite question, context, output
 and time limits and can be stopped. Completed partial evidence is retained.
 
