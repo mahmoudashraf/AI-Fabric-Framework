@@ -61,7 +61,9 @@ class AuthoringInstructionsTest {
         var instructions = AuthoringInstructions.system(request());
         assertThat(instructions).contains("catalogue.preparationScope", "ALL_SELECTED_SOURCE_OPERATIONS",
             "SELECTED_OPERATION_IDS restricts preparation", "narrower current user focus",
-            "One fully documented operation is sufficient", "Do not ask whether additional undocumented",
+            "only one fully documented operation", "not permission to omit other selected operations",
+            "documentedOperations and documentedOperationCount", "Cover each documented operation",
+            "zero parsed-operation count does not mean there are no endpoints", "Do not ask whether additional undocumented",
             "record nonessential", "genuinely missing or conflicting material endpoint",
             "Never invent endpoints, credentials, trusted IDs or business facts",
             "not permission to execute, publish or include unselected material",

@@ -32,7 +32,8 @@ class AuthoringTaskIntentTest {
     @Test void actionPreparationUsesSelectedDocumentationWithoutInventingAnExtraScopeGate() {
         var result = AuthoringTaskIntent.resolve("ACTIONS", "Only the availability endpoint.", "PREPARE", null);
         assertThat(result.query()).contains("selected documentation defines the operation scope",
-            "narrowed by explicit operation or editor selections", "One fully documented operation is sufficient",
+            "narrowed by explicit operation or editor selections", "only one fully documented operation",
+            "Prepare all its supported operations", "do not silently prepare only the first operation",
             "do not ask whether additional undocumented operations exist", "authorization binding",
             "essential missing information, not a descriptive assumption", "never its secret value");
         assertThat(result.query()).endsWith("Only the availability endpoint.");

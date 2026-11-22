@@ -395,6 +395,17 @@ public class ConfigurationAssistantService {
             scope.put("operationSelection", turn.path("operationIds").isEmpty() ? "ALL_SELECTED_SOURCE_OPERATIONS" : "SELECTED_OPERATION_IDS");
             scope.set("sourceIds", turn.path("sourceIds").deepCopy());
             scope.set("operationIds", turn.path("operationIds").deepCopy());
+            var operations = scope.putArray("documentedOperations");
+            for (var source : content.path("sources")) {
+                if (!contains(turn.path("sourceIds"), source.path("sourceId").asText())) continue;
+                for (var operation : source.path("operations")) {
+                    if (!turn.path("operationIds").isEmpty() && !contains(turn.path("operationIds"), operation.path("id").asText())) continue;
+                    var item = operations.addObject().put("sourceId", source.path("sourceId").asText());
+                    for (String field : List.of("id", "method", "path", "kind", "toolName"))
+                        if (operation.hasNonNull(field)) item.set(field, operation.get(field).deepCopy());
+                }
+            }
+            scope.put("documentedOperationCount", operations.size());
         }
         JsonNode findings;
         try {
