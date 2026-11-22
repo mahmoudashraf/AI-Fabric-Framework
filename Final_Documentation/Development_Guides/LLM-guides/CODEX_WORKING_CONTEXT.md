@@ -19191,6 +19191,41 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   andUSD5caps, not stopped. Final stage full8case(+followup/BEHAVIOUR) fits; do not
   spend the remainder on unbounded repeats or request/add unapproved topups.
 
+### Support Final Authoring Merge Checkpoint - 23:48 UTC
+
+- HEAD77f9101cd/backend CI45084305133 passed. Stage backend healthy on77f9101cd,
+  schema247/settings preserved; UI3a03df18e. Stage Support normal guidance apply
+  rel-a9c91d7f/ver-6dbffbff is in progress (runtime76e1 transport unchanged). Its
+  observer must finish before another staging backend restart; prior current
+  app remains bound to rel0d3b1065 until new verification/bind. Production phase2
+  has not been adopted yet; Support remains phase1verified there.
+- Stage final-source eight-case authoring result7/8 again: all three plain-doc
+  UI repeats, multi-operation import, narrow focus, missing host and credential
+  handling passed; followup/undo/behaviour passed. Selected operation first used
+  path, then corrected to url but SET's identity-preserving merge retained path.
+  The resulting target conflict stayed visible after the correction budget. No
+  publication/infra occurred and all temp resources/sessions were deleted.
+- Current catalogue addition explicitly teaches REMOVE of the obsolete route
+  field when switching url/path forms; omission/SET does not replace it. It does
+  not alter merge semantics, validation or preserve less configuration. Corrected
+  assistant/draft/apply regression423PASS. Needs commit/CI then stagebackend only
+  after current Support apply ends. Six stage authoring turns remain; use focused
+  selected-operation repeats (and a missing-host check), not another full10turn
+  suite without approval. Production still has40turns. No additional topup made.
+- Final-source generic template bootstrap stage PASS (dep16ed31e9 deleted), five
+  neutral areas/plans off, no private diagnostic wiring/infra/JS/mobile overflow,
+  customer signedout. Existing offers retain their pins.
+- Private rollout helper now separates a future platform-only staging gate for
+  global backend/UI from the full Support-specialist staging gate. Neither gate
+  has been written yet. support-release production still requires full Support
+  gate. This permits globally qualified UI/backend rollout during stage Support
+  prompt qualification without prematurely activating production specialists.
+- Private dock-history-live.mjs ready for real dock minimize/reopen/history/full
+  page transition using pre-upgrade canonical transcript, no model turn. Run on
+  both final releases; restore selection and sign out. Own staff sessions BOTH
+  still active, revoke at finish. Final audit reads final backend source from the
+  platform gate. Local gallery/unrelated concurrent01072/01073 docs untouched.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73

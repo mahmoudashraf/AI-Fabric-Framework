@@ -49,6 +49,9 @@ class AuthoringResourceContractsTest {
         assertThat(catalogue.at("/absoluteUrlRouteChangeExample/value/url").asText()).isEqualTo("https://api.example.invalid/v1/records");
         assertThat(catalogue.at("/absoluteUrlRouteChangeExample/value").has("path")).isFalse();
         assertThat(catalogue.path("routeExampleRules").asText()).contains("never its path field", "not provider configuration");
+        assertThat(catalogue.at("/obsoleteRelativeTargetRemovalExample/operation").asText()).isEqualTo("REMOVE");
+        assertThat(catalogue.at("/obsoleteRelativeTargetRemovalExample/path").asText()).endsWith("/lookup_record/path");
+        assertThat(catalogue.path("routeExampleRules").asText()).contains("Omission does not remove", "explicit REMOVE");
     }
     @Test void readMemoryExampleUsesActualRecordIdentityWithoutInventingAnIndex() {
         var mapper = new ObjectMapper();

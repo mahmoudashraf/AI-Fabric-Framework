@@ -31,7 +31,9 @@ final class AuthoringResourceContracts {
             catalogue.set("routeTargetForms", mapper.valueToTree(Map.of("url", "Absolute HTTP(S) endpoint URL from selected API documentation or an authorized current binding",
                 "path", "Relative operation path; requires configured connector.upstream.base-url",
                 "source-projection", "Existing installed source projection, not an invented upstream")));
-            catalogue.put("routeExampleRules", "Examples are schematic, not provider configuration. Derive the host and operation from the selected documentation. An absolute endpoint belongs in the route's url field, never its path field. If validation says a relative path needs an upstream, use the documented absolute url form; do not discard a supplied host or retain a path-only route with an unbound upstream.");
+            catalogue.put("routeExampleRules", "Examples are schematic, not provider configuration. Derive the host and operation from the selected documentation. An absolute endpoint belongs in the route's url field, never its path field. If validation says a relative path needs an upstream, use the documented absolute url form; do not discard a supplied host or retain a path-only route with an unbound upstream. SET on a route object merges fields, not replaces it. Switching path to url requires an explicit REMOVE of /routingConfig/actions/<escaped action name>/path in the same proposal; switching the other way requires removing url. Omission does not remove an obsolete target. Preserve request/response/auth and other unrelated fields.");
+            catalogue.set("obsoleteRelativeTargetRemovalExample", mapper.valueToTree(Map.of(
+                "path", "/routingConfig/actions/lookup_record/path", "operation", "REMOVE")));
             catalogue.set("absoluteUrlRouteChangeExample", mapper.valueToTree(Map.of(
                 "path", "/routingConfig/actions/lookup_record", "operation", "SET", "value", Map.of(
                     "method", "GET", "url", "https://api.example.invalid/v1/records", "request", Map.of("query", Map.of("id", "{{params.recordId}}")),
