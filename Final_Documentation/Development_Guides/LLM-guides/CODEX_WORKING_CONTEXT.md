@@ -18540,3 +18540,46 @@ test is being called hosted acceptance. UI extraction remains last.
   sanitized verification docs/010.72/working-context status must reflect actual final
   images, releases, quality and residual limits; broad pre-existing backend fixtures
   and public Incident Room CI remain separate, not an all-green broad suite.
+
+### Document Intelligence Production Rollout In Progress - 22 November, 20:07 UTC
+
+- Supersedes the pending-state details above. Runtime c8b1ef457066b3e00b4fdfe226cec8747909e2dd
+  passed all843 tests and image CI45061307996. Acme staging rel-08954e78 is verified,
+  its existing consumers rebound, native limits/volumes/routes preserved.
+- Real staging journey attempt7 PASSED all four formats (PDF, DOCX, PNG OCR,
+  scanned PDF OCR),8 initial cases plus5 repeated cases after real evaluation-to-AI
+  refinement. Actual answers reviewed against fixture facts; judge scores are not
+  treated as independent truth. Cancellation, four stale409s, outsider404, desktop/
+  phone layout, own index/session cleanup and both customer sign-outs passed.
+  Private staging-journey-quality.private.json is the manual PASS gate.
+- Earlier failure5 was a session-opening network failure before inference;
+  subsequent6/7 did not reproduce it or need session recovery. Attempt6's source
+  evidence assertion incorrectly expected raw JSON rather than the importer's
+  documented [line:1] framing. Corrected harness only; real AI had already received
+  and discussed the evaluation. Failure receipts remain, not silent retries.
+- PRODUCTION global backend, UI and shared assistant are now healthy at4a3a56e8f,
+  backend schema243; role-native proofs preserve original settings and identities.
+  Production runtime artifact dsa-f10f2b93 is registered at c8b1, initially staging
+  channel. No infrastructure resizing, new capacity or billing changes.
+- Harbor dep-86ad8f93 published ver-22b2d2e5 with DATA revision1.4.0 and is applying
+  rel-1d456cd2 to its EXISTING physical-staging target. Exec34080 observes it,
+  requires APPLIED_VERIFIED, binds existing apps, then runs the real customer
+  journey and normal Brain chat. Log harbor-production-qualification-resumed.log.
+  Do not reapply/redeploy completed global roles; their intents/proofs already exist.
+- Harbor's install materialization detached BOOTSTRAPPED template provenance and
+  its obsolete sole DATA-version pin. Verified all customer-facing shell values,
+  actions, routing, prompts, providers, security and execution/authority fields
+  unchanged. The comparison changes are private test helpers, not relaxed runtime
+  policy. Normal plugin update is already done; do not replay it.
+- Actual production LoomAI Support dep-79af290c published ver-e5b37a7f with DATA1.2.0,
+  but has NOT been applied. Its normal apply remains gated on manual Harbor
+  production-journey-quality PASS. Real support fixtures were regenerated from
+  updated guide14 (20-section limit, direct-provider/funded accounting clarified).
+  Use them for actual production, not fictional Harbor policy data.
+- NEXT: inspect Harbor answers/screenshots/negative checks and save production-
+  journey-quality PASS only if warranted; then apply/observe/bind Support, run its
+  real-doc journey, verify native/app/chat health, cleanup and logout BOTH normal
+  staff sessions using this task's operations.mjs. Still-active staff auth is in
+  ~/.codex/private/document-intelligence-0863. Final docs/report/010.72 and working
+  status remain required. Hosted selected-file promotion remains not live-qualified
+  by this run; do not misrepresent upload/evaluation proof as promotion proof.
