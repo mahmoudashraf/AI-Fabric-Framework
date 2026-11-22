@@ -19097,3 +19097,44 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   PASS, remaining5 formerlyblocked nowmustrerun. Own staff sessions BOTH ACTIVE;
   revoke both at finish. No required exec except future CI/live helpers. Gallery
   8766/infra sizes/capacity/billing/protection unchanged.
+
+### Support Final Guidance / Unbound Setup Checkpoint - 23:09 UTC
+
+- Stage backend13c92a633 is healthy/schema247; UI3a03df18e, Supportruntime76e1b99f1,
+  rel35cc0a0b/ver9195948d stay verified/bound. Production still phase1 Support and
+  aa676567 global roles. No production phase2 adoption yet.
+- phase2-live-staging-attempt6:10queries all HTTPsuccess, requested5areas/plans
+  observed including next-step. Old phase1 Acme transcript and completed answers
+  survive runtime upgrade. Correct prior fixture is phase1-live-staging-attempt2;
+  first phase1-live-staging failure used a different owner, correctly404. Canonical
+  AI answers live in completedTurns.response, not participantMessages ASSISTANT.
+  Two added history-probe attempts made wrong harness assumptions and are retained;
+  they are not history-loss defects. Reload/nooverflow/private403/revocation pass,
+  customer signedout, original selection restored. New NOT_PROBED projection
+  correctly avoids describing unperformed support-provider probes as outages.
+- Manual plan review still found premature COMPLETE without workers for some
+  requests needing facts. Current generic Platform compiler guidance says to
+  obtain required observations through relevant approved workers before concluding
+  they are missing; empty startup completedResults is not an access failure.
+  No forced worker order, hard nonempty-result validator or public framework fix.
+  Requires normal re-publication/apply of Support to adopt changed compiled prompt.
+- Production full8case BuildwithAI rerun after approved topups PASS (approved-turns
+  report), including followup/undo/behaviour. Stage final-stage run7/8: unknown-host
+  case saved against https://customer-api.example without clarification. Root is
+  fabricated host in NEW Brain default routing, not a new Support/authoring code
+  branch. Current fix leaves new upstream unbound; existing drafts remain intact.
+  Existing path-route host validation and bounded assistant repair apply. Positive
+  tests now resolve both supported absolute-url and relative-path+base routes via
+  URL parser and assert actual source origin, instead of requiring one rendering.
+- Final defaults/manager/template/assistant/applyguard suite482PASS. It also updates
+  two stale template tests from fixed2area/1plan counts to each variant's actual
+  configured areas/plans while retaining exact READ authority/write-policy checks.
+  Frozen migration resources unchanged. No required local process currently runs.
+- Need push next backend source / CI / stagebackend, then new Support publish/apply/
+  bind for guidance (same runtime76 artifact). Real plan-worker evidence quality,
+  fresh new-Brain authoring allcases/unknown-host repeat before production gate.
+  Then production backend/UI, normal Support publish/apply/bind, live tests, fresh
+  generic template bootstrap, preservation audit, revoke BOTH own staff sessions,
+  finalize verification README (currently incremental/untracked) and commit docs.
+  Approved50turn additions BOTH already completed via signed runtime topup API:
+  effective150 each,2Mtokens/USD5/expiry/usage preserved. Never add another50.

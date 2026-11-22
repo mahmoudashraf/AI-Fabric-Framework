@@ -188,10 +188,11 @@ class SupportWorkspaceProductTemplateTest {
         for (var variant : java.util.Map.of("loomai", loomai, "acme-cloud", acme).entrySet()) {
             JsonNode compiled = variant.getValue();
             var readsByWorker = new java.util.HashMap<String, JsonNode>();
-            for (JsonNode area : read("overlays/" + variant.getKey() + "/specialist-assistance.json").path("areas")) {
+            var configured = read("overlays/" + variant.getKey() + "/specialist-assistance.json");
+            for (JsonNode area : configured.path("areas")) {
                 readsByWorker.put("assist-area-" + area.path("id").asText(), area.path("readActions"));
             }
-            assertThat(compiled.path("invocations")).hasSize(3);
+            assertThat(compiled.path("invocations")).hasSize(configured.path("areas").size() + configured.path("resolutions").size());
             int workers = 0;
             for (JsonNode resource : compiled.path("resources")) {
                 if ("Specialist".equals(resource.path("kind").asText())) {
@@ -208,7 +209,7 @@ class SupportWorkspaceProductTemplateTest {
                     }
                 }
             }
-            assertThat(workers).isEqualTo(2);
+            assertThat(workers).isEqualTo(configured.path("areas").size());
             assertThat(compiled.path("resources")).anySatisfy(resource -> {
                 assertThat(resource.path("kind").asText()).isEqualTo("SpecialistChain");
                 assertThat(resource.at("/spec/conversationPolicy").asText()).isEqualTo("DISABLED");
@@ -242,7 +243,9 @@ class SupportWorkspaceProductTemplateTest {
             assertThat(action.path("llmFacts").path("rankRules").isMissingNode()).isTrue();
         }
         assertThat(compileVariant("loomai", "manifests/loomai-support-diagnostics.1.0.3.manifest.json",
-            "fixtures/requests/loomai-diagnostics-evidence-install.json").path("invocations")).hasSize(3);
+            "fixtures/requests/loomai-diagnostics-evidence-install.json").path("invocations"))
+            .hasSize(read("overlays/loomai/specialist-assistance.json").path("areas").size()
+                + read("overlays/loomai/specialist-assistance.json").path("resolutions").size());
     }
 
     @Test

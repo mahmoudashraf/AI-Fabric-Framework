@@ -392,6 +392,16 @@ class DeploymentServiceApplyGuardTest {
     }
 
     @Test
+    void newBrainRoutingDoesNotPresentAnExampleHostAsAnApprovedBusinessConnection() {
+        var routing = (com.fasterxml.jackson.databind.JsonNode) ReflectionTestUtils.invokeMethod(service, "defaultRoutingConfig");
+        assertThat(routing.at("/connector/upstream").isObject()).isTrue();
+        assertThat(routing.at("/connector/upstream/base-url").isMissingNode()).isTrue();
+        assertThat(routing.at("/connector/inbound-auth/allow-unauthenticated").asBoolean()).isFalse();
+        assertThat(routing.at("/connector/inbound-auth/api-key/enabled").asBoolean()).isTrue();
+        assertThat(routing.path("actions").isEmpty()).isTrue();
+    }
+
+    @Test
     void largeSpecialistTransportRejectsOldRuntimeBeforeApprovalOrProvisioning() throws Exception {
         var artifact = prepareTokenApply();
         version.setProviderConfigJson("{\"aiStateStorageMode\":\"CUSTOMER_POSTGRES\"}");

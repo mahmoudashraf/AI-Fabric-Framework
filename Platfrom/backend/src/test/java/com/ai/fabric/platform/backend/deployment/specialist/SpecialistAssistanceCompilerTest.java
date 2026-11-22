@@ -210,6 +210,7 @@ class SpecialistAssistanceCompilerTest {
         JsonNode first = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
         ((ObjectNode) behavior.at("/specialistAssistance/areas/0")).put("instructions", "Use a different approved product guide and report uncertainty.");
         JsonNode second = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
+        assertThat(second.toString()).contains("empty completedResults at startup is not an access failure");
         assertThat(second.at("/specialistAssistance/contentHash")).isNotEqualTo(first.at("/specialistAssistance/contentHash"));
         assertThat(first.at("/specialistAssistance/areas/0/instructions").asText()).contains("approved product setup");
         ((ObjectNode) behavior.at("/specialistAssistance/resolutions/0")).put("allowParallel", false);

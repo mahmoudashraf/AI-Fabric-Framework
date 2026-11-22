@@ -2359,8 +2359,7 @@ public class DeploymentService {
         apiKey.put("enabled", true);
         apiKey.put("header", "X-AIFABRIC-API-KEY");
         apiKey.put("value", "${CONNECTOR_API_KEY}");
-        ObjectNode upstream = connector.putObject("upstream");
-        upstream.put("base-url", "https://customer-api.example");
+        connector.putObject("upstream");
         root.putObject("actions");
         return root;
     }
