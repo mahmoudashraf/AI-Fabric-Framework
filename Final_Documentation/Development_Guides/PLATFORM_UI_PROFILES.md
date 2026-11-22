@@ -20,6 +20,13 @@ Old `/settings/...` URLs are redirects only. Reuse the existing provider/action
 editors and draft-save contracts; never mount a second copy to add an entry point.
 See `verification-support/brain-settings-navigation/README.md`.
 
+Search settings > Answers & sources is the single owner for tool/knowledge
+cooperation, bounded multi-source search and Advanced read-planning budgets.
+Keep inheritance visible, preserve unknown/current values with focused draft
+merges, and retain optional Advanced JSON. Do not add an editable
+`ragRequiredWithReadActions`: that is a derived diagnostic. See
+`SMART_BRAIN_CONFIGURATION_FORM_COVERAGE.md` for field coverage and limits.
+
 Customer-owned credentials have one canonical home at
 `/smart-brains/:brainId/secrets` (Keys & secrets), with links from AI models and
 Search settings. Reuse the same page for customer-delegated staff; do not expose

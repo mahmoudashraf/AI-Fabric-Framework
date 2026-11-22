@@ -30,8 +30,10 @@ import StorageOutlined from '@mui/icons-material/StorageOutlined'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import CableOutlined from '@mui/icons-material/CableOutlined'
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
+import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   fetchDeploymentProviderConnectivity,
   fetchDeploymentDraft,
@@ -53,7 +55,76 @@ import { CustomerExistingVectorBinding } from '../components/customer/CustomerEx
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
-type ProviderFormState = {
+type RetrievalField = {
+  path: string[]; label: string; help: string; kind: 'enum' | 'boolean' | 'number'
+  options?: Array<{ value: string; label: string }>; min?: number; max?: number
+}
+const RETRIEVAL_FIELDS = {
+  ragCooperationMode: { path: ['readActionResolution', 'ragCooperationMode'], label: 'How tools and knowledge work together', kind: 'enum',
+    help: 'Applies when resolving read tools. It does not force knowledge search for every message or change access permissions.',
+    options: [
+      { value: 'RAG_IF_ACTIONS_INSUFFICIENT', label: 'Automatic - search when tool results need more context' },
+      { value: 'PARALLEL_ACTIONS_AND_RAG', label: 'Tools + knowledge - include search with read tools' },
+      { value: 'NONE', label: 'Tools independently - no automatic knowledge cooperation' },
+    ] },
+  retrievalFanoutEnabled: { path: ['rag', 'fanoutEnabled'], label: 'Search across multiple knowledge sources', kind: 'boolean',
+    help: 'Allow bounded search across authorized sources. This does not add sources or broaden customer access.' },
+  retrievalMaxSpaces: { path: ['rag', 'maxSpaces'], label: 'Maximum knowledge sources per search', kind: 'number', min: 1, max: 12,
+    help: '1-12 sources. Used when multi-source search is enabled; more sources can increase latency and cost.' },
+  readPlanningMode: { path: ['readActionResolution', 'planningMode'], label: 'Read-tool planning', kind: 'enum',
+    help: 'Controls additional read-tool planning, not write actions or their confirmation rules.',
+    options: [ { value: 'OFF', label: 'Off - no read-resolution planning' },
+      { value: 'SINGLE_PASS', label: 'Single pass' }, { value: 'ITERATIVE', label: 'Iterative - plan with returned results' } ] },
+  readMaxIterations: { path: ['readActionResolution', 'maxIterations'], label: 'Maximum read-planning rounds', kind: 'number', min: 1, max: 5,
+    help: '1-5 rounds for iterative planning, within the existing request and provider budgets.' },
+  readMaxPlannerContextChars: { path: ['readActionResolution', 'maxPlannerContextChars'], label: 'Planner context limit (characters)', kind: 'number', min: 1, max: 2147483647,
+    help: 'Limits context prepared for read planning. Provider token limits still apply.' },
+  readMaxActionEvidenceChars: { path: ['readActionResolution', 'maxActionEvidenceCharsPerAction'], label: 'Evidence limit per tool (characters)', kind: 'number', min: 1, max: 2147483647,
+    help: 'Limits prepared evidence from each read tool; it does not grant access to raw or unapproved fields.' },
+  readMaxActionEvidenceItems: { path: ['readActionResolution', 'maxActionEvidenceItems'], label: 'Maximum evidence items', kind: 'number', min: 1, max: 100,
+    help: '1-100 evidence items in read-planning context. Larger budgets may increase model usage.' },
+  retrievalSourceSelectionRequired: { path: ['vectorSpaceSelectionRequired'], label: 'Require planner source selection', kind: 'boolean',
+    help: 'Require the AI planner to identify a knowledge source when retrieval needs one. This never asks your customer to supply an internal domain.' },
+  retrievalKnowledgeOverviewEnabled: { path: ['knowledgeBaseOverviewEnabled'], label: 'Include knowledge overview for planning', kind: 'boolean',
+    help: 'Give the planner the available knowledge-source overview. Source authorization remains enforced.' },
+} satisfies Record<string, RetrievalField>
+type RetrievalFormKey = keyof typeof RETRIEVAL_FIELDS
+const retrievalFormKeys = Object.keys(RETRIEVAL_FIELDS) as RetrievalFormKey[]
+
+function readRetrievalForm(config: unknown): Record<RetrievalFormKey, string> {
+  const executor = isRecord(config) && isRecord(config.orchestrationModeOverrides)
+    && isRecord(config.orchestrationModeOverrides.executor) ? config.orchestrationModeOverrides.executor : {}
+  return Object.fromEntries(retrievalFormKeys.map(key => {
+    const value = RETRIEVAL_FIELDS[key].path.reduce<unknown>((node, part) => isRecord(node) ? node[part] : undefined, executor)
+    return [key, value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)]
+  })) as Record<RetrievalFormKey, string>
+}
+
+function applyRetrievalForm(executor: Record<string, unknown>, form: Record<RetrievalFormKey, string>) {
+  for (const key of retrievalFormKeys) {
+    const field = RETRIEVAL_FIELDS[key]
+    let parent = executor
+    for (const part of field.path.slice(0, -1)) {
+      if (!isRecord(parent[part])) parent[part] = {}
+      parent = parent[part] as Record<string, unknown>
+    }
+    const name = field.path[field.path.length - 1]
+    const value = form[key].trim()
+    if (!value) delete parent[name]
+    else parent[name] = field.kind === 'number' ? Number(value)
+      : field.kind === 'boolean' && ['true', 'false'].includes(value) ? value === 'true' : value
+  }
+}
+
+function retrievalInputError(key: RetrievalFormKey, value: string): string | null {
+  const field: RetrievalField = RETRIEVAL_FIELDS[key]
+  if (field.kind !== 'number' || !value.trim()) return null
+  const number = Number(value)
+  return Number.isInteger(number) && number >= field.min! && number <= field.max!
+    ? null : `Enter a whole number from ${field.min} to ${field.max}, or leave blank to inherit.`
+}
+
+type ProviderFormState = Record<RetrievalFormKey, string> & {
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
@@ -202,6 +273,7 @@ type SharedVectorHandlePreview = {
 }
 
 const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
+  ...readRetrievalForm({}),
   llmProvider: 'openai',
   embeddingProvider: 'openai',
   vectorStrategy: 'lucene',
@@ -319,6 +391,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
 }
 
 const providerFormKeys: Array<keyof ProviderFormState> = [
+  ...retrievalFormKeys,
   'llmProvider',
   'embeddingProvider',
   'vectorStrategy',
@@ -1227,6 +1300,7 @@ function readProviderForm(config: unknown): ProviderFormState {
     readString(record, 'vectorStoragePosture', DEFAULT_PROVIDER_FORM_STATE.vectorStoragePosture),
   )
   return {
+    ...readRetrievalForm(config),
     llmProvider: readString(record, 'llmProvider', DEFAULT_PROVIDER_FORM_STATE.llmProvider),
     embeddingProvider: readString(record, 'embeddingProvider', DEFAULT_PROVIDER_FORM_STATE.embeddingProvider),
     vectorStrategy,
@@ -1577,7 +1651,7 @@ function currentContextRecoveryPolicy(value: string): string {
 function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState): Record<string, unknown> {
   const nextConfig = cloneJson(isRecord(baseConfig) ? baseConfig : {}) as Record<string, unknown>
   providerFormKeys.forEach((key) => {
-    if (SEMANTIC_RECOVERY_FORM_KEYS.has(key) || key === 'decisionRecoveryMaxRepairRounds'
+    if (key in RETRIEVAL_FIELDS || SEMANTIC_RECOVERY_FORM_KEYS.has(key) || key === 'decisionRecoveryMaxRepairRounds'
       || key === 'decisionRecoveryRepairAdmissionTimeoutMs') {
       return
     }
@@ -1607,6 +1681,7 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     actionDomainMismatch: form.semanticRecoveryActionDomainMismatch,
     advancedNoEvidence: form.semanticRecoveryAdvancedNoEvidence,
   }
+  applyRetrievalForm(executorOverrides, form)
   orchestrationModeOverrides.executor = executorOverrides
   nextConfig.orchestrationModeOverrides = orchestrationModeOverrides
   nextConfig.vectorStoragePosture = normalizeVectorStoragePosture(
@@ -1751,6 +1826,7 @@ const searchSetupTasks = [
   { id: 'engine', label: 'Search service', title: 'Where your knowledge is searched', description: 'Choose the vector search engine and how it is hosted.', Icon: StorageOutlined },
   { id: 'embedding', label: 'Embedding model', title: 'Match questions to relevant knowledge', description: 'Choose the model used to represent your content for semantic search.', Icon: AutoAwesomeOutlined },
   { id: 'connection', label: 'Service connection', title: 'Connect your search service', description: 'Configure the selected vector service. Document-file storage stays under Storage & uploads.', Icon: CableOutlined },
+  { id: 'answers', label: 'Answers & sources', title: 'Bring tools and knowledge together', description: 'Choose how read tools cooperate with your approved knowledge.', Icon: AccountTreeOutlined },
   { id: 'isolation', label: 'Customer separation', title: 'Keep customer knowledge separate', description: 'Review the customer boundary and the storage scope used by this Smart Brain.', Icon: ShieldOutlined },
 ] as const
 const searchEngineLabels: Record<string, string> = { lucene: 'Lucene', memory: 'Memory', qdrant: 'Qdrant', pinecone: 'Pinecone', weaviate: 'Weaviate', milvus: 'Milvus' }
@@ -1800,7 +1876,9 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   const [localTechnicalView, setTechnicalView] = useState('wiring')
   const technicalView = technicalSection ?? localTechnicalView
   const [modelView, setModelView] = useState('models')
-  const [storageView, setStorageView] = useState<(typeof searchSetupTasks)[number]['id']>('engine')
+  const location = useLocation()
+  const [storageView, setStorageView] = useState<(typeof searchSetupTasks)[number]['id']>(() =>
+    new URLSearchParams(location.search).get('searchTask') === 'answers' ? 'answers' : 'engine')
   const focusedSearch = scoped && view === 'storage'
   const searchTask = searchSetupTasks.find(item => item.id === storageView)!
   const showModels = view === 'all' || (view === 'models' && modelView === 'models')
@@ -1810,6 +1888,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
   const showSearchEmbedding = showStorage && (!focusedSearch || storageView === 'embedding')
   const showVectorConnection = showStorage && (!focusedSearch || storageView === 'connection')
   const showSearchIsolation = showStorage && (!focusedSearch || storageView === 'isolation')
+  const showRetrievalSettings = showStorage && (!focusedSearch || storageView === 'answers')
   const showWiring = view === 'all' || (view === 'technical-files' && technicalView === 'wiring')
   const showRecovery = view === 'all' || (view === 'technical-files' && technicalView === 'recovery')
   const showReadiness = view === 'all' || (view === 'technical-files' && technicalView === 'readiness')
@@ -1868,6 +1947,8 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
     }
   }, [rawProviderValue])
   const draftDirty = structuredDirty || rawDirty
+  const retrievalErrors = retrievalFormKeys.filter(key => formState[key] !== savedFormState[key])
+    .map(key => retrievalInputError(key, formState[key])).filter((error): error is string => Boolean(error))
   bufferDirty.current = draftDirty
   const editorState = useMemo(
     () => ({
@@ -1978,11 +2059,9 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
       return
     }
 
-    if (rawProvider.error) return
+    if (rawProvider.error || retrievalErrors.length) return
     const currentConfig = draftQuery.data?.id === loadedDraft.id ? draftQuery.data.providerConfig : loadedDraft.providerConfig
-    const nextConfig = rawDirty ? rawProvider.config : scoped
-      ? buildFocusedProviderConfigDraft(currentConfig, savedFormState, formState)
-      : buildProviderConfigDraft(loadedDraft.providerConfig, formState)
+    const nextConfig = rawDirty ? rawProvider.config : buildFocusedProviderConfigDraft(currentConfig, savedFormState, formState)
 
     return saveMutation.mutateAsync({
       draftId: loadedDraft.id,
@@ -2005,15 +2084,15 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
     retainedNavigationPaths: technicalSection && !rawDirty && brainWorkspace
       ? brainAdvancedSections.filter(item => item.view !== 'json').map(item => brainWorkspace.href(`advanced/${item.path}`).split('?')[0]) : undefined,
     dirty: draftDirty, busy: saveMutation.isPending,
-    canSave: canEdit && Boolean(loadedDraft) && draftDirty && !rawProvider.error,
+    canSave: canEdit && Boolean(loadedDraft) && draftDirty && !rawProvider.error && !retrievalErrors.length,
     save: async () => { try { await handleSave() } catch { /* The mutation error is shown in the workspace footer. */ } },
     discard: handleDiscard,
     message: saveMutation.isSuccess && !draftDirty ? 'Provider settings saved to draft. Not applied.' : undefined,
-    error: rawProvider.error ?? (saveMutation.isError ? saveMutation.error.message : null),
+    error: rawProvider.error ?? retrievalErrors[0] ?? (saveMutation.isError ? saveMutation.error.message : null),
   } : null)
 
   const handleRunVendorProbes = () => {
-    if (!selectedDeploymentId) {
+    if (!selectedDeploymentId || retrievalErrors.length) {
       return
     }
     if (draftDirty && canEdit && loadedDraft) {
@@ -2023,6 +2102,28 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
       return
     }
     connectivityMutation.mutate(undefined)
+  }
+
+  const retrievalControl = (key: RetrievalFormKey) => {
+    const field: RetrievalField = RETRIEVAL_FIELDS[key]
+    const value = formState[key]
+    const options = field.kind === 'boolean' ? [{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Disabled' }]
+      : field.options ?? []
+    const custom = field.kind !== 'number' && value !== '' && !options.some(option => option.value === value)
+    const error = value !== savedFormState[key] ? retrievalInputError(key, value) : null
+    return <TextField key={key} fullWidth select={field.kind !== 'number'}
+      type={field.kind === 'number' ? 'number' : undefined} label={field.label} value={value}
+      disabled={!canEdit || saveMutation.isPending || !loadedDraft}
+      onChange={event => handleFieldChange(key, event.target.value)} error={Boolean(error)}
+      placeholder={field.kind === 'number' ? 'Use runtime default' : undefined}
+      InputLabelProps={{ shrink: true }}
+      SelectProps={field.kind !== 'number' ? { displayEmpty: true, sx: { '& .MuiSelect-select': { whiteSpace: 'normal', overflowWrap: 'anywhere', minHeight: '1.5em' } } } : undefined}
+      inputProps={field.kind === 'number' ? { min: field.min, max: field.max, step: 1 } : undefined}
+      helperText={error ?? (custom ? `Saved value retained: ${value}. Choose an option only to replace it.` : field.help)}>
+      {field.kind !== 'number' ? [<MenuItem key="inherit" value="">Use runtime default (no override)</MenuItem>,
+        ...(custom ? [<MenuItem key="saved" value={value}>Saved value: {value}</MenuItem>] : []),
+        ...options.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)] : null}
+    </TextField>
   }
 
   return (
@@ -2072,6 +2173,35 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
         This search engine runs inside the AI runtime and has no external service endpoint.
         Choose an external engine under Search service when you need a separate vector database.
       </Alert>}
+      {showRetrievalSettings && loadedDraft && <Box component="section" aria-label="Answers and knowledge sources">
+        <Stack spacing={2.5}>
+          {retrievalControl('ragCooperationMode')}
+          <Typography variant="body2" color="text.secondary">
+            {formState.ragCooperationMode === 'PARALLEL_ACTIONS_AND_RAG'
+              ? 'Read-tool resolution also requests authorized knowledge search. Context-only replies can still use the conversation.'
+              : formState.ragCooperationMode === 'NONE'
+                ? 'Automatic read-tool/knowledge cooperation is off. This is not a global switch disabling knowledge retrieval.'
+                : formState.ragCooperationMode === 'RAG_IF_ACTIONS_INSUFFICIENT'
+                  ? 'The AI uses read results and searches approved knowledge when more context is needed.'
+                  : 'No local cooperation override is selected. The runtime supplies the inherited policy.'}
+          </Typography>
+          <Grid container spacing={2} sx={{ width: '100%', m: '0 !important', '& > .MuiGrid-item': { pl: '0 !important' } }}>
+            <Grid item xs={12} md={6} sx={{ pr: { md: 2 } }}>{retrievalControl('retrievalFanoutEnabled')}</Grid>
+            <Grid item xs={12} md={6}>{retrievalControl('retrievalMaxSpaces')}</Grid>
+          </Grid>
+          <ConfigurationDetails label="Advanced read planning & context limits">
+            <Grid container spacing={2}>
+              {(['readPlanningMode', 'readMaxIterations', 'readMaxPlannerContextChars', 'readMaxActionEvidenceChars',
+                'readMaxActionEvidenceItems', 'retrievalSourceSelectionRequired', 'retrievalKnowledgeOverviewEnabled'] as RetrievalFormKey[])
+                .map(key => <Grid item key={key} xs={12} md={6}>{retrievalControl(key)}</Grid>)}
+            </Grid>
+          </ConfigurationDetails>
+          {formState.semanticRecoveryMissingVectorSpace === 'BOUNDED_ALLOWED_FAN_OUT'
+            && (formState.retrievalFanoutEnabled !== 'true' || !formState.retrievalMaxSpaces.trim())
+            && <Alert severity="warning">The selected recovery policy needs multi-source search explicitly enabled with a source limit of 1-12. Review these settings before publishing.</Alert>}
+          <Typography variant="caption" color="text.secondary">Saved to the shared draft only. Review, publish and apply in Updates to change a running Brain. No reindexing is needed for these settings.</Typography>
+        </Stack>
+      </Box>}
 
       {!scoped ? <ConfigurationDetails label="Draft & access">
           <Stack spacing={2}>
@@ -3788,7 +3918,7 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
                           onClick={() => { void handleSave()?.catch(() => undefined) }}
-                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty}
+                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty || Boolean(rawProvider.error) || Boolean(retrievalErrors.length)}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save provider config'}
                         </Button>

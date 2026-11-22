@@ -21,7 +21,7 @@ function compile(source, resolve = require) {
   return exports
 }
 const terminology = compile(await readFile(path.join(root, 'src/deploymentTerminology.ts'), 'utf8'))
-const helpers = compile(`${source}\nexport { readProviderForm, buildProviderConfigDraft, buildFocusedProviderConfigDraft, providerFormKeys, SEMANTIC_RECOVERY_FIELDS, syncVectorStrategy, syncProvisioningMode, syncVectorStoragePosture };`, name => {
+const helpers = compile(`${source}\nexport { readProviderForm, buildProviderConfigDraft, buildFocusedProviderConfigDraft, providerFormKeys, RETRIEVAL_FIELDS, retrievalInputError, SEMANTIC_RECOVERY_FIELDS, syncVectorStrategy, syncProvisioningMode, syncVectorStoragePosture };`, name => {
   if (name === '../deploymentTerminology') return terminology
   if (name.startsWith('../')) return {}
   return require(name)
@@ -85,7 +85,9 @@ test('all form fields retain their round-trip mapper and explicit controls', () 
   const saved = helpers.readProviderForm(providerConfig)
   for (const key of helpers.providerFormKeys) {
     assert.ok(key in saved, `${key} is read from the draft`)
-    if (key.startsWith('semanticRecovery')) {
+    if (key in helpers.RETRIEVAL_FIELDS) {
+      assert.ok(source.includes('handleFieldChange(key, event.target.value)'), `${key} retains its metadata-driven control`)
+    } else if (key.startsWith('semanticRecovery')) {
       assert.ok(helpers.SEMANTIC_RECOVERY_FIELDS.some(field => field.key === key), `${key} retains its policy control`)
     } else if (key === 'pineconeManagedIndexEnabled') {
       assert.ok(source.includes('nextConfig.pineconeManagedIndexEnabled'), 'Pinecone index management remains derived from provisioning mode')
@@ -93,6 +95,53 @@ test('all form fields retain their round-trip mapper and explicit controls', () 
     const candidate = { ...saved, [key]: typeof saved[key] === 'boolean' ? !saved[key] : `changed-${key}` }
     const next = helpers.buildFocusedProviderConfigDraft(providerConfig, saved, candidate)
     assert.deepEqual(next.customExtension, providerConfig.customExtension, `${key} preserves unknown metadata`)
+  }
+})
+
+test('all supported retrieval controls round-trip as nested typed overrides, preserving unknown and concurrent values', () => {
+  const base = structuredClone(providerConfig)
+  Object.assign(base.orchestrationModeOverrides.executor, {
+    rag: { fanoutEnabled: true, maxSpaces: 2, future: 'keep' },
+    readActionResolution: { ragCooperationMode: 'RAG_IF_ACTIONS_INSUFFICIENT', planningMode: 'ITERATIVE',
+      maxIterations: 2, maxPlannerContextChars: 12000, maxActionEvidenceCharsPerAction: 8000,
+      maxActionEvidenceItems: 10, future: { keep: true } },
+  })
+  const saved = helpers.readProviderForm(base)
+  for (const [key, field] of Object.entries(helpers.RETRIEVAL_FIELDS)) {
+    const current = structuredClone(base)
+    current.orchestrationModeOverrides.executor.readActionResolution.future.latest = true
+    const value = field.kind === 'number' ? String(field.min + 1) : field.kind === 'boolean' ? 'false' : field.options[0].value
+    const next = helpers.buildFocusedProviderConfigDraft(current, saved, { ...saved, [key]: value })
+    const executor = next.orchestrationModeOverrides.executor
+    assert.equal(field.path.reduce((node, part) => node[part], executor),
+      field.kind === 'number' ? Number(value) : field.kind === 'boolean' ? false : value)
+    assert.deepEqual(executor.readActionResolution.future, { keep: true, latest: true })
+    assert.equal(executor.rag.future, 'keep')
+    assert.deepEqual(next.customExtension, base.customExtension)
+    assert.equal(key in next, false)
+    assert.equal(helpers.readProviderForm(next)[key], value)
+  }
+})
+
+test('inheritance removes only the selected override; opening or editing another setting retains absent/null/custom values', () => {
+  for (const value of [undefined, null, 'FUTURE_MODE']) {
+    const base = structuredClone(providerConfig)
+    base.orchestrationModeOverrides.executor.readActionResolution = value === undefined ? {} : { ragCooperationMode: value }
+    const saved = helpers.readProviderForm(base)
+    assert.deepEqual(helpers.buildFocusedProviderConfigDraft(base, saved, saved), base)
+    assert.deepEqual(helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved, openaiModel: 'other' }), { ...base, openaiModel: 'other' })
+  }
+  const base = structuredClone(providerConfig)
+  base.orchestrationModeOverrides.executor.readActionResolution = { ragCooperationMode: 'NONE', maxIterations: 3, keep: 19 }
+  const saved = helpers.readProviderForm(base)
+  const next = helpers.buildFocusedProviderConfigDraft(base, saved, { ...saved, ragCooperationMode: '' })
+  assert.deepEqual(next.orchestrationModeOverrides.executor.readActionResolution, { maxIterations: 3, keep: 19 })
+})
+
+test('retrieval numeric controls match backend execution limits without rejecting inherited defaults', () => {
+  for (const [key, field] of Object.entries(helpers.RETRIEVAL_FIELDS).filter(([, field]) => field.kind === 'number')) {
+    for (const value of ['', String(field.min), String(field.max)]) assert.equal(helpers.retrievalInputError(key, value), null)
+    for (const value of ['-1', '0', '1.5', 'abc', String(field.max + 1)]) assert.ok(helpers.retrievalInputError(key, value))
   }
 })
 
@@ -456,6 +505,63 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
       assert.deepEqual(config, { ...providerConfig, orchestrationModel: 'planner-model', generationTimeout: '65' })
     })
 
+    await t.test('retrieval forms save each RAG mode, inherit without normalization, and retain advanced limits', async () => {
+      await page.goto(url('storage', '&searchTask=answers'))
+      await waitField('How tools and knowledge work together')
+      const before = await page.evaluate(() => structuredClone(window.__settingsTest.draft.providerConfig))
+      assert.equal(await page.evaluate(() => window.__settingsTest.writes.length), 0)
+      for (const mode of ['NONE', 'PARALLEL_ACTIONS_AND_RAG', 'RAG_IF_ACTIONS_INSUFFICIENT']) {
+        await choose('How tools and knowledge work together', helpers.RETRIEVAL_FIELDS.ragCooperationMode.options.find(item => item.value === mode).label)
+        await save()
+        const actual = await page.evaluate(() => window.__settingsTest.draft.providerConfig)
+        const expected = structuredClone(before)
+        expected.orchestrationModeOverrides.executor.readActionResolution = { ragCooperationMode: mode }
+        assert.deepEqual(actual, expected)
+      }
+      await choose('How tools and knowledge work together', 'Use runtime default (no override)')
+      await save()
+      assert.deepEqual(await page.evaluate(() => window.__settingsTest.draft.providerConfig.orchestrationModeOverrides.executor.readActionResolution), {})
+      await choose('Search across multiple knowledge sources', 'Enabled')
+      await page.getByLabel('Maximum knowledge sources per search', { exact: true }).fill('4')
+      await page.getByText('Advanced read planning & context limits', { exact: true }).click()
+      for (const [key, field] of Object.entries(helpers.RETRIEVAL_FIELDS).filter(([key]) => key !== 'ragCooperationMode')) {
+        if (field.kind === 'number') await page.getByLabel(field.label, { exact: true }).fill(String(field.min + 1))
+        else await choose(field.label, field.kind === 'boolean' ? 'Enabled' : field.options.at(-1).label)
+      }
+      await page.getByLabel('Maximum read-planning rounds', { exact: true }).fill('6')
+      assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
+      await page.getByLabel('Maximum read-planning rounds', { exact: true }).fill('3')
+      await save()
+      const written = await page.evaluate(() => window.__settingsTest.draft.providerConfig)
+      assert.equal(written.orchestrationModeOverrides.executor.rag.fanoutEnabled, true)
+      assert.equal(written.orchestrationModeOverrides.executor.readActionResolution.maxIterations, 3)
+      assert.deepEqual(written.customExtension, before.customExtension)
+      await page.getByLabel('Maximum evidence items', { exact: true }).fill('20')
+      await page.getByRole('button', { name: 'Search service', exact: true }).click()
+      await page.getByRole('button', { name: 'Answers & sources', exact: true }).click()
+      assert.equal(await page.getByLabel('Maximum evidence items', { exact: true }).inputValue(), '20')
+      await page.getByRole('button', { name: 'Discard', exact: true }).click()
+      assert.equal(await page.getByLabel('Maximum evidence items', { exact: true }).inputValue(), '2')
+    })
+
+    await t.test('unknown RAG mode remains visible and read-only retrieval cannot save', async () => {
+      await page.goto(url('storage', '&searchTask=answers'))
+      await waitField('How tools and knowledge work together')
+      await page.evaluate(() => {
+        const config = structuredClone(window.__settingsTest.draft.providerConfig)
+        config.orchestrationModeOverrides.executor.readActionResolution = { ragCooperationMode: 'FUTURE_MODE', future: true }
+        window.__settingsTest.refetch(config)
+      })
+      await page.getByText('Saved value: FUTURE_MODE', { exact: true }).waitFor()
+      await choose('Search across multiple knowledge sources', 'Enabled')
+      await save()
+      assert.deepEqual(await page.evaluate(() => window.__settingsTest.draft.providerConfig.orchestrationModeOverrides.executor.readActionResolution), { ragCooperationMode: 'FUTURE_MODE', future: true })
+      await page.goto(url('storage', '&searchTask=answers&readonly=1'))
+      await waitField('How tools and knowledge work together')
+      assert.equal(await page.getByLabel('How tools and knowledge work together', { exact: true }).isDisabled(), true)
+      assert.equal(await page.evaluate(() => window.__settingsTest.writes.length), 0)
+    })
+
     await t.test('storage edits are focused and persist embedding/vector changes', async () => {
       await page.goto(url('storage'))
       await waitField('Search engine')
@@ -594,6 +700,16 @@ test('focused settings browser workflows and responsive views', { timeout: 120_0
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${section} ${mode} ${width}`)
           if (width !== 320 && ['models', 'storage', 'technical-files'].includes(section)) {
             await page.screenshot({ path: path.join(screenshots, `${section}-${mode}-${width}.png`), fullPage: true })
+          }
+          if (section === 'storage') {
+            await page.getByRole('button', { name: 'Answers & sources', exact: true }).click()
+            await waitField('How tools and knowledge work together')
+            await page.getByText('Advanced read planning & context limits', { exact: true }).click()
+            await waitField('Read-tool planning')
+            await page.locator('section[aria-label="Answers and knowledge sources"] .MuiCollapse-entered').waitFor()
+            await page.getByLabel('Read-tool planning', { exact: true }).scrollIntoViewIfNeeded()
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `retrieval ${mode} ${width}`)
+            await page.screenshot({ path: path.join(screenshots, `retrieval-${mode}-${width}.png`), fullPage: true })
           }
         }
       }
