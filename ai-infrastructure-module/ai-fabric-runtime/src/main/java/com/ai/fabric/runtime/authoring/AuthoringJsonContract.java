@@ -39,6 +39,7 @@ final class AuthoringJsonContract {
     }
 
     ObjectNode strictResponse(String raw, ConfigurationAuthoringRequest request) {
+        String issue = "WHOLE_JSON", field = "";
         try {
             if (raw == null || raw.length() > MAX_RESPONSE_CHARS) throw new IllegalArgumentException();
             // This MUST run on the entire provider response before the framework's permissive extractor.
@@ -46,24 +47,36 @@ final class AuthoringJsonContract {
                 .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readValue(raw);
             if (!(root instanceof ObjectNode object)) throw new IllegalArgumentException();
+            issue = "ENVELOPE_BOUNDS";
             boundedTree(root, 0, new int[]{0});
-            if (!ConfigurationAuthoringRequest.CONTRACT_VERSION.equals(text(root, "contractVersion", 64))
-                || !Set.of("READY", "NEEDS_INPUT", "EXPLAIN", "UNSUPPORTED").contains(text(root, "status", 32))) {
-                throw new IllegalArgumentException();
-            }
+            issue = "CONTRACT_VERSION"; field = "/contractVersion";
+            if (!ConfigurationAuthoringRequest.CONTRACT_VERSION.equals(text(root, "contractVersion", 64))) throw new IllegalArgumentException();
+            issue = "STATUS"; field = "/status";
+            if (!Set.of("READY", "NEEDS_INPUT", "EXPLAIN", "UNSUPPORTED").contains(text(root, "status", 32))) throw new IllegalArgumentException();
+            issue = "MESSAGE"; field = "/message";
             text(root, "message", 8_000);
+            issue = "CHANGES"; field = "/changes";
+            int index = 0;
             for (var change : array(root, "changes", 128)) {
+                String base = "/changes/" + index++;
+                issue = "CHANGE_PATH"; field = base + "/path";
                 pointer(text(change, "path", 2_048));
+                issue = "CHANGE_OPERATION"; field = base + "/operation";
                 String operation = text(change, "operation", 32);
                 if (!Set.of("SET", "REMOVE", "UPSERT", "REMOVE_ITEM").contains(operation)) throw new IllegalArgumentException();
+                issue = "CHANGE_KEY"; field = base + "/key";
                 if ((operation.equals("UPSERT") || operation.equals("REMOVE_ITEM"))
                     && text(change, "key", 512).isBlank()) throw new IllegalArgumentException();
+                issue = "CHANGE_VALUE"; field = base + "/value";
                 if ((operation.equals("SET") || operation.equals("UPSERT")) && !change.has("value")) throw new IllegalArgumentException();
             }
+            issue = "ENVELOPE_BOUNDS"; field = "";
             advisoryMetadata(object, request);
             return object;
         } catch (Exception invalid) {
-            throw new AuthoringFailure(HttpStatus.BAD_GATEWAY, "AUTHORING_INVALID_OUTPUT", "Provider did not return a valid whole JSON authoring envelope.");
+            // Report the existing execution-contract failure, never rejected values or parser excerpts.
+            throw new AuthoringFailure(HttpStatus.BAD_GATEWAY, "AUTHORING_INVALID_OUTPUT",
+                "Provider did not return a valid whole JSON authoring envelope.", issue, field);
         }
     }
 

@@ -348,8 +348,27 @@ public class ConfigurationAssistantService {
         var session = owned(id, true); resource(session); requireCurrent(session, turnId);
         var content = content(session); var turn = findTurn(content, turnId); var policy = policy(turn);
         var findings = mapper.createObjectNode().put("valid", false).put("errorCount", 1);
-        findings.putArray("issues").addObject().put("severity", "ERROR").put("code", "AUTHORING_INVALID_OUTPUT")
+        var issue = findings.putArray("issues").addObject().put("severity", "ERROR").put("code", "AUTHORING_INVALID_OUTPUT")
             .put("message", "The previous response did not meet the whole JSON authoring contract. Return the required structured envelope.");
+        var contract = receipt.path("outputContractFinding");
+        String code = contract.path("code").asText(), field = contract.path("field").asText();
+        var messages = Map.of(
+            "WHOLE_JSON", "Return exactly one raw JSON object, without fences, prose, duplicate keys or trailing content.",
+            "ENVELOPE_BOUNDS", "Keep the authoring envelope within the declared size, depth and collection limits.",
+            "CONTRACT_VERSION", "Include contractVersion as the exact string LOOMAI_CONFIGURATION_AUTHORING_V1.",
+            "STATUS", "Include status as one of READY, NEEDS_INPUT, EXPLAIN or UNSUPPORTED; do not claim a save.",
+            "MESSAGE", "Include message as a string of at most 8000 characters.",
+            "CHANGES", "Include changes as an array of change objects, including an empty array when no change is proposed.",
+            "CHANGE_PATH", "Each change needs path as an RFC 6901 JSON pointer string, with valid ~0 and ~1 escapes.",
+            "CHANGE_OPERATION", "Each change needs operation as SET, REMOVE, UPSERT or REMOVE_ITEM, not a JSON Patch op.",
+            "CHANGE_KEY", "UPSERT and REMOVE_ITEM require a nonblank string key of at most 512 characters.",
+            "CHANGE_VALUE", "SET and UPSERT require a value property; an explicit JSON null is allowed.");
+        // Only server-owned categories and envelope paths reach feedback, never rejected model values.
+        if (messages.containsKey(code) && field.length() <= 64
+            && (field.isEmpty() || field.matches("/(?:contractVersion|status|message|changes(?:/[0-9]{1,3}/(?:path|operation|key|value))?)"))) {
+            issue.put("category", "EXECUTION_CONTRACT").put("contractCode", code).put("path", field)
+                .put("message", messages.get(code));
+        }
         var attempt = (ObjectNode) turn.withArray("attempts").get(number - 1);
         attempt.put("status", "INVALID_OUTPUT").put("completedAt", Instant.now().toString());
         attempt.set("findings", findings); attempt.set("runtime", changes.project(receipt));

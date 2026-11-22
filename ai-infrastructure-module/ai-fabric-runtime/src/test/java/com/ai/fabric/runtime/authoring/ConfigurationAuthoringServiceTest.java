@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 
 import ai.fabric.config.AIProviderConfig;
 import ai.fabric.core.AICoreService;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import ai.fabric.core.LlmPurpose;
 import ai.fabric.dto.AIChatMessage;
 import ai.fabric.dto.AIGenerationRequest;
@@ -207,6 +208,23 @@ class ConfigurationAuthoringServiceTest {
         assertThat(response.getBody().toString()).doesNotContain("private provider detail").contains("AUTHORING_PROVIDER_ERROR");
         assertThat(response.getBody().path("runtime").path("providerError").asBoolean()).isTrue();
         verifyNoInteractions(structured);
+    }
+
+    @Test
+    void rejectedExecutionFieldHasSafeFeedbackAndStillExactlyOneAccountedModelCall() throws Exception {
+        var raw = output();
+        ((ObjectNode) raw.path("changes").get(0)).put("operation", "secret-operation-marker");
+        when(ai.generateContent(any(), any())).thenReturn(generated(raw.toString()));
+        var response = service(5_000).generate(request(), identity());
+        assertThat(response.getStatusCode().value()).isEqualTo(502);
+        assertThat(response.getBody().at("/runtime/outputContractFinding/code").asText()).isEqualTo("CHANGE_OPERATION");
+        assertThat(response.getBody().at("/runtime/outputContractFinding/field").asText()).isEqualTo("/changes/0/operation");
+        assertThat(response.getBody().toString()).doesNotContain("secret-operation-marker");
+        assertThat(response.getBody().at("/runtime/modelCalls").asInt()).isEqualTo(1);
+        assertThat(response.getBody().at("/runtime/usage/promptTokens").asInt()).isEqualTo(123);
+        verify(ai, times(1)).generateContent(any(), any());
+        verifyNoInteractions(structured);
+        assertUnscoped();
     }
 
     @Test

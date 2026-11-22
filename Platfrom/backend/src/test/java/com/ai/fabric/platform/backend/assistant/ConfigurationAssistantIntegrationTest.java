@@ -362,6 +362,7 @@ class ConfigurationAssistantIntegrationTest {
     }
     @Test void onlyTheTypedInvalidOutputCategoryMayRegenerateNotProviderOrBudgetFailures() throws Exception {
         var receipt = mapper.createObjectNode().put("requestId", "invalid-json-paid").put("modelCalls", 1);
+        receipt.putObject("outputContractFinding").put("code", "CHANGE_OPERATION").put("field", "/changes/0/operation");
         when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("AUTHORING_INVALID_OUTPUT", receipt))
             .thenReturn(feedbackOutput("Corrected draft", "valid-json-paid"));
         String id = create(); assistant.turn(id, feedbackRequest(false, 2), "invalid-json");
@@ -372,11 +373,28 @@ class ConfigurationAssistantIntegrationTest {
         var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
         assertThat(inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0/code").asText())
             .isEqualTo("AUTHORING_INVALID_OUTPUT");
+        var issue = inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0");
+        assertThat(issue.path("contractCode").asText()).isEqualTo("CHANGE_OPERATION");
+        assertThat(issue.path("path").asText()).isEqualTo("/changes/0/operation");
+        assertThat(issue.path("message").asText()).contains("SET, REMOVE, UPSERT or REMOVE_ITEM");
         reset(runtime); when(runtime.configured()).thenReturn(true);
         when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("PROVIDER_BUDGET_INTERRUPTED", receipt));
         assistant.turn(id, feedbackRequest(false, 2), "budget-stops");
         assertThat(await(id).at("/turns/1/status").asText()).isEqualTo("FAILED");
         verify(runtime, times(1)).generate(any());
+    }
+
+    @Test void unrecognizedDiagnosticDataIsNotForwardedAsValidationFeedback() throws Exception {
+        var receipt = mapper.createObjectNode().put("modelCalls", 1);
+        receipt.putObject("outputContractFinding").put("code", "UNTRUSTED-secret-marker").put("field", "/private/secret-marker");
+        when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("AUTHORING_INVALID_OUTPUT", receipt))
+            .thenReturn(feedbackOutput("Corrected draft", "valid"));
+        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "unknown-diagnostic");
+        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
+        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
+        var findings = inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings");
+        assertThat(findings.toString()).doesNotContain("secret-marker");
+        assertThat(findings.at("/issues/0/contractCode").isMissingNode()).isTrue();
     }
     @Test void unauthorizedChangeStopsWithoutUsingCorrectionToExpandItsScope() throws Exception {
         var invalid = feedbackOutput("Invalid draft", "unauthorized");

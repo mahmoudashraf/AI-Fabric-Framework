@@ -14,6 +14,30 @@ class AuthoringJsonContractTest {
     private final AuthoringJsonContract contract = new AuthoringJsonContract(MAPPER);
 
     @Test
+    void structuralFindingsNameOnlyTheFailedEnvelopeFieldAndNeverRejectedValues() throws Exception {
+        var invalid = output();
+        ((ObjectNode) invalid.path("changes").get(0)).put("operation", "secret-rejected-operation");
+        assertThatThrownBy(() -> contract.strictResponse(invalid.toString(), request()))
+            .isInstanceOfSatisfying(AuthoringFailure.class, failure -> {
+                assertThat(failure.contractIssue).isEqualTo("CHANGE_OPERATION");
+                assertThat(failure.contractField).isEqualTo("/changes/0/operation");
+                assertThat(failure.getMessage()).doesNotContain("secret-rejected-operation");
+            });
+        var missingStatus = output(); missingStatus.remove("status");
+        assertThatThrownBy(() -> contract.strictResponse(missingStatus.toString(), request()))
+            .isInstanceOfSatisfying(AuthoringFailure.class, failure -> {
+                assertThat(failure.contractIssue).isEqualTo("STATUS");
+                assertThat(failure.contractField).isEqualTo("/status");
+            });
+        assertThatThrownBy(() -> contract.strictResponse("```json secret-parser-input```", request()))
+            .isInstanceOfSatisfying(AuthoringFailure.class, failure -> {
+                assertThat(failure.contractIssue).isEqualTo("WHOLE_JSON");
+                assertThat(failure.contractField).isEmpty();
+                assertThat(failure.getMessage()).doesNotContain("secret-parser-input");
+            });
+    }
+
+    @Test
     void preservesMultipleDefinitionsNestedArraysDynamicKeysNullsAndAllEnvelopeFields() throws Exception {
         assertThat(contract.strictResponse(output().toString(), request())).isEqualTo(output());
         var setNull = output();

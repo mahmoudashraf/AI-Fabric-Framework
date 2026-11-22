@@ -169,7 +169,10 @@ public final class ConfigurationAuthoringService {
     private ResponseEntity<ObjectNode> failure(ConfigurationAuthoringRequest request, Attempt attempt, AuthoringFailure failed) {
         var body = mapper.createObjectNode().put("contractVersion", request.contractVersion()).put("turnId", request.turnId());
         body.putObject("error").put("code", failed.code).put("message", failed.getMessage());
-        body.set("runtime", receipt(attempt));
+        var runtime = receipt(attempt);
+        if (failed.contractIssue != null) runtime.putObject("outputContractFinding")
+            .put("code", failed.contractIssue).put("field", failed.contractField);
+        body.set("runtime", runtime);
         return response(failed.status, body);
     }
 
