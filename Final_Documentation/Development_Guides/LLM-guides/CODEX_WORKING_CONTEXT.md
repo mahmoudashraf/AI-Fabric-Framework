@@ -19917,6 +19917,28 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   candidates must still enforce customer/audience/active-version BEFORE model or
   externalreranker exposure; this Support check doesnotqualifythatnewengine.
 
+### Owner Harbor Capability Practice Brain - 23 November 2026
+
+- Owner requested an empty Harbor Smart Brain and API link for manual Build with
+  AI testing. Created RETAINED user resource dep-000748a0, name Harbor API - Build
+  with AI, in actual engmahmoudalgamal@gmail.com workspace cus-9fd67f55, not the
+  separate Harbor recording fixture account. Use canonical /smart-brains/
+  dep-000748a0/capabilities on production Console; environment staging, resource-
+  free draft only. Do NOT delete as automatic verification cleanup.
+- Verified0actions/0routes/0plugins/0entitytypes/0knowledgesources/0versions/0releases.
+  Normal baseline contracts remain. No model turn, document import, indexing,
+  infrastructure allocation, publish/apply or new credential/permission grant.
+  Existing dep-86ad8f93 draft/versions/releases exactly preserved. Both ownstaff
+  sessions logged out/oldcookies unauthenticated. No app/framework code change.
+- Harbor API healthUP and OpenAPI200 verified at https://assistant-lab-20261112.
+  46.224.145.148.sslip.io/openapi.json (join linebreak). Public reads need no key;
+  protected enquiry/receipt operations need a legitimate customer-owned secret
+  reference, not a credential pasted into AI. No secret was copied across owners.
+- Shared production authoring allowance still149/150,2Mtokens/USD5,notstopped.
+  Requested owner approval asynchronously for +10turns150->160 with caps unchanged;
+  PENDING, not applied. Never infer allowance/funding permission from Brain setup.
+  Private preparation receipts ~/.codex/private/loomai-harbor-empty-20261123.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73
