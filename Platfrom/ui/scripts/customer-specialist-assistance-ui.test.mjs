@@ -60,7 +60,7 @@ before(async () => {
 })
 after(async () => { await browser?.close(); await server?.close(); if (cache) await rm(cache, { recursive: true, force: true }) })
 
-function fixtureState({ enabled = true, behaviorType = 'CONVERSATIONAL', canEdit = true } = {}) {
+function fixtureState({ enabled = true, behaviorType = 'CONVERSATIONAL', canEdit = true, role = 'CUSTOMER_ADMIN' } = {}) {
   const provenance = dep => ({ marketplaceManaged: true, marketplaceInstallId: `${dep}-install`, marketplacePluginId: 'approved-plugin', marketplacePluginVersion: '1.0.0' })
   const behavior = dep => ({ type: behaviorType, channelBindings: ['CHAT'], executionExtensions: enabled ? ['CONVERSATION_HANDOVER', 'SPECIALIST_ASSISTANCE'] : ['CONVERSATION_HANDOVER'],
     conversationHandover: { enabled: true, customerOwnedSetting: dep },
@@ -70,7 +70,7 @@ function fixtureState({ enabled = true, behaviorType = 'CONVERSATIONAL', canEdit
       resolutions: [{ id: 'investigate', name: 'Setup investigation', objective: 'Coordinate useful setup and account checks.', areaIds: ['setup', 'account'], allowParallel: false }],
       limits: { maxDecisions: 4, maxWorkerInvocations: 2, maxParallelWorkers: 2, deadlineSeconds: 75 },
     } } : {}) })
-  return { enabled, behaviorType, customerId: 'customer-a', canEdit, disableInstalls: false,
+  return { enabled, behaviorType, role, customerId: role === 'CUSTOMER_ADMIN' ? 'customer-a' : null, canEdit, disableInstalls: false,
     drafts: Object.fromEntries(['dep-a', 'dep-b'].map(dep => [dep, { id: `${dep}-draft`, deploymentId: dep, revisionNumber: 1, status: 'MODIFIED',
       updatedAt: stamp, actionsConfig: { actions: [
         { name: 'get_status', accessMode: 'READ', displayName: 'Current account status', ...provenance(dep) },
@@ -94,7 +94,7 @@ async function fixture(t, options = {}) {
     state.calls.push({ path, method, body })
     if (path === '/api/platform/auth/customer-config') return json(route, { enabled: false })
     if (path === '/api/platform/auth/session') return json(route, { enabled: true, authenticated: true,
-      actorId: 'owner-a', customerId: state.customerId, role: 'CUSTOMER_ADMIN', authenticationMode: 'SESSION' })
+      actorId: 'owner-a', customerId: state.customerId, role: state.role, authenticationMode: 'SESSION' })
     if (path === '/api/marketplace/plugins/approved-plugin/versions/1.0.0') return json(route, {
       id: 'plugin-version', pluginId: 'approved-plugin', version: '1.0.0', status: 'PUBLISHED',
       manifest: { contributions: { actions: [{ actionId: 'get_status', readOnly: true }, { actionId: 'delete_account', readOnly: false }],
@@ -113,8 +113,13 @@ async function fixture(t, options = {}) {
       if (resource === 'versions') return json(route, [{ id: 'published-one', deploymentId: dep, versionLabel: 'r1', status: 'PUBLISHED' }])
       if (resource === 'versions/published-one/artifacts/deployment-manifest.json') return json(route, { deploymentId: dep, versionId: 'published-one', behaviorConfig: { specialistAssistance: {
         enabled: true, contentHash: 'sha256:server-approved-hash', compiled: { contractVersion: 'LOOMAI_SPECIALIST_ASSISTANCE_V1',
-          resources: [{ apiVersion: 'ai.fabric/v1', kind: 'Specialist', metadata: { name: 'server-only-resource', version: '9' } }],
-          invocations: [{ id: 'setup', name: 'Published setup area', targetType: 'SPECIALIST', targetRef: 'server-only-resource@9' }] },
+          resources: [{ apiVersion: 'ai.fabric/v1', kind: 'Specialist', metadata: { name: 'server-only-resource', version: '9' } },
+            { kind: 'SpecialistChain', metadata: { name: 'published-chain', version: '2' }, spec: { manager: { specialistRef: 'published-manager@2' },
+              limits: { maxManagerDecisions: 4, maxWorkerInvocations: 2, maxParallelWorkers: 1, maxDuration: 'PT75S' } } },
+            { kind: 'Specialist', metadata: { name: 'published-manager', version: '2' }, spec: { instructions: { objective: 'Published objective', promptProfileRef: 'published-prompt@2' } } },
+            { kind: 'SpecialistPromptProfile', metadata: { name: 'published-prompt', version: '2' }, spec: { constraints: 'Original published manager guidance.', outputContract: 'Return the bounded directive.' } }],
+          invocations: [{ id: 'setup', name: 'Published setup area', targetType: 'SPECIALIST', targetRef: 'server-only-resource@9' },
+            { id: 'investigate', name: 'Published investigation', targetType: 'CHAIN', targetRef: 'published-chain@2' }] },
       } } })
     }
     const update = path.match(/^\/api\/deployment-drafts\/(dep-[ab])-draft$/)
@@ -161,9 +166,13 @@ test('shared panel edits areas, plans and read-only compiled preview through the
   await page.getByRole('button', { name: 'Edit Setup investigation', exact: true }).click()
   await page.getByRole('checkbox', { name: 'Allow independent parallel checks' }).check()
   await page.getByRole('textbox', { name: 'Objective', exact: true }).fill('Investigate setup and account information using approved checks.')
+  await page.getByRole('textbox', { name: 'Manager instructions', exact: true }).fill('Compare recorded observations and clearly state what remains untested.')
   await page.getByRole('button', { name: 'Use changes', exact: true }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByText('SPECIALIST / server-only-resource@9', { exact: true }).waitFor()
+  await page.getByText('Published investigation: manager prompt and limits', { exact: true }).click()
+  await page.getByText('Original published manager guidance.', { exact: true }).waitFor()
+  await page.getByText('4 decisions / 2 worker calls / 1 parallel / PT75S', { exact: true }).waitFor()
   assert.equal(await page.getByRole('textbox', { name: /target|scope|URL/i }).count(), 0)
   await page.getByRole('spinbutton', { name: 'Deadline (seconds)' }).fill('90')
   state.drafts['dep-a'].promptConfig = { keep: 'changed elsewhere while editing' }
@@ -179,6 +188,7 @@ test('shared panel edits areas, plans and read-only compiled preview through the
   assert.equal(saved.specialistAssistance.areas[1].name, 'Customer account help')
   assert.deepEqual(saved.specialistAssistance.areas[1].vectorSpaces, ['guide'])
   assert.equal(saved.specialistAssistance.resolutions[0].allowParallel, true)
+  assert.equal(saved.specialistAssistance.resolutions[0].instructions, 'Compare recorded observations and clearly state what remains untested.')
   assert.equal(saved.specialistAssistance.limits.deadlineSeconds, 90)
   assert.equal('compiled' in saved.specialistAssistance, false)
   assert.deepEqual(state.drafts['dep-a'].promptConfig, { keep: 'changed elsewhere while editing' })
@@ -192,6 +202,23 @@ test('a changed behavior draft is not overwritten', async t => {
   await page.getByRole('button', { name: 'Save support capabilities', exact: true }).click()
   await page.getByText('The behavior draft changed.', { exact: false }).waitFor()
   assert.equal(state.calls.filter(call => call.method === 'PUT').length, 0)
+})
+
+test('authorized staff reuse the same manager editor and revalidate resource access before saving', async t => {
+  const { page, state } = await fixture(t, { role: 'PLATFORM_OPERATOR' })
+  await page.getByRole('button', { name: 'Edit Setup investigation', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Manager instructions', exact: true }).fill('Review approved observations before concluding.')
+  await page.getByRole('button', { name: 'Use changes', exact: true }).click()
+  await page.getByRole('button', { name: 'Save support capabilities', exact: true }).click()
+  await until(() => state.calls.some(call => call.method === 'PUT'), 'Staff manager instructions should use the same draft API')
+  assert.equal(state.calls.filter(call => call.method === 'PUT').length, 1)
+  await page.getByRole('button', { name: 'Edit Setup investigation', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Manager instructions', exact: true }).fill('Changed after staff access was revoked.')
+  await page.getByRole('button', { name: 'Use changes', exact: true }).click()
+  state.canEdit = false
+  await page.getByRole('button', { name: 'Save support capabilities', exact: true }).click()
+  await page.getByText('Customer access changed.', { exact: false }).waitFor()
+  assert.equal(state.calls.filter(call => call.method === 'PUT').length, 1)
 })
 
 test('revoked installed authority and changed customer identity stop before saving', async t => {
@@ -209,7 +236,7 @@ test('revoked installed authority and changed customer identity stop before savi
 
 test('optional assistance remains disabled until explicitly configured, without AI calls', async t => {
   const { page, state } = await fixture(t, { enabled: false })
-  await page.getByText('Optional specialist assistance is disabled.').waitFor()
+  await page.getByText('Specialist assistance is off.', { exact: false }).waitFor()
   assert.equal(state.calls.some(call => call.path.endsWith('marketplace-installs')), false)
   await page.getByRole('checkbox', { name: 'Specialist assistance', exact: true }).check()
   await page.getByRole('button', { name: 'Add support area', exact: true }).click()
@@ -251,7 +278,7 @@ test('a read-only customer sees the configuration without mutation controls', as
 
 test('disabled drafts can still inspect their actual immutable published resources', async t => {
   const { page, state } = await fixture(t, { enabled: false })
-  await page.getByText('Optional specialist assistance is disabled.').waitFor()
+  await page.getByText('Specialist assistance is off.', { exact: false }).waitFor()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByText('SPECIALIST / server-only-resource@9', { exact: true }).waitFor()
   assert.equal(state.calls.some(call => call.path.endsWith('marketplace-installs')), false)

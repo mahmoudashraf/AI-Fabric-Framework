@@ -20,7 +20,7 @@ import {
   type DeploymentDraftResponse, type DeploymentMarketplaceInstallSummary, type PlatformAuthSessionSummary,
 } from '../../api/platformApi'
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
-import { isCustomerSession } from '../../auth/customerSession'
+import { isCustomerAuthenticationMode, isCustomerSession } from '../../auth/customerSession'
 import { useCustomerEditorSection } from './CustomerDetailSections'
 import {
   compiledSpecialistAssistance, emptySpecialistAssistance, readSpecialistAssistance,
@@ -32,10 +32,16 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : '
 const activeInstalls = (rows: DeploymentMarketplaceInstallSummary[]) => rows.filter(row =>
   ['ENABLED', 'BOOTSTRAPPED'].includes(row.status.toUpperCase()) && row.entitlement?.entitledForCompilation)
 
+function isSpecialistEditorSession(session: PlatformAuthSessionSummary | null | undefined): session is PlatformAuthSessionSummary {
+  return isCustomerSession(session) || Boolean(session?.authenticated && session.actorId
+    && isCustomerAuthenticationMode(session.authenticationMode)
+    && (session.role === 'PLATFORM_ADMIN' || session.role === 'PLATFORM_OPERATOR'))
+}
+
 export function CustomerSpecialistAssistance({ deploymentId }: { deploymentId: string }) {
   const { session } = usePlatformAuth()
-  if (!isCustomerSession(session) || !deploymentId) return null
-  const scope = JSON.stringify([session.actorId, session.customerId, session.authenticationMode, deploymentId])
+  if (!isSpecialistEditorSession(session) || !deploymentId) return null
+  const scope = JSON.stringify([session.actorId, session.customerId, session.role, session.authenticationMode, deploymentId])
   return <SpecialistAssistanceScope key={scope} scope={scope} session={session} deploymentId={deploymentId} />
 }
 
@@ -45,7 +51,7 @@ function SpecialistAssistanceScope({ scope, session, deploymentId }: {
   const workspace = useQuery({ queryKey: ['customer-specialist-assistance', scope, 'workspace'], retry: false,
     queryFn: async () => {
       const result = await fetchDeploymentWorkspace(deploymentId)
-      if (result.deployment.id !== deploymentId || result.deployment.binding?.customerId !== session.customerId) {
+      if (result.deployment.id !== deploymentId || isCustomerSession(session) && result.deployment.binding?.customerId !== session.customerId) {
         throw new Error(`This ${deploymentTerm.lowercase} is not available in the current customer account.`)
       }
       return result
@@ -66,12 +72,12 @@ function SpecialistAssistanceScope({ scope, session, deploymentId }: {
   try { value = readSpecialistAssistance(draft.data.behaviorConfig) ?? emptySpecialistAssistance() }
   catch (error) { return <Alert severity="error">{errorText(error)}</Alert> }
   return <AssistanceForm key={draft.data.id} initialDraft={draft.data} initialValue={value}
-    scope={scope} session={session} canEdit={workspace.data.access.canEdit} />
+    scope={scope} session={session} resourceCustomerId={workspace.data.deployment.binding?.customerId ?? null} canEdit={workspace.data.access.canEdit} />
 }
 
-function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }: {
+function AssistanceForm({ initialDraft, initialValue, scope, session, resourceCustomerId, canEdit }: {
   initialDraft: DeploymentDraftResponse; initialValue: SpecialistAssistance; scope: string
-  session: PlatformAuthSessionSummary; canEdit: boolean
+  session: PlatformAuthSessionSummary; resourceCustomerId: string | null; canEdit: boolean
 }) {
   const client = useQueryClient()
   const depth = useCustomerEditorSection() ?? 'configuration'
@@ -108,9 +114,9 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
       const [identity, workspace, current] = await Promise.all([
         fetchPlatformAuthSession(), fetchDeploymentWorkspace(deploymentId), fetchDeploymentDraft(deploymentId),
       ])
-      if (!alive.current || !isCustomerSession(identity) || identity.actorId !== session.actorId
+      if (!alive.current || !isSpecialistEditorSession(identity) || identity.actorId !== session.actorId || identity.role !== session.role
         || identity.customerId !== session.customerId || identity.authenticationMode !== session.authenticationMode
-        || workspace.deployment.id !== deploymentId || workspace.deployment.binding?.customerId !== session.customerId
+        || workspace.deployment.id !== deploymentId || (workspace.deployment.binding?.customerId ?? null) !== resourceCustomerId
         || !workspace.access.canEdit) throw new Error(`Customer access changed. Reopen this ${deploymentTerm.lowercase} before saving.`)
       if (current.deploymentId !== deploymentId || current.id !== baseline.id || current.revisionNumber !== baseline.revisionNumber
         || JSON.stringify(current.behaviorConfig) !== JSON.stringify(baseline.behaviorConfig)) {
@@ -174,7 +180,7 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
           <Box><SectionHeading title="Resolution plans" addLabel="Add resolution plan" disabled={!editable || !value.areas.length || value.resolutions.length >= 8}
             onAdd={() => setPlan({ id: `plan-${crypto.randomUUID().slice(0, 12)}`, name: '', objective: '', areaIds: [], allowParallel: false })} />
             {!value.resolutions.length ? <Typography color="text.secondary" variant="body2" sx={{ py: 2 }}>No coordinated resolution plans configured.</Typography> : value.resolutions.map(item => <CapabilityRow key={item.id} name={item.name} description={item.objective}
-              secondary={item.areaIds.length === 1 ? 'Single-area check' : `${item.areaIds.length} areas / ${item.allowParallel ? 'Adaptive checks, parallel allowed' : 'Adaptive sequential checks'}`} disabled={!editable}
+              secondary={`${item.areaIds.length === 1 ? 'Single-area check' : `${item.areaIds.length} areas / ${item.allowParallel ? 'Adaptive checks, parallel allowed' : 'Adaptive sequential checks'}`}${item.instructions?.trim() ? ' / Custom manager instructions' : ''}`} disabled={!editable}
               onEdit={() => setPlan(structuredClone(item))} onRemove={() => setValue(current => ({ ...current, resolutions: current.resolutions.filter(row => row.id !== item.id) }))} />)}
           </Box>
         </Stack>
@@ -202,7 +208,7 @@ function AssistanceForm({ initialDraft, initialValue, scope, session, canEdit }:
     {area ? <AreaEditor key={area.id} initial={area} authority={authority} disabled={selectionDisabled} onClose={() => setArea(null)} onUse={next => {
       setValue(current => ({ ...current, areas: current.areas.some(item => item.id === next.id) ? current.areas.map(item => item.id === next.id ? next : item) : [...current.areas, next] })); setArea(null)
     }} /> : null}
-    {plan ? <ResolutionEditor key={plan.id} initial={plan} areas={value.areas} disabled={!editable} onClose={() => setPlan(null)} onUse={next => {
+    {plan ? <ResolutionEditor key={plan.id} initial={plan} areas={value.areas} limits={value.limits} disabled={!editable} onClose={() => setPlan(null)} onUse={next => {
       setValue(current => ({ ...current, resolutions: current.resolutions.some(item => item.id === next.id) ? current.resolutions.map(item => item.id === next.id ? next : item) : [...current.resolutions, next] })); setPlan(null)
     }} /> : null}
   </Stack>
@@ -258,17 +264,21 @@ function AreaEditor({ initial, authority, disabled, onClose, onUse }: { initial:
   </EditorDrawer>
 }
 
-function ResolutionEditor({ initial, areas, disabled, onClose, onUse }: { initial: SpecialistResolution; areas: SpecialistArea[]; disabled: boolean; onClose: () => void; onUse: (value: SpecialistResolution) => void }) {
+function ResolutionEditor({ initial, areas, limits, disabled, onClose, onUse }: { initial: SpecialistResolution; areas: SpecialistArea[]; limits: SpecialistAssistance['limits']; disabled: boolean; onClose: () => void; onUse: (value: SpecialistResolution) => void }) {
   const [plan, setPlan] = useState(initial)
   const invalidParallel = plan.allowParallel && plan.areaIds.length < 2
   return <EditorDrawer title={initial.name ? 'Edit resolution plan' : 'New resolution plan'} onClose={onClose} disabled={disabled || !plan.name.trim() || !plan.objective.trim() || !plan.areaIds.length || invalidParallel} onUse={() => onUse(plan)}>
     <TextField autoFocus label="Plan name" value={plan.name} inputProps={{ maxLength: 120 }} onChange={e => setPlan(current => ({ ...current, name: e.target.value }))} disabled={disabled} />
     <TextField label="Objective" multiline minRows={4} value={plan.objective} inputProps={{ maxLength: 1000 }} onChange={e => setPlan(current => ({ ...current, objective: e.target.value }))} disabled={disabled} />
+    <TextField label="Manager instructions" multiline minRows={5} value={plan.instructions ?? ''}
+      helperText={`Optional investigation guidance. ${(plan.instructions ?? '').length} / 4000 characters`}
+      inputProps={{ maxLength: 4000 }} onChange={e => setPlan(current => ({ ...current, instructions: e.target.value }))} disabled={disabled} />
     <ChoicePicker label="Support areas" value={plan.areaIds} choices={areas.map(item => ({ id: item.id, label: item.name, plugin: `This ${deploymentTerm.lowercase}` }))} disabled={disabled}
       onChange={areaIds => setPlan(current => ({ ...current, areaIds }))} />
     <FormControlLabel label="Allow independent parallel checks" control={<Checkbox checked={plan.allowParallel} disabled={disabled || !plan.allowParallel && plan.areaIds.length < 2}
       onChange={e => setPlan(current => ({ ...current, allowParallel: e.target.checked }))} />} />
     {invalidParallel ? <Alert severity="warning">Select at least two independent areas or disable parallel checks.</Alert> : null}
+    <Typography variant="caption" color="text.secondary">Shared limits: {limits.maxDecisions} manager decisions / {limits.maxWorkerInvocations} worker calls / {limits.maxParallelWorkers} parallel / {limits.deadlineSeconds}s. Managed in Advanced.</Typography>
     <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>Plan ID: {plan.id}</Typography>
   </EditorDrawer>
 }
@@ -302,6 +312,15 @@ function PublishedSpecialistPreview({ deploymentId, scope }: { deploymentId: str
     {selected && !manifest.isError && manifest.data ? <Stack spacing={1.5}>
       <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{selected.id} / {manifest.data.contentHash}</Typography>
       {manifest.data.invocations.map(item => <Box key={item.id} sx={{ borderBottom: 1, borderColor: 'divider', pb: 1 }}><Typography variant="body2" fontWeight={600}>{item.name}</Typography><Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.targetType} / {item.targetRef}</Typography></Box>)}
+      {manifest.data.managers.map(manager => <Box component="details" key={manager.reference} sx={{ borderBottom: 1, borderColor: 'divider', pb: 1.5 }}>
+        <Typography component="summary" variant="body2" sx={{ cursor: 'pointer' }}>{manager.name}: manager prompt and limits</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>{manager.reference}</Typography>
+        <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 280, overflow: 'auto' }}>{manager.instructions}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>
+          {String(manager.limits.maxManagerDecisions)} decisions / {String(manager.limits.maxWorkerInvocations)} worker calls / {String(manager.limits.maxParallelWorkers)} parallel / {String(manager.limits.maxDuration)}
+        </Typography>
+        <Box component="details" sx={{ mt: 1 }}><Typography component="summary" variant="caption" sx={{ cursor: 'pointer' }}>Directive output contract</Typography><Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{manager.outputContract}</Typography></Box>
+      </Box>)}
       <Box component="details"><Typography component="summary" variant="body2" sx={{ cursor: 'pointer' }}>Compiled resource definitions</Typography><Box component="pre" sx={{ m: 0, mt: 1, p: 2, bgcolor: 'action.hover', borderRadius: 1, maxHeight: 320, overflow: 'auto', fontSize: 11 }}>{JSON.stringify(manifest.data.resources, null, 2)}</Box></Box>
     </Stack> : selected && manifest.isSuccess && !manifest.data ? <Alert severity="info">Specialist assistance is not enabled in this published version.</Alert> : null}
   </Box>

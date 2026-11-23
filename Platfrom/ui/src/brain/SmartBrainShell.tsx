@@ -40,6 +40,7 @@ import { AssistantWorkspace } from '../assistant/AssistantWorkspace'
 import { brainPageAssistantScope } from '../assistant/scope'
 import { refreshBrainEditors } from '../assistant/refreshBrainEditors'
 import { CustomerSpecialistAssistance } from '../components/customer/CustomerSpecialistAssistance'
+import { CustomerEditorSections } from '../components/customer/CustomerDetailSections'
 
 const sectionIcons = { '': HomeOutlined, knowledge: LayersOutlined, capabilities: AutoAwesomeOutlined,
   responses: ChatBubbleOutlineRounded, models: PsychologyOutlined, channels: AccountTreeOutlined,
@@ -261,7 +262,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
             {releaseHeld && <Alert severity="info" sx={{ mb: 2 }}>A newer release is available. Finish or discard your current task before switching its context. The header shows the latest applied state.</Alert>}
             {workspace.deploymentsLoading ? <CircularProgress size={26} aria-label={`Loading ${deploymentTerm.singular}`} /> : !valid ? <Alert severity="error">This {deploymentTerm.lowercase} is unavailable or you do not have access. <Link component={RouterLink} to="/deployments">Return to your {deploymentTerm.pluralLowercase}</Link></Alert> : <>
               {profiles.isError && <Alert severity="error">{profiles.error.message}</Alert>}
-              {requestedTarget && profiles.isSuccess && !targetProfile ? <Alert severity="error">The requested environment is not available. No alternative environment has been selected.</Alert> : requestedRelease && releases.isSuccess && !release ? <Alert severity="error">The requested release is not active in this environment. Choose a current environment before continuing.</Alert> : <Fragment key={revision}>{specialistRoute ? <Box sx={{ overflow: 'auto' }}><Typography component="h1" fontSize={20} fontWeight={650} sx={{ mb: 2 }}>Specialists</Typography><CustomerSpecialistAssistance deploymentId={brainId} /></Box> : children}</Fragment>}
+              {requestedTarget && profiles.isSuccess && !targetProfile ? <Alert severity="error">The requested environment is not available. No alternative environment has been selected.</Alert> : requestedRelease && releases.isSuccess && !release ? <Alert severity="error">The requested release is not active in this environment. Choose a current environment before continuing.</Alert> : <Fragment key={revision}>{specialistRoute ? <Box sx={{ overflow: 'auto' }}><Typography component="h1" fontSize={20} fontWeight={650} sx={{ mb: 2 }}>Specialists</Typography><CustomerEditorSections scopeKey={JSON.stringify([session?.actorId, session?.customerId, session?.role, brainId])}><CustomerSpecialistAssistance deploymentId={brainId} /></CustomerEditorSections></Box> : children}</Fragment>}
             </>}
           </Box>
           {valid && <Box component="footer" ref={footerRef} aria-label="Workspace actions" sx={{ borderTop: 1, borderColor: 'divider', flexShrink: 0, px: { xs: 2, md: 3 }, py: 1.5, bgcolor: 'background.paper' }}>

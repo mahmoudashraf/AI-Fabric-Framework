@@ -74,10 +74,14 @@ public final class SpecialistAssistanceCompiler {
         require(resolutions.isArray() && resolutions.size() <= MAX_RESOLUTIONS, "resolutions must be an array of at most 8 entries.");
         Set<String> areaIds = Set.copyOf(ids);
         for (JsonNode resolution : resolutions) {
-            onlyFields(resolution, Set.of("id", "name", "objective", "areaIds", "allowParallel"), "resolution");
+            onlyFields(resolution, Set.of("id", "name", "objective", "instructions", "areaIds", "allowParallel"), "resolution");
             requireId(resolution, ids);
             text(resolution, "name", 120);
             text(resolution, "objective", 1000);
+            if (resolution.has("instructions")) {
+                require(resolution.path("instructions").isTextual() && resolution.path("instructions").asText().length() <= 4000,
+                    "Manager instructions must be text of at most 4000 characters.");
+            }
             List<String> selected = strings(resolution.path("areaIds"), MAX_AREAS, "areaIds");
             require(!selected.isEmpty() && areaIds.containsAll(selected), "Resolution targets must reference configured areas only.");
             require(resolution.path("allowParallel").isBoolean(), "Resolution allowParallel must be explicit.");
@@ -171,8 +175,11 @@ public final class SpecialistAssistanceCompiler {
         List<String> refs = selected.stream().map(area -> "assist-area-" + area + "@1").toList();
         resources.add(schema(managerName + "-input", "INPUT", managerInputSchema(refs, limits)));
         resources.add(schema(managerName + "-output", "OUTPUT", managerOutputSchema(refs, resolution.path("allowParallel").asBoolean(), limits)));
+        String instructions = resolution.path("instructions").asText("");
         resources.add(prompt(managerName,
-            resolution.path("objective").asText() + "\nCoordinate only approvedTargets. Select workers based on their declared purpose, never keyword rules. "
+            resolution.path("objective").asText()
+                + (instructions.isBlank() ? "" : "\nMANAGER INSTRUCTIONS\n" + instructions)
+                + "\nCoordinate only approvedTargets. Select workers based on their declared purpose, never keyword rules. "
                 + "Use INVOKE_ONE for sequential investigation; INVOKE_PARALLEL only for independent approved targets when allowed. "
                 + (resolution.path("allowParallel").asBoolean() ? "Independent parallel checks are enabled. " : "Parallel checks are disabled; use INVOKE_ONE only. ")
                 + "Never invoke an already completed target. All requested parallel results are required; do not hide a failed worker. "

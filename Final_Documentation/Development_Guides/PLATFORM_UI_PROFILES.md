@@ -158,6 +158,11 @@ the ticket's authoritative episode, not a parallel ordinary conversation.
 Support specialists are read-only; requested configuration edits still use the
 canonical Build with AI panel. Read SUPPORT_CONTINUITY_AND_SPECIALISTS.md before
 changing these boundaries. This is not the rejected customer-wide redesign.
+The canonical Specialists page uses the existing Configuration/Advanced depth
+switch. Keep optional per-plan Manager instructions alongside its objective,
+approved areas and parallel setting; shared limits and exact published manager
+prompts belong in Advanced. Authorized staff use the same editor and server-side
+workspace access checks, not a second prompt editor or browser-only permission.
 Session management and raw references belong under session options/Advanced.
 Manual action/plugin editors remain the single editable implementation, opened
 explicitly from the outcome table rather than automatically mounting on entry.

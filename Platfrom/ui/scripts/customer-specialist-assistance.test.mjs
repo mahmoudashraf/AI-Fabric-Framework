@@ -113,6 +113,42 @@ test('bounds and resolution references follow the compiler, not business-topic r
   assert.equal(specialistAssistanceError(f.config, { sources: [], readTools: [] }), null)
 })
 
+test('manager instructions round-trip without adding defaults or losing unrelated behavior', () => {
+  const f = fixture(), authority = specialistAuthority('dep', f.draft, [f.install], [f.version])
+  f.config.resolutions = [{ id: 'review', name: 'Review', objective: 'Investigate current observations.',
+    instructions: 'Compare recorded findings before recommending a next step.', areaIds: ['account'], allowParallel: false }]
+  const read = readSpecialistAssistance({ specialistAssistance: f.config })
+  assert.deepEqual(read, f.config)
+  const next = specialistBehaviorUpdate({ type: 'CONVERSATIONAL', executionExtensions: [], preserved: { nested: 42 } }, read)
+  assert.equal(next.specialistAssistance.resolutions[0].instructions, f.config.resolutions[0].instructions)
+  assert.deepEqual(next.preserved, { nested: 42 })
+  assert.equal(specialistAssistanceError(read, authority), null)
+  read.resolutions[0].instructions = 'x'.repeat(4001)
+  assert.match(specialistAssistanceError(read, authority), /4000/)
+  f.config.resolutions[0].instructions = 7
+  assert.throws(() => readSpecialistAssistance({ specialistAssistance: f.config }), /not text/)
+  delete f.config.resolutions[0].instructions
+  assert.equal('instructions' in readSpecialistAssistance({ specialistAssistance: f.config }).resolutions[0], false)
+})
+
+test('published manager preview follows exact server references and refuses missing profiles', () => {
+  const resources = [
+    { kind: 'SpecialistChain', metadata: { name: 'actual-chain', version: '3' }, spec: { manager: { specialistRef: 'actual-manager@4' },
+      limits: { maxManagerDecisions: 4, maxWorkerInvocations: 2, maxParallelWorkers: 1, maxDuration: 'PT75S' } } },
+    { kind: 'Specialist', metadata: { name: 'actual-manager', version: '4' }, spec: { instructions: { objective: 'Review', promptProfileRef: 'actual-prompt@5' } } },
+    { kind: 'SpecialistPromptProfile', metadata: { name: 'actual-prompt', version: '5' }, spec: { constraints: 'Published coordination instructions.', outputContract: 'Return the bounded directive.' } },
+  ]
+  const manifest = { deploymentId: 'dep', versionId: 'published', behaviorConfig: { specialistAssistance: { enabled: true, contentHash: 'hash',
+    compiled: { contractVersion: 'LOOMAI_SPECIALIST_ASSISTANCE_V1', resources,
+      invocations: [{ id: 'review', name: 'Review', targetType: 'CHAIN', targetRef: 'actual-chain@3' }] } } } }
+  const manager = compiledSpecialistAssistance(manifest, 'dep', 'published').managers[0]
+  assert.equal(manager.reference, 'actual-manager@4')
+  assert.equal(manager.instructions, 'Published coordination instructions.')
+  assert.equal(manager.limits.maxParallelWorkers, 1)
+  resources.pop()
+  assert.throws(() => compiledSpecialistAssistance(manifest, 'dep', 'published'), /No draft values were substituted/)
+})
+
 test('immutable preview reads exact server refs, never generates them from editable area IDs', () => {
   const manifest = { deploymentId: 'dep', versionId: 'published', behaviorConfig: { specialistAssistance: { enabled: true,
     contentHash: 'sha256:server-value', compiled: { contractVersion: 'LOOMAI_SPECIALIST_ASSISTANCE_V1', resources: [],

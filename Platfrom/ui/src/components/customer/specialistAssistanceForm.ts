@@ -7,7 +7,7 @@ export type SpecialistArea = {
   id: string; name: string; purpose: string; instructions: string; vectorSpaces: string[]; readActions: string[]
 }
 export type SpecialistResolution = {
-  id: string; name: string; objective: string; areaIds: string[]; allowParallel: boolean
+  id: string; name: string; objective: string; instructions?: string; areaIds: string[]; allowParallel: boolean
 }
 export type SpecialistAssistance = {
   enabled: boolean; areas: SpecialistArea[]; resolutions: SpecialistResolution[]
@@ -47,7 +47,9 @@ export function readSpecialistAssistance(behavior: unknown): SpecialistAssistanc
   })
   const resolutions = config.resolutions.map(value => {
     if (!assistanceRecord(value) || typeof value.allowParallel !== 'boolean') throw new Error('The saved resolution plan is invalid.')
+    if ('instructions' in value && typeof value.instructions !== 'string') throw new Error('The saved manager instructions are not text.')
     return { id: text(value.id), name: text(value.name), objective: text(value.objective),
+      ...('instructions' in value ? { instructions: value.instructions as string } : {}),
       areaIds: strings(value.areaIds), allowParallel: value.allowParallel }
   })
   const limits = config.limits
@@ -124,6 +126,7 @@ export function specialistAssistanceError(value: SpecialistAssistance, authority
   const areas = new Set(value.areas.map(item => item.id))
   for (const plan of value.resolutions) {
     if (!plan.name.trim() || plan.name.length > 120 || !plan.objective.trim() || plan.objective.length > 1000) return 'Each resolution plan needs a name and objective.'
+    if (plan.instructions !== undefined && (typeof plan.instructions !== 'string' || plan.instructions.length > 4000)) return 'Manager instructions must be text of at most 4000 characters.'
     if (!plan.areaIds.length || plan.areaIds.length > 8 || new Set(plan.areaIds).size !== plan.areaIds.length
       || plan.areaIds.some(id => !areas.has(id))) return 'Select configured support areas for each resolution plan.'
     if (plan.allowParallel && plan.areaIds.length < 2) return 'Parallel checks require at least two independent areas.'
@@ -161,6 +164,21 @@ export function compiledSpecialistAssistance(manifest: unknown, deploymentId: st
     || !['SPECIALIST', 'CHAIN'].includes(text(item.targetType)) || !text(item.targetRef))) {
     throw new Error('The published specialist references are incomplete. No references were inferred.')
   }
-  return { contentHash: value.contentHash, resources: compiled.resources,
+  const resources = compiled.resources.filter(assistanceRecord)
+  const resource = (kind: string, ref: string) => resources.find(item => item.kind === kind
+    && assistanceRecord(item.metadata) && `${item.metadata.name}@${item.metadata.version}` === ref)
+  const managers = invocations.filter(assistanceRecord).filter(item => item.targetType === 'CHAIN').map(item => {
+    const chain = resource('SpecialistChain', text(item.targetRef)), chainSpec = chain && assistanceRecord(chain.spec) ? chain.spec : {}
+    const managerRef = assistanceRecord(chainSpec.manager) ? text(chainSpec.manager.specialistRef) : ''
+    const manager = resource('Specialist', managerRef), managerSpec = manager && assistanceRecord(manager.spec) ? manager.spec : {}
+    const instructions = assistanceRecord(managerSpec.instructions) ? managerSpec.instructions : {}
+    const profile = resource('SpecialistPromptProfile', text(instructions.promptProfileRef))
+    if (!managerRef || !profile || !assistanceRecord(profile.spec) || !assistanceRecord(chainSpec.limits)) {
+      throw new Error('The published manager prompt or limits are unavailable. No draft values were substituted.')
+    }
+    return { name: text(item.name), reference: managerRef, objective: text(instructions.objective),
+      instructions: text(profile.spec.constraints), outputContract: text(profile.spec.outputContract), limits: chainSpec.limits }
+  })
+  return { contentHash: value.contentHash, resources: compiled.resources, managers,
     invocations: invocations.filter(assistanceRecord).map(item => ({ id: text(item.id), name: text(item.name), targetType: text(item.targetType), targetRef: text(item.targetRef) })) }
 }

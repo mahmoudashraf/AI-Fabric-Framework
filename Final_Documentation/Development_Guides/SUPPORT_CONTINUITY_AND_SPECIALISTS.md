@@ -116,6 +116,24 @@ This adds no mandatory worker count, fixed sequence, authority, tool, write,
 repair round or budget. Ordinary specialist finalization remains unchanged.
 Release and live activation evidence belongs in the dated verification record.
 
+Console exposes each area's instructions and each resolution plan's objective,
+optional manager instructions (4000 characters), exact approved areas and parallel
+setting in the existing Specialists editor. Shared execution limits remain in
+Advanced, not duplicate per-plan budgets. The canonical Specialists page includes
+that depth switch. Advanced reads coordination prompts and effective limits from
+the exact published resource references; it never substitutes the current draft
+for a missing published profile. The framework's generic planning system prompt
+is inherited from the released runtime, not represented as an editable draft field.
+
+Manager instructions use the existing behaviorConfig draft API, compile into its
+SpecialistPromptProfile, and follow explicit publish/apply. Omitted or empty
+instructions leave existing compiled resources unchanged. Build with AI's existing
+SPECIALISTS task can edit this field and must preserve unrelated instructions.
+Customer admins and normal Platform admin/operator sessions reuse this editor.
+Staff access comes from the existing owned-resource/delegation workspace API, not
+from displaying the form. Save rechecks actor, role, account, resource ownership,
+edit permission and draft revision; revocation never grants a UI-only bypass.
+
 ### Target-Decision Recovery
 
 The owner-approved framework 0.8.64 patch adds bounded repair when the model

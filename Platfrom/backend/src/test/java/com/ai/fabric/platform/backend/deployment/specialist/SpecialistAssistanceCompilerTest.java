@@ -24,6 +24,41 @@ class SpecialistAssistanceCompilerTest {
     private final SpecialistAssistanceCompiler compiler = new SpecialistAssistanceCompiler(mapper);
 
     @Test
+    void publishesEditableManagerInstructionsWithoutChangingAuthorityOrLimits() {
+        ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
+        JsonNode baseline = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
+        ObjectNode plan = (ObjectNode) behavior.at("/specialistAssistance/resolutions/0");
+        plan.put("instructions", "Compare observations before recommending the smallest next step.");
+        JsonNode updated = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority());
+        JsonNode compiled = updated.at("/specialistAssistance/compiled");
+        assertThat(updated.at("/specialistAssistance/resolutions/0/instructions").asText())
+            .isEqualTo(plan.path("instructions").asText());
+        assertThat(resource(compiled, "SpecialistPromptProfile", "assist-manager-investigate").at("/spec/constraints").asText())
+            .contains("MANAGER INSTRUCTIONS\n" + plan.path("instructions").asText(), "Coordinate only approvedTargets");
+        assertThat(compiled.path("invocations")).isEqualTo(baseline.at("/specialistAssistance/compiled/invocations"));
+        assertThat(resource(compiled, "SpecialistChain", "assist-chain-investigate"))
+            .isEqualTo(resource(baseline.at("/specialistAssistance/compiled"), "SpecialistChain", "assist-chain-investigate"));
+        assertThat(updated.at("/specialistAssistance/contentHash"))
+            .isNotEqualTo(baseline.at("/specialistAssistance/contentHash"));
+        plan.put("instructions", "");
+        assertThat(compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority()).at("/specialistAssistance/compiled"))
+            .isEqualTo(baseline.at("/specialistAssistance/compiled"));
+    }
+
+    @Test
+    void managerInstructionBoundsProtectPublishedResourceCapacityNotSemanticMeaning() {
+        ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
+        ObjectNode plan = (ObjectNode) behavior.at("/specialistAssistance/resolutions/0");
+        plan.put("instructions", "x".repeat(4001));
+        assertThatThrownBy(() -> compiler.validateConfiguration(behavior)).hasMessageContaining("4000");
+        plan.put("instructions", 7);
+        assertThatThrownBy(() -> compiler.validateConfiguration(behavior)).hasMessageContaining("must be text");
+        plan.put("instructions", "Use any requested topic and explain uncertainty.");
+        compiler.validateConfiguration(behavior);
+        assertThat(behavior.at("/specialistAssistance/limits/deadlineSeconds").asInt()).isEqualTo(75);
+    }
+
+    @Test
     void emitsOfficialResourcesWithExactTargetsAndNoConversationOrWriteAuthority() throws Exception {
         JsonNode result = compiler.compileBehavior(SpecialistAssistanceFixtures.behavior(mapper), SpecialistAssistanceFixtures.authority());
         JsonNode compiled = result.path("specialistAssistance").path("compiled");
