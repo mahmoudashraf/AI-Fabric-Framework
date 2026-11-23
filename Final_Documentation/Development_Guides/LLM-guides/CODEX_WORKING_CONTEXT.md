@@ -19934,10 +19934,14 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   46.224.145.148.sslip.io/openapi.json (join linebreak). Public reads need no key;
   protected enquiry/receipt operations need a legitimate customer-owned secret
   reference, not a credential pasted into AI. No secret was copied across owners.
-- Shared production authoring allowance still149/150,2Mtokens/USD5,notstopped.
-  Requested owner approval asynchronously for +10turns150->160 with caps unchanged;
-  PENDING, not applied. Never infer allowance/funding permission from Brain setup.
-  Private preparation receipts ~/.codex/private/loomai-harbor-empty-20261123.
+- Owner explicitly approved +10 shared production authoring turns, then resumed
+  after interruption. Applied exactlyonce via existing runtime top-up contract,
+  topUpId harbor-manual-assistant-20261123-production-ten. Readback149used/160limit,
+  11remaining,2Mtokens/USD5unchanged; usage/store/fingerprint/expiry preserved.
+  Receipt independently re-read. No model turn, staging change or reset. Ownstaff
+  session logged out/oldcookie unauthenticated. Do not replay this addition.
+  Approval owner-chat-reply-call_3de01a9aaa20485fbe2e89d59d6a23d0. Private preparation
+  and top-up-verified receipts ~/.codex/private/loomai-harbor-empty-20261123.
 
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
