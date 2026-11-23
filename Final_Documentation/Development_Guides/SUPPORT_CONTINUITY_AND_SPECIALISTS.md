@@ -88,6 +88,10 @@ completion. Limits are six manager decisions, four worker invocations, two
 parallel workers and 75 seconds. Each target can run once. Requested parallel
 results remain all-required; failures and incomplete findings stay visible.
 Simple questions may use direct approved retrieval without a specialist.
+The generated manager output schema caps each target selection at the configured
+parallel/worker budget, or one for sequential plans. The complete approved target
+catalogue and supporting-result references remain available for later decisions;
+this does not force a worker order or increase execution limits.
 
 Compiler guidance separates worker-tool input requirements from conversation
 attachment targeting. Parameterless diagnostic tools resolve selected resources

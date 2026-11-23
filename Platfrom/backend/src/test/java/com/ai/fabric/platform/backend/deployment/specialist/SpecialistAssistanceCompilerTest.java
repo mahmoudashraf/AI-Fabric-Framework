@@ -193,6 +193,35 @@ class SpecialistAssistanceCompilerTest {
     }
 
     @Test
+    void managerTargetSchemaMatchesConfiguredWorkerAndParallelExecutionBudgets() {
+        for (boolean parallel : List.of(false, true)) {
+            for (int parallelWorkers : List.of(1, 2)) {
+                for (int workerInvocations : List.of(parallelWorkers, 4)) {
+                    ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
+                    ObjectNode thirdArea = ((ObjectNode) behavior.at("/specialistAssistance/areas/0")).deepCopy();
+                    thirdArea.put("id", "third");
+                    ((ArrayNode) behavior.at("/specialistAssistance/areas")).add(thirdArea);
+                    ObjectNode resolution = (ObjectNode) behavior.at("/specialistAssistance/resolutions/0");
+                    resolution.put("allowParallel", parallel);
+                    resolution.withArray("areaIds").add("third");
+                    ObjectNode limits = (ObjectNode) behavior.at("/specialistAssistance/limits");
+                    limits.put("maxParallelWorkers", parallelWorkers).put("maxWorkerInvocations", workerInvocations);
+                    JsonNode compiled = compiler.compileBehavior(behavior, SpecialistAssistanceFixtures.authority())
+                        .at("/specialistAssistance/compiled");
+                    JsonNode output = resource(compiled, "SpecialistSchema", "assist-manager-investigate-output").at("/spec/schema");
+                    assertThat(output.at("/properties/targets/maxItems").asInt())
+                        .isEqualTo(Math.min(workerInvocations, parallel ? parallelWorkers : 1));
+                    assertThat(output.at("/properties/supportingResultIds/maxItems").asInt()).isEqualTo(3);
+                    assertThat(resource(compiled, "SpecialistChain", "assist-chain-investigate").at("/spec/targets"))
+                        .hasSize(3);
+                    assertThat(mapper.convertValue(output.at("/properties/type/enum"), List.class))
+                        .containsExactly("ASK_USER", "INVOKE_ONE", "INVOKE_PARALLEL", "HANDOFF", "COMPLETE");
+                }
+            }
+        }
+    }
+
+    @Test
     void replacesClientCompiledPayloadAndDetectsLaterTampering() {
         ObjectNode behavior = SpecialistAssistanceFixtures.behavior(mapper);
         ((ObjectNode) behavior.path("specialistAssistance")).putObject("compiled").put("malicious", true);

@@ -170,7 +170,7 @@ public final class SpecialistAssistanceCompiler {
         List<String> selected = strings(resolution.path("areaIds"), MAX_AREAS, "areaIds");
         List<String> refs = selected.stream().map(area -> "assist-area-" + area + "@1").toList();
         resources.add(schema(managerName + "-input", "INPUT", managerInputSchema(refs, limits)));
-        resources.add(schema(managerName + "-output", "OUTPUT", managerOutputSchema(refs, resolution.path("allowParallel").asBoolean())));
+        resources.add(schema(managerName + "-output", "OUTPUT", managerOutputSchema(refs, resolution.path("allowParallel").asBoolean(), limits)));
         resources.add(prompt(managerName,
             resolution.path("objective").asText() + "\nCoordinate only approvedTargets. Select workers based on their declared purpose, never keyword rules. "
                 + "Use INVOKE_ONE for sequential investigation; INVOKE_PARALLEL only for independent approved targets when allowed. "
@@ -281,11 +281,13 @@ public final class SpecialistAssistanceCompiler {
         return objectSchema(fields, List.copyOf(fields.keySet()));
     }
 
-    private ObjectNode managerOutputSchema(List<String> refs, boolean parallel) {
+    private ObjectNode managerOutputSchema(List<String> refs, boolean parallel, JsonNode limits) {
         Map<String, JsonNode> fields = new LinkedHashMap<>();
         // The official registry requires the entire directive enum. Transition flags, not a second schema dialect, constrain execution.
         fields.put("type", enumSchema(List.of("ASK_USER", "INVOKE_ONE", "INVOKE_PARALLEL", "HANDOFF", "COMPLETE")));
-        fields.put("targets", arraySchema(objectSchema(Map.of("targetSpecialist", enumSchema(refs), "objective", stringSchema(500)), List.of("targetSpecialist", "objective")), refs.size()));
+        int maxTargets = Math.min(refs.size(), Math.min(limits.path("maxWorkerInvocations").asInt(),
+            parallel ? limits.path("maxParallelWorkers").asInt() : 1));
+        fields.put("targets", arraySchema(objectSchema(Map.of("targetSpecialist", enumSchema(refs), "objective", stringSchema(500)), List.of("targetSpecialist", "objective")), maxTargets));
         fields.put("message", nullableString(2000));
         fields.put("reason", stringSchema(500));
         fields.put("supportingResultIds", arraySchema(stringSchema(200), refs.size()).put("uniqueItems", true));
