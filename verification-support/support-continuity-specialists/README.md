@@ -18,8 +18,11 @@ preparation. All five specialists and four explicit plans succeeded. One explici
 workspace plan failed at post-generation typed directive binding after collecting
 two worker results; the later natural workspace investigation completed.
 
-Production expansion is not complete. A separate bounded typed-contract feedback
-repair has been proposed for owner review, not approved or implemented. The
+Production expansion is not complete. The owner approved continuation with the
+bounded typed-contract feedback repair. A clean 0.8.66 candidate now identifies
+post-execution binding failure and uses the existing directive-correction budget,
+retaining completed findings without retrying provider or authorization failures.
+Focused tests passed; full release and live qualification are in progress. The
 Console manager-instructions product gap is implemented and verified on staging,
 including normal customer and authorized staff interfaces and Build with AI's
 existing configuration catalogue. Its production rollout remains pending.
