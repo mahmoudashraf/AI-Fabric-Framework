@@ -19827,6 +19827,55 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Platform gate, production backend+UI, live regression/audit/logout. Do not
   reapply the already verified Support runtime/release.
 
+### Support And Manager Authoring Completed - 23 November 2026
+
+- FINAL scoped implementation/live qualification complete. Console backend+UI
+  both environments run97be03bf0c3f7f13c565ac873ffa95df5b653249, healthy0restarts,
+  settings/env/mounts preserved/schema247. Core imageCI45193771046 SUCCESS.
+  Public framework66/source192caaca and existing Support runtime4981 remain;
+  no further framework patch or Support reapply for this Platform-only fix.
+- Support production ver122a8b73/rel4bf5d7be and stagever1cd99eaf/relf70b01dc
+  remain APPLIED_VERIFIED/PASSED/BOUND with native5specialists+5plans,10invocations,
+  bundle65463bytes/hash3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083,
+  allchildwritesDISABLED. Production21questions exercised all5+5; two malformed
+  manager decisions repaired and completed. Five fresh postPlatform questions
+  passed transport/history/diagnostics/followup/revocation/private403/mobile.
+- Scoped assistant fix is live: exact manager field pointers, no invented OFF
+  metadata, saved unknown fields preserved, existing identical document-plugin
+  publication blocker does not cause unnecessary correction. Full error remains
+  visible and publishReadyfalse; no authorization/publish waiver or model budget
+  change. Four real managerAIcases (two per environment) all firstattemptPASS;
+  exact unrelatedconfig preservation, reload/mobile/delete/logout PASS.
+- Local481backend/30UI/build PASS plus final12guidance tests. Freshproduction8
+  current BWA scenarios all firstattemptPASS, including followup/Undo/behaviour,
+  operationselection and genuine missinghost/credential NEEDS_INPUT. Stagefocused
+  ActionsscenarioPASS. Shared BWA runtime63 is unchanged and stillqualified;
+  do not mislabel this Platform followup as a BWA runtime66 upgrade.
+- Semantic limits remain: firstintegrationplanrequest selecteddirectTools; repeat
+  completedintegrationplan2workers. Some parentanswers retain priorcontext/oldmenu
+  labels. Finaldocumentationanswer correctlypermitsquestionswithoutticket but
+  incorrectlysuggeststicket-firstdiagnosticslater; actualordinarydiagnosticswork.
+  Keep rawfailed/partialevidence; not a perfect-quality claim or furtherFWapproval.
+- Audit PASS_WITH_DECLARED_DEMO_IMAGE_EXCEPTIONS:48stage/24prodappIDs and allresource
+  settings preserved;7stage/19prod unrelatedBrain drafts/versions/releases exactly
+  unchanged. Initialstrictimageassertfailed, preserved/traced:13stage demos+1prod
+  store advancedfrompublic2888 to192caaca66 viaexisting scheduledCI45136316610 and
+  hostimageupdater beforethisConsolefollowup. Exactcatalogue/sourceexceptionsonly,
+  notblanketignore. Agenticdemoalreadyrestartingstillrestarts; thatscheduledCIhad
+  MCPrefchanneladvancefailure, prodsiteupdaterexistingconfigdriftguard. No unrelated
+  demo/updater fix or qualification claimed. No infrastructure added/resized.
+- Finalallowances stage158/160,prod149/150,2Mtokens/USD5 each,notstopped. Onlyapproved
+  five-stage-turntopupappliedonce/noreset;USD20permissionunused. Allownfixtures and
+  assistantsessionsdeleted, customerbrowsersclosed/out, bothownstaffsessionslogged
+  out with oldCookieAuthenticatedfalse proofs. No neededexecsessionrunning;
+  unrelatedgallery8766 untouched. No approved scoped implementation remains.
+- Durable proof root ~/.codex/private/loomai-support-specialists-20261122:
+  manager-followup-final-quality,final-audit,phase2-platform-staging-quality,
+  manager-editor-live-*/report,manager-ai-clean-draft-*/report,
+  authoring-regression-production-manager-followup/report,
+  phase2-live-production-attemptmanager-followup/report. Priorpause/quality/strict
+  auditfailures archived, not erased. ForeignRagasEOF7lines remain unstaged.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73

@@ -7,62 +7,72 @@ the owner's private verification directory and are not committed.
 
 ## Current Status
 
-Production Console is backend `4981e5851` / UI `dfd734e62`, healthy with resource
-settings preserved. Production Support version `ver-122a8b73` / release
-`rel-4bf5d7be` is APPLIED_VERIFIED/PASSED and bound on the existing infrastructure.
-The running qualified 0.8.66 image is healthy with no restarts, and its native
-bundle contains all five specialists and five plans with child writes disabled.
-The final production 15-question Support run, dock/staff checks and preservation
-audit are not complete. Work was paused at the owner's request after reaching
-this safe deployment checkpoint; do not repeat publication or apply.
+Completed 23 November 2026. Both Console backends and UIs run
+`97be03bf0c3f7f13c565ac873ffa95df5b653249`, healthy with unchanged settings.
+Production Support `ver-122a8b73` / `rel-4bf5d7be` and staging
+`ver-1cd99eaf` / `rel-f70b01dc` remain APPLIED_VERIFIED/PASSED and bound.
+Their existing qualified runtime image remains source `4981e5851`, framework
+0.8.66. The Platform-only follow-up did not reapply either Support release.
+All five specialists and five adaptive plans are active in production; native
+bundles have ten invocations and child writes disabled.
 
-Staging uses verified framework 0.8.66 Support version `ver-1cd99eaf` / release
-`rel-f70b01dc`, APPLIED_VERIFIED/PASSED and bound. Its 15-question live run passed:
-all five specialists and five named plans completed with worker findings.
-Natural investigation selected three workers. Two real typed-directive failures
-used the existing bounded repair and both affected plans completed. Canonical
-history, dock continuity, consent revocation, private-route denial and mobile
-checks passed. Native image hashes match the qualified Central artifacts.
+Production completed 21 Support questions before the Platform-only follow-up
+and five more afterward. All five specialists succeeded and all five plans
+completed with findings across the combined first runs. Two typed manager
+decisions repaired within existing limits and their plans completed. History,
+reload, dock continuity, published-manager previews, consent revocation,
+private-route denial and mobile checks passed. Revoked diagnostics returned an
+empty resource list and the actual consent requirement, not private observations.
 
-The 0.8.65 manager planning correction and 0.8.66 typed-directive repair are
-released. The public 2630-test release qualification, minimal consumer and guards
-passed. Private runtime845/accounting181/backend119/UI24 checks passed; fresh CI
-runtime/accounting1026 also passed. These are overlapping suites, not a sum of
-unique tests. Production's eight current Build with AI scenarios passed.
+The scoped manager-authoring fix is live. Four real manager-AI cases passed
+(incomplete template and clean Brain on each environment), all first attempt.
+Requested instructions persisted, unrelated configuration stayed unchanged,
+and no unsupported metadata was added. Existing publication errors stayed
+visible and blocking. Manager forms, exact prompt previews and shared limits
+remain in the existing Human support -> Specialists editor.
 
-Manager instructions and shared limits are editable through the existing
-Specialists forms. Customer save/reload/mobile checks passed in both environments;
-staging staff's exact published manager-prompt/limit preview passed. Production
-staff's final published preview remains due.
+Local follow-up qualification: 481 backend tests, 30 UI tests and Console build
+passed; final guidance checks passed 12 tests. Core image CI `45193771046` passed.
+All eight existing production Build with AI cases passed first attempt, including
+follow-up, Undo, behaviour editing, selected operations and genuine missing
+host/credential handling. The focused staging API-document case passed too.
+Temporary Brains/sessions were deleted and customers signed out. Both task-owned
+staff sessions were logged out and their old cookies proven unauthenticated.
 
-Supplemental AI editing on incomplete drafts found a separate quality issue:
-an unchanged required-document-plugin publication blocker can cause unnecessary
-repair/clarification, and disabled standalone specialist configuration can gain
-unrequested metadata. The requested instructions were saved in the latter case,
-but strict unrelated-configuration preservation failed. Failed evidence and
-cleanup proofs are retained. The owner approved a scoped Platform follow-up and
-five more staging turns (155 to 160), keeping the two-million-token limit and
-current USD5 cap unchanged. That fix and allowance change were NOT started before
-the requested pause. No additional framework change or validation waiver was made.
+The earlier public 2,630-test framework release qualification, minimal consumer,
+guards and private runtime/accounting checks remain applicable. These are
+overlapping qualifications, not one sum of unique tests. The shared Build with AI
+runtimes remain on their previously qualified 0.8.63 images; this follow-up
+changes Platform authoring, not those runtimes.
 
-## Resume Checkpoint
+## Retained Limits
 
-- Continue with the already-bound production release, not another apply. Run its
-  15-question Support qualification, dock/history, authorized staff preview and
-  final resource-preservation audit. Native binary/bundle checks already passed.
-- Implement the separately approved Platform assistant follow-up for incomplete
-  draft prerequisites and unrequested disabled-specialist metadata. Keep all
-  ownership, authority, publication checks and current framework limits intact.
-- Apply the approved staging allowance ceiling of 160 exactly once; current
-  usage/limit remains 155/155. Production is 137/150. Both retain two-million-token
-  and USD5 caps. Never repeat earlier 50-turn/five-turn top-ups or reset usage.
-- Requalify the current Build with AI scenarios and new manager-edit cases, clean
-  temporary resources, and finalize the evidence. Earlier failed attempts remain
-  part of the record; they must not be silently replaced by successful fixtures.
-- Both task-owned staff sessions are logged out and their old cookies were
-  verified unauthenticated. All test browsers and required command sessions are
-  closed. Start fresh normal sign-ins on resume; never use another actor's cookie
-  or an API-key fallback. No infrastructure capacity changes were made.
+- Model quality is not perfect. One initial integration-plan request selected a
+  useful direct specialist; a focused repeat completed the requested plan. Some
+  answers retained earlier context or older navigation wording. The final
+  documentation answer correctly permits questions without a ticket but later
+  incorrectly suggests ticket-first diagnostics. Ordinary-chat diagnostics
+  worked in that same run; the explanatory inconsistency remains documented.
+- Preservation audit passed for 48 staging and 24 production application IDs,
+  infrastructure settings and seven staging/nineteen production unrelated Brain
+  drafts, versions and releases. Fourteen separate demo/store tags had advanced
+  to public source `192caaca805d52a1b52b7632c758c4c24facfc24` through the existing
+  scheduled serving-image workflow/updater before this Console rollout. They
+  are recorded exceptions, not falsely described as unchanged images.
+- Agentic Action Resolver was restarting in the original snapshot and remains
+  so. Scheduled serving-image CI `45136316610` had an MCP reference-server
+  channel-advance failure, and the production site updater reports an existing
+  configuration-drift guard. These separate operational warnings were traced,
+  not repaired or presented as qualified by the Support release.
+- Exactly five approved staging turns were added once (155 to 160). Final usage
+  is staging 158/160 and production 149/150; both retain 2M-token and USD5 caps.
+  No usage reset, further top-up or infrastructure/capacity/protection change.
+  The earlier permission to use USD20 was not needed.
+
+The historical incomplete checkpoints below remain evidence of earlier stages,
+not the current deployed state. No further approved implementation remains in
+this scoped rollout. Do not repeat publication/apply, reset allowances or
+silently broaden the scope to the separate demo/updater warnings.
 
 ## Implemented
 

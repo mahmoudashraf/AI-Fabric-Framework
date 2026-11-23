@@ -136,6 +136,12 @@ edit permission and draft revision; revocation never grants a UI-only bypass.
 
 ### Build With AI Draft Checks
 
+Navigation: open the selected Smart Brain -> Human support -> Specialists.
+Under Configuration, edit a resolution plan to change Manager instructions;
+save the draft, then use Updates for explicit publish/apply. Advanced exposes
+the exact published coordination prompt and effective execution limits. It is
+a read-only runtime preview, not a second prompt editor.
+
 The SPECIALISTS catalogue maps the UI's Manager instructions label to each
 existing resolution's exact `instructions` JSON Pointer. Prefer that narrow
 field edit and preserve unrelated plans, limits, enablement and existing unknown
