@@ -134,6 +134,29 @@ Staff access comes from the existing owned-resource/delegation workspace API, no
 from displaying the form. Save rechecks actor, role, account, resource ownership,
 edit permission and draft revision; revocation never grants a UI-only bypass.
 
+### Typed Manager Directive Repair
+
+The owner-approved 0.8.66 correction distinguishes a completed schema-bound
+invocation's typed-output conversion failure from provider, authorization and
+invocation failures. JSON Schema can accept fields whose combination violates
+the existing executable directive contract. The typed client reports only a
+safe binding-failure type and invocation ID, without raw output or a parser
+exception cause that could contain customer data.
+
+Only this manager binding failure enters the existing directive-correction loop.
+Its feedback restates the executable field combinations, current eligible
+targets, completed-result references and remaining budget. The LLM chooses the
+replacement directive. The existing configured correction count (default one),
+deadline, model admission, tokens, funding, target eligibility and consent checks
+are unchanged. Disabling correction disables this repair too.
+
+Completed worker findings remain in the checkpoint; repair does not rerun them
+or replay an action. Exhaustion reports CHAIN_MANAGER_DIRECTIVE_BINDING_FAILED
+rather than an opaque invocation error. Safe diagnostics identify typed-binding
+phase, invocation ID, correction count and completed-result count. Ordinary
+worker finalization has no new automatic retry. This describes the qualified
+release contract; actual staging/production adoption is recorded separately.
+
 ### Target-Decision Recovery
 
 The owner-approved framework 0.8.64 patch adds bounded repair when the model

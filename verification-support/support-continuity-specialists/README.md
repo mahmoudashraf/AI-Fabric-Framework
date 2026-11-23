@@ -7,25 +7,62 @@ the owner's private verification directory and are not committed.
 
 ## Current Status
 
-Production remains backend `1f491984c`, UI `3a03df18e`, and verified framework
-0.8.64 Support with its existing two-specialist/one-plan configuration.
+Production Console is backend `4981e5851` / UI `dfd734e62`, healthy with resource
+settings preserved. Production Support version `ver-122a8b73` / release
+`rel-4bf5d7be` is APPLIED_VERIFIED/PASSED and bound on the existing infrastructure.
+The running qualified 0.8.66 image is healthy with no restarts, and its native
+bundle contains all five specialists and five plans with child writes disabled.
+The final production 15-question Support run, dock/staff checks and preservation
+audit are not complete. Work was paused at the owner's request after reaching
+this safe deployment checkpoint; do not repeat publication or apply.
 
-The approved manager-prompt fix is released as 0.8.65. Staging Console and runtime
-use `dfd734e62`; Support version `ver-222f4339` / release `rel-c5de6c9b` is
-APPLIED_VERIFIED/PASSED and bound, with five specialists and five plans.
-The 15-question live run gathered worker observations rather than stopping at
-preparation. All five specialists and four explicit plans succeeded. One explicit
-workspace plan failed at post-generation typed directive binding after collecting
-two worker results; the later natural workspace investigation completed.
+Staging uses verified framework 0.8.66 Support version `ver-1cd99eaf` / release
+`rel-f70b01dc`, APPLIED_VERIFIED/PASSED and bound. Its 15-question live run passed:
+all five specialists and five named plans completed with worker findings.
+Natural investigation selected three workers. Two real typed-directive failures
+used the existing bounded repair and both affected plans completed. Canonical
+history, dock continuity, consent revocation, private-route denial and mobile
+checks passed. Native image hashes match the qualified Central artifacts.
 
-Production expansion is not complete. The owner approved continuation with the
-bounded typed-contract feedback repair. A clean 0.8.66 candidate now identifies
-post-execution binding failure and uses the existing directive-correction budget,
-retaining completed findings without retrying provider or authorization failures.
-Focused tests passed; full release and live qualification are in progress. The
-Console manager-instructions product gap is implemented and verified on staging,
-including normal customer and authorized staff interfaces and Build with AI's
-existing configuration catalogue. Its production rollout remains pending.
+The 0.8.65 manager planning correction and 0.8.66 typed-directive repair are
+released. The public 2630-test release qualification, minimal consumer and guards
+passed. Private runtime845/accounting181/backend119/UI24 checks passed; fresh CI
+runtime/accounting1026 also passed. These are overlapping suites, not a sum of
+unique tests. Production's eight current Build with AI scenarios passed.
+
+Manager instructions and shared limits are editable through the existing
+Specialists forms. Customer save/reload/mobile checks passed in both environments;
+staging staff's exact published manager-prompt/limit preview passed. Production
+staff's final published preview remains due.
+
+Supplemental AI editing on incomplete drafts found a separate quality issue:
+an unchanged required-document-plugin publication blocker can cause unnecessary
+repair/clarification, and disabled standalone specialist configuration can gain
+unrequested metadata. The requested instructions were saved in the latter case,
+but strict unrelated-configuration preservation failed. Failed evidence and
+cleanup proofs are retained. The owner approved a scoped Platform follow-up and
+five more staging turns (155 to 160), keeping the two-million-token limit and
+current USD5 cap unchanged. That fix and allowance change were NOT started before
+the requested pause. No additional framework change or validation waiver was made.
+
+## Resume Checkpoint
+
+- Continue with the already-bound production release, not another apply. Run its
+  15-question Support qualification, dock/history, authorized staff preview and
+  final resource-preservation audit. Native binary/bundle checks already passed.
+- Implement the separately approved Platform assistant follow-up for incomplete
+  draft prerequisites and unrequested disabled-specialist metadata. Keep all
+  ownership, authority, publication checks and current framework limits intact.
+- Apply the approved staging allowance ceiling of 160 exactly once; current
+  usage/limit remains 155/155. Production is 137/150. Both retain two-million-token
+  and USD5 caps. Never repeat earlier 50-turn/five-turn top-ups or reset usage.
+- Requalify the current Build with AI scenarios and new manager-edit cases, clean
+  temporary resources, and finalize the evidence. Earlier failed attempts remain
+  part of the record; they must not be silently replaced by successful fixtures.
+- Both task-owned staff sessions are logged out and their old cookies were
+  verified unauthenticated. All test browsers and required command sessions are
+  closed. Start fresh normal sign-ins on resume; never use another actor's cookie
+  or an API-key fallback. No infrastructure capacity changes were made.
 
 ## Implemented
 

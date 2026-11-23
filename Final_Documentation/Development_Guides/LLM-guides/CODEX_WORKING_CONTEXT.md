@@ -19657,6 +19657,149 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   frameworklimits or paidinfra withoutreview. See private helper source before
   rerun: previous apply/publish intentions are durable and must not be replayed.
 
+### Support Typed Directive Repair Continuation - 23 November 2026
+
+- Owner's latest Continue authorizes the proposed bounded typed-directive repair.
+  Clean public worktree /private/tmp/loomai-support-manager-directive-0866,
+  branch codex/support-manager-directive-repair-0866. Public source
+  192caaca805d52a1b52b7632c758c4c24facfc24 pushed normally to main; immutable
+  release ai-fabric-framework-v0.8.66 created ONCE. Publication CI45130546446
+  SUCCESS,2630tests/0/0/5skips (two lease tests passed locally, three provider
+  credential skips). All nine required Central artifacts available and hashed.
+- New narrow SpecialistOutputBindingException identifies post-execution schema
+  output conversion, without raw parser message/cause. Only this manager error
+  uses existing maxDirectiveCorrections; safe phase/ID/count diagnostics, retained
+  findings, no worker replay or auth/provider retry. Limits unchanged.
+- Full public31module qualification2630tests/0fail/0error/3provider skips;
+  minimal consumer2tests and guardsPASS. Private runtime845/accounting181,
+  focused backend119 and UI/navigation24 PASS. Old broader consumer failures
+  remain outside this scoped patch, not silently claimed fixed.
+- Private implementation commit4981e5851b59e026f6abe3ac3807ee6bc6192dda is
+  PUSHED after Central availability. Runtime CI45132764915 and core image
+  CI45132764859 are in progress. Only five
+  version pins/tests plus the verification note; unrelated foreign files remain
+  untouched. UI can keep verified dfd734e62 because no UI implementation changed.
+- Fresh OWN normal staff sessions active for this task; old revoked/logout proofs
+  archived staff-session-before-directive-repair-0866. Normal cookie-only ops,
+  never API-key fallback. Both must be logged out after rollout/verification.
+  Allowance readback stage154/155,prod120/150;2Mtokens/USD5 unchanged. No topups.
+- Live state unchanged so far: stage65five/five c5release; prod64two/one2ede.
+  Next: existing publication/Central proof, private fresh CI/hash registration,
+  normal stage upgrade/rebind and15live questions, history/consent/mobile plus
+  focused BWA. Genuine gates first, then production5+5 and full BWA/manager UI
+  regression. No infrastructure resize/add/delete or billing-capacity changes.
+- Continuation checkpoint07:49UTC: both private CIs SUCCESS. Core45132764859
+  builds backend only (UI intentionally skipped/unchanged); runtime45132764915
+  verifies845runtime+181accounting/0skip and publishes immutable image. Actual
+  image hashes match Central core/EXECUTION/curated/document/indexing/RAG66.
+  Runtime artifacts stage dsa-da68465a /prod dsa-2060fc18 registered, both staging
+  channel only. Production runtime/Console remain unchanged and unexpanded.
+- Staging backend4981e5851 healthy/settings preserved/schema247, job
+  cvrscpl0tt7a8u6n2mv4yg7n,digestfdd869e05454d3600123e40e00fc3b1ce798300aaed42fb98e9f09f358cf2566.
+  UI staysdfd734e62. New same-config Supportver1cd99eaf (reindexfalse), release
+  rel-f70b01dc APPLY REQUESTED, currently PROVISIONING/cold-stop steps. EXISTING
+  OBSERVER RUNNING; continue observe then bind, never repeat publish/apply.
+  Previous c5/version222 proof archived stage-support-before-manager-0866.
+- Stage BWA fresh complete-repeat-2 PASS firstattempt/SAVED, tempdeleted/out;
+  now155/155turns. Do not add/reset allowance without permission. Fresh manager
+  UI PASS save/reload/unrelated fields/mobile, resourcefree depc1522670 deleted,
+  sessions/customerout. Prior manager/staff UI and Console evidence preserved
+  quality-before-directive-repair-0866; fresh staff check still due after binding.
+  No final stage PASS gate exists yet. Need actual15Support/native/history checks,
+  then production Console backend4981/UI dfd and Supportfive/five verified upgrade.
+- Checkpoint08:11UTC supersedes the above: staging relf70b01dc APPLIED_VERIFIED/
+  PASSED/BOUND. Actual native image matches qualified66digest78927abf08384cbd456891dd2b711cb8a794ffe03270d2aa4b061f34d2b98445;
+  process bundle65463bytes/10invocations/RO/hash3fd0... unchanged. Fresh15UI
+  questions PASS manualreview:5areasSUCCEEDED/5namedplansCOMPLETED,2workerresults
+  each; naturalworkspaceplan3workers; followup1worker. History/reload/dock/mobile/
+  consent revocation/directprivate403 PASS. Actual selectedfixtureBrainb9a09c0a
+  release08954e78/version4c8090c6 (notSupport's f70release). StaffUI5published
+  managerprompts/sharedlimits/mobile PASS. phase2-staging-quality now GENUINE PASS.
+- Production Console backend4981e5851/UI dfd734e62 healthy/settingspreserved,
+  jobsqjachrhobyaldhgyx3b82osa/l145q4yimwan5deybqz7e1aq. Console-only gate
+  was separate; verified oldSupport2/1assignment remainedunchanged atthatpoint.
+  Full8productionBWA cases PASS(firstattempt), includingfollowup/Undo/BEHAVIOUR,
+  tempsdeleted/customerout. No authoringimplementation/sharedruntimeupgrade.
+- Production phase2 Support PUBLISHED ver122a8b73/framework66/reindexfalse,
+  artifactdsa2060fc18 promotedproduction; apply requestedONCE rel4bf5d7be.
+  Currently PROVISIONING; existingobserverrunning. Continue observe then bind,
+  never repeat publication/apply. Five+five config ready, not yet live-verified.
+- Supplemental AI managerfieldtest on incompletegenericSupport1.7 fixture found
+  EXISTINGglobalrequired-document-plugin publication blocker triggersrepairand
+  can cause unnecessaryclarification; not a newfield/schemaauthorizationfailure.
+  FirstSAVEDwithsameexistingerror; retryNEEDS_INPUT. Bothfixturesdeleted/out and
+  failedproofs retained. No validationwaiver or source/frameworkchange made.
+  IsolatedAIfieldtest now running on resourcefreeplaincustomBrain with generic
+  assistance explicitlyOFF/no toolorsourceauthority, avoidingunrelatedtemplate
+  prerequisites. Initialfixture enabled-flag400 corrected; failedsetup retained,
+  fixturedeleted beforeinference. Do not confuse this with Support activation.
+- Current neededprocesses: prodSupportobserver and isolatedprodmanagerAI test.
+  AwaitactorHarbor signout beforeanotherHarbor UIhelper. Rootmanager-editor-live-
+  production currently FAILfromincompletetemplate(extraAI); archiveit and rerun
+  originalmanualUI(mode0) aftercleanAItest; record both exactscopes honestly.
+  Stilldue afterprodverifiedbinding: actual15Support+native/dock/staff checks,
+  finalresourcepreservationaudit, logoutbothOWNstaffcookies anddocscommit/push.
+- Checkpoint08:18: actualstage logs have TWO typed-binding rejections, both at
+  correctionAttempt0 with2completedresults. Explicitworkspaceandnaturalworkspace
+  plans BOTH COMPLETED (naturalplanthenchose legitimate thirdworker). Realrepair
+  path observed, not merely inferred from successfulquestions. Public66fix works.
+- IsolatedextraAI-manager test correctlySAVEDrequestedfield firstattempt but
+  addedunrequested authority/durability/topology-ish metadata toOFFconfiguration;
+  strict preservation assertion FAIL. This is a separateAIqualityfinding; not
+  a write-authority bypass (OFF and strict enabled/publication compiler remain).
+  Alltempfixturesdeleted/customersout. No more speculative reruns. User async
+  asked approve scopedPlatformassistantfix +5stage turns155->160, token/$5
+  unchanged; APPROVAL PENDING. Current8productionBWA scenarios alreadyPASS.
+  Do not changeframeworkagain or bump/reset allowance without permission.
+- ProductionmanualmanagerUI freshgenericSupport1.7 PASS depc2cf6950 deleted/out,
+  noinfra, fieldsave/reload/otherconfigs preserved, settledmobile390/390. Immediate
+  viewporttransition earlierharnessfalseoverflow retained; settledcheckpasses.
+  Root manager-editor-live-production now genuine manualUI PASS; extraAI failures
+  retained separately. ProductionSupportobserverstillneeded (waitconnector), then
+  bind/native15questions/staff/dock/audit/logout/docs. Bothownstaffsessionsactive.
+
+### Owner-Requested Safe Pause - 23 November 2026, 08:24 UTC
+
+- LATEST REQUEST: stop where work can resume later. STOP further implementation
+  and inference work. Owner has APPROVED the scoped Platform assistant follow-up
+  plus five staging turns155->160, same2Mtokens/USD5. Approval arrived immediately
+  before the stop; NO assistant application-code change or allowance increase
+  has been made. Do not interpret this as approval for another framework patch.
+- In-flight production rollout was allowed to reach a SAFE FINAL CHECKPOINT:
+  Support ver122a8b73/rel4bf5d7be APPLIED_VERIFIED/PASSED/BOUND(1consumer).
+  Framework66 actual image source4981e5851 and digest78927abf08384cbd456891dd2b711cb8a794ffe03270d2aa4b061f34d2b98445
+  match the qualified artifact. Runtime healthy/0restarts; native65463-byte bundle
+  hash3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083,
+  fiveareas/fiveplans/10invocations/childwritesDISABLED. Allfive are loaded/live.
+  DO NOT republish/reapply: phase2-production-support durable state exists.
+- Production Console remains backend4981e5851/UI dfd734e62, both healthy/settings
+  preserved/schema247. Staging sameConsole sources, Supportf70release66 verified/
+  bound and15livequestionsPASS; two realtypedrejectionsrecoveredandplanscompleted.
+  Prod current8BWA scenariosPASS; manual managerformsPASSboth. Fullproduction
+  fifteenSupportquestions/staffpublished5preview/dockcontinuity/finalaudit NOT RUN.
+  Do not claim complete end-to-end production quality from deployment verification.
+- Additional manager-AI findings: incomplete1.7Supporttemplate's existing required
+  document-plugin blocker can triggerunnecessaryrepairs/clarification. A plain
+  customOFFassistance fixture SAVEDliteralmanagerinstructions butaddedunrequested
+  authority/durability metadata; strictpreservationFAIL. Allfixturesdeleted/out,
+  evidence retained; no policywaiver/sourcecodeworkaround. Stablemobile390/390
+  passes afterviewportsettles; immediate-resize falsepositive retainedtoo.
+- CURRENT ALLOWANCE readback stage155/155,prod137/150,2Mtokens/USD5,notstopped.
+  The approved ceiling160 is NOT APPLIED. Onresume set that exactstagingceiling
+  once undernormalfundingcontract API; neverrerunold50or5 scripts/resetusage.
+- Both OWN normalstaffsessions NOW LOGGEDOUT, oldCookieAuthenticatedfalseproofs
+  current; noactiveadmin-*.private.json. Allrequiredexecsessions/testbrowsersclosed;
+  unrelatedgallery8766 untouched. Archiveownrevokedproofs beforefreshlogin;
+  cookie-onlynormalstaff API, noAPI-keyfallback/otheractor. Userstopcheckpoint
+  isnot a request to stop/deallocate productionservices; they remainhealthy.
+- RESUME: freshstaffsignins; finish productionSupport15/native(donenobinaryrepeat
+  needed)/dock/staff+audit fromexisting4bfrelease, thenapprovedPlatformassistant
+  fix+fiveapprovedstageturns+freshBWA/managerqualifications. Runtimeimage66 can
+  remain4981 whileaPlatform-onlyfixgetsnewbackendsource; UIcanstaydfd. Never
+  restartcontrolplanebackendduringactiveSupportapplyworker. PreserveallnonSupport
+  configs/resources andforeignRagas7-lineEOFamendmentUNSTAGED. Commitonlyown
+  source/docs; noresizing/billingcapacitychangeornewframeworkfixwithoutapproval.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73
