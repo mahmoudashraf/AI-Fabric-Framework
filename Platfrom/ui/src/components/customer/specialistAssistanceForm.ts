@@ -173,11 +173,16 @@ export function compiledSpecialistAssistance(manifest: unknown, deploymentId: st
     const manager = resource('Specialist', managerRef), managerSpec = manager && assistanceRecord(manager.spec) ? manager.spec : {}
     const instructions = assistanceRecord(managerSpec.instructions) ? managerSpec.instructions : {}
     const profile = resource('SpecialistPromptProfile', text(instructions.promptProfileRef))
-    if (!managerRef || !profile || !assistanceRecord(profile.spec) || !assistanceRecord(chainSpec.limits)) {
+    const limits = assistanceRecord(chainSpec.limits) ? chainSpec.limits : null
+    if (!managerRef || !profile || !assistanceRecord(profile.spec) || !limits
+      || typeof profile.spec.constraints !== 'string' || !profile.spec.constraints.trim()
+      || typeof profile.spec.outputContract !== 'string'
+      || ['maxManagerDecisions', 'maxWorkerInvocations', 'maxParallelWorkers'].some(key => !Number.isInteger(limits[key]))
+      || typeof limits.maxDuration !== 'string') {
       throw new Error('The published manager prompt or limits are unavailable. No draft values were substituted.')
     }
     return { name: text(item.name), reference: managerRef, objective: text(instructions.objective),
-      instructions: text(profile.spec.constraints), outputContract: text(profile.spec.outputContract), limits: chainSpec.limits }
+      instructions: text(profile.spec.constraints), outputContract: text(profile.spec.outputContract), limits }
   })
   return { contentHash: value.contentHash, resources: compiled.resources, managers,
     invocations: invocations.filter(assistanceRecord).map(item => ({ id: text(item.id), name: text(item.name), targetType: text(item.targetType), targetRef: text(item.targetRef) })) }
