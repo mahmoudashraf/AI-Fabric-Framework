@@ -19263,6 +19263,237 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   verification meanwhile; production specialists not yet activated. Own normal
   staff cookies BOTH still active. Final preservation audit/logout/docs outstanding.
 
+### Support 0.8.64 Checkpoint - 00:24 UTC, 23 November
+
+- Owner APPROVED the separate bounded framework target-decision fix and verified
+  release. New isolated public worktree ~/.codex/worktrees/support-target-recovery-0864,
+  branch codex/support-target-recovery-0864, based published2888f0549/0.8.63. Dirty
+  original public main0808b2d5 and unrelated fencing edits are untouched. Fetched
+  public main/tag63;64Central404 and tag64absent before any publication. NO64tag,
+  release or public push yet. All public changes still uncommitted in that worktree.
+- Adds target-only repair using existing shared DecisionRecoveryBudget. Supports
+  MODEL_DIRECTED specialist workers without enabling general source repair/context
+  fallback for specialists or structured-only managers. Model can change only the
+  semantic flag or ask a genuine missing-choice question; action/params/identity/
+  profile stay unchanged, no target IDs invented. Selected visible action input
+  metadata excludes argument values and preserves profile filtering. General
+  exhausted repair uses existing configured context fallback; specialists retain
+  an explicit execution failure. No forced routing or output text rewriting.
+- New8tests plus existing target/recovery/governed-invocation focused54PASS. Initial
+  test wrongly expected NEVER-persist child history; corrected to require no
+  history forwarding. Public full31module release-profile install ACTIVE (exec69557,
+  log framework-0864-release-profile.log in own private root); Core1213PASS so far.
+  Public reactor POMs bumped64 with Maven versions:set; example POMs mechanical64
+  update, new release note/guide/README link. Skills still63 until final qualified.
+  Need full build, release guards/examples, commit/tag/release ONCE, Central-only
+  verification then private consumer qualification and hosted adoption.
+- Private selected-operation source-fidelity fix231bd2048 CI45086825237PASS and
+  staging backend healthy/schema247/settings preserved. After original150turn
+  limit blocked2calls BEFOREmodels, owner approved FIVE extra staging turns only.
+  Existing signed /top-ups receipt support-specialists-20261123-staging-final-five
+  applied ONCE: stage155, production150;2Mtokens/USD5caps/expiry/usage unchanged.
+  New two independent selected-operation live cases both SAVED first attempt,
+  zero validation errors, exact documented endpoint, temps deleted/customerout.
+  Proof authoring-regression-staging-selected-context-approved-five PASS. Stage
+  now152used,3remaining; production110used,40remaining. Do not repeat any topup.
+- Owner subsequently permits raising dollar cap toUSD20. NOT APPLIED: blocker
+  was turns, not spending. Both actual dollar caps remainUSD5. No infrastructure
+  approval or change follows. Clarify affected environment/aggregate scope if an
+  actual future spending increase is needed rather than infer unbounded funding.
+- Latest stage specialist attempt8 all15captured. Tools direct still target
+  clarification; next-step/workspace-data also had target failures. Natural
+  status/read fallback/history/revocation/private403/mobile passed; NOT a full
+  specialist-quality gate. Stage currently rel-a9c91d7f/ver-6dbffbff/framework63,
+  runtime76e1; Java bundle65463bytes/d6726ebd hash, workers readonly. Keep failures.
+- Private UNCOMMITTED candidate64pins prepared in ai-infrastructure-module/pom,
+  ai-fabric-product/pom, backend application default, runtime capability manifest
+  and2metadata tests (6files). Do NOT push/claimCentral consumer before publication.
+  Plan normal64Support draft publish/apply/verify/bind with existing resources,
+  stage first then production; existing unrelated Brains/releases must not change.
+  New Brain default64 should select registered matching64runtime artifact. Current
+  shared authoring runtime63 may stay if qualified; no automatic allowance reset.
+- Global production backend/UI and Support still phase1aa676567; phase2 production
+  NOT deployed. Platform-only/full-Support gates not written. Need final runtime
+  64qualification, globalbackend/UI, live Support+BuildAI+generictemplate, audit,
+  both own normal staff session logouts, final docs. Local gallery8766 untouched.
+  Shared CODEX_WORKING_CONTEXT has unrelated pending01073 Ragas amendment after
+  this section; do not stage/commit that other session's hunk with our release.
+
+### Support Public 0.8.64 Publication Checkpoint - 00:56 UTC, 23 November
+
+- Public isolated worktree support-target-recovery-0864 is clean/committed at
+  f3a462fc8c3a9b7424078fc0b7b3eee8ecc03193, fast-forward pushed to public main
+  and own codex branch. Release/tag ai-fabric-framework-v0.8.64 created ONCE at
+  that exact commit. Publication CI45090467071 is still in progress; Central64
+  is still404. Do not retry publication or claim hosted64 adoption. Own watcher
+  watch-framework-0864.mjs remains active; inspect its durable receipt if resumed.
+- Final31module release-profile2619tests/0fail/0error/3credential-dependent skips
+  passed, including9target-repair tests. Release guards/minimal consumer pass.
+  Other real-app modules pass across3runs; Incident Room14candidate failures all
+  reproduce in isolated63baseline15failures. Agentic schema-bootstrap ArrayNode
+  coercion failure also reproduces on63 (SupportCreditReviewIntegrationTest).
+  Neither unrelated issue is fixed or hidden. Public release notes are accurate.
+- Final private local runtime845PASS on final candidate64, provider-accounting
+  PASS and backend compound699PASS. These are local candidate proofs, not fresh
+  Central consumer CI. Private6version/metadata pins and own guide edits remain
+  uncommitted; do not push them before actual public64availability. Runtime image
+  CI after that push must resolve64normally and its jars must match Central hashes.
+- Prepared own helpers publish-framework-0864 / watch-framework-0864 /
+  register-runtime-0864 / republish-support-0864 / qualify-platform-staging-0864.
+  support-release phase2 now expects64artifact/publishedversion; phase1 history
+  remains63. Republish stage only AFTER64backend stage deploy, without changing
+  the draft (framework version is global compiler metadata, not a draft field).
+  Archive old stagever6/rel-a9proofs; production phase2 initial publish not run.
+- Actual live state remains stagebackend231bd2048/UI3a03df18e, Support63
+  ver6dbffbff/rela9c91d7f verified/bound. Production backend/UIaa676567 and
+  Support phase1rel01156f65 unchanged. No platform/fullSupport staging gate yet.
+  Future platform gate uses final one-case stage authoring proof0864-final plus
+  generic-template/dock proofs; full Support gate still requires manual quality
+  review of actual64specialist/plan responses, not only HTTPsuccess.
+- Dollar20permission remains NOT consumed. Stage152/155, production110/150;
+  2Mtokens/USD5actualcaps unchanged; do not repeat either approved turn topup.
+  Both own staff cookie sessions ACTIVE, need final revocation/old-cookie false.
+  Gallery8766/native resource sizes/capacity/billing/protection untouched. Preserve
+  the other session's01073Ragas amendment below when selectively staging this log.
+
+### Support 0.8.64 Staging Apply Checkpoint - 01:12 UTC, 23 November
+
+- Public64 publication CI45090467071 SUCCESS; eight Central artifacts downloaded
+  and hashed, proof framework-0864-public-consumer-proof. Public CI2619tests,
+  nofail/error,5skips (three real-provider, two PostgreSQL lease tests). The two
+  lease tests ran/passed locally; local release2619/3skips remains accurate.
+- Private HEAD32b531f6e3a0e06de7285da0be7879d449f9af0c committed/pushed7own
+  source/guide files only. Backend CI45091989202PASS. Runtime CI45091989188PASS:
+  fresh Central consumer845runtime/0skip plus accounting78+103tests/0skip. Native
+  image jars core/curated-default/document/indexing/RAG match Central64hashes.
+  Stage source artifact dsa-d9610b2c and prodCP dsa-f1898e54 registered, both still
+  staging channel. Production runtime/Backend/UI have NOT been activated on64.
+- Staging backend32b healthy/schema247, jobawuoikiinxl5yilszmbwzph7, digest
+  sha256:489f0a5ec04dffb06e1684da5820b4f16b993afceaddf621ca01273d5c209ace,
+  env/native resources/mounts unchanged. Old231role proofdirs/files retained under
+  stage-backend-before-0864 and phase2-*-ci-before-0864. A first rollout guard
+  rejected a stale role-specific231CI proof before mutation; replaced it with
+  actual successful32CI proof, never bypassed the guard. Read-only allowance
+  observation during rolling-container overlap also stopped before access; rerun
+  after health succeeded. Limits still stage155/prod150,2Mtokens/USD5.
+- Stage Support same draft republished64 as ver-02225e36, no reindex, oldver6/
+  rela9proofs under stage-support-before-0864. Apply rel-5aa97805 IN PROGRESS;
+  own support-release observe exec54276 must finish before another stagebackend
+  restart. Bind only once APPLIED_VERIFIED/PASSED. Previous app binding remains
+  rela9untilthen. Existing infrastructure reused; no resource add/resize.
+- Final-source stage BuildAI UI complete-repeat-2 PASS firstattempt, correctURL,
+  temp Brain/session removed and signedout. Proof authoring-regression-staging-
+  0864-final. Stage now153/155 expected, no repeated topup. Generic reusable
+  template stage PASS at source32 (dep-ae8f0b80 deleted, noinfra/inference), old
+  proof archived reusable-template-staging-before-0864. Need fresh dock-history
+  with LOOMAI_DOCK_ATTEMPT=0864 after binding, then platform-only gate helper.
+- Need real64full15specialist/plan queries +manual quality before fullSupport
+  gate, then promote64prodartifact, globalprodbackend32/UI3a, initial phase2prod
+  Support64publish/apply/verify/bind. Production full15queries, BuildAI8plus
+  followup/undo/BEHAVIOUR, dockhistory, genericbootstrap and preservation audit
+  remain. Both own staff sessions active; final logout still required. USD20
+  permission not consumed, no billing/capacity/protection changes. Preserve01073
+  foreign Ragas amendment below when staging this shared log.
+
+### Support Parallel Contract / Production Console Checkpoint - 02:14 UTC
+
+- Private HEAD1f491984c4646fc68497cf47788ed278e48b0ca1 committed/pushed3own
+  files: manager targets schema now min(selected targets, configured parallel
+  limit, worker budget), or1forsequential. All approved target enums and later
+  supporting-result refs retained. It is an execution-budget contract correction,
+  not a fixed worker sequence or limit increase.235focusedtestsPASS/0skip.
+  Initial test used an already-invalid parallel2/worker1pair and was corrected;
+  existing config validation was not relaxed. Backend CI45095185459SUCCESS.
+- Backend1f healthy BOTH environments, schema247/settings/env/mounts preserved:
+  stagejoby54db806tvmm2x4tl3tvizmv, prodjobyq7l7i4pvy34z33bn5ahup2z;
+  digest52eb7f114bc712b4e1a66150b2aaeb3a9e3588bea2c20752127965cdd7da74e7.
+  UI3a03df18e healthy BOTH, prodjobqc4a8wmk6y1yyvfcsozbpf87, digest3ffbfaac.
+  Runtime stays immutable source32b531f6e/Core64; changing only the Platform
+  compiler required no new runtime image. Artifact dsa-f1898e54 technically
+  promoted to production under the separate platform-only gate. This did NOT
+  activate the new five-area/plan Support overlay. FullSupport gate absent.
+- Stage rel214a7a75/ver651f9ed5 APPLIED_VERIFIED/PASSED and BOUND. Actual Java
+  bundle65463bytes/hash3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083,
+  teninvocations, writesDISABLED. Native process proof now verifies all5plan
+  output target maxima equal configured bounds; workspace retains3approved
+  targets with max2perdirective. Old64proofs archived stage-support-before-
+  parallel-contract, oldbackend32proofs stage-backend-before-parallel-contract.
+- Stage full15run on64 all5directareas succeeded, including Tools targetrepair;
+  oldcanonicalhistory/reload/mobile/private403/revocation passed and customerout.
+  NOT fullplanquality: workspace initiallyparallel3against2invalid; knowledge/
+  integration/launch completed0workers; next-step gathered2. New6case schema-fix
+  run has no parallel error, but explicitworkspace still0workers; naturaldata
+  investigation gathered2. Scope restored/customerout. Both attempts retained.
+  Dock-history-staging-0864 PASS. No new public manager-prompt code changed.
+- Separate framework manager-specific planning prompt correction PROPOSED for
+  owner review via async question; NOT approved yet. Owner asked whether approval
+  is required/why expansion held; clarified this is beyond approved64targetfix,
+  individual5specialists passed, combinedhold is rollout choice, not a technical
+  dependency. Current production Support was never disabled. Do not infer that
+  this clarification question approves another framework patch/public65release.
+- Production full8case BuildAI at1f PASS firstattempt EVERY case, plusfollowup/
+  Undo/BEHAVIOUR; correctselectedURL, missinghost/credentialNEEDS_INPUT, alltemps
+  removed/customerout. Proof authoring-regression-production-0864-platform-final.
+  Generic companytemplate1.7.0 prod bootstrapPASS/depf46a8bf8deleted, noinfra or
+  inference, mobile0overflow/customerout. Stage generic/bootstrap proofs valid.
+- Approved public64targetrepair is now being applied to production's EXISTING
+  Support config only (rawallConfig fields equalphase1; still2areas/1plan, NOT
+  new5+5). Helper production-support-runtime-0864.mjs, ver-f987c87b,
+  rel-2ede0bc3 APPLY IN PROGRESS; own observe exec3490. No reindex/newinfra.
+  Wait APPLIED_VERIFIED/PASSED then bind using that helper, not phase2production
+  support-release (which still requires fullSupport gate). Then natural-only
+  Support checks and dock-history-production-0864. Existing app/binding unchanged
+  until explicit verified bind; oldrel01156f65 proof retained.
+- New audit-available-scope.mjs checks released Console/native preservation,
+  nonSupportBrains unchanged, stage5/prod2areas and stage5/prod1plans, Framework64
+  on both Support releases onceprodbound, plusAI/template/dockcleanup. Its status
+  is explicitly PASS_RELEASED_SCOPE_WITH_OPEN_PLAN_QUALITY, neverfullfeaturePASS.
+  Not runyet. Final audit/helperlogoutBOTHown normalstaffsessions stillrequired.
+  Currentcaps5USD/2Mtokens unchanged; permission20USDunused. Stage153/155,
+  prod110beforefinal8 (expect120/150after); do not repeat topups. Gallery8766/
+  paidcapacity/protection unchanged. Preserve foreign01073Ragas amendment below.
+
+### Support Released Scope / Awaiting Manager Review - 02:26 UTC, 23 November
+
+- Approved64runtime upgrade of production's unchanged2area/1plan Support config
+  COMPLETED: verf987c87b/rel2ede0bc3 APPLIED_VERIFIED/PASSED and BOUND. Native
+  source32b531f6e/Core64, same existing infrastructure, no reindex. Raw allConfig
+  fields matchedphase1 beforepublish, app identity/config/domains preserved.
+  Expanded5+5overlay remains STAGING ONLY (rel214a7a75/ver651f9ed5, Core64).
+- Production natural-only5question UI run PASS for releasedscope: docs without
+  ticket, real deployment ACTIVE/current verifiedrelease facts, investigation
+  through existingplan with2worker results, followup, canonical pre-upgrade
+  history/reload, revocation returning0observations and private routes403.
+  Original selection restored/customer signedout. Production dock0864 PASS for
+  oldhistory, minimize/reopen, History and dock-to-full-page continuity.
+- Current global backends1f491984c and UI3a03df18e healthy BOTH. Production8case
+  BuildAI allfirstattemptPASS +followup/Undo/BEHAVIOUR; alltempsdeleted/out.
+  Generic companytemplate1.7bootstrap/mobile/off5areas5plans PASS BOTH, temps
+  deleted, noinfra/inferenceclaim. Shared authoring service remainsqualified63.
+- audit-available-scope PASS_RELEASED_SCOPE_WITH_OPEN_PLAN_QUALITY:48stage/
+  24prodappUUIDsunchanged, resource/envsettingspreserved,7stage+19prodnonSupport
+  Brain drafts/versions/releases unchanged. Stageactualbundle65463bytes/hash
+  3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083 has
+  5readonlyareas+5plans, workspace3approvedtargets/max2perdirective. Old/new
+  failed and successful query attempts retained; no fullSupportgate fabricated.
+- Separate framework manager-prompt proposal STILL NOT APPROVED/IMPLEMENTED.
+  Owner's latest question asked whether approval is needed and why expansion
+  held. Answer: yes, beyond64boundedtargetfix and priorreviewpolicy; all5areas
+  passed, someplansCOMPLETE beforeworkers, combinedhold was rolloutchoice not
+  technicaldependency. Do not inferapproval from that clarification question.
+  Can releaseareas separately by owner sequencing choice; don't claim5+5prod.
+- Both own normal staff sessions LOGGED OUT, oldcookiesauthenticatedfalse proofs.
+  Own admin-*.private.json files renamed *-revoked.private.json. New operations
+  need fresh normal login; never use API-key fallback or another session's cookie.
+  All needed execs completed. Native/gallery8766/paidcapacity/protection unchanged.
+  Actualauthoringlimits155stage/150prod,2Mtokens/USD5 each; usage153/120. USD20
+  permission unused. Never repeat50turn or5stage topups or reset usage.
+- Own verification README finalized for released scope and openplanquality.
+  Shared log's trailing01073Ragas amendment is another session's change: preserve
+  it unstaged, don't include it in our documentation commit. Other dirty/untracked
+  files remain unrelated; don't revert them. Public64main/tagf3a462fc is immutable;
+  dirty original publicmain36 checkout/fencing edits remain untouched.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73
