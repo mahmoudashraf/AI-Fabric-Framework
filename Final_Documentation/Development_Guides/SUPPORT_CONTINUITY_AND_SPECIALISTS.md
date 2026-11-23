@@ -102,6 +102,20 @@ approved targets; internal preparation status is not a worker observation, and
 an empty initial result list is not evidence of denied access. These are prompt
 instructions, not forced worker sequences or a new semantic rejection gate.
 
+### Manager Planning Prompt
+
+The owner-approved 0.8.65 correction gives existing chain-directive contracts a
+planning-specific system prompt. Server-owned specialist instructions and output
+format stay in the system role; application input and grounding stay in the user
+role as untrusted data. Empty completed results mean investigation has not yet
+run, not that evidence access was denied. Preparation readiness is not a business
+observation. The manager can choose relevant approved workers, reassess their
+results, and complete when useful investigation is done or genuinely unavailable.
+
+This adds no mandatory worker count, fixed sequence, authority, tool, write,
+repair round or budget. Ordinary specialist finalization remains unchanged.
+Release and live activation evidence belongs in the dated verification record.
+
 ### Target-Decision Recovery
 
 The owner-approved framework 0.8.64 patch adds bounded repair when the model
