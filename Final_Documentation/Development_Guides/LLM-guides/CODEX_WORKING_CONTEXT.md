@@ -19800,6 +19800,33 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   configs/resources andforeignRagas7-lineEOFamendmentUNSTAGED. Commitonlyown
   source/docs; noresizing/billingcapacitychangeornewframeworkfixwithoutapproval.
 
+### Support Resume And Scoped Assistant Qualification - 23 November 2026
+
+- Owner resumed work. Fresh task-owned normal staff sessions are active; earlier
+  revoked sessions remain archived. The approved five staging turns were applied
+  once: usage155/limit160, unchanged2Mtokens/USD5, no usage reset. Production
+  remains137/150. No capacity, infrastructure or further framework change.
+- Production Support66 is already APPLIED_VERIFIED/PASSED/BOUND on rel4bf5d7be.
+  Fifteen customer questions plus six focused repeats completed. All five
+  specialists succeeded and all five plans completed across the combined runs.
+  Initial integration-plan question selected a useful direct specialist instead;
+  a fresh repeat executed the plan with two workers. Two typed manager decisions
+  were repaired within existing limits and both chains completed. Preserve that
+  selection miss and occasional prior-context wording as semantic quality notes.
+- Production published manager previews and dock/history continuity PASS. Customer
+  sessions signed out; no private observations after consent revocation, direct
+  diagnostic routes denied access, original selections restored, mobile fits.
+- Scoped Platform-only assistant fix implemented locally: exact manager field
+  pointers, supported editor fields with existing metadata preserved, and no
+  unnecessary repair for the unchanged required-document publication prerequisite.
+  Actual findings and publishReady:false remain visible. No publication waiver,
+  authorization relaxation, new model call or framework/runtime change.
+- Local broad qualification481backend/30UI PASS, Console build PASS, final prompt
+  guidance12tests PASS. Not committed or deployed yet. Next: normal push/CI,
+  staging backend+UI, real manager-AI cases and current Actions regression, genuine
+  Platform gate, production backend+UI, live regression/audit/logout. Do not
+  reapply the already verified Support runtime/release.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73

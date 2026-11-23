@@ -88,6 +88,15 @@ public class AuthoringResourceService {
                 catalogue.set("aiBehaviourConfigurationExample", DeploymentAiBehaviourProfiles.select(
                     mapper.createObjectNode(), mapper.createObjectNode()).path("aiBehaviour"));
                 if ("SPECIALISTS".equals(task)) {
+                    var targets = catalogue.putArray("managerInstructionTargets");
+                    var resolutions = config.at("/behaviorConfig/specialistAssistance/resolutions");
+                    for (int index = 0; resolutions.isArray() && index < resolutions.size(); index++) {
+                        var resolution = resolutions.get(index);
+                        if (resolution.path("id").isTextual()) targets.addObject()
+                            .put("resolutionId", resolution.path("id").asText())
+                            .put("label", "Manager instructions")
+                            .put("path", "/behaviorConfig/specialistAssistance/resolutions/" + index + "/instructions");
+                    }
                     var authority = catalogue.putObject("authorizedSpecialistCapabilities");
                     try {
                         var available = specialistAuthority.resolve(id, config.path("actionsConfig"), config.path("knowledgeSourceConfig"));
@@ -136,8 +145,14 @@ public class AuthoringResourceService {
     }
 
     public JsonNode check(String kind, String id, Snapshot snapshot, JsonNode candidate) {
+        return check(kind, id, snapshot, candidate, true);
+    }
+
+    private JsonNode check(String kind, String id, Snapshot snapshot, JsonNode candidate, boolean authoringContract) {
         if ("DOCUMENT_SOURCE".equals(kind)) return documentAuthoring.check(id,snapshot,candidate);
         if ("DEPLOYMENT_DRAFT".equals(kind)) {
+            if (authoringContract && snapshot.allowedPaths().contains("/behaviorConfig/specialistAssistance"))
+                SpecialistAuthoringPolicy.requireSupportedEdits(snapshot.configuration(), candidate);
             var brain = deployments.findById(id).orElseThrow(() -> missing());
             var copy = new DeploymentDraftEntity();
             copy.setId(snapshot.version()); copy.setDeploymentId(id);
@@ -184,7 +199,7 @@ public class AuthoringResourceService {
     }
     private Saved persist(String kind, String id, Snapshot current, JsonNode requestedChanges, AuthoringChanges.Result result, boolean restoring) {
         JsonNode findings = restoring && "DOCUMENT_SOURCE".equals(kind) ? documentAuthoring.checkRestoration(id,current,result.candidate())
-            : check(kind, id, current, result.candidate());
+            : check(kind, id, current, result.candidate(), !restoring);
         JsonNode receipt;
         if ("DOCUMENT_SOURCE".equals(kind)) {
             receipt=documentAuthoring.save(id,current,result.candidate());

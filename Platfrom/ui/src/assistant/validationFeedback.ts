@@ -26,6 +26,7 @@ export function feedbackReason(reason: string): string {
     DISABLED: 'Automatic corrections are off.',
     CORRECTING_VALIDATION_ERRORS: 'AI is correcting the reported validation errors.',
     VALIDATION_PASSED: 'The available configuration checks passed.',
+    UNCHANGED_PUBLICATION_PREREQUISITES: 'Draft checks completed; existing setup requirements still block publishing.',
     CORRECTION_LIMIT_REACHED: 'Correction limit reached. Review the remaining findings or continue manually.',
     NO_CORRECTION_PROPOSED: 'No further correction was proposed. Review the remaining findings.',
     CHECK_NOT_AVAILABLE: 'No pre-save validation check is available for this configuration.',

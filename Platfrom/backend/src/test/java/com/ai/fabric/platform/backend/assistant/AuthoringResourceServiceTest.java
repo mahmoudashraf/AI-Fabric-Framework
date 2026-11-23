@@ -147,6 +147,52 @@ class AuthoringResourceServiceTest {
             null, null, expected, null, null, null, null, null, null, null));
     }
 
+    @Test void specialistCatalogueMapsExistingPlansToTheManagerInstructionsField() throws Exception {
+        var draft = specialistDraft();
+        var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "SPECIALISTS");
+        assertThat(snapshot.catalogue().at("/managerInstructionTargets/0/resolutionId").asText()).isEqualTo("setup");
+        assertThat(snapshot.catalogue().at("/managerInstructionTargets/0/path").asText())
+            .isEqualTo("/behaviorConfig/specialistAssistance/resolutions/0/instructions");
+        var saved = resources.save("DEPLOYMENT_DRAFT", BRAIN, "SPECIALISTS", json("""
+            [{"path":"/behaviorConfig/specialistAssistance/resolutions/0/instructions","operation":"SET","value":"Use approved facts."}]
+            """));
+        assertThat(saved.configuration().at("/behaviorConfig/specialistAssistance/resolutions/0/instructions").asText()).isEqualTo("Use approved facts.");
+        assertThat(saved.configuration().path("securityConfig")).isEqualTo(draft.securityConfig());
+        assertThat(capturedDraftUpdate().behaviorConfig().at("/specialistAssistance/future")).isEqualTo(json("{\"keep\":true}"));
+    }
+
+    @Test void unsupportedDisabledSpecialistMetadataStopsBeforeTheDraftWrite() throws Exception {
+        specialistDraft();
+        assertStatus(HttpStatus.BAD_REQUEST, () -> resources.save("DEPLOYMENT_DRAFT", BRAIN, "SPECIALISTS", json("""
+            [{"path":"/behaviorConfig/specialistAssistance/authority","operation":"SET","value":{"automaticWritesAllowed":false}}]
+            """)));
+        verify(brains, never()).updateDraft(anyString(), any());
+    }
+
+    @Test void explicitUndoCanRestoreTheHistoricalShapeWithoutInventingNewAiFields() throws Exception {
+        var draft = specialistDraft();
+        var config = mapper.createObjectNode(); config.set("behaviorConfig", draft.behaviorConfig());
+        var oldPatch = json("""
+            [{"path":"/behaviorConfig/specialistAssistance/authority","operation":"SET","value":{"automaticWritesAllowed":false}}]
+            """);
+        var previous = changes.apply(config, oldPatch, List.of("/behaviorConfig/specialistAssistance"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) draft.behaviorConfig()).set("specialistAssistance", previous.candidate().at("/behaviorConfig/specialistAssistance"));
+        var result = resources.undo("DEPLOYMENT_DRAFT", BRAIN, "SPECIALISTS", previous.diff());
+        assertThat(result.configuration().at("/behaviorConfig/specialistAssistance/authority").isMissingNode()).isTrue();
+        verify(access).requireDeploymentEditorAccess(any());
+        verify(brains).updateDraft(eq(DRAFT), any());
+    }
+
+    private DeploymentDraftResponse specialistDraft() throws Exception {
+        var draft = brainFixture();
+        var behavior = (com.fasterxml.jackson.databind.node.ObjectNode) draft.behaviorConfig();
+        behavior.put("type", "CONVERSATIONAL");
+        behavior.set("specialistAssistance", json("""
+            {"enabled":false,"areas":[],"resolutions":[{"id":"setup","instructions":"Original"}],"limits":{},"future":{"keep":true}}
+            """));
+        return draft;
+    }
+
     @Test void aCombinedActionAndRouteEditSubmitsExactlyThoseTwoFields() throws Exception {
         var draft = brainFixture();
         resources.save("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS", json("""
@@ -496,9 +542,12 @@ class AuthoringResourceServiceTest {
     }
 
     private AuthoringResourceService resources(CustomerPluginLibraryService library) {
+        var authority = mock(com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService.class);
+        when(authority.resolve(anyString(), any(), any())).thenReturn(
+            new com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler.Authority(java.util.Map.of(), java.util.Set.of()));
         return new AuthoringResourceService(deployments, brains, access, validation, library, pluginRepository,
             apps, appRepository, behaviors, secrets, changes, mapper,
-            mock(com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService.class));
+            authority);
     }
 
     private DeploymentDraftResponse brainFixture() throws Exception {

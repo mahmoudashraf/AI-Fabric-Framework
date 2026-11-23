@@ -245,6 +245,8 @@ public class ConfigurationAssistantService {
                     var policy = policy(turn);
                     if (attemptNumber > policy.maxAttempts()) throw bad("The configured correction limit was reached.");
                     ObjectNode input = (ObjectNode) input(session, content, resource, turnId);
+                    if (attemptNumber == 1 && "SPECIALISTS".equals(session.task))
+                        turn.set("baselineFindings", input.at("/catalogue/currentValidation").deepCopy());
                     var candidate = changes.apply(resource.configuration(), accumulated, resource.allowedPaths()).candidate();
                     input.set("currentConfiguration", changes.project(candidate));
                     if (policy.enabled()) {
@@ -316,8 +318,10 @@ public class ConfigurationAssistantService {
         var finalOutput = output.deepCopy();
         if (writableResult) ((ObjectNode) finalOutput).set("changes", accumulated.deepCopy());
         JsonNode findings = null;
+        JsonNode candidateConfiguration = resource.configuration();
         if (writableResult && !accumulated.isEmpty()) {
             var candidate = changes.apply(resource.configuration(), accumulated, resource.allowedPaths());
+            candidateConfiguration = candidate.candidate();
             try { findings = resources.check(session.resourceKind, session.resourceId, resource, candidate.candidate()); }
             catch (ResponseStatusException invalid) {
                 if (!policy.enabled() || invalid.getStatusCode().value() != 400) throw invalid;
@@ -329,14 +333,18 @@ public class ConfigurationAssistantService {
             findings = changes.project(diagnostic).path("findings");
             attempt.set("findings", findings);
         }
-        boolean errors = AuthoringFeedbackPolicy.errors(findings);
+        boolean errors = AuthoringFeedbackPolicy.requiresCorrection(findings, turn.get("baselineFindings"), session.task,
+            resource.configuration(), candidateConfiguration);
+        boolean unchangedPublicationBlockers = AuthoringFeedbackPolicy.errors(findings) && !errors;
         boolean again = policy.enabled() && writableResult && errors && !output.path("changes").isEmpty() && number < policy.maxAttempts();
-        attempt.put("status", errors ? "VALIDATION_ERRORS" : AuthoringFeedbackPolicy.checked(findings) ? "CHECKED" : state);
+        attempt.put("status", errors ? "VALIDATION_ERRORS" : unchangedPublicationBlockers ? "PUBLICATION_BLOCKERS_UNCHANGED"
+            : AuthoringFeedbackPolicy.checked(findings) ? "CHECKED" : state);
         if (again) {
             turn.put("feedbackStopReason", "CORRECTING_VALIDATION_ERRORS"); write(session, content);
         } else {
             String reason = !policy.enabled() ? "DISABLED" : !writableResult ? state
                 : errors ? number >= policy.maxAttempts() ? "CORRECTION_LIMIT_REACHED" : "NO_CORRECTION_PROPOSED"
+                : unchangedPublicationBlockers ? "UNCHANGED_PUBLICATION_PREREQUISITES"
                 : AuthoringFeedbackPolicy.checked(findings) ? "VALIDATION_PASSED" : "CHECK_NOT_AVAILABLE";
             turn.put("feedbackStopReason", reason);
             write(session, content);

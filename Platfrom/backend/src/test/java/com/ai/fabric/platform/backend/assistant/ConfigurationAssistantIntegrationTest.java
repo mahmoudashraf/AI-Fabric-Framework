@@ -376,6 +376,84 @@ class ConfigurationAssistantIntegrationTest {
         assertThat(turn.path("findings").path("valid").asBoolean()).isFalse();
         verify(runtime, times(2)).generate(any());
     }
+
+    @Test void managerEditSavesOnceWithUnchangedPublicationPrerequisitesStillVisible() throws Exception {
+        var blocker = specialistFixture(true);
+        when(runtime.generate(any())).thenReturn(managerOutput(false));
+        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
+        assistant.turn(id, feedbackRequest(false, 2), "manager-preexisting-prerequisite");
+        var turn = await(id).at("/turns/0");
+        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
+        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("UNCHANGED_PUBLICATION_PREREQUISITES");
+        assertThat(turn.path("attempts")).hasSize(1);
+        assertThat(turn.at("/attempts/0/status").asText()).isEqualTo("PUBLICATION_BLOCKERS_UNCHANGED");
+        assertThat(turn.path("findings")).isEqualTo(blocker);
+        assertThat(turn.at("/findings/publishReady").asBoolean()).isFalse();
+        assertThat(configuration.get().at("/behaviorConfig/specialistAssistance/resolutions/0/instructions").asText()).isEqualTo("Use approved observations.");
+        verify(runtime).generate(any());
+        verify(resources).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
+    }
+
+    @Test void unsupportedDisabledManagerMetadataIsRepairedBeforeOneSave() throws Exception {
+        specialistFixture(false);
+        var corrected = managerOutput(false);
+        corrected.withArray("changes").addObject().put("path", "/behaviorConfig/specialistAssistance/authority").put("operation", "REMOVE");
+        when(runtime.generate(any())).thenReturn(managerOutput(true), corrected);
+        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
+        assistant.turn(id, feedbackRequest(false, 2), "manager-contract-repair");
+        var turn = await(id).at("/turns/0");
+        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
+        assertThat(turn.path("attempts")).hasSize(2);
+        assertThat(configuration.get().at("/behaviorConfig/specialistAssistance/authority").isMissingNode()).isTrue();
+        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
+        assertThat(inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0/message").asText())
+            .contains("SPECIALIST_AUTHORING_FIELD_UNSUPPORTED");
+        verify(resources).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
+    }
+
+    @Test void exhaustedUnsupportedMetadataDoesNotSaveAnUnrecognizedSetting() throws Exception {
+        specialistFixture(false); var before = configuration.get().deepCopy();
+        when(runtime.generate(any())).thenReturn(managerOutput(true));
+        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
+        assistant.turn(id, feedbackRequest(false, 2), "manager-contract-exhausted");
+        var turn = await(id).at("/turns/0");
+        assertThat(turn.path("status").asText()).isEqualTo("FAILED");
+        assertThat(turn.path("attempts")).hasSize(3);
+        assertThat(configuration.get()).isEqualTo(before);
+        verify(resources, never()).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
+    }
+
+    private JsonNode specialistFixture(boolean publicationBlocked) throws Exception {
+        configuration.set(mapper.readTree("""
+            {"behaviorConfig":{"type":"CONVERSATIONAL","marketplaceRequirements":{"unresolvedRequiredPluginRefs":["documents@1"]},
+              "specialistAssistance":{"enabled":false,"areas":[],"resolutions":[{"id":"setup","instructions":"Original"}],"limits":{}}}}
+            """));
+        var findings = mapper.createObjectNode().put("publishReady", !publicationBlocked).put("errorCount", publicationBlocked ? 1 : 0);
+        if (publicationBlocked) findings.putArray("issues").addObject().put("severity", "ERROR")
+            .put("code", "MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED").put("path", "$.behaviorConfig.marketplaceRequirements")
+            .put("message", "Configure required documents before publication.");
+        var paths = List.of("/behaviorConfig/specialistAssistance", "/behaviorConfig/executionExtensions");
+        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"))).thenAnswer(call ->
+            new AuthoringResourceService.Snapshot(customerId, "Support", configuration.get(), mapper.createObjectNode(), paths, "draft-test", true, ""));
+        when(resources.check(anyString(), anyString(), any(), any())).thenAnswer(call -> {
+            SpecialistAuthoringPolicy.requireSupportedEdits(configuration.get(), call.getArgument(3)); return findings;
+        });
+        when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any())).thenAnswer(call -> {
+            var result = changes.apply(configuration.get(), call.getArgument(3), paths);
+            SpecialistAuthoringPolicy.requireSupportedEdits(configuration.get(), result.candidate());
+            configuration.set(result.candidate());
+            return new AuthoringResourceService.Saved(result.diff(), findings, mapper.createObjectNode().put("published", false), result.candidate());
+        });
+        return findings;
+    }
+
+    private ObjectNode managerOutput(boolean extraMetadata) throws Exception {
+        var output = output("READY"); output.putArray("changes").addObject()
+            .put("path", "/behaviorConfig/specialistAssistance/resolutions/0/instructions").put("operation", "SET").put("value", "Use approved observations.");
+        if (extraMetadata) output.withArray("changes").addObject().put("path", "/behaviorConfig/specialistAssistance/authority")
+            .put("operation", "SET").putObject("value").put("automaticWritesAllowed", false);
+        return output;
+    }
     @Test void correctionLimitStopsAndRetainsEveryInvalidCandidateFinding() throws Exception {
         validationFixture(); when(runtime.generate(any())).thenReturn(feedbackOutput("Invalid draft", "paid-attempt"));
         String id = create(); assistant.turn(id, feedbackRequest(false, 2), "exhausted");

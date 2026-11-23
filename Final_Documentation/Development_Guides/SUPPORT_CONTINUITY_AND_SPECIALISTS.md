@@ -134,6 +134,27 @@ Staff access comes from the existing owned-resource/delegation workspace API, no
 from displaying the form. Save rechecks actor, role, account, resource ownership,
 edit permission and draft revision; revocation never grants a UI-only bypass.
 
+### Build With AI Draft Checks
+
+The SPECIALISTS catalogue maps the UI's Manager instructions label to each
+existing resolution's exact `instructions` JSON Pointer. Prefer that narrow
+field edit and preserve unrelated plans, limits, enablement and existing unknown
+metadata. New undeclared fields are not writable through the AI task, even when
+assistance is off. This protects the editor's supported configuration contract,
+not a semantic confidence threshold. Invalid additions use the existing bounded
+feedback loop; exhausted unsupported mutations cannot be saved. Explicit Undo
+can restore its recorded historical shape through the existing owned-resource
+and complete draft-validation path. Manual JSON configuration is unchanged.
+
+The initial validation findings remain visible. For this task only, an identical
+pre-existing `MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED` finding does
+not trigger another AI generation when its Marketplace requirements are unchanged.
+It remains an error and still blocks publication. New/changed prerequisites,
+unknown checks, authority failures and other execution errors are not excluded.
+The UI labels this outcome separately from passed publication checks. No source
+is invented, validation result erased, repair budget raised or automatic publish
+performed. Other assistant tasks retain their existing correction policy.
+
 ### Typed Manager Directive Repair
 
 The owner-approved 0.8.66 correction distinguishes a completed schema-bound

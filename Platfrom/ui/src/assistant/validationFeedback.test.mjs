@@ -7,8 +7,13 @@ const source = await readFile(new URL('./validationFeedback.ts', import.meta.url
 const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText
 const exports = {}
 new Function('exports', code)(exports)
-const { feedbackCeiling, feedbackPolicy, feedbackProgress } = exports
+const { feedbackCeiling, feedbackPolicy, feedbackProgress, feedbackReason } = exports
 const declared = { defaultEnabled: true, maxCorrections: 2 }
+
+test('unchanged publication prerequisites stay visibly distinct from successful publication checks', () => {
+  assert.equal(feedbackReason('UNCHANGED_PUBLICATION_PREREQUISITES'), 'Draft checks completed; existing setup requirements still block publishing.')
+  assert.notEqual(feedbackReason('UNCHANGED_PUBLICATION_PREREQUISITES'), feedbackReason('VALIDATION_PASSED'))
+})
 
 test('policy uses declared defaults and always sends an explicit disabled policy without capability', () => {
   assert.deepEqual(feedbackPolicy(declared, {}), { enabled: true, maxCorrections: 2 })

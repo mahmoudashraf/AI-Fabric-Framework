@@ -33,4 +33,22 @@ public record AuthoringFeedbackPolicy(boolean enabled, int maxCorrections) {
         return findings != null && (findings.path("valid").isBoolean() || findings.path("errorCount").isIntegralNumber()
             || findings.path("publishReady").isBoolean());
     }
+
+    static boolean requiresCorrection(JsonNode findings, JsonNode baseline, String task, JsonNode before, JsonNode after) {
+        if (!errors(findings)) return false;
+        if (!"SPECIALISTS".equals(task) || baseline == null
+            || !before.at("/behaviorConfig/marketplaceRequirements").equals(after.at("/behaviorConfig/marketplaceRequirements"))) return true;
+        var errors = new java.util.ArrayList<JsonNode>();
+        for (var issue : findings.path("issues")) if ("ERROR".equals(issue.path("severity").asText())) errors.add(issue);
+        if (errors.isEmpty() || !findings.path("errorCount").isIntegralNumber()
+            || findings.path("errorCount").asInt() != errors.size()) return true;
+        for (var issue : errors) {
+            // This is publication readiness outside the specialist editor, never ownership or execution permission.
+            if (!"MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED".equals(issue.path("code").asText())) return true;
+            boolean unchanged = false;
+            for (var previous : baseline.path("issues")) unchanged |= issue.equals(previous);
+            if (!unchanged) return true;
+        }
+        return false;
+    }
 }

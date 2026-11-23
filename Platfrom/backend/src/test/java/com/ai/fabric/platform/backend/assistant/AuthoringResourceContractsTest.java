@@ -5,6 +5,12 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class AuthoringResourceContractsTest {
+    @Test void managerGuidanceNamesTheExactFieldAndSeparatesDraftEditsFromPublication() {
+        var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
+        AuthoringResourceContracts.populate(mapper, catalogue, "SPECIALISTS");
+        assertThat(catalogue.path("managerEditRules").asText()).contains("resolutions[].instructions", "managerInstructionTargets",
+            "one SET", "Preserve", "Do not add authority", "disabled", "publication prerequisites");
+    }
     @Test void sharedEngageGuidanceHasNoIndustrySpecificPaths() {
         var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
         AuthoringResourceContracts.populate(mapper, catalogue, "ENGAGE");

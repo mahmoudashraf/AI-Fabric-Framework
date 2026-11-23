@@ -367,3 +367,32 @@ no usage reset, further turn top-up or infrastructure/capacity change occurred.
 
 Do not silently repin existing offers, replace another company's specialists,
 create infrastructure, resize hosts, bypass readiness or rewrite failed evidence.
+
+## Resumed Qualification - 23 November 2026
+
+This supersedes the earlier incomplete rollout notes, not their historical
+evidence. Framework 0.8.66 is published and both existing Support releases are
+verified and bound: staging `rel-f70b01dc`, production `rel-4bf5d7be`. All five
+specialists and five adaptive resolution plans are active in production.
+
+Production completed 15 real customer questions and six focused repeats. All
+five specialists succeeded and all five plans completed across those runs. The
+first integration-plan question selected a direct specialist instead; its repeat
+executed the intended plan with two workers. Two malformed typed manager
+decisions recovered within the approved limits. Keep the initial selection miss
+and occasional prior-context wording as model-quality limits, not perfect passes.
+Consent revocation, private-route denial, history/reload, mobile fit, original
+selection restoration, published manager previews and dock continuity passed.
+
+The approved Platform assistant follow-up is locally implemented, not deployed
+yet: precise manager field targets, supported editable fields with existing
+metadata preserved, and no needless repair of an unchanged unrelated document
+publication prerequisite. Full validation findings remain visible and publishing
+remains blocked until setup is complete. Local qualification: 481 backend tests,
+30 UI tests and Console build passed; final guidance checks passed 12 tests.
+Five approved staging turns were applied exactly once (155 to 160), with the
+2M-token and USD5 limits unchanged. No usage reset or infrastructure change.
+
+Next: staging and production Platform rollout, live manager-AI regressions,
+preservation audit and task-owned staff logout. The already-qualified Support
+runtime must not be republished or reapplied for this Platform-only follow-up.
