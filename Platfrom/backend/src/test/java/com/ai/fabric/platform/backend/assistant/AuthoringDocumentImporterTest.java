@@ -84,7 +84,27 @@ class AuthoringDocumentImporterTest {
         assertThat(result.path("requestBody").isNull()).isTrue();
         assertThat(result.path("sourcePointer").asText()).isEqualTo("#/paths/~1pets~1{id}/get");
         assertThat(result.properties()).extracting(java.util.Map.Entry::getKey)
-                .containsExactlyInAnyOrder("id", "method", "path", "summary", "description", "parameters", "requestBody", "responses", "security", "sourcePointer");
+                .containsExactlyInAnyOrder("id", "method", "path", "summary", "description", "parameters", "requestBody", "responses", "security", "servers", "securitySchemes", "sourcePointer");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ROOT", "PATH", "OPERATION"})
+    void selectedOperationRetainsEffectiveServerAndOnlyItsAuthenticationDefinitions(String level) throws Exception {
+        ObjectNode spec = openApi("3.0.3");
+        spec.set("servers", json.readTree("[{\"url\":\"https://root.example/v1\"}]"));
+        if (!level.equals("ROOT")) ((ObjectNode) spec.at("/paths/~1pets~1{id}"))
+                .set("servers", json.readTree("[{\"url\":\"https://path.example/v2\"}]"));
+        if (level.equals("OPERATION")) ((ObjectNode) spec.at("/paths/~1pets~1{id}/get"))
+                .set("servers", json.readTree("[{\"url\":\"https://operation.example/v3\"}]"));
+        ((ObjectNode) spec.at("/paths/~1pets~1{id}/get")).set("security", json.readTree("[{\"key\":[]}]"));
+        JsonNode op = imported(spec, false).operations().get(0);
+        assertThat(op.at("/servers/0/url").asText()).isEqualTo(switch (level) {
+            case "PATH" -> "https://path.example/v2";
+            case "OPERATION" -> "https://operation.example/v3";
+            default -> "https://root.example/v1";
+        });
+        assertThat(op.path("securitySchemes").properties()).extracting(java.util.Map.Entry::getKey).containsExactly("key");
+        assertThat(op.at("/securitySchemes/key/name").asText()).isEqualTo("X-Api-Key");
     }
 
     @Test
@@ -101,6 +121,7 @@ class AuthoringDocumentImporterTest {
         assertThat(schema.at("/properties/extra").asBoolean()).isTrue();
         assertThat(schema.at("/properties/nested/oneOf").size()).isEqualTo(2);
         assertThat(operation.path("security").isEmpty()).isTrue();
+        assertThat(operation.path("securitySchemes")).isEmpty();
     }
 
     @ParameterizedTest
@@ -123,6 +144,9 @@ class AuthoringDocumentImporterTest {
         assertThat(operation.path("security")).isEqualTo(json.readTree("[{\"key\":[]}]"));
         assertThat(operation.path("sourcePointer").asText()).isEqualTo("#/paths/~1pets/post");
         assertThat(imported.warnings()).anyMatch(value -> value.contains("Swagger 2.0 converted"));
+        assertThat(operation.path("servers")).isEmpty();
+        ((ObjectNode) spec).put("host", "legacy.example").set("schemes", json.readTree("[\"https\"]"));
+        assertThat(imported(spec, yaml).operations().get(0).at("/servers/0/url").asText()).isEqualTo("https://legacy.example/v1");
     }
 
     @ParameterizedTest
@@ -308,6 +332,8 @@ class AuthoringDocumentImporterTest {
     @Test
     void operationCatalogueAndReferenceExpansionAreSeparatelyBoundedAndVisible() throws Exception {
         ObjectNode spec = openApi("3.0.3");
+        JsonNode security = spec.path("security").deepCopy();
+        spec.set("security", json.createArrayNode());
         ObjectNode paths = (ObjectNode) spec.path("paths");
         paths.removeAll();
         for (int i = 0; i < 501; i++) {
@@ -317,6 +343,11 @@ class AuthoringDocumentImporterTest {
         assertThat(result.operations().size()).isEqualTo(500);
         assertThat(result.operations().toString().length()).isLessThanOrEqualTo(200_000);
         assertThat(result.warnings()).anyMatch(value -> value.contains("retained 500 of 501; omitted 1"));
+        spec.set("security", security);
+        var boundedMetadata = imported(spec, false);
+        assertThat(boundedMetadata.operations().size()).isBetween(1, 499);
+        assertThat(boundedMetadata.operations().toString().length()).isLessThanOrEqualTo(200_000);
+        assertThat(boundedMetadata.warnings()).anyMatch(value -> value.contains("Operation catalogue truncated"));
 
         spec = openApi("3.0.3");
         ObjectNode schemas = (ObjectNode) spec.at("/components/schemas");

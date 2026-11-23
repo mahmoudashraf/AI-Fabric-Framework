@@ -269,6 +269,19 @@ public final class AuthoringDocumentImporter {
                 item.set("responses", operation.has("responses") ? operation.get("responses") : json.createObjectNode());
                 item.set("security", operation.has("security") ? operation.get("security")
                         : model.has("security") ? model.get("security").deepCopy() : json.createArrayNode());
+                JsonNode servers = operation.has("servers") ? operation.get("servers")
+                        : path.has("servers") ? path.get("servers") : model.path("servers");
+                // Converter defaults must not turn a missing Swagger host into an invented provider.
+                item.set("servers", original.has("swagger") && original.path("host").asText().isBlank()
+                        || servers.isMissingNode() || servers.isNull() ? json.createArrayNode() : servers.deepCopy());
+                ObjectNode schemes = json.createObjectNode();
+                for (JsonNode requirement : item.path("security")) {
+                    requirement.fieldNames().forEachRemaining(name -> {
+                        JsonNode scheme = model.path("components").path("securitySchemes").path(name);
+                        if (!scheme.isMissingNode()) schemes.set(name, scheme.deepCopy());
+                    });
+                }
+                item.set("securitySchemes", schemes);
                 item.put("sourcePointer", sourcePointer(original, pathEntry.getKey(), method));
                 int size = serialize(item).length() + 1;
                 if (result.size() < MAX_OPERATIONS && chars + size <= MAX_CONTENT_CHARS) {

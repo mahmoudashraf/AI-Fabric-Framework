@@ -152,8 +152,10 @@ class ConfigurationAssistantIntegrationTest {
         assertThat(input.at("/catalogue/preparationScope/documentedOperationCount").asInt()).isEqualTo(1);
         assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/id").asText()).isEqualTo(operationId);
         assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/path").asText()).isEqualTo("/products");
+        assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/servers/0/url").asText()).isEqualTo("https://catalog.example");
         assertThat(input.path("sources")).hasSize(1);
         assertThat(input.at("/sources/0/content").asText()).contains("listProducts").doesNotContain("privateNotes", "/private-notes");
+        assertThat(mapper.readTree(input.at("/sources/0/content").asText()).at("/0/servers/0/url").asText()).isEqualTo("https://catalog.example");
         assertThat(input.toString()).doesNotContain("Unselected source canary");
         assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(), null,
             "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "all-operations");

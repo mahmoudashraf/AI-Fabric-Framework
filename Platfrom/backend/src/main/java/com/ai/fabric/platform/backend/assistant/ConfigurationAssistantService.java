@@ -401,7 +401,7 @@ public class ConfigurationAssistantService {
                 for (var operation : source.path("operations")) {
                     if (!turn.path("operationIds").isEmpty() && !contains(turn.path("operationIds"), operation.path("id").asText())) continue;
                     var item = operations.addObject().put("sourceId", source.path("sourceId").asText());
-                    for (String field : List.of("id", "method", "path", "kind", "toolName"))
+                    for (String field : List.of("id", "method", "path", "servers", "kind", "toolName"))
                         if (operation.hasNonNull(field)) item.set(field, operation.get(field).deepCopy());
                 }
             }

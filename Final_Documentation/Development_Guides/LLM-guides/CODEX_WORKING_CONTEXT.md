@@ -19226,6 +19226,43 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   still active, revoke at finish. Final audit reads final backend source from the
   platform gate. Local gallery/unrelated concurrent01072/01073 docs untouched.
 
+### Support Selected-Operation Root Cause Checkpoint - 00:07 UTC, 23 November
+
+- Stage Support rel-a9c91d7f/ver-6dbffbff APPLIED_VERIFIED/PASSED and bound. Real
+  Java bundle65463bytes/hashd6726ebd..., five area prompts with parameterless-tool
+  guidance and five manager prompts separating preparation from observations;
+  ten invocations, all worker writes DISABLED. No new public framework release.
+- Stage backend66f8e9994 healthy/schema247, CI45085120383PASS. Final focused
+  authoring three selected-operation repeats failed exact endpoint checks despite
+  zero structural validation errors: generated api.products or example.invalid.
+  Missing-host check passed. New root cause is mechanical source data loss:
+  operation-selection sends only the importer operation projection, which omitted
+  effective API servers and referenced security-scheme definitions. Full-document
+  imports retain them. Prompt-only fixes did not close that source-fidelity gap.
+- Current source addition retains effective operation/path/root servers and only
+  referenced sanitized security definitions in each bounded operation. Suppresses
+  Swagger converter's invented localhost when original host absent. Preparation
+  catalogue includes declared servers. No fetch/credential/binding/authority change.
+  Inheritance, Swagger2, selected/deselected source, auth metadata and existing
+  assistant/draft/apply regression426PASS. Byte/catalogue limits unchanged; richer
+  metadata can retain fewer operations with an explicit truncation warning. Need
+  CI/stage rollout and two remaining approved authoring turns for selected import.
+- Dock live final PASS on staging: pre-upgrade canonical history, minimize/reopen,
+  current-history selection, dock-to-full Support page. Initial harness failures
+  were collapsed/not-ready view, duplicate historic question matches, and treating
+  the full-page link as a button. Fixed tests, no product UI changes. Customer
+  signedout and original selection restored. Proof dock-history-staging-final.
+- Fresh all15case specialist test phase2-live-staging-attempt8 running. Workspace,
+  Brain, Knowledge and Handover direct workers succeeded; Tools still emitted
+  unnecessary CLARIFICATION_REQUIRED. Exact framework TargetResolutionStep stops
+  when model requiresTargetResolution=true with no attachments and records no
+  recovery attempt despite advertised LLM_REPAIR_THEN_CLARIFY. Source operations
+  are parameterless, no invented targets/bypass used. Asked owner asynchronously
+  to approve separate bounded framework repair or retain visible AI limitation.
+  Do not change/release public framework without that decision. Continue Platform
+  verification meanwhile; production specialists not yet activated. Own normal
+  staff cookies BOTH still active. Final preservation audit/logout/docs outstanding.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73
