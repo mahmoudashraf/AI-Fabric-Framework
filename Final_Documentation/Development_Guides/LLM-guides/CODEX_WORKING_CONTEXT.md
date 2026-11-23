@@ -19494,6 +19494,169 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   files remain unrelated; don't revert them. Public64main/tagf3a462fc is immutable;
   dirty original publicmain36 checkout/fencing edits remain untouched.
 
+### Approved Manager Planning / Product Editor - 03:02 UTC, 23 November
+
+- Owner explicitly APPROVED bounded manager-prompt implementation/release, live
+  qualification, then production activation of ALL5 specialists and ALL5plans.
+  Latest reminder reiterates that priority and BuildAI regression. Do not treat
+  the older "not approved" entries above as current instructions.
+- Public clean worktree ~/.codex/worktrees/support-manager-planning-0865,
+  branch codex/support-manager-planning-0865, main/release f3586d646a5628838eeac48ee3d847790db4f4d2,
+  tag ai-fabric-framework-v0.8.65. Published release created ONCE. Central CI
+  45102205122 IN_PROGRESS at signed-artifact deploy, not yet on Central at03:01.
+  Own exec90038 runs watch-framework-0865.mjs; observe it, NEVER republish.
+- Manager-only system prompt distinguishes planning from worker finalization,
+  empty results from exhausted investigation and readiness from observations.
+  Trusted manager instructions/output format use system role; request/results
+  remain untrusted user data. No new validator, sequence, target, permission,
+  write, model, repair round or budget. Ordinary worker prompt unchanged.
+- Public31module release profile2621tests/0failure/error/3real-provider skips,
+  tenfinalizer tests, guards/minimalconsumer PASS. Broader known Incident Room/
+  Agentic baseline failures not rerun or claimed fixed. Private runtime845,
+  provideraccounting181, focusedbackend117 allPASS, no skips. Premature private
+  runtime dependency attempt before all local65modules installed failed only
+  for missing artifacts; final retry passed. Not a Central consumer proof.
+- Private cfa8456f69a417b447e3f098e1e6a8897d83b396 pins65 (fivecodefiles +guide),
+  then b730701cb adds owner's separately requested manager-product editor gap.
+  BOTH committed locally, NOT PUSHED until Central65 available. New finalsource
+  must drive runtime+backend+UI CI and actual images; old live UI3a/backend1f
+  still serving both. Support actualstage rel214a7a75/ver651f9ed5 Core64 5+5;
+  prodrel2ede0bc3/verf987c87b Core64 EXISTING2+1 unchanged, not new5+5.
+- Product editor: optional resolution.instructions4000, existing shared limits,
+  exact published prompt/limits preview, canonicalSpecialists Configuration/
+  Advanced restored, same editor for normal authorized admin/operator staff.
+  Existing workspace/delegation, ownership/edit permission, actor/role/customer
+  and revision rechecked. BWA catalogue supports/preserves manager instructions.
+  No changes to frozen template defaults or backend authorization. Empty/missing
+  field leaves compiledbytes unchanged (importantstagebundle65463/65536).
+  Latest focusedbackend119PASS, UI/navigation35PASS, npmUIbuildPASS.
+- All own new helpers under ~/.codex/private/loomai-support-specialists-20261122:
+  publish/watch/register-runtime-0865.mjs (hash verification now includes changed
+  ai-fabric-execution jar pluscore/etc); republish-support-0865.mjs (stage old
+  rel214 exactconfigs, archive stage-support-before-manager-0865);
+  support-release-0865.mjs (phase2 normalpublish/apply/observe/bind, genuinefull
+  stagegate required forprod); final-audit-0865.mjs (5+5 both, updateactualUIhash).
+  manager-editor-live.mjs boots resource-free genericSupportdraft, saves manager
+  instructions viaUI while assistanceOFF, reloads/compares unrelatedconfig,
+  mobile0overflow, deletesfixture/sessions/signout. LOOMAI_MANAGER_AI=1 optional
+  production one actualSPECIALISTS turn validates newfield (no stageallowance
+  increase). This helper not runyet: no newimages deployed. Live exactpublished
+  customprompt compilation coveredlocaltests; do not misclaimtempdraftdeployed.
+- Private own normal staffsessions are freshly LOGGEDIN both via operations.mjs.
+  Priorrevokedproofs archived staff-session-before-manager-0865. Must logoutboth
+  atfinish and prove oldcookiesfalse. NoAPIkeyfallback. No other actor's cookie.
+  Actual authoring stage153/155, prod120/150, 2Mtokens/USD5 unchanged; permission
+  USD20 unused. NEVER repeat50turn/5stagetopups/reset. Stage focused1case +prod
+  full8regression and optional1managerAIturn planned. Morestage turnsneedapproval.
+- Remaining: awaitCentral/freshhashproof, pushprivatefinalsource, runtime845fresh
+  CI +imagehashverify/registerbothstagechannel, backend/UI CIs +stageonlyrollout,
+  republish/apply/verify/bindstage65same5+5, full15actualSupport UI/workerfactreview,
+  dock/history/consentrevoke/private403, focusedBWA andnewmanagereditorlive. Then
+  genuinefullstagegate, prodbackend/UI +initial5+5overlay normalrelease/bind,
+  fullprodSupport15 +BWA8/followupUndo/BEHAVIOUR/newmanagerAI, preservationaudit/
+  cleanup/logout/docs. Qualify newUI too; don't reuseold3a gate as newUIproof.
+  No infrastructure resizing/add/remove/protection/costchanges authorized/done.
+  Gallery8766 untouched. Preserve trailingforeign01073Ragas amendment unstaged.
+
+### Manager 0.8.65 Live / Typed Contract Review - 03:45 UTC, 23 November
+
+- Latest owner reminders require continuing the approved bounded manager-prompt
+  fix, live checks, then ALL5 areas/plans in production and BuildAI regression.
+  Also requested productized manager prompts/config. Prompt fix and product editor
+  are IMPLEMENTED and staged; expanded production activation is NOT complete.
+- Public65 source/tag f3586d646a5628838eeac48ee3d847790db4f4d2 / ai-fabric-framework-v0.8.65
+  RELEASED ONCE. Central CI45102205122 SUCCESS;2621tests/0failure/error/5skips
+  (3real-provider,2Postgreslease; latterpassedlocal). Local2621/0/0/3skips,
+  finalizer10tests, guards/minimalconsumerPASS.9actualCentralartifacts hashed,
+  executionincluded. NEVER republish/retag65. Cleanpublicworktree support-manager-
+  planning-0865 remains f358; dirty original public36checkout untouched.
+- Private implementation commits cfa8456f6,b730701cb,dfd734e62bbb8600ff3a40d5b456a857e55ed4e3
+  PUSHED. RuntimeCI45103940580 SUCCESS:845runtime+181accounting/0skip. CoreCI
+  45103940586 SUCCESS backend+UI. Final119backend,35UI/navigation,UIbuildPASS.
+  Stage+prod registered native65image dfdsource hashes match actualCentralcore,
+  EXECUTION,curated/document/indexing/RAG. Stage dsa-f61efac0; prod dsa-a5cd397d
+  STAGING CHANNEL ONLY. Prod actualruntime notupdated; no65productionpromotion.
+- Staging backend/UI BOTHdfd734e62 healthy/settingspreserved/schema247; jobs
+  cbdauk33jgzealkokaxdnhjt / xvmz8nfn0dmhaoce4gqi50n9. Oldproofs archived
+  stage-console-before-manager-0865. StageSupport ver222f4339/relc5de6c9b
+  APPLIED_VERIFIED/PASSED/BOUND Core65. Reusedsameexistingruntime/connector/DB/
+  app/domain;reindexfalse. Before65Supportproofs stage-support-before-manager-0865.
+  Nativebundle65463bytes/hash3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083,
+ 10invocations, childwritesDISABLED, workspace3approvedtargets/max2perdirective.
+- Product: optional resolution.instructions4000 chars savedviaexistingbehavior
+  draft API, compiledintoSpecialistPromptProfile; omitted/empty preservesbytes.
+  Same editor supports normaladmin/operator viaactualworkspace/delegation,
+  resourcecustomer/revision/identity rechecks. CanonicalSpecialists now has
+  Configuration/Advanced; actualpublishedmanagerprompts/limits exposed byexact
+  refs. Frameworkbaseprompt remainsinruntime. BWA catalogue supportsnewfield.
+  Read SUPPORT_CONTINUITY_AND_SPECIALISTS.md + PLATFORM_UI_PROFILES.md.
+- Newprivatehelper manager-editor-live.mjs stage PASS: freshgenerictemplate1.7
+  resourcefree dep9ee99923, fieldUI save/reload/unrelatedconfig/mobile verified,
+  OFFassistance retained,noinfra/versions/releases;deleted/sessionsout. Optional
+  LOOMAI_MANAGER_AI=1 productionextraSPECIALISTS turn is prepared, NOT RUN yet.
+  manager-staff-live.mjs stage PASS: own normalstaffcookieAPI session reusedin
+  browser,5publishedprompts +sharedlimits +mobile, noDRAFTwrites (normalnav
+  preferences may update). ActorIDs may be emails. Initialactorregex/asyncload
+  harnessfailures retained in separate folders;finalfixedproof root. New own
+  staffauthoringmetadata only cleaned viaAPI, priorowned sessions preserved.
+- Stageauthoring-regression-staging-0865-final PASS complete-repeat-2firstattempt,
+  tempsdeleted/customerout. Stageusage154/155,prod120/150;2Mtokens/USD5 unchanged.
+  USD20permissionunused. NEVERrepeat50or5stagetopups/reset. Sharedauthoring
+  stayssource4a/Core63. Prod8casebaseline0864 remains currentunchangedbaseline,
+  NOT finalnew-sourcequalification; finalprod8+followup/Undo/BEHAVIOUR stilldue.
+- Stagefull15case UI proof phase2-live-staging-attempt0865 FINISHED;all5direct
+  areasSUCCEEDED,4explicitplansCOMPLETEDwith2workerfindings each. Explicit
+  workspace-data collected2workers thenFAILED CHAIN_MANAGER_INVOCATION_FAILED;
+  later naturalworkspace-data COMPLETEDwith2workers. No factualplan0workers.
+  Helpfulparentanswer retainedfacts evenonfailedplan. Otheranswers distinguish
+  recorded state vsactualprobes;minor genericfollowupnavigation wording persists.
+  Canonicalpre-upgradehistory/reload/mobile/private403/revocationPASS;
+  originalselectionrestored/customerout. Dock-history-staging-0865 PASS/out.
+- ROOTCAUSEBOUNDARY: native log manager exec9eb79324-f4b9-4551-a385-3b7f1b429631
+  logged SUCCEEDED at03:30:28.751 after2workers; immediately chain5e0262a0 failed
+  at client.execute catch. DefaultSpecialistClientFactory.convertOutput uses
+  objectMapper.convertValue(JsonNode,SpecialistChainDirective.class) AFTER output
+  generation/schema-validation. Typed constructor has crossfield/blank-text
+  requirements not in publishedJSONschema. Exactlivebadfield NOT LOGGED; do not
+  invent it. Separate local proof against ACTUALpublishedschema confirms4JSON-
+  validoutputs failtypedbinding: invocation+supportingIDs, COMPLETE+targets,
+  invocation+message,blankCOMPLETE.message. Validcompletionpasses. Private
+  ManagerDirectiveReproduction.java,manager-directive-contract-reproduction.
+  Native runtime log private native-0865-staging-runtime-query.log.
+- Separate bounded FRAMEWORK FOLLOW-UP PROPOSED via async ownerapproval question:
+  feed typed output conversion errors into EXISTINGdirective-repair loop,
+  retaincompletedresults,addsafeerrorclass/fielddiagnostics, preserveallauth/targets/
+  writes/configuredlimits. NOT APPROVED YET / NO productionframeworkcode edited.
+  ExistingmaxDirectiveCorrections1(default);runtimeoutputfinalizationmaxAttempts1
+  viaapplication.yml. Do NOT silentlyincrease eitherbudget. Candidateapproach:
+  distinguishschema-boundoutputconversion failure fromauth/provider failures in
+  typedclient, letchainreuseitscurrentcorrectionfeedback; no keywordmatching,
+  no normalization that hides decisions, no worker/action replay. Review first.
+- phase2-staging-quality-review-0865 status INCOMPLETE_TYPED_MANAGER_CONTRACT_REPAIR_REVIEW;
+  NO phase2-staging-quality PASS exists. Oldphase2-platform-staging-quality is
+  historical1f/3a/source32, NOT a new-sourcegate. Do notforceprod5+5orclaimgreen.
+  manager-scope-audit PASS_STAGING_0865_WITH_OPEN_TYPED_MANAGER_REPAIR:48stage/
+ 24prodappUUIDs andsettingsunchanged;7stage+19prodnonSupportBrains unchanged.
+  ProductionSTILLbackend1f491984c/UI3a03df18e/Core64Supportverf987c87b/rel2ede0bc3,
+  existing2areas/1planworking. No productionphase2draft/publication/state exists.
+- Both task-owned normalstaffsessions NOWLOGGEDOUT;oldcookiesfalseproofs;
+  activeadmin-*.private.json absent, rootadmin-*-revoked andlogoutproofs current.
+  Archive thosebeforefreshnormaloperations.login; neveruseAPIkeyfallback or
+  anotheractor/sessioncookie. Allneededexecsessionscompleted. Gallery8766,
+  infraCPU/RAM/apps/env/protection/paidcapacity untouched. Preserveforeign7line
+  Ragasamendment atEOF UNSTAGED; no Ragas code/deploy work in this session.
+- If follow-up approved: cleanpublic66worktree fromf358, scopedtests+release
+  guards/fullprofile, publicreleaseONCE+Centralconsumerproof, freshprivate66pins/
+  CI/hashregister; backendneeds66default/UIcanstaydfd ifunchanged. Stagecurrent
+  releasec5/version222 is newrepublishbaseline, archiveoldproofs. Normalupgrade/
+  verify/bind; rerun actualplanUI+history/security and buildnewgenuinegates. Then
+  productionbackend/UI andinitialphase2 five+five overlay with existinghelpers
+  adapted66, verifiedbind,full15Support+final8BWA+newmanagerAI/editorstaffchecks,
+  audit/cleanup/logout/docs. ProductionsourceUInewdfd stillnotdeployed. Do not
+  changefrozenv1/v2templates or otherBrains. Current bundle near64KB; don'traise
+  frameworklimits or paidinfra withoutreview. See private helper source before
+  rerun: previous apply/publish intentions are durable and must not be replayed.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73

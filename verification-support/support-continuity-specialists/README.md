@@ -7,16 +7,22 @@ the owner's private verification directory and are not committed.
 
 ## Current Status
 
-Production Console backend `1f491984c` and UI `3a03df18e` are healthy. The approved
-framework 0.8.64 runtime fix is verified and bound in both environments. Production
-Support keeps its existing two-specialist/one-plan configuration; the expanded
-five-specialist/five-plan configuration is still on staging.
+Production remains backend `1f491984c`, UI `3a03df18e`, and verified framework
+0.8.64 Support with its existing two-specialist/one-plan configuration.
 
-All five new specialists passed individually. The expanded resolution plans are
-not fully qualified: some complete before consulting available workers. A
-separate shared-framework manager-prompt correction is proposed, not implemented
-or approved. Holding the combined expansion is a rollout choice, not a technical
-dependency between the individually qualified specialists and the new plans.
+The approved manager-prompt fix is released as 0.8.65. Staging Console and runtime
+use `dfd734e62`; Support version `ver-222f4339` / release `rel-c5de6c9b` is
+APPLIED_VERIFIED/PASSED and bound, with five specialists and five plans.
+The 15-question live run gathered worker observations rather than stopping at
+preparation. All five specialists and four explicit plans succeeded. One explicit
+workspace plan failed at post-generation typed directive binding after collecting
+two worker results; the later natural workspace investigation completed.
+
+Production expansion is not complete. A separate bounded typed-contract feedback
+repair has been proposed for owner review, not approved or implemented. The
+Console manager-instructions product gap is implemented and verified on staging,
+including normal customer and authorized staff interfaces and Build with AI's
+existing configuration catalogue. Its production rollout remains pending.
 
 ## Implemented
 
@@ -248,13 +254,74 @@ Effective authoring allowances remain 155 staging/150 production, 2M tokens and 
 each. Usage is 153/120 turns respectively. The later USD20 permission was unused;
 no usage reset, further turn top-up or infrastructure/capacity change occurred.
 
+## Approved 0.8.65 And Manager Configuration
+
+- Public source/tag: `f3586d646a5628838eeac48ee3d847790db4f4d2` /
+  `ai-fabric-framework-v0.8.65`. Central CI `45102205122` passed; nine real
+  artifacts were downloaded and hashed, including `ai-fabric-execution`.
+- Local release profile: 2,621 tests, zero failures/errors, three real-provider
+  credential skips. Public CI: 2,621 tests, zero failures/errors, five skips
+  (the same three plus two PostgreSQL lease tests which passed locally).
+  Guards and minimal consumer passed. Broader known baseline failures were not
+  rerun or claimed fixed.
+- Private runtime CI `45103940580`: 845 runtime and 181 provider-accounting
+  tests, no failures/errors/skips. Core image CI `45103940586` passed. Actual
+  runtime image JARs, including execution, matched Central hashes before
+  registration. Staging artifact `dsa-f61efac0`; production registry artifact
+  `dsa-a5cd397d` is staging-channel metadata only, not production activation.
+- Staging backend job `cbdauk33jgzealkokaxdnhjt`; UI job
+  `xvmz8nfn0dmhaoce4gqi50n9`. Both healthy, zero restarts, prior resource,
+  environment and mount settings preserved. Schema remains 247.
+- Optional per-plan manager instructions, exact published coordination-prompt
+  and limit previews, canonical Configuration/Advanced tabs and authorized staff
+  access use the existing editor/draft APIs. Local 119 backend and 35 UI/navigation
+  tests passed; UI build passed. No frozen template definitions were rewritten.
+- Real customer staging editor: instructions saved and survived reload, unrelated
+  configuration preserved, mobile had no horizontal overflow. Temporary Brain
+  `dep-9ee99923` and its sessions were deleted; customer signed out. Staff staging
+  check viewed all five published manager prompts and actual shared limits without
+  draft writes. Its initial actor-format and async-preview harness failures were
+  corrected and retained separately, not hidden as product passes.
+- Native staging bundle: 65,463 bytes, hash
+  `3fd0a11eee40acbe8404fc10936e45e3edfefac996c0e2c904181668b53b1083`, ten
+  invocations, all child write policies DISABLED, same approved target/parallel
+  budgets. No reindex was required. Existing identity and assignment were reused.
+- Fifteen real staging Support questions: all HTTP responses delivered useful
+  context; one named plan's nested execution failed at typed output binding.
+  All five specialists succeeded, four named plans completed with two worker
+  findings, and natural workspace investigation completed with two. No factual
+  plan stopped with zero observations in this run. Consent revocation returned no
+  private observations, direct diagnostic routes denied access, canonical history
+  survived upgrade/reload, original selection restored, customer signed out.
+- Dock history/minimize/reopen/full-page continuity passed on 0.8.65. Focused
+  staging Build with AI API-document creation saved on its first attempt, with
+  correct endpoint mapping and cleanup. This is not a new production regression
+  claim; production's final full suite and new manager-instructions AI turn remain.
+- Contract reproduction uses the actual published workspace-plan schema. Four
+  schema-valid synthetic outputs fail the existing typed directive constructor:
+  invocation with supporting IDs, completion with targets, invocation with a
+  message, and blank completion message. A valid completion converts successfully.
+  The exact rejected field in the live failure was not logged. Gateway trace shows
+  successful manager generation before the typed-client conversion boundary.
+  Proposed recovery reuses existing directive correction, preserves completed
+  observations and permissions, and requires owner review before framework work.
+
 ## Remaining
 
-- Review the separate framework manager-planning prompt proposal. No new public
-  framework source change or release beyond 0.8.64 was made without approval.
-- If approved, implement and qualify that correction, then complete the expanded
-  plans' live checks before their production activation. The verified individual
-  specialists can be rolled out separately if the owner chooses that sequencing.
+- Review the proposed bounded typed-output contract feedback repair. The approved
+  manager-prompt fix itself is implemented, released and running on staging.
+- Qualify the output-binding follow-up if approved, then finish production
+  Console/runtime rollout, all-five specialist/plan activation, full Support and
+  Build with AI regressions, preservation audit and task-owned staff logout.
+- Actual authoring limits remain 155 staging / 150 production, 2M tokens and USD5
+  each. Current usage is 154 / 120; USD20 permission is unused. No further turn
+  top-up, usage reset or infrastructure/capacity/protection change occurred.
+- Preservation audit passed for this incomplete rollout: 48 staging and 24
+  production application IDs unchanged, all resource/environment settings
+  preserved, seven staging and nineteen production non-Support Brain drafts,
+  versions and releases unchanged. Production remains two areas/one plan on
+  0.8.64. Both task-owned normal staff sessions were logged out and their old
+  cookies proven unauthenticated. No full Support quality gate was fabricated.
 - Retain the documented unrelated Incident Room and Agentic Resolver baseline
   failures; they are not repaired or represented as green by this work.
 
