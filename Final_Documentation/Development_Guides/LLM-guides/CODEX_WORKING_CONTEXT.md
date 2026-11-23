@@ -19876,6 +19876,47 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   phase2-live-production-attemptmanager-followup/report. Priorpause/quality/strict
   auditfailures archived, not erased. ForeignRagasEOF7lines remain unstaged.
 
+### Indexing Handoff And Support Ownership Check - 23 November 2026
+
+- Owner confirmed the other chat's indexing handoff and requested Support
+  foreign-resource security verification BEFORE the next plan implementation.
+  Received/reviewed010.72 release evidence and complete010.73 P0-P5 plan. Exact
+  010.73 file/hash backed up in private ownership-proof root. No reindex, rollback
+  to historical63, hybrid/Ragas/bulk/reranker implementation or release started.
+  Next remains current-inventory/baselineP0, then genuine hybrid for documents AND
+  entities, shared Ragas evaluation/settings, bulk operations, optional reranking.
+  Plan status remains proposed/owner review, not blanket deploy/capacity approval.
+- Tested current97be03bf0 Console backend/UI bothCPs and same qualified Support66
+  runtimehash78927abf.85focusedlocaltests/0fail/0error/0skip. EachCP20assertions,
+  including14HTTP403/404 denials, plus6realchatqueries. Two distinct known test
+  customers; ownerpositivecontrols established actual foreign resource existence.
+  No admin credential/key bypass used for attacker requests.
+- ForeignBrain/app/connection selection403, mixedselection403 atomic/no consent
+  mutation, directforeignDraft404/foreigncustomerapps403. Foreignconversation
+  context/resume/cursor/scopedproxy404; history requester-only. All4private
+  diagnostic endpoints403 to customerBearer. Rootconversation/customer/userID and
+  nestedcontextspoof didnotrebindcaller; victimcanonicaltranscript unchanged.
+  OwnedselectedDraftdiagnosticreturneditsactualstate; nofreshobservationsafter
+  revoke. ActualBrain specialist SUCCEEDED and launch-readiness plan COMPLETED
+  in bothCPs without foreignfacts/privatecanary. Security doesnotdependonLLMrefusal.
+- Quality NOTclaimedperfect: some modelanswers suggestselectingunavailableforeign
+  ID orclaimreviewwhenonlyselection/consentrequirementreturned; stagingpositive
+  answerretainedearlierforeigntargetbutdidnotsubstitutetheownedrecordasforeignfacts.
+  Recommendgenericpromptguidance,notkeywordblocking/permissionwaiver. No such
+  prompt/framework change made. Not a full system security certification.
+- FourtemporaryresourcefreeBrains/connections deletedbyownerAPI and staffnormal
+  notificationreadconfirmedSUCCEEDED. Customerbrowsersout; diagnosticpermissions
+  revoked/selectionscleared/originalchatselectionrestored. Fourtestchatsretained
+  asprivateaudit. BothOWNstaffsessionsout/oldcookiesauthenticatedfalse.48stage/
+  24prod appIDs/infrastructure settings preserved. Noinfra/indexing/businesswrite/
+  apply/activation/funding change or active testprocess remains.
+- Evidence ~/.codex/private/loomai-support-ownership-20261123/final-proof.private.json;
+  repository record verification-support/support-continuity-specialists/
+  2026-11-23_RESOURCE_OWNERSHIP_VERIFICATION.md. Preserve foreignRagasEOF7lines,
+  .gitignore,010.72,tsbuildinfo and untracked010.73 work. Future retrieval/reranker
+  candidates must still enforce customer/audience/active-version BEFORE model or
+  externalreranker exposure; this Support check doesnotqualifythatnewengine.
+
 ### Hybrid Retrieval And Knowledge Operations Plan - 22 November 2026
 
 - Owner explicitly requested plan review first. New implementation plan 010.73

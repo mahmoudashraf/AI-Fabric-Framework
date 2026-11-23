@@ -45,6 +45,18 @@ overlapping qualifications, not one sum of unique tests. The shared Build with A
 runtimes remain on their previously qualified 0.8.63 images; this follow-up
 changes Platform authoring, not those runtimes.
 
+## Focused Ownership Recheck
+
+The owner requested a security check before the separate 010.73 implementation.
+On 23 November, both environments passed the targeted ownership boundary tests:
+85 local tests, 40 live assertions including 28 HTTP denials, and 12 real chat
+queries covering normal, forged-context, specialist and plan paths. No foreign
+resource observations or private test marker were returned. AI wording still
+sometimes suggests an unavailable foreign selection; this is recorded separately
+from access control. No application change or 010.73 implementation was made.
+See the [ownership verification record](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/verification-support/support-continuity-specialists/2026-11-23_RESOURCE_OWNERSHIP_VERIFICATION.md)
+for exact scope, source enforcement, cleanup and limitations.
+
 ## Retained Limits
 
 - Model quality is not perfect. One initial integration-plan request selected a
