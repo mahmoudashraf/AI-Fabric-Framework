@@ -98,6 +98,24 @@ approved targets; internal preparation status is not a worker observation, and
 an empty initial result list is not evidence of denied access. These are prompt
 instructions, not forced worker sequences or a new semantic rejection gate.
 
+### Target-Decision Recovery
+
+The owner-approved framework 0.8.64 patch adds bounded repair when the model
+marks a target as required but no attachment/working-set target is available.
+The repair sees the selected visible action's declared public input contract,
+not argument values or another capability profile's tools. It can correct only
+the target-resolution flag or ask a genuine missing-choice question. It cannot
+create IDs, change action parameters or expand execution authority.
+
+Model-directed specialist workers share the existing decision-recovery round
+and admission-time budget. Structured-only managers do not gain chat repair or
+generic answer fallback. Exhausted specialist repair stays an execution failure;
+ordinary chat retains its configured answer-only fallback. Required inputs,
+trusted values, action authorization and confirmation remain governed downstream.
+Supplied targets are resolved first. NEVER-persist child invocations do not gain
+parent conversation history through this repair. Release/adoption status belongs
+in the dated verification record, not this description of the approved change.
+
 Worker writes are disabled. Parent conversation ticket/handover controls retain
 their actual authority and confirmation requirements. Draft configuration edits
 use canonical Build with AI; there is no second Support draft writer. Publish,
