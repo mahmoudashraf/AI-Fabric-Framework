@@ -297,8 +297,18 @@ public class ManagedAssistantRuntime {
     private void requireSameBudget(JsonNode expected, JsonNode actual) {
         requireBudgetScope(actual, expected.path("targetProfileId").asText());
         for (String field : List.of("storeUuid", "approvalId", "runtimeFingerprint", "customerId", "deploymentId", "targetProfileId",
-            "environment", "rateCardReference", "limits", "expiresAt", "effectiveExpiresAt", "effectiveLimits"))
+            "environment", "rateCardReference", "limits", "expiresAt", "effectiveExpiresAt"))
             if (!expected.path(field).equals(actual.path(field))) throw changed();
+        var originalLimits = expected.path("effectiveLimits");
+        var currentLimits = actual.path("effectiveLimits");
+        if (!originalLimits.isObject() || !currentLimits.isObject()) throw changed();
+        // Effective turns come from the authenticated ledger's durable top-ups,
+        // not release configuration. Retain the original token and cost ceilings.
+        var originalOtherLimits = (ObjectNode) originalLimits.deepCopy(); originalOtherLimits.remove("chatAttempts");
+        var currentOtherLimits = (ObjectNode) currentLimits.deepCopy(); currentOtherLimits.remove("chatAttempts");
+        if (!originalOtherLimits.equals(currentOtherLimits)
+            || !originalLimits.path("chatAttempts").isIntegralNumber() || !currentLimits.path("chatAttempts").isIntegralNumber()
+            || currentLimits.path("chatAttempts").asLong(-1) < originalLimits.path("chatAttempts").asLong()) throw changed();
         for (String field : List.of("chatAttempts", "providerAttempts")) if (actual.path(field).asLong(-1) < expected.path(field).asLong()) throw changed();
         for (String field : List.of("inputTokens", "outputTokens", "costNanoUsd"))
             if (expected.path("accountedUsage").has(field)

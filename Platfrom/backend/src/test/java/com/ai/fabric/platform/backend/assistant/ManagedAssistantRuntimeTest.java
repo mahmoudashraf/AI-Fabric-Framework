@@ -101,6 +101,30 @@ class ManagedAssistantRuntimeTest {
             assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
         }
     }
+    @Test void durableAdditionalTurnsRetainTheSameWalletAndTokenAndSpendingCeilings() {
+        var toppedUp = budget.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) toppedUp.path("effectiveLimits")).put("chatAttempts", 205);
+        doReturn(toppedUp).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+        service.verifyRuntime(brain, version, release);
+        verifyNoInteractions(coolify);
+        assertThat(toppedUp.path("limits")).isEqualTo(budget.path("limits"));
+        for (String field : List.of("totalTokens", "costNanoUsd")) {
+            var changed = toppedUp.deepCopy();
+            ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put(field,
+                budget.path("effectiveLimits").path(field).asLong() + 1);
+            doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+            assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
+        }
+    }
+    @Test void reducedOrMalformedEffectiveTurnLimitsCannotPassVerification() {
+        for (boolean malformed : List.of(false, true)) {
+            var changed = budget.deepCopy();
+            var limits = (com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits");
+            if (malformed) limits.put("chatAttempts", "205"); else limits.put("chatAttempts", 184);
+            doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+            assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
+        }
+    }
     @Test void wrongPublishedInstructionsOrUnavailableRegistryNeverProduceVerifiedRelease() {
         doReturn(mapper.createObjectNode().put("deploymentVersionId", "other-version")).when(service).read(eq("/api/admin/overview"), anyMap());
         assertThat(service.verify(brain, version, release, "POST_APPLY").getStatus()).isEqualTo("FAILED");

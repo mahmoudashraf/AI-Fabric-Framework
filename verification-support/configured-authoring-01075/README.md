@@ -292,3 +292,26 @@ these actual preserved limits, not create a second allocation.
 - Usage208/210turns expected after plugin test; verify actual native wallet before
   further inference. No extra turns/caps have been approved/applied. Remaining
   task/binding/document/cancellation checks and production rollout still open.
+
+### Approved Additional Staging Qualification, 13:40 UTC
+
+- Owner explicitly approved20additional staging turns in reply
+  call_e0e2c82d05ff462685f9d8f4b1362b8b. Canonical top-up receipt
+  configured-authoring-01075-20261124-staging-extra20 read back:230turns,
+  4Mtokens/USD5 unchanged, same original wallet/rate card/expiry/usage. Production
+  remains210turns. No ledger reset or added spending.
+- Source1aba22d4e pushed; core45404702415/storage45404779178/
+  quota45404785337allpassed. Backend-only staging rollout started. Runtime
+  remains6471/FW68/UI f54. No new public framework release.
+- Engage assistant edit actually passed on deployment-bound inactive fixture:
+  name/theme changed, assignment/auth/origins unchanged. Initial cleanup order
+  correctly failed because consumer was bound and Brain had been archived.
+  Exact temporary Brain restored, consumer normally unbound/deleted, Brain
+  archived/deleted:cleanup-reconciled.private.jsonPASS. App/session already
+  deleted. No active/customer infrastructure changed or SQL deletion.
+- Migration verification found an overly strict equality check for durable
+  turn-only top-ups. Pending source permits nondecreasing effective turns from
+  the authenticated original ledger while retaining exact original grant,
+  token/spending ceilings, rate card and expiry.97focused tests passed, including
+  malformed/reduced turns, raised token/cost caps, wallet/counter-reset denials.
+  It never creates a top-up or infers approval. Commit and CI still required.

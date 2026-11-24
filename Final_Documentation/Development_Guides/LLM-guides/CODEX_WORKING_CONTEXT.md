@@ -20941,3 +20941,22 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   current6files/buildCore+storage/quota,stagebackend,traceManagerandretestAPI,
   completeEngage/doc/cancel/bindings/Support/Taskchecksandrealprodverification.
 
+- 13:40UTC CURRENT: source1aba22d4ef0ef6ba149b8efe7552dd6841bb2f28pushed;
+  core45404702415/storage45404779178/quota45404785337allPASS. BackendIstage
+  rolloutobserverexec21934(requested;actualreturnedIDseetoolstate). RuntimeG
+ 6471/ver828715ec/relb2b65d93,UI f54/FW68. Productionold67unchanged.
+- Userapproved20extrastageturns(call_e0e2c82d05ff462685f9d8f4b1362b8b),
+  canonicaltopupconfigured-authoring-01075-20261124-staging-extra20APPLIED/
+  readback230turns/4Mtokens/$5,sameoriginalwallet/ratecard/expiry/usage. Prod210.
+  Updatecurrentobservationusesexplicitapprovedreceipt;no baselinefile rewritten.
+- ActualEngageeditPASSwithdraftBrain/consumer,auth/origins/assignmentpreserved.
+  Cleanupfirstfailednormalguards;exactBraindep65e6b124restored,exactconsumer
+  native-qualification-aabcf608unbound/deleted,Brainarchived/deletednormally.
+  cleanup-reconciled.private.jsonPASS;noSQL/broadercleanup. Allownstaff/customer
+  sessionslogout. Data-pluginmappingPASS/archiveduninstalledauditretained.
+- UncommittedManagedAssistantRuntime+testfix:originalgrant/token/$5/ratecard/
+  expirystayexact;effectivechatAttemptsmaygrowfromauthenticatedcanonicalledger
+  topups.97focusedbackendPASS(0skip),/private/tmp/loomai-01075-approved-turns-final.log.
+  Needcommit/build/deploythiscompatibilitybeforefurthernativeBrainapply,because
+  oldstrictmetadatacomparisonrejectsnewapproved230cap. DoNOTresetwork/wallet.
+
