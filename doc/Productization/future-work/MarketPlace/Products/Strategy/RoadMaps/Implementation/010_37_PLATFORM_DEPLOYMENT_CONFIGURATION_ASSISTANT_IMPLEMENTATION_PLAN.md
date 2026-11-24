@@ -1,5 +1,38 @@
 # 010.37 LoomAI Configuration Assistant - Detailed Solution And Implementation Plan
 
+## Owner Architecture Correction - 24 November 2026
+
+The owner rejected the dedicated direct-generation authoring architecture as the
+intended final solution. Configuration assistance must itself use a real,
+configured Platform-managed Smart Brain and exercise the normal framework/runtime
+orchestration and registered capability model. Merely using AI Fabric's
+`AICoreService.generateContent` inside a custom Platform repair/save workflow
+does not qualify this product-validation requirement.
+
+The currently implemented private `/api/private/configuration-authoring/generate`
+path is functional, but it is an architectural deviation, not proof that a
+configured Smart Brain can perform this workflow. This correction supersedes
+the architecture recommendation in Review Summary and section1.1 below; those
+sections retain the implementation history, not the newly accepted target.
+
+Keep ownership, task/resource scope, redaction, real funding, validation, draft
+persistence, audit and explicit operational approvals enforced by existing
+Platform services. Expose necessary operations as scoped capabilities for the
+configured Brain; do not move trust decisions into prompts or give the model
+raw credentials. Preserve existing user workflows until a genuine Brain-backed
+replacement passes parity, security and quality verification. A URL rename or
+a Brain facade that leaves the custom workflow as the real orchestrator is not
+the migration. Framework gaps and required patches must be reviewed before
+implementation/release. No replacement or framework change is implemented by
+this correction note.
+
+The replacement proposal is
+[010.75 Build with AI Smart Brain Migration and Bounded Workflow Plan](010_75_BUILD_WITH_AI_CONFIGURED_SMART_BRAIN_MIGRATION_AND_BOUNDED_WORKFLOW_PLAN.md).
+It includes the owner's requirement that bounded iterative planning see scoped
+READ and WRITE Platform actions together, preserve no-confirmation draft writes,
+and observe real effects before choosing subsequent actions. Framework work
+packages remain proposals awaiting review, not implemented functionality.
+
 - Status: implemented, deployed and qualified on staging/production, 2026-11-10. Supported first-release contracts are complete; accepted model-quality and import limits remain explicit below and in the verification record.
 - Created: 2026-10-13. Expanded: 2026-11-09.
 - Initial Platform inspection: `52f71995410260a743bae67fd2a9cf59b821ee8b`, 2026-11-09. This historical source inspection was not deployment evidence.

@@ -202,6 +202,18 @@ evidence belongs in `CODEX_WORKING_CONTEXT.md`, not in this owner decision.
 
 ## Configuration Assistant Draft Authority (Owner Decision, 2026-11-10)
 
+Architecture correction,24November2026: Build with AI must itself be a configured
+Platform-managed Smart Brain, not the current custom direct-generation helper.
+The target's bounded iterative planner must see scoped READ and WRITE Platform
+actions together and may execute writes authorized by the user's request under
+their actual action policies. No additional confirmation is required for an
+already-authorized no-confirmation draft writer. A draft request still does not
+authorize publication, deployment, indexing or broader operational effects.
+010.75 contains the migration and proposed framework changes for review before
+implementation. Historical descriptions below of the private inference helper
+and its Platform-controlled loop are current implementation history, not the
+target architecture. Do not restore that loop behind a cosmetic Brain wrapper.
+
 An explicit configuration request authorizes the assistant to save changes to
 the caller's selected editable draft through existing resource services. It may
 replace requested manual values, including unsaved values; pause that editor

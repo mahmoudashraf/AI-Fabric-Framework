@@ -26,6 +26,14 @@ Old `/settings/...` URLs are redirects only. Reuse the existing provider/action
 editors and draft-save contracts; never mount a second copy to add an entry point.
 See `verification-support/brain-settings-navigation/README.md`.
 
+Queued planning only, 23 November 2026: 010.74 proposes moving staff/admins into
+these same workspace screens and extending delegation to existing customer
+accounts. Implement only after the pending 010.73 work closes or receives an
+explicit owner deferral. It does not make staff a customer session, authorize a
+UI-only role bypass, restore 010.65 or change current access behavior. Read
+`doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_74_SHARED_CONSOLE_WORKSPACE_MEMBERSHIP_AND_STAFF_UI_MIGRATION_PLAN.md`
+for workspace scope, membership, page parity and retirement requirements.
+
 Search settings > Answers & sources is the single owner for tool/knowledge
 cooperation, bounded multi-source search and Advanced read-planning budgets.
 Keep inheritance visible, preserve unknown/current values with focused draft
