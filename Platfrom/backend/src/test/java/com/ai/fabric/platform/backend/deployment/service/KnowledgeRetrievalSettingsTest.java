@@ -8,6 +8,22 @@ class KnowledgeRetrievalSettingsTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void featureOwnershipCoversCompiledSettingsAndCredentialsWithoutBroadPrefixes() throws Exception {
+        var provider = mapper.readTree("""
+            {"vectorStrategy":"weaviate","knowledgeRetrieval":{"mode":"HYBRID","reranking":{
+              "enabled":true,"provider":"cohere","model":"rerank-v5.0-fast","externalProcessingApproved":true}}}
+            """);
+        assertThat(KnowledgeRetrievalSettings.managedEnvironmentKeys()).hasSize(20)
+            .containsAll(KnowledgeRetrievalSettings.runtimeEnvironment(provider).keySet())
+            .contains("LOOMAI_RERANKING_API_KEY", "LOOMAI_RERANKING_BUDGET_ENVIRONMENT",
+                "LOOMAI_RERANKING_BUDGET_CREDENTIAL_IDENTITY")
+            .doesNotContain("OPENAI_API_KEY", "AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_CUSTOM",
+                "LOOMAI_RERANKING_CUSTOM");
+        assertThatThrownBy(() -> KnowledgeRetrievalSettings.managedEnvironmentKeys().clear())
+            .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
     void absencePreservesExistingRuntimeAndUnknownValuesAreUntouched() throws Exception {
         var provider = mapper.readTree("{\"vectorStrategy\":\"milvus\",\"custom\":42}");
         assertThat(KnowledgeRetrievalSettings.runtimeEnvironment(provider)).isEmpty();

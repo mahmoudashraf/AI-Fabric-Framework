@@ -811,6 +811,65 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void obsoleteFeatureCleanupPreservesDesiredAndUnownedKeysAndIsIdempotent() throws Exception {
+        var deletedPaths = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        HttpServer server = featureCleanupServer(deletedPaths, false, 0, "");
+        try {
+            var client = new CoolifyApiClient(objectMapper);
+            var desired = Set.of("AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_MODE");
+            assertThat(client.deleteObsoleteEnvironmentVariables(connection(server), "app-uuid",
+                KnowledgeRetrievalSettings.managedEnvironmentKeys(), desired)).isEqualTo(2);
+            assertThat(deletedPaths).containsExactlyInAnyOrder(
+                "/api/v1/applications/app-uuid/envs/obsolete-standard",
+                "/api/v1/applications/app-uuid/envs/obsolete-preview");
+            assertThat(client.deleteObsoleteEnvironmentVariables(connection(server), "app-uuid",
+                KnowledgeRetrievalSettings.managedEnvironmentKeys(), desired)).isZero();
+            assertThat(deletedPaths).hasSize(2);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,{}", "1,null", "3,{}", "3,null"})
+    void obsoleteFeatureCleanupRequiresReadableInventoryAndVerifiedReadback(int invalidRead, String response) throws Exception {
+        var deletedPaths = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        HttpServer server = featureCleanupServer(deletedPaths, false, invalidRead, response);
+        try {
+            assertThatThrownBy(() -> new CoolifyApiClient(objectMapper).deleteObsoleteEnvironmentVariables(
+                connection(server), "app-uuid", Set.of("LOOMAI_RERANKING_API_KEY"), Set.of()))
+                .isInstanceOf(CoolifyApiException.class)
+                .hasMessageContaining(invalidRead == 1 ? "inventory is unavailable" : "readback is unavailable");
+            assertThat(deletedPaths).hasSize(invalidRead == 1 ? 0 : 2);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void obsoleteFeatureCleanupRejectsUnverifiedRemoval() throws Exception {
+        var deletedPaths = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        HttpServer server = featureCleanupServer(deletedPaths, true, 0, "");
+        try {
+            assertThatThrownBy(() -> new CoolifyApiClient(objectMapper).deleteObsoleteEnvironmentVariables(
+                connection(server), "app-uuid", Set.of("LOOMAI_RERANKING_API_KEY"), Set.of()))
+                .isInstanceOf(CoolifyApiException.class).hasMessageContaining("could not be verified");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void obsoleteFeatureCleanupRequiresExplicitOwnershipAndDesiredKeys() {
+        var client = new CoolifyApiClient(objectMapper);
+        assertThatThrownBy(() -> client.deleteObsoleteEnvironmentVariables(null, "app", null, Set.of()))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.deleteObsoleteEnvironmentVariables(null, "app", Set.of(), null))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThat(client.deleteObsoleteEnvironmentVariables(null, "app", Set.of(), Set.of())).isZero();
+    }
+
+    @Test
     void logsRetriesTransientRateLimitResponses() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         HttpServer server = logsRateLimitServer(requests);
@@ -1263,6 +1322,43 @@ class CoolifyApiClientTest {
             if ("PATCH".equals(exchange.getRequestMethod()) && path.endsWith("/envs")) {
                 observedPreviewBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 sendJson(exchange, 201, "{\"uuid\":\"env-preview\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer featureCleanupServer(List<String> deletedPaths, boolean keepDeleted, int invalidRead, String invalidResponse)
+        throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var reads = new AtomicInteger();
+        String base = "/api/v1/applications/app-uuid/envs";
+        server.createContext(base, exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod()) && base.equals(path)) {
+                if (reads.incrementAndGet() == invalidRead) {
+                    sendJson(exchange, 200, invalidResponse);
+                    return;
+                }
+                var rows = objectMapper.createArrayNode();
+                for (boolean preview : new boolean[] {false, true}) {
+                    String id = preview ? "obsolete-preview" : "obsolete-standard";
+                    if (keepDeleted || !deletedPaths.contains(base + "/" + id)) {
+                        rows.addObject().put("uuid", id).put("key", "LOOMAI_RERANKING_API_KEY").put("is_preview", preview);
+                    }
+                }
+                rows.addObject().put("uuid", "desired").put("key", "AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_MODE");
+                rows.addObject().put("uuid", "future").put("key", "AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_CUSTOM");
+                rows.addObject().put("uuid", "unrelated").put("key", "OPENAI_API_KEY");
+                sendJson(exchange, 200, rows.toString());
+                return;
+            }
+            if ("DELETE".equals(exchange.getRequestMethod()) && path.startsWith(base + "/")) {
+                deletedPaths.add(path);
+                sendJson(exchange, 200, "{}");
                 return;
             }
             exchange.sendResponseHeaders(404, -1);

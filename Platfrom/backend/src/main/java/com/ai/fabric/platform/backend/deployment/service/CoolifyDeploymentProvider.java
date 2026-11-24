@@ -57,6 +57,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Service
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
@@ -700,6 +701,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             connectorBaseUrl,
             runtimeDatabaseBinding
         );
+        Set<String> desiredRuntimeKeys = runtimeEnvironment.stream().map(CoolifyEnvVar::key).collect(Collectors.toSet());
+        tracked(progressTracker, "remove_inactive_coolify_retrieval_environment",
+            "Remove only obsolete Platform-owned search, reranking and reranking credential settings before deployment.",
+            () -> coolifyApiClient.deleteObsoleteEnvironmentVariables(connection, runtimeApplication.uuid(),
+                KnowledgeRetrievalSettings.managedEnvironmentKeys(), desiredRuntimeKeys));
         int runtimeEnvCount = tracked(
             progressTracker,
             "configure_coolify_runtime_environment",

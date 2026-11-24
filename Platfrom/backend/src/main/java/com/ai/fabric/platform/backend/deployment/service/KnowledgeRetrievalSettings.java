@@ -9,6 +9,21 @@ import java.util.Set;
 public final class KnowledgeRetrievalSettings {
     private KnowledgeRetrievalSettings() { }
 
+    private static final String PROFILE_ENV = "AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_";
+    private static final String RANKING_ENV = "AI_INFRASTRUCTURE_RAG_RERANKING_";
+    private static final Set<String> MANAGED_ENVIRONMENT_KEYS = Set.of(
+        PROFILE_ENV + "MODE", PROFILE_ENV + "VECTORCANDIDATES", PROFILE_ENV + "LEXICALCANDIDATES",
+        PROFILE_ENV + "MAXCANDIDATES", PROFILE_ENV + "MAXRESULTS", PROFILE_ENV + "MAXCONTEXTCHARACTERS",
+        PROFILE_ENV + "RANKCONSTANT", PROFILE_ENV + "FAILUREPOLICY",
+        RANKING_ENV + "ENABLED", RANKING_ENV + "PROVIDER", RANKING_ENV + "MODEL", RANKING_ENV + "FAILUREPOLICY",
+        RANKING_ENV + "MAXCANDIDATES", RANKING_ENV + "MAXCHARACTERSPERCANDIDATE", RANKING_ENV + "MAXTOTALCHARACTERS",
+        RANKING_ENV + "MAXTOKENSPERDOCUMENT", RANKING_ENV + "TIMEOUTMS",
+        "LOOMAI_RERANKING_API_KEY", "LOOMAI_RERANKING_BUDGET_ENVIRONMENT", "LOOMAI_RERANKING_BUDGET_CREDENTIAL_IDENTITY"
+    );
+
+    /** Exact compiled ownership, not a prefix that could erase unrelated customer settings. */
+    public static Set<String> managedEnvironmentKeys() { return MANAGED_ENVIRONMENT_KEYS; }
+
     public static Map<String, String> runtimeEnvironment(JsonNode provider) {
         return runtimeEnvironment(provider, null);
     }
@@ -42,7 +57,7 @@ public final class KnowledgeRetrievalSettings {
             : inherited(prompts, "ragMaxContextChars", 8000, 256, 200000), 256, 200000);
         int constant = number(profile, "rankConstant", 60, 1, 1000);
         Map<String, String> environment = new LinkedHashMap<>();
-        String prefix = "AI_INFRASTRUCTURE_RAG_RETRIEVALPROFILE_";
+        String prefix = PROFILE_ENV;
         environment.put(prefix + "MODE", mode);
         environment.put(prefix + "VECTORCANDIDATES", Integer.toString(vector));
         environment.put(prefix + "LEXICALCANDIDATES", Integer.toString(lexical));
@@ -56,7 +71,7 @@ public final class KnowledgeRetrievalSettings {
             if (!reranking.isObject() || !reranking.path("enabled").isBoolean()) {
                 throw new IllegalArgumentException("Choose whether to prioritize results with a reranker.");
             }
-            String rankingPrefix = "AI_INFRASTRUCTURE_RAG_RERANKING_";
+            String rankingPrefix = RANKING_ENV;
             environment.put(rankingPrefix + "ENABLED", Boolean.toString(reranking.path("enabled").asBoolean()));
             if (reranking.path("enabled").asBoolean()) {
                 if (!"cohere".equals(reranking.path("provider").asText())

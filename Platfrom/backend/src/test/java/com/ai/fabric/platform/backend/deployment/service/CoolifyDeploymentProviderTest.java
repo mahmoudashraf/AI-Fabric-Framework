@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -573,8 +575,9 @@ class CoolifyDeploymentProviderTest {
         verify(platformSecretService, never()).clearManagedSecret(anyString(), any());
     }
 
-    @Test
-    void provisionsDockerImageApplicationAndPersistsResourceHandle() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void provisionsDockerImageApplicationOnlyAfterObsoleteFeatureSettingsAreRemoved(boolean cleanupFails) throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
         DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
@@ -663,6 +666,16 @@ class CoolifyDeploymentProviderTest {
         var receipts = creationReceipts(provider, resourceHandleRepository, coolifyApiClient, connection, profile,
             List.of(application), List.of());
 
+        if (cleanupFails) {
+            when(coolifyApiClient.deleteObsoleteEnvironmentVariables(eq(connection), eq("app-uuid"), any(), any()))
+                .thenThrow(new IllegalStateException("FEATURE_CLEANUP_NOT_VERIFIED"));
+            assertThatThrownBy(() -> provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop()))
+                .hasMessageContaining("FEATURE_CLEANUP_NOT_VERIFIED");
+            verify(coolifyApiClient, never()).updateEnvironmentVariables(any(), anyString(), any());
+            verify(coolifyApiClient, never()).start(any(), anyString(), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.anyBoolean());
+            return;
+        }
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
         assertCreatedReceipts(receipts, 1);
 
@@ -681,6 +694,12 @@ class CoolifyDeploymentProviderTest {
         );
         ArgumentCaptor<List<CoolifyEnvVar>> environment = ArgumentCaptor.forClass(List.class);
         verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), environment.capture());
+        var order = inOrder(coolifyApiClient);
+        order.verify(coolifyApiClient).deleteObsoleteEnvironmentVariables(eq(connection), eq("app-uuid"),
+            eq(KnowledgeRetrievalSettings.managedEnvironmentKeys()),
+            eq(environment.getValue().stream().map(CoolifyEnvVar::key).collect(Collectors.toSet())));
+        order.verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), any());
+        order.verify(coolifyApiClient).start(connection, "app-uuid", true, true);
         assertThat(envByKey(environment.getValue()).get("JAVA_OPTS").value())
             .isEqualTo("-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m");
     }

@@ -503,6 +503,31 @@ public class CoolifyApiClient {
             && record.runtime();
     }
 
+    /** Reconcile exact feature-owned keys without silently keeping an inactive paid feature enabled. */
+    public int deleteObsoleteEnvironmentVariables(
+        CoolifyConnection connection, String uuid, Set<String> ownedKeys, Set<String> desiredKeys
+    ) {
+        if (ownedKeys == null || desiredKeys == null) {
+            throw new IllegalArgumentException("Complete environment ownership and desired keys are required.");
+        }
+        if (ownedKeys.isEmpty()) {
+            return 0;
+        }
+        JsonNode inventory = requestJson(connection, "GET", "/applications/" + encodePath(uuid) + "/envs", null, true);
+        if (inventory == null || !inventory.isArray()) {
+            throw new CoolifyApiException("Coolify environment inventory is unavailable for feature reconciliation.",
+                502, "/applications/" + encodePath(uuid) + "/envs");
+        }
+        Set<String> obsolete = new java.util.HashSet<>();
+        for (JsonNode item : inventory) {
+            String key = textFirst(item, "key");
+            if (ownedKeys.contains(key) && !desiredKeys.contains(key)) {
+                obsolete.add(key);
+            }
+        }
+        return deleteEnvironmentVariablesByKey(connection, uuid, obsolete);
+    }
+
     public int deleteEnvironmentVariablesByKey(
         CoolifyConnection connection,
         String uuid,
@@ -557,15 +582,17 @@ public class CoolifyApiClient {
             null,
             true
         );
-        if (remaining != null && remaining.isArray()) {
-            for (JsonNode item : remaining) {
-                if (normalizedKeys.contains(textFirst(item, "key"))) {
-                    throw new CoolifyApiException(
-                        "Coolify bootstrap environment cleanup could not be verified.",
-                        409,
-                        "/applications/" + encodePath(uuid) + "/envs"
-                    );
-                }
+        if (remaining == null || !remaining.isArray()) {
+            throw new CoolifyApiException("Coolify environment cleanup readback is unavailable.",
+                502, "/applications/" + encodePath(uuid) + "/envs");
+        }
+        for (JsonNode item : remaining) {
+            if (normalizedKeys.contains(textFirst(item, "key"))) {
+                throw new CoolifyApiException(
+                    "Coolify bootstrap environment cleanup could not be verified.",
+                    409,
+                    "/applications/" + encodePath(uuid) + "/envs"
+                );
             }
         }
         return deleted;
