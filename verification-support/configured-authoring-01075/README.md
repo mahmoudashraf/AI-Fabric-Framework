@@ -155,3 +155,13 @@ these actual preserved limits, not create a second allocation.
 - Deploy this backend correction and create a new normal apply for the same
   published version. Preserve the failed release. Runtime adoption and paid
   model qualification are still pending; production remains unchanged.
+
+- Authority correction6ad6bf6dd passed all three release gates and is healthy
+  on staging (backend910ca1c6). New release rel-73298aad passed preflight but
+  failed before the environment/image update: the generic plan's conversation
+  fallback names retained unfrozen legacy secret references. Frozen authority
+  now supplies both existing property names for each actual Runtime key.
+- The first-party provider-preservation helper also covers embedding aliases,
+  which are disabled but must not resolve an unrelated global account. The
+  existing paid key remains authoritative.106focused authority, lifecycle and
+  accounting checks passed. No paid model calls or native service update yet.

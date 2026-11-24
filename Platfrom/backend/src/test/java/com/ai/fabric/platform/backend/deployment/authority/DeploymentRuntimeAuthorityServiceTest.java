@@ -99,6 +99,21 @@ class DeploymentRuntimeAuthorityServiceTest {
         assertThat(env.runtime()).containsKeys("AI_EXECUTION_ASYNC_ENCRYPTION_SECRET", "AI_EXECUTION_ASYNC_FINGERPRINT_SECRET");
     }
 
+    @Test void canonicalConversationFallbackNamesUseTheSameFrozenKeysAsEffectiveRuntimeProperties() {
+        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"workflowAssistance\":{\"enabled\":true}}");
+        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":true}");
+        var staged = freeze("staging"); var production = freeze("production");
+        var plan = service.candidateEnvironmentPlan("dep-1", "staging", "version-1", staged.snapshotId(), staged.fingerprint());
+        assertThat(plan.runtime().get("LOOMAI_CONVERSATION_CONTROL_ENCRYPTION_SECRET"))
+            .isEqualTo(plan.runtime().get("LOOMAI_CONVERSATION_HANDOVER_ENCRYPTION_SECRET"))
+            .isEqualTo("${secret:" + staged.binding().secrets().get(CONVERSATION_HANDOVER_ENCRYPTION).reference() + "}");
+        assertThat(plan.runtime().get("LOOMAI_CONVERSATION_CONTROL_FINGERPRINT_SECRET"))
+            .isEqualTo(plan.runtime().get("LOOMAI_CONVERSATION_HANDOVER_CALLBACK_SIGNING_SECRET"))
+            .isEqualTo("${secret:" + staged.binding().secrets().get(CONVERSATION_HANDOVER_CALLBACK_SIGNING).reference() + "}");
+        assertThat(key(staged, CONVERSATION_HANDOVER_ENCRYPTION)).isNotEqualTo(key(production, CONVERSATION_HANDOVER_ENCRYPTION));
+        assertThat(plan.runtime().values()).doesNotContainAnyElementsOf(secretValues());
+    }
+
     @Test void ownedMcpConnectionsGetSeparateTargetKeysWithoutUpstreamCredentials() {
         version.setActionsConfigJson("{\"actions\":[{\"name\":\"docs\",\"adapterType\":\"mcp-tool\",\"execution\":{\"mcp\":{\"connectionId\":\"mcp-1\"}}}]}");
         var staging = freeze("staging"); var production = freeze("production");

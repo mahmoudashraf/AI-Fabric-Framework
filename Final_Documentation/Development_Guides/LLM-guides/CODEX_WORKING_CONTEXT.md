@@ -20795,3 +20795,16 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   for samever-ff755b1a/dsa-a2537ec2; preserve failed immutable release.
 - Both native assistants still67; stage entry featurefalse. Production unchanged,
   no paid010.75model calls. Approved210turn/4Mtoken/USD5bounds retained.
+
+- 12:04UTC continuation:6ad6bf6dd CIcore45388314661/storage45388353874/
+  quota45388314741allPASS; stagebackend910ca1c629c7da7a72819169135e33198e3e5ae1fc30d5459f471e6d8325a12b
+  healthy/jobifhsdhnln0rh106854hitevu. Newnormalrel-73298aad passedpreflight,
+  thenFAILED409AUTHORING_EXISTING_SERVICE_BINDING_CHANGED beforeanyprovider
+  environment/imageeffect. StacktraceexactlyManagedAssistantRuntime.resolve:
+  genericplanretainedlegacyCONTROLencryption/fingerprintsecretrefs whereas
+  frozenauthorityprovidedonlyeffectiveHANDOVERpropertynames. Authority now
+  suppliesbothnamesforthesameactualRuntimeproperties. Provider-preservation
+  coversunusedOpenAIembeddingaliasesratherthanresolvingunrelatedglobalkeys.
+  Focused106checksPASS. Commit/build/deploythisbindingcorrectionthennewnormal
+  apply; keeptwofailedreleases. Nativeassistantsstill67; productionunchanged;
+  stageentryfalse, originalledger/capsunchanged, zero010.75paidcalls.

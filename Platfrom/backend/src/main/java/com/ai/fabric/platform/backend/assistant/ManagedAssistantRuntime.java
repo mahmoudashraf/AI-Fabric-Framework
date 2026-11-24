@@ -199,7 +199,8 @@ public class ManagedAssistantRuntime {
     static void preserveProviderCredential(Map<String, String> environment, String originalKey) {
         if (originalKey == null || originalKey.isBlank()) throw changed();
         // Purpose-specific clients must use the same paid account as the original ledger.
-        for (String key : List.of("AI_PROVIDERS_OPENAI_API_KEY", "AI_PROVIDERS_ORCHESTRATION_API_KEY", "AI_PROVIDERS_GENERATION_API_KEY"))
+        for (String key : List.of("AI_PROVIDERS_OPENAI_API_KEY", "AI_PROVIDERS_ORCHESTRATION_API_KEY", "AI_PROVIDERS_GENERATION_API_KEY",
+            "AI_PROVIDERS_OPENAI_EMBEDDING_API_KEY", "AI_PROVIDERS_EMBEDDING_API_KEY"))
             environment.put(key, originalKey);
     }
     static ObjectNode adoptionDefaults(JsonNode source, String datasource, String ports) {

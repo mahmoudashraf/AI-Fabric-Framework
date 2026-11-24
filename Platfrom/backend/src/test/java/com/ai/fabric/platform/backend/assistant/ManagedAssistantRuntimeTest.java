@@ -116,10 +116,14 @@ class ManagedAssistantRuntimeTest {
     @Test void purposeSpecificClientsCannotSilentlySwitchToAnotherPaidProviderAccount() {
         var environment = new LinkedHashMap<String, String>();
         environment.put("AI_PROVIDERS_GENERATION_API_KEY", "secret:unrelated-platform-key");
+        environment.put("AI_PROVIDERS_OPENAI_EMBEDDING_API_KEY", "${secret:unrelated-embedding-key}");
+        environment.put("AI_PROVIDERS_EMBEDDING_API_KEY", "${secret:unrelated-embedding-key}");
         ManagedAssistantRuntime.preserveProviderCredential(environment, "original-provider-fixture");
         assertThat(environment).containsEntry("AI_PROVIDERS_OPENAI_API_KEY", "original-provider-fixture")
             .containsEntry("AI_PROVIDERS_ORCHESTRATION_API_KEY", "original-provider-fixture")
-            .containsEntry("AI_PROVIDERS_GENERATION_API_KEY", "original-provider-fixture");
+            .containsEntry("AI_PROVIDERS_GENERATION_API_KEY", "original-provider-fixture")
+            .containsEntry("AI_PROVIDERS_OPENAI_EMBEDDING_API_KEY", "original-provider-fixture")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_API_KEY", "original-provider-fixture");
         assertThatThrownBy(() -> ManagedAssistantRuntime.preserveProviderCredential(environment, ""))
             .hasMessageContaining("BINDING_CHANGED");
     }
