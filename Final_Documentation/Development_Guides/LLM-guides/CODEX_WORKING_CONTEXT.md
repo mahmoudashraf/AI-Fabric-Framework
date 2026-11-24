@@ -20866,3 +20866,31 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   assertion-order/idempotencyerrorscorrectedandfailedrunretained. Commit/build
   this Runtimecorrection, attestofficial68JARs, then normal stageupgrade and
   rerunactualUI/APIstories. No new publicFWrelease needed. Production unchanged.
+
+### 010.75 Context Refinement - 24 November 2026, 13:00 UTC
+
+- cbb4f635830c909ca4eba5a511f43d4850b14ebe committed/pushed. Runtime full local
+ 807PASS/5skips; CI45395295481PASS. Stageartifactdsa-0003c8f4, digest582ad942ae4028cc0257aceeac1f165d8f4dfc66cd15abaad34c76f8520385a7,
+  rel-1fea7238/ver-fb756de5APPLIED_VERIFIED/PASSED, originalwallet/caps/PGkept.
+  Backendf2f66db02/digest27fa841980215163e5b03786fca75c1614751dafd621b088c14b887def7dd283 healthy,
+  jobzvhqpkf9jsw5y08fqetm5kzq; UIstillf54. Auto-reviewinitiallymistookbackendE
+  asrollback; gitancestry+zeroimplementationdiff provedallkeyfixespreserved,
+  then normalreviewaccepteddeployment. No bypass. Productionstilloldassistant67.
+- precision-fixed8-caseactualsuiteFAILquality:4APIcasesPASS(selected/narrow/
+  missinghost/missingcredential). Prose1SAVEDbutaskUserfalsewrongoptionalinput;
+  prose2EXPLAIN/prose3NEEDS_INPUTincorrectlyaskedforalreadysharedsources.
+  AllDocactualwritesavedbeforeWORKFLOW_CORRECTION_LIMIT; realreceiptretained.
+  All8sessions/resource-freeBrainsdeleted; bothusersloggedout. No more paid
+  requests untilcontextrefinement. Allnon-inferenceprecisionfailuresaregone.
+- NewnativeintegrationassertionsPASS2: exactpublishedinstructionsandWRITE/READ
+  catalogue reachgenerationcall. Actualnativeenvironmentusesgpt-5.4-mini.
+- Pendingcommit: boundedselected-sourcepreviews(16000chars) in contextREAD,
+  guardedbyBOTHactualSourceReadscopeandfrozenallowedActions. Sharedfullreader
+  filterkeepsselectedoperationsonly; no rawcontractreintroduction. APIcontext
+  removesunrelatedconfiguration/catalogueswithoutchangingactualdraft. Explicit
+  CHECKED_NOT_SAVEDstatus; clearerAPIprofileoptionalparams/source/saveguidance.
+ 62focusedbackendchecksPASS, inclreadrevocation/subset/bounds. Runtime8PASS:
+  publishedpromptdelivery, PGprecision andfaithfulmodelquestionrendering.
+- Build/backend+Runtime refinements, normalpublish/applysameBrainthenrerun
+  quality; no publicframeworkversionchange. Nativebudget182/210turns,
+ 212providercalls, original4Mtoken/USD5caps unchanged. Production unchanged.

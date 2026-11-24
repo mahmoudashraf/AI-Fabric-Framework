@@ -90,7 +90,7 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
                 case "CONFIRMATION_REQUIRED" -> OrchestrationResultType.CONFIRMATION_REQUIRED;
                 default -> OrchestrationResultType.ERROR;
             };
-            String message = result.output() == null ? workflow.path("message").asText(null) : result.output().path("answer").asText(null);
+            String message = workflowMessage(result, workflow);
             var diagnostics = new java.util.LinkedHashMap<String, Object>(result.diagnostics());
             diagnostics.put("workflow", mapper.convertValue(workflow, new TypeReference<Map<String, Object>>() {}));
             var response = OrchestrationResult.builder().type(type).success(result.succeeded()).message(message)
@@ -240,6 +240,16 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
 
     static Instant persistedDeadline(Instant requested, Instant persisted) {
         return requested.isBefore(persisted) ? requested : persisted;
+    }
+
+    static String workflowMessage(AIExecutionResult<JsonNode> result, JsonNode workflow) {
+        String message = result.output() == null ? workflow.path("message").asText(null) : result.output().path("answer").asText(null);
+        if ((message == null || message.isBlank()) && "NEEDS_INPUT".equals(workflow.path("state").asText())) {
+            var questions = new java.util.ArrayList<String>();
+            for (var question : workflow.path("questions")) if (question.isTextual() && !question.asText().isBlank()) questions.add(question.asText());
+            if (!questions.isEmpty()) return String.join("\n", questions);
+        }
+        return message;
     }
 
     private void finish(Invocation invocation, AIExecutionResult<?> result) {

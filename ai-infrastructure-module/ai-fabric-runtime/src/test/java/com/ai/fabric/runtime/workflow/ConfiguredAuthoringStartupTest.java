@@ -108,6 +108,11 @@ class ConfiguredAuthoringStartupTest {
             "{\"type\":\"ACTION\",\"action\":\"authoring_update_draft\",\"parameters\":{\"operationId\":\"forged\",\"changes\":[{\"path\":\"/promptConfig/systemPrompt\",\"operation\":\"SET\",\"value\":\"Welcome\"}]}}",
             "{\"type\":\"COMPLETE\",\"message\":\"The requested greeting is saved in the draft.\"}"));
         doAnswer(call -> {
+            ai.fabric.dto.AIGenerationRequest generated = call.getArgument(0);
+            assertThat(generated.getSystemPrompt()).contains("APPLICATION-OWNED SPECIALIST CONTRACT",
+                specialists.require(profile.specialist()).instructions().render().trim());
+            var modelContext = WorkflowAssistanceBundleTest.MAPPER.readTree(generated.getPrompt());
+            assertThat(modelContext.path("actions").toString()).contains("authoring_update_draft", "authoring_get_context");
             WorkflowModelCallScope.beforeModelCall();
             return AIGenerationResponse.builder().content(replies.remove()).build();
         }).when(core).generateContent(any(), any());

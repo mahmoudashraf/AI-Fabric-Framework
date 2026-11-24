@@ -43,7 +43,8 @@ public class AuthoringToolAuthentication {
         if (action != null && !member(headers, "X-AIFABRIC-AUTH-SCOPES", "action:" + action)) throw denied();
         try { if (!Instant.parse(single(headers, "X-AIFABRIC-AUTH-EXPIRES-AT")).isAfter(Instant.now())) throw denied(); }
         catch (java.time.format.DateTimeParseException invalid) { throw denied(); }
-        return new AuthoringDraftOperations.Caller(sessionId, turnId, properties.getDeploymentId(), single(headers, RELEASE_HEADER), action);
+        return new AuthoringDraftOperations.Caller(sessionId, turnId, properties.getDeploymentId(), single(headers, RELEASE_HEADER), action,
+            member(headers, "X-AIFABRIC-AUTH-SCOPES", "action:authoring_read_selected_sources"));
     }
     private boolean member(HttpHeaders headers, String name, String value) {
         return Arrays.stream(single(headers, name).split(",")).map(String::trim).anyMatch(value::equals);

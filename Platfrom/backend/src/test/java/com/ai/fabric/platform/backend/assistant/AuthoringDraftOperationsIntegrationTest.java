@@ -111,15 +111,63 @@ class AuthoringDraftOperationsIntegrationTest {
             customerId, "Fixture", mapper.createObjectNode(), mapper.createObjectNode(),
             List.of("/actionsConfig", "/routingConfig"), "draft", true, ""));
         bind(false);
-        var context = operations.context(caller);
+        var sourceCaller = new AuthoringDraftOperations.Caller(sessionId, turnId, "assistant-brain", "verified-release", null, true);
+        var context = operations.context(sourceCaller);
         assertThat(context.path("sourceIds")).hasSize(1);
+        assertThat(context.path("selectedSourceCount").asInt()).isEqualTo(1);
+        assertThat(context.at("/selectedSourcePreviews/0/excerpt").asText()).contains("https://example.test/products");
+        assertThat(context.at("/selectedSourcePreviews/0/complete").asBoolean()).isTrue();
+        assertThat(operations.context(caller).has("selectedSourcePreviews")).isFalse();
         assertThat(context.at("/preparationScope/operationSelection").asText()).isEqualTo("ALL_SELECTED_SOURCE_OPERATIONS");
         assertThat(context.at("/preparationScope/documentedOperationCount").asInt()).isZero();
         var selected = operations.selectedSources(caller);
         assertThat(selected).hasSize(1);
         assertThat(selected.get(0).path("id").asText()).isEqualTo("src-prose");
         assertThat(selected.get(0).path("content").asText()).contains("https://example.test/products");
+        var stored = sessions.findById(sessionId).orElseThrow();
+        var large = mapper.readTree(crypto.decrypt(sessionId, stored.encryptedContent));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) large.at("/sources/0")).put("content", "Approved text. ".repeat(3000));
+        stored.encryptedContent = crypto.encrypt(sessionId, large.toString()); sessions.saveAndFlush(stored);
+        var limited = operations.context(sourceCaller);
+        assertThat(limited.at("/selectedSourcePreviews/0/excerpt").asText()).hasSize(16000);
+        assertThat(limited.at("/selectedSourcePreviews/0/complete").asBoolean()).isFalse();
+        assertThat(operations.selectedSources(caller).get(0).path("content").asText()).hasSize(45000);
         verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void aDisabledSourceToolCannotBeBypassedThroughContextPreviews() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow();
+        var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));
+        ((com.fasterxml.jackson.databind.node.ArrayNode) content.path("sources")).addObject()
+            .put("sourceId", "src-private").put("title", "Private notes").put("content", "private-selected-canary");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) content.at("/turns/0")).putArray("sourceIds").add("src-private");
+        session.encryptedContent = crypto.encrypt(sessionId, content.toString()); sessions.saveAndFlush(session);
+        operations.bind(sessionId, turnId, new AuthoringDraftOperations.Binding("assistant-brain", "verified-release", "reader@1", "hash", 0, true,
+            List.of("authoring_get_context", "authoring_get_work_status")));
+        SecurityContextHolder.clearContext();
+        var sourceCaller = new AuthoringDraftOperations.Caller(sessionId, turnId, "assistant-brain", "verified-release", "authoring_get_context", true);
+        var context = operations.context(sourceCaller);
+        assertThat(context.has("selectedSourcePreviews")).isFalse();
+        assertThat(context.toString()).doesNotContain("private-selected-canary");
+        assertThatThrownBy(() -> operations.selectedSources(new AuthoringDraftOperations.Caller(sessionId, turnId,
+            "assistant-brain", "verified-release", "authoring_read_selected_sources", true))).hasMessageContaining("ACCESS_DENIED");
+    }
+    @Test void sourcePreviewsCannotReintroduceUnselectedOperationsOrRawContractContent() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow();
+        var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));
+        var source = ((com.fasterxml.jackson.databind.node.ArrayNode) content.path("sources")).addObject()
+            .put("sourceId", "src-contract").put("title", "API contract").put("content", "Raw contract also contains /private-unselected-route");
+        var parsed = source.putArray("operations");
+        parsed.addObject().put("id", "selected").put("path", "/public-products");
+        parsed.addObject().put("id", "unselected").put("path", "/private-unselected-route");
+        var turn = (com.fasterxml.jackson.databind.node.ObjectNode) content.at("/turns/0");
+        turn.putArray("sourceIds").add("src-contract"); turn.putArray("operationIds").add("selected");
+        session.encryptedContent = crypto.encrypt(sessionId, content.toString()); sessions.saveAndFlush(session);
+        bind(false);
+        var sourceCaller = new AuthoringDraftOperations.Caller(sessionId, turnId, "assistant-brain", "verified-release", null, true);
+        var preview = operations.context(sourceCaller).path("selectedSourcePreviews").get(0);
+        assertThat(preview.path("representation").asText()).isEqualTo("PARSED_OPERATIONS");
+        assertThat(preview.path("excerpt").asText()).contains("/public-products").doesNotContain("/private-unselected-route", "Raw contract");
+        assertThat(this.operations.selectedSources(sourceCaller).toString()).doesNotContain("/private-unselected-route", "Raw contract");
     }
     @Test void committedWriteAndEncryptedReceiptReplayWithoutSecondSave() {
         bind(false); var first = operations.save(caller, operation(1), change("Helpful"));

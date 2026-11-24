@@ -38,4 +38,15 @@ class RuntimeConfiguredWorkflowResultTest {
         assertThat(result.path("stopCode").asText()).isEqualTo("NATIVE_EXECUTION_FAILED");
         assertThat(result.toString()).doesNotContain("private-secret-canary");
     }
+    @Test void typedClarificationUsesTheModelsOwnQuestionsWhenItsMessageIsAbsent() {
+        var workflow = mapper.createObjectNode().put("state", "NEEDS_INPUT");
+        workflow.putArray("questions").add("What is the API base URL?");
+        assertThat(RuntimeConfiguredWorkflowDispatcher.workflowMessage(failure("CLARIFICATION_REQUIRED", Map.of()), workflow))
+            .isEqualTo("What is the API base URL?");
+        workflow.put("message", "Please provide the provider address.");
+        assertThat(RuntimeConfiguredWorkflowDispatcher.workflowMessage(failure("CLARIFICATION_REQUIRED", Map.of()), workflow))
+            .isEqualTo("Please provide the provider address.");
+        workflow.remove("message"); workflow.put("state", "STOPPED");
+        assertThat(RuntimeConfiguredWorkflowDispatcher.workflowMessage(failure("EXECUTION_FAILED", Map.of()), workflow)).isNull();
+    }
 }

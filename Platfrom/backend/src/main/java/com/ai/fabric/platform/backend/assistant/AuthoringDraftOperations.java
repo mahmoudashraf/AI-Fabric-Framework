@@ -39,9 +39,13 @@ public class AuthoringDraftOperations {
         }
     }
     /** Created only after service authentication; neither a browser DTO nor an LLM argument. */
-    public record Caller(String sessionId, String turnId, String deploymentId, String releaseId, String action) {
+    public record Caller(String sessionId, String turnId, String deploymentId, String releaseId, String action,
+                         boolean selectedSourceReadAllowed) {
         public Caller(String sessionId, String turnId, String deploymentId, String releaseId) {
-            this(sessionId, turnId, deploymentId, releaseId, null);
+            this(sessionId, turnId, deploymentId, releaseId, null, false);
+        }
+        public Caller(String sessionId, String turnId, String deploymentId, String releaseId, String action) {
+            this(sessionId, turnId, deploymentId, releaseId, action, false);
         }
     }
 
@@ -96,13 +100,39 @@ public class AuthoringDraftOperations {
             result.put("resourceKind", work.session().resourceKind).put("task", work.session().task)
                 .put("editable", snapshot.editable()).put("readOnlyReason", snapshot.readOnlyReason())
                 .put("fingerprint", fingerprint(snapshot.configuration()));
-            result.set("configuration", changes.project(snapshot.configuration()));
-            result.set("contracts", snapshot.catalogue());
+            var configuration = changes.project(snapshot.configuration());
+            var contracts = snapshot.catalogue().deepCopy();
+            if (List.of("ACTIONS", "CONNECTIONS").contains(work.session().task)) {
+                ((ObjectNode) configuration).retain("actionsConfig", "routingConfig");
+                result.put("configurationScope", "Only action and endpoint settings are shown. Unshown settings are unchanged, not absent.");
+                ((ObjectNode) contracts).remove(List.of("behaviorTypes", "llmProviders", "embeddingProviders", "aiBehaviourProfiles",
+                    "aiBehaviourConfigurationExample", "behaviorContract", "humanSupportContract", "specialistContract"));
+            }
+            result.set("configuration", configuration);
+            result.set("contracts", contracts);
             result.set("binding", work.work().path("binding"));
             result.put("command", work.turn().path("command").asText());
             if (work.turn().has("editorContext")) result.set("editorContext", work.turn().path("editorContext"));
             result.set("sourceIds", work.turn().path("sourceIds"));
             result.set("operationIds", work.turn().path("operationIds"));
+            result.put("selectedSourceCount", work.turn().path("sourceIds").size());
+            if (caller.selectedSourceReadAllowed()
+                && contains(work.work().path("binding").path("allowedActions"), "authoring_read_selected_sources")) {
+                int remaining = 16000;
+                var previews = result.putArray("selectedSourcePreviews");
+                for (var source : selectedSourceData(work)) {
+                    String text;
+                    boolean prose = source.path("content").isTextual();
+                    try { text = prose ? source.path("content").asText() : mapper.writeValueAsString(source.path("operations")); }
+                    catch (java.io.IOException invalid) { throw new IllegalStateException("Selected documentation could not be prepared.", invalid); }
+                    int length = Math.min(remaining, text.length());
+                    if (length > 0 && length < text.length() && Character.isHighSurrogate(text.charAt(length - 1))) length--;
+                    previews.addObject().put("sourceId", source.path("id").asText()).put("title", source.path("title").asText())
+                        .put("representation", prose ? "TEXT" : "PARSED_OPERATIONS")
+                        .put("excerpt", text.substring(0, length)).put("complete", length == text.length());
+                    remaining -= length;
+                }
+            }
             result.set("currentValidation", work.work().path("baselineFindings"));
             if (List.of("ACTIONS", "BRAIN_SETUP").contains(work.session().task) && "PREPARE".equals(work.turn().path("command").asText())) {
                 var scope = result.putObject("preparationScope");
@@ -127,26 +157,27 @@ public class AuthoringDraftOperations {
 
     @Transactional
     public JsonNode selectedSources(Caller caller) {
-        return authorized(caller, false, work -> {
-            var result = mapper.createArrayNode();
-            for (var source : work.content().path("sources")) {
-                if (!contains(work.turn().path("sourceIds"), source.path("sourceId").asText())) continue;
-                var item = mapper.createObjectNode().put("id", source.path("sourceId").asText())
-                    .put("title", source.path("title").asText());
-                if (!work.turn().path("operationIds").isEmpty() && source.path("operations").isArray() && !source.path("operations").isEmpty()) {
-                    var selected = mapper.createArrayNode();
-                    for (var operation : source.path("operations"))
-                        if (contains(work.turn().path("operationIds"), operation.path("id").asText())) selected.add(operation);
-                    if (selected.isEmpty()) continue;
-                    item.set("operations", selected);
-                } else {
-                    item.put("content", source.path("content").asText());
-                    if (source.path("operations").isArray()) item.set("operations", source.path("operations"));
-                }
-                result.add(item);
+        return authorized(caller, false, this::selectedSourceData);
+    }
+    private JsonNode selectedSourceData(Work work) {
+        var result = mapper.createArrayNode();
+        for (var source : work.content().path("sources")) {
+            if (!contains(work.turn().path("sourceIds"), source.path("sourceId").asText())) continue;
+            var item = mapper.createObjectNode().put("id", source.path("sourceId").asText())
+                .put("title", source.path("title").asText());
+            if (!work.turn().path("operationIds").isEmpty() && source.path("operations").isArray() && !source.path("operations").isEmpty()) {
+                var selected = mapper.createArrayNode();
+                for (var operation : source.path("operations"))
+                    if (contains(work.turn().path("operationIds"), operation.path("id").asText())) selected.add(operation);
+                if (selected.isEmpty()) continue;
+                item.set("operations", selected);
+            } else {
+                item.put("content", source.path("content").asText());
+                if (source.path("operations").isArray()) item.set("operations", source.path("operations"));
             }
-            return changes.project(result);
-        });
+            result.add(item);
+        }
+        return changes.project(result);
     }
     private boolean contains(JsonNode values, String selected) {
         for (var value : values) if (selected.equals(value.asText())) return true;
@@ -164,7 +195,7 @@ public class AuthoringDraftOperations {
                 work.work().get("baselineFindings"), work.session().task, work.snapshot().configuration(), candidate.candidate()));
             result.set("diff", candidate.diff());
             result.put("fingerprint", fingerprint(work.snapshot().configuration()));
-            result.put("saved", false);
+            result.put("status", "CHECKED_NOT_SAVED").put("saved", false);
             var checked = work.work().putObject("lastCheck");
             checked.set("changes", changes.project(requestedChanges));
             checked.set("diff", result.path("diff")); checked.set("findings", result.path("findings"));

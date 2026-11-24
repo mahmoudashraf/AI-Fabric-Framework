@@ -203,3 +203,33 @@ these actual preserved limits, not create a second allocation.
   checks passed. The first draft of that test fixture had an assertion-order and
   duplicate test-idempotency issue; corrected final run is green. Hosted Runtime
   update and complete live rerun remain required.
+
+## Current Qualification, 24 November 2026, 13:00 UTC
+
+- Runtime cbb4f6358 passed full local807checks/5existing skips and full CI
+ 45395295481. Official framework JARs attested; stage artifactdsa-0003c8f4/
+  digest582ad942ae4028cc0257aceeac1f165d8f4dfc66cd15abaad34c76f8520385a7.
+  Normal rel-1fea7238/ver-fb756de5 APPLIED_VERIFIED/PASSED. Backendf2f66db02
+  healthy (digest27fa8419); UI remainsf54. Production unchanged.
+- Complete live baseline did not pass quality. Precision failures are gone;
+  selected operation, narrow focus and both genuine missing-input cases passed.
+  One prose case saved but hid its optional input from extraction; two prose
+  cases asked for already-selected documentation; one OpenAPI case saved its
+  actual changes before exhausting decision corrections. All eight fixtures
+  and sessions were cleaned. No green full-suite or production claim.
+- Native startup assertions prove full published instructions and READ/WRITE
+  tool visibility reach the actual model-call boundary. The active model remains
+  the intended gpt-5.4-mini. No model/account drift was used as an explanation.
+- Context READ now provides at most16000characters of already-selected source
+  previews, with explicit completeness, only when BOTH the signed caller scope
+  and frozen published tools allow the existing source reader. Its source filter
+  is shared with the full-read endpoint; operation selection cannot leak raw
+  contract content or unselected endpoints. Full source reads remain available.
+- API planning sees only action/routing settings and relevant contracts; unseen
+  configuration remains unchanged. Checks explicitly return CHECKED_NOT_SAVED.
+  The API profile explains preview completeness, draft saving and optional input
+  collection. These are guidance/context changes, not semantic hard validators.
+- Runtime presents the model's own typed clarification questions when no separate
+  message was generated, rather than generic failure text.62backend scope/safety/
+  compiler checks and8Runtime checks passed. Commit/build/stage/live qualification
+  of these refinements is still required.

@@ -73,6 +73,12 @@ class AuthoringToolAuthenticationTest {
         assertThatThrownBy(() -> authentication.verify(authorized, "session", "turn", "authoring_update_draft"))
             .hasMessageContaining("ACCESS_DENIED");
     }
+    @Test void contextSourcePreviewsRequireTheSeparateSelectedSourceReadScope() {
+        var scoped = headers(); scoped.set("X-AIFABRIC-AUTH-SCOPES", "configuration:author,action:authoring_get_context");
+        assertThat(authentication.verify(scoped, "session", "turn", "authoring_get_context").selectedSourceReadAllowed()).isFalse();
+        scoped.set("X-AIFABRIC-AUTH-SCOPES", "configuration:author,action:authoring_get_context,action:authoring_read_selected_sources");
+        assertThat(authentication.verify(scoped, "session", "turn", "authoring_get_context").selectedSourceReadAllowed()).isTrue();
+    }
     @Test void revokedPublishedAuthorityHasNoLegacyIdentityFallback() {
         when(bindings.identity("release")).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "AUTHORING_MANAGED_BRAIN_UNAVAILABLE"));
         assertThatThrownBy(() -> authentication.verify(headers(), "session", "turn")).hasMessageContaining("MANAGED_BRAIN_UNAVAILABLE");
