@@ -161,6 +161,22 @@ class ConfigurationAssistantIntegrationTest {
         assertThat(state.at("/turns/0/notice").asText()).contains("saved before");
         assistant.proposal(sessionId, state.at("/turns/0/id").asText(), "undo"); assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
     }
+    @Test void checkedCandidateDiagnosticsRemainVisibleWithoutClaimingSavedEffectsOrExposingWorkAuthority() throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            operations.check(caller(call.getArgument(1), call.getArgument(3)), change("Checked but not saved"));
+            return response("STOPPED");
+        });
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "checked-diagnostics");
+        var turn = await().at("/turns/0");
+        assertThat(turn.path("status").asText()).isEqualTo("FAILED");
+        assertThat(turn.at("/diagnostics/checkedCandidate/status").asText()).isEqualTo("CHECKED_NOT_SAVED");
+        assertThat(turn.at("/diagnostics/checkedCandidate/saved").asBoolean(true)).isFalse();
+        assertThat(turn.at("/diagnostics/checkedCandidate/diff")).isNotEmpty();
+        assertThat(turn.at("/diagnostics/checkedCandidate/findings").isObject()).isTrue();
+        assertThat(turn.path("operations")).isEmpty(); assertThat(turn.has("brainWork")).isFalse();
+        assertThat(turn.path("diagnostics").toString()).doesNotContain("principal", "allowedActions", "resourceFingerprint");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+    }
     @Test void twoGenuineWritesRemainIndividuallyVisibleAndGroupUndoReversesBoth() throws Exception {
         when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
             var who = caller(call.getArgument(1), call.getArgument(3));
@@ -229,7 +245,7 @@ class ConfigurationAssistantIntegrationTest {
         when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
             var who = caller(call.getArgument(1), call.getArgument(3)); observed.set(operations.selectedSources(who));
             assertThat(operations.context(who).at("/preparationScope/documentedOperationCount").asInt()).isEqualTo(1);
-            assertThat(call.getArgument(5, String.class)).startsWith("Prepare"); return response("COMPLETE");
+            assertThat(call.getArgument(5, String.class)).startsWith("Create or update").contains("when not preview-only"); return response("COMPLETE");
         });
         assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("", true, List.of(source), List.of(selected), new AuthoringFeedbackPolicy(true, 2),
             "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "selected");

@@ -10,8 +10,8 @@ final class AuthoringTaskIntent {
 
     enum Section {
         BRAIN_SETUP("BRAIN_SETUP", "Prepare the requested Smart Brain setup across its supported configuration areas"),
-        ACTIONS("ACTIONS", "Prepare action definitions, parameters and endpoint routing"),
-        CONNECTIONS("CONNECTIONS", "Prepare connection and endpoint routing settings"),
+        ACTIONS("ACTIONS", "Create or update action definitions, parameters and endpoint routing from the selected documentation and save the requested changes to this editable draft when not preview-only"),
+        CONNECTIONS("CONNECTIONS", "Create or update connection and endpoint routing settings and save the requested changes to this editable draft when not preview-only"),
         KNOWLEDGE("KNOWLEDGE", "Prepare knowledge-source settings"),
         DOCUMENTS("KNOWLEDGE", "Prepare document knowledge-source settings"),
         DOCUMENT_PREPARATION("DOCUMENT_PREPARATION", "Analyze the selected document excerpts and any actual evaluation results. Configure suitable extraction, chunking and evaluation settings and prepare useful test questions"),

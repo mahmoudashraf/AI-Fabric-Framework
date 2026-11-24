@@ -20915,3 +20915,29 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
 4Mtoken/USD5capsunchanged. Asyncquestionaskedextra20stage turns; NOTapproved/
  appliedyet. Needfinishrecovery, realquality/regression/task/resource/document/
  cancellation/publishedbindingchecks, thenactualstagingacceptancebeforeprod.
+### 010.75 Continued Qualification - 24 November 2026, 13:34 UTC
+
+- Normalrecoveryrel-b2b65d93/ver828715ecAPPLIED_VERIFIED supportedmini restored.
+  APIguidanceb5d37d3c7pushed; core45403090762failedbeforecompileMavenCentral429
+  SpringBootparent,notatestfailure;storage45403149460/quota45403153643PASS.
+  CurrentstageBackend/Runtime6471,UI f54, FW68. Production67unchanged.
+- Realcreation-guidance4/5casesPASS+rename/Undo/WarmBrief/searchPASS;1prose
+  stoppedtruthfullyafterCHECKED_NOT_SAVED. BroaderwholeBrain/preview/guide/
+  sourceinjectionPASS. ModelsactualopenaiMaxTokens1024correctinheritedgeneration
+  default;harnesswronglyrequiredmissinggenerationMaxTokensoverride. ManagerFAIL
+  CORRECTION_LIMIT(noeffects);normalmanualsamenarrowedit+validationPASS. Need
+  actualcandidatefindings,notguessbaselinepluginfailure.
+- Newuncommitted: typedAPIpagecommandexplicitlyCreate/update/saveunlesspreview;
+  ordinaryqueryuntouched,permissions/toolsequenceunchanged. ExistingAdvanced
+  diagnosticsexposecheckedcandidatefindings/diffwithsaved:falsebutnotworkauth.
+ 85backendtestsPASSin/private/tmp/loomai-01075-command-diagnostics-final.log.
+  Initial84runfailedoneoldfixtureassertionstartswithPrepare(threwAssertionError
+  inmockworkerandtimedout);updatedtoexactnewcommand,84then85PASS.
+- PrivatedataplugindraftmappingPASS/archiveduninstalled. Engagefixture409needs
+  deployment-boundconsumer;failedbeforeinference,twoownconsumersdeleted. Fix
+  fixtureusingconfiguration-onlytemporaryBrain+boundconsumer(normalAPIs),noinfra.
+  Allcustomer/staffsessionslogout. Budgetexpected208/210(noextraapprovalyet).
+  Async20extrastageturnsrequestedpending;4Mtokens/$5stillunchanged. Needcommit
+  current6files/buildCore+storage/quota,stagebackend,traceManagerandretestAPI,
+  completeEngage/doc/cancel/bindings/Support/Taskchecksandrealprodverification.
+

@@ -520,6 +520,13 @@ public class ConfigurationAssistantService {
             ObjectNode turn = original.deepCopy(); turn.remove(List.of("requestKey", "commandHash", "sourceIds", "operationIds", "brainWork"));
             if (original.path("brainWork").isObject()) {
                 turn.set("operations", changes.project(original.at("/brainWork/operations")));
+                var checked = original.at("/brainWork/lastCheck");
+                if (checked.isObject()) {
+                    var diagnostic = mapper.createObjectNode().put("status", "CHECKED_NOT_SAVED").put("saved", false);
+                    diagnostic.set("diff", changes.project(checked.path("diff")));
+                    diagnostic.set("findings", changes.project(checked.path("findings")));
+                    ((ObjectNode) turn.with("diagnostics")).set("checkedCandidate", diagnostic);
+                }
                 if (!"UNDONE".equals(turn.path("status").asText())) {
                     ObjectNode projected = original.deepCopy(); projectSavedOperations(projected,
                         "SAVED".equals(turn.path("status").asText()) ? "COMPLETE" : "STOPPED");

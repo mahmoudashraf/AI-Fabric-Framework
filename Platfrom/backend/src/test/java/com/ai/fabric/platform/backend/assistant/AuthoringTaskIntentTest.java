@@ -35,12 +35,21 @@ class AuthoringTaskIntentTest {
             .doesNotContain("do not ask", "never its secret value", "Explicitly public/no-auth");
         var template = new ConfigurationAssistantTemplate(new com.fasterxml.jackson.databind.ObjectMapper()).behavior();
         assertThat(template.at("/workflowAssistance/profiles/0/instructions").asText())
-            .contains("Public/no-auth operations need no credential", "do not ask whether more undocumented operations exist");
+            .contains("Public/no-auth operations need no credential", "A single documented operation is sufficient");
         assertThat(result.query()).endsWith("Only the availability endpoint.");
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())
             .isEqualTo("Explain this route only.");
         assertThat(AuthoringTaskIntent.resolve("MODELS", "", "PREPARE", null).query())
             .doesNotContain("ALL_SELECTED_SOURCE_OPERATIONS", "operation scope", "undocumented operations");
+    }
+    @Test void apiPreparationExplicitlyRequestsCreationAndDraftSaveWithoutSelectingTheActionSequence() {
+        for (String task : List.of("ACTIONS", "CONNECTIONS")) {
+            var prepared = AuthoringTaskIntent.resolve(task, "", "PREPARE", null);
+            assertThat(prepared.query()).startsWith("Create or update").contains("save the requested changes", "when not preview-only")
+                .doesNotContain("authoring_check_candidate", "authoring_update_draft", "publish", "provision");
+        }
+        assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain the endpoint only.", null, null).query())
+            .isEqualTo("Explain the endpoint only.");
     }
     @Test void theHttpTurnContractDeserializesTypedIntentAndEditorContext() throws Exception {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
