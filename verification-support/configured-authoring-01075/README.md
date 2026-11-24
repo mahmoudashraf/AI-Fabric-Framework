@@ -40,8 +40,8 @@ production acceptance record.
   resistance and cancellation/source erasure passed. Earlier allowance-blocked
   tests remain failed records, not retroactively relabelled passes.
 - One extra sequential test saved both correct edits but was falsely marked
-  failed: the completion callback required the exact earlier argument fingerprint
-  to an earlier advisory check. A later valid save may refine those arguments.
+  failed: the completion callback required equality with the earlier advisory
+  check's argument fingerprint. A later valid save may refine those arguments.
   The correction accepts its actual later EXECUTED receipt, while Platform retains
   exact per-operation replay hashes, validation and authorization. Runtime
   regression and live retest are pending; do not call the full migration closed.

@@ -124,7 +124,7 @@ class ConfiguredAuthoringStartupTest {
             var modelContext = WorkflowAssistanceBundleTest.MAPPER.readTree(generated.getPrompt());
             assertThat(modelContext.path("actions").toString()).contains("authoring_update_draft", "authoring_get_context");
             if ("WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED".equals(modelContext.path("previousFinding").asText())) {
-                assertThat(modelContext.path("previousFindingDetail").asText()).contains("no matching EXECUTED save receipt");
+                assertThat(modelContext.path("previousFindingDetail").asText()).contains("no later EXECUTED save receipt");
                 feedbackObserved.set(true);
             }
             WorkflowModelCallScope.beforeModelCall();
