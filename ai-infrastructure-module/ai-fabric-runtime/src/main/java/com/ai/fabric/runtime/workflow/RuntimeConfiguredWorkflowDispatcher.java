@@ -163,6 +163,9 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
             try { record = repository.create(queued.claimed(invocation.owner(), clock.instant(), invocation.deadline())); }
             catch (DurableExecutionRepository.DuplicateExecutionException duplicate) { record = repository.findById(workId).orElseThrow(); }
         }
+        // Timestamp precision belongs to the persistent store. Read it back and
+        // narrow the checkpoint ceiling instead of tolerating a later deadline.
+        record = repository.findById(workId).orElseThrow(() -> new IllegalStateException("WORKFLOW_EXECUTION_MISSING"));
         if (!security.sameFingerprint(authorityHash, record.accessFingerprint()) || !security.sameFingerprint(requestHash, record.requestFingerprint())
             || !security.sameFingerprint(registered.contentHash(), record.specialistContentHash())) throw new IllegalArgumentException("WORKFLOW_REPLAY_CONFLICT");
         if (record.status() == ExecutionHandleStatus.QUEUED) {
@@ -178,7 +181,7 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
         var effective = new WorkflowPolicy(true, published.maxActions(), invocation.work().previewOnly() ? 0 : published.maxWrites(),
             published.maxModelCalls(), invocation.work().maxCorrections(), published.timeout());
         var root = new BoundedWorkflowRunner.Request(workId, requestHash, authorityHash, registered.contentHash(),
-            invocation.deadline(), invocation.work().previewOnly());
+            persistedDeadline(invocation.deadline(), record.deadline()), invocation.work().previewOnly());
         context.setOrchestrationTurnGuard(invocation.host().getOrchestrationTurnGuard());
         var metadata = new java.util.LinkedHashMap<>(context.getMetadata());
         metadata.put("authoringSessionId", invocation.work().sessionId()); metadata.put("authoringTurnId", workId);
@@ -233,6 +236,10 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
             }
         };
         return new WorkflowExecution(root, effective, store, authority);
+    }
+
+    static Instant persistedDeadline(Instant requested, Instant persisted) {
+        return requested.isBefore(persisted) ? requested : persisted;
     }
 
     private void finish(Invocation invocation, AIExecutionResult<?> result) {

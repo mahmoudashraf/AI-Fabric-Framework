@@ -188,3 +188,18 @@ these actual preserved limits, not create a second allocation.
 - Database-backed selected-prose regression12passed; compiler/binding checks23
   passed. Further live operation-selection/missing-input tests are running.
   Production remains unchanged. Full acceptance is still pending.
+
+- Further scope tests passed narrow endpoint preparation and missing-credential
+  clarification, but two requests stopped before inference. The deadline suffix
+  correlated exactly with PostgreSQL rounding in all six inspected cases: every
+  down-rounded deadline failed, every up-rounded deadline proceeded. The SDK
+  checkpoint guard correctly rejected the original nanosecond ceiling when it
+  exceeded the persisted microsecond ceiling. The805-check diagnostic Runtime
+  CI also exposed this in its ordinary JDBC startup test (not a transient CI error).
+- Runtime now rereads its durable execution and takes the earlier of the
+  requested and persisted deadlines before creating the workflow request. No
+  tolerance, wider authority or weakened checkpoint comparison is introduced.
+  Real PostgreSQL reproduces both directions;7focused precision/startup/diagnostic
+  checks passed. The first draft of that test fixture had an assertion-order and
+  duplicate test-idempotency issue; corrected final run is green. Hosted Runtime
+  update and complete live rerun remain required.

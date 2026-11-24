@@ -20848,3 +20848,21 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Needs commit/CI/image and normal stage apply before rechecking the UI failure.
   Existing stage Runtime/UI f54, backend3b63, framework68; production unchanged.
   Four live selection/missing-input API cases are running in native-scopes.
+
+- 12:37UTC: f2f66db02b765e44b9ff3dc560aae268ab39f30b pushed. Backend image
+  CI45394294225PASS; storage45394438433/quota45394443550stillrunning. Runtime
+  CI45394294242FAILED805checks/1startupfailure/1skip, actualsameprecisionbug,
+  notanetworkfailure. No image or rollout from that failed Runtime run.
+- Native-scopes: narrowfocusSAVED andmissingcredentialNEEDS_INPUTPASS;
+  selectedoperation/missinghostearlyFAILED. All4fixtures/sessionscleaned and
+  bothnormalcustomer/staffsessionsloggedout. No further paid tests beforefix.
+- Tracedrootcause: selectedfailuredeadline...381554019 andmissinghost...502488271
+  rounddowninPG; passing...306052508/...193260720 roundup. Same exact pattern
+  in bothguidedcases. DurableWorkflowCheckpointStore rejects originaldeadline
+  exceeding persisteddeadline by19..271ns before modelcall. SDKguardiscorrect.
+- Runtimehostnowrereadsdurablerecordand narrowsrootdeadline tomin(requested,
+  persisted). Strictscope/leasechecks unchanged. RealPG2roundingdirections,
+  safediagnostics3andnormalstartup/write2testsPASS(7total). Initialtestfixture
+  assertion-order/idempotencyerrorscorrectedandfailedrunretained. Commit/build
+  this Runtimecorrection, attestofficial68JARs, then normal stageupgrade and
+  rerunactualUI/APIstories. No new publicFWrelease needed. Production unchanged.
