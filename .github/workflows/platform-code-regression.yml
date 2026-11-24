@@ -50,8 +50,11 @@ on:
 jobs:
   verify:
     name: Verify platform code regression
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
+    env:
+      # docker-java 3.x otherwise defaults to API 1.32, rejected by newer engines.
+      JAVA_TOOL_OPTIONS: -Dapi.version=1.44
     permissions:
       contents: read
     steps:

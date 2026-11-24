@@ -223,8 +223,7 @@ class AIWorkspaceDomainVerificationServiceTest {
         assertThat(currentDomain().getStatus()).isEqualTo(AIWorkspaceDomainStatus.ROUTING_PENDING);
         assertThat(currentDomain().getLastVerificationError()).isEqualTo(error);
         verifyNoInteractions(audit);
-        worker.runNext();
-        assertThat(currentDomain().getStatus()).isEqualTo(AIWorkspaceDomainStatus.VERIFIED);
+        awaitSuccessfulRetry();
         verify(audit, times(1)).record(any(), any(), any(), any());
     }
 
@@ -295,8 +294,16 @@ class AIWorkspaceDomainVerificationServiceTest {
         assertThat(currentDomain().getStatus()).isEqualTo(AIWorkspaceDomainStatus.ROUTING_PENDING);
         verifyNoInteractions(audit);
         doReturn(verified()).when(verifier).verifyRoute(HOST);
-        worker.runNext();
-        assertThat(currentDomain().getStatus()).isEqualTo(AIWorkspaceDomainStatus.VERIFIED);
+        awaitSuccessfulRetry();
+    }
+
+    private void awaitSuccessfulRetry() {
+        // Future completion can precede the zero-queue executor accepting another probe.
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(2)).pollInterval(Duration.ofMillis(10))
+            .untilAsserted(() -> {
+                worker.runNext();
+                assertThat(currentDomain().getStatus()).isEqualTo(AIWorkspaceDomainStatus.VERIFIED);
+            });
     }
 
     @Test
