@@ -54,13 +54,17 @@ confirmation labels come from declared policy fields; missing optional fields
 are not a new execution gate. Opening the list does not mount a dirty action
 editor or select a capability automatically.
 
-Turns save editable drafts without per-turn approval. The selected editor and
-footer are disabled/inert while a request runs; modal command buttons also use
-the busy state. Successful SAVED receipts invalidate resource queries and reload
+Turns save editable drafts without per-turn approval. AI activity does not lock
+manual editors, footer commands or page navigation. The intended workflow is
+AI finishes, then the user reviews and edits before publishing; requested AI
+changes may replace manual values without a conflict-approval step. Normal
+manual-save pending controls and unsaved-navigation confirmation remain.
+Successful SAVED receipts invalidate resource queries and reload
 the selected editor, including unchanged draft IDs/revision counters. Brain page
 local state can reset on that remount; route/environment and unrelated pages
-are retained. A failed editor reload keeps manual input paused until Refresh
-succeeds. Undo uses UNDONE/undoReceipt and the normal resource reload.
+are retained. A failed editor reload is visible and can be retried with Refresh;
+it does not lock manual input or leave the assistant permanently busy. Undo
+uses UNDONE/undoReceipt and the normal resource reload.
 
 Only an actor/resource/task-scoped session ID is stored in sessionStorage.
 Restoration GETs the session; it never replays inference or saves. Lost turn

@@ -44,11 +44,13 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
       setRefreshing(true)
       try {
         await onSavedRef.current()
-        if (mounted.current) { unseen.forEach(id => saved.current.add(id)); setRefreshing(false) }
+        if (mounted.current) unseen.forEach(id => saved.current.add(id))
       } catch (error) {
-        const failure = new EditorRefreshError(`Draft changes were saved, but the editor could not be reloaded. Refresh the session to resume editing. ${errorMessage(error)}`)
+        const failure = new EditorRefreshError(`Draft changes were saved, but the editor could not be reloaded. Refresh the session to load the saved values. ${errorMessage(error)}`)
         if (mounted.current) setError(failure.message)
         throw failure
+      } finally {
+        if (mounted.current) setRefreshing(false)
       }
     }
   }, [scope.resourceKind, scope.resourceId, scope.task, storageKey])

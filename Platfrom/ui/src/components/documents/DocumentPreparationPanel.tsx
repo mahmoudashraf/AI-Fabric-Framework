@@ -90,7 +90,7 @@ export function DocumentPreparationPanel({ target, sourceId, canEdit: requestedE
     setTestPlanExpanded(true)
   }
   const optimize = (evaluateFirst = false) => {
-    if (!assistant || !snapshot || dirty) return
+    if (!assistant || !snapshot || evaluateFirst && dirty) return
     let cancelled = false, evaluationId: string | null = null
     const operationKey = crypto.randomUUID()
     assistant({ scope: { resourceKind: 'DOCUMENT_SOURCE', resourceId: [target.deploymentId, target.targetProfileId, target.releaseId, sourceId].join('|'),
@@ -138,7 +138,7 @@ export function DocumentPreparationPanel({ target, sourceId, canEdit: requestedE
       } })
   }
   const improveSearch = () => {
-    if (!assistant || !run || dirty) return
+    if (!assistant || !run) return
     assistant({ scope: { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: target.deploymentId, task: 'SEARCH',
       editorContext: { section: 'SEARCH', selectedDefinitionIds: [] } }, prepare: true,
       notice: 'Use these observed results to prepare Brain search settings. This saves a draft only; it does not publish, index, approve external processing or create an allowance.',
@@ -155,7 +155,7 @@ export function DocumentPreparationPanel({ target, sourceId, canEdit: requestedE
   return <Box sx={{ borderTop: 1, borderColor: 'divider', mt: 1 }}>
     <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ md: 'center' }} justifyContent="space-between" spacing={1} sx={{ py: 2 }}>
       <Box><Typography variant="h6">Make this document useful to your AI</Typography><Typography variant="body2" color="text.secondary">Prepare the text, index a reviewed candidate, then test real questions.</Typography></Box>
-      <Button variant="contained" startIcon={<AutoAwesomeOutlined />} disabled={!assistant || !canEdit || dirty || indexBusy} onClick={() => optimize()}>Optimize with AI</Button>
+      <Button variant="contained" startIcon={<AutoAwesomeOutlined />} disabled={!assistant || !canEdit || indexBusy} onClick={() => optimize()}>Optimize with AI</Button>
     </Stack>
     <Tabs value={view} onChange={(_, value: number) => setView(value)} variant="scrollable" aria-label="Document journey">
       <Tab label="1. Prepare" /><Tab label="2. Index" /><Tab label="3. Evaluate" />
@@ -305,8 +305,8 @@ export function DocumentPreparationPanel({ target, sourceId, canEdit: requestedE
             <Box component="pre" sx={{ fontSize: 12, overflow: 'auto', maxHeight: 240 }}>{JSON.stringify(item.retrieval.diagnostics, null, 2)}</Box></Box>}
         </Box>)}
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button startIcon={<AutoAwesomeOutlined />} disabled={!assistant || dirty || !canEdit || running(run)} onClick={() => optimize()}>Improve document</Button>
-          <Button startIcon={<ManageSearchOutlined />} disabled={!assistant || dirty || !canEdit || running(run)} onClick={improveSearch}>Improve Brain search</Button>
+          <Button startIcon={<AutoAwesomeOutlined />} disabled={!assistant || !canEdit || running(run)} onClick={() => optimize()}>Improve document</Button>
+          <Button startIcon={<ManageSearchOutlined />} disabled={!assistant || !canEdit || running(run)} onClick={improveSearch}>Improve Brain search</Button>
         </Stack>
       </Stack>}
     </Stack>}

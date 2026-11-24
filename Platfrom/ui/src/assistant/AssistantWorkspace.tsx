@@ -29,9 +29,8 @@ import { assistantPage, editorContext, userTurnText } from './pagePresentation'
 
 type Props = {
   scope: AssistantScope | null
-  children: ReactNode | ((state: { paused: boolean; revision: number }) => ReactNode)
+  children: ReactNode | ((state: { revision: number }) => ReactNode)
   onSaved: () => Promise<void>
-  onBusyChange?: (busy: boolean) => void
   editorBusy?: boolean
   readOnlyReason?: string
   initiallyOpen?: boolean
@@ -47,7 +46,7 @@ type PendingSource = SourceRequest & { id: number; identity: string }
 const AssistantSourceContext = createContext<((request: SourceRequest) => void) | null>(null)
 export const useAssistantSource = () => useContext(AssistantSourceContext)
 
-export function AssistantWorkspace({ scope: baseScope, children, onSaved, onBusyChange, editorBusy, readOnlyReason, initiallyOpen = false, visibilityKey, guideOnly, links, setupLinks, reviewHref }: Props) {
+export function AssistantWorkspace({ scope: baseScope, children, onSaved, editorBusy, readOnlyReason, initiallyOpen = false, visibilityKey, guideOnly, links, setupLinks, reviewHref }: Props) {
   const baseIdentity = baseScope ? scopeIdentity(baseScope) : null
   const parentIdentity = `${baseIdentity}:${JSON.stringify(baseScope?.editorContext ?? null)}`
   const [override, setOverride] = useState<{ parent: string | null; scope: AssistantScope } | null>(null)
@@ -69,19 +68,10 @@ export function AssistantWorkspace({ scope: baseScope, children, onSaved, onBusy
   const [activity, setActivity] = useState({ identity, busy: false })
   const busy = activity.identity === identity && activity.busy
   const [revision, setRevision] = useState(0)
-  const editor = useRef<HTMLDivElement>(null), opener = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
   const savedCallback = useRef(onSaved); savedCallback.current = onSaved
   const refreshEditor = useCallback(async () => { await savedCallback.current(); setRevision(value => value + 1) }, [])
   const reportActivity = useCallback((value: boolean) => setActivity({ identity, busy: value }), [identity])
-  const busyCallback = useRef(onBusyChange); busyCallback.current = onBusyChange
-  useEffect(() => { busyCallback.current?.(busy); return () => busyCallback.current?.(false) }, [busy])
-  useEffect(() => {
-    const node = editor.current
-    if (!node) return
-    node.toggleAttribute('inert', busy)
-    if (busy && node.contains(document.activeElement)) (document.activeElement as HTMLElement)?.blur()
-    return () => node.removeAttribute('inert')
-  }, [busy])
   const close = () => { setVisibility({ ...current, open: false }); requestAnimationFrame(() => opener.current?.focus()) }
   return <AssistantSourceContext.Provider value={scope ? requestSource : null}><Box data-assistant-workspace data-assistant-open={open} sx={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
     {scope && <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ borderBottom: 1, borderColor: 'divider', px: 2, py: .5, flexShrink: 0 }}>
@@ -90,11 +80,10 @@ export function AssistantWorkspace({ scope: baseScope, children, onSaved, onBusy
     </Stack>}
     <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
       {/* Scope changes reset the assistant, never an editor's retained manual buffer. */}
-      <Box ref={editor} aria-busy={busy} sx={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', opacity: busy ? .6 : 1 }}>
-          {typeof children === 'function' ? children({ paused: busy, revision }) : children}
+      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto' }}>
+          {typeof children === 'function' ? children({ revision }) : children}
         </Box>
-        {busy && <Box sx={{ position: 'absolute', inset: 0, zIndex: 5, cursor: 'wait' }} />}
       </Box>
       {scope && <ScopedAssistant key={identity} scope={scope} enabled={current.activated} open={open} onSaved={refreshEditor} onBusyChange={reportActivity}
         sourceRequest={sourceRequest?.identity === identity ? sourceRequest : null}
@@ -262,7 +251,7 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
       </Stack>
       {showPreparation && <Typography variant="body2" sx={{ mt: .5, fontSize: 13, lineHeight: 1.6 }}>{page.welcome}</Typography>}
     </Box>
-    {Boolean(setupLinks?.length) && <Stack component="nav" aria-label="AI setup steps" sx={{ mb: 1, flexShrink: 0 }}>{setupLinks?.map(link => <Button key={link.href} component={RouterLink} to={link.href} disabled={c.busy || editorBusy} endIcon={<ArrowForwardRounded fontSize="small" />} sx={{ justifyContent: 'space-between', textAlign: 'left', px: 0, py: 1, borderBottom: 1, borderColor: 'divider', fontWeight: 600 }}>{link.label}</Button>)}</Stack>}
+    {Boolean(setupLinks?.length) && <Stack component="nav" aria-label="AI setup steps" sx={{ mb: 1, flexShrink: 0 }}>{setupLinks?.map(link => <Button key={link.href} component={RouterLink} to={link.href} disabled={editorBusy} endIcon={<ArrowForwardRounded fontSize="small" />} sx={{ justifyContent: 'space-between', textAlign: 'left', px: 0, py: 1, borderBottom: 1, borderColor: 'divider', fontWeight: 600 }}>{link.label}</Button>)}</Stack>}
     {readOnly && <Alert severity="info" sx={{ mt: 1 }}>{readOnly}{!guideOnly && ' Preview only; no live resource is changed.'}</Alert>}
     {Boolean(links?.length) && <Box component="details" sx={{ mt: 1, fontSize: 12, maxHeight: '24dvh', overflow: 'auto', flexShrink: 0 }}><summary>Open resource editor</summary><Stack alignItems="flex-start">{links?.map(link => <Button key={link.href} size="small" component={RouterLink} to={link.href} onClick={onClose}>{link.label}</Button>)}</Stack></Box>}
     {unavailable && <Alert severity="warning" sx={{ mt: 1 }}>{c.status.data?.unavailableReason || 'The configuration assistant is unavailable. Manual editing is still available.'}</Alert>}

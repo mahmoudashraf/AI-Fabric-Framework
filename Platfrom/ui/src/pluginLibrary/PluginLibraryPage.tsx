@@ -138,8 +138,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const [baseline, setBaseline] = useState(source), [step, setStep] = useState(0), [dataset, setDataset] = useState(0), [showSource, setShowSource] = useState(false)
   const feedback = location.state?.pluginFeedback as { error?: string; message?: string; check?: PluginCheck } | undefined
   const [manualBusy, setBusy] = useState(false), [error, setError] = useState(feedback?.error ?? ''), [message, setMessage] = useState(feedback?.message ?? ''), [check, setCheck] = useState<PluginCheck | null>(feedback?.check ?? null)
-  const [assistantBusy, setAssistantBusy] = useState(false)
-  const busy = manualBusy || assistantBusy
+  const busy = manualBusy
   const [archiveOpen, setArchiveOpen] = useState(false), [sourceChange, setSourceChange] = useState<SourceKind | null>(null)
   const [reloadOpen, setReloadOpen] = useState(false)
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({})
@@ -170,7 +169,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
     setFocusPath(pointerPath(item.path))
   }
   const dirty = !readOnly && (source !== baseline || invalidFields)
-  const blocker = useBlocker(() => !leaving.current && (busy || assistantBusy || dirty))
+  const blocker = useBlocker(() => !leaving.current && (busy || dirty))
   useEffect(() => {
     if (detail || !saved || busy) return
     leaving.current = true
@@ -179,17 +178,17 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
     })
   }, [saved, busy, detail, error, message, check, navigate, location.search])
   useEffect(() => {
-    if (!busy && !assistantBusy && !dirty) return
+    if (!busy && !dirty) return
     const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', prevent); return () => window.removeEventListener('beforeunload', prevent)
-  }, [busy, assistantBusy, dirty])
+  }, [busy, dirty])
   const resetFeedback = () => { setMessage(''); setError(''); setCheck(null) }
   const edit = (edits: Parameters<typeof patchDocument>[1]) => {
     try { setSource(current => patchDocument(current, edits)); resetFeedback() } catch (error) { setError(error instanceof Error ? error.message : 'Unable to edit this field.') }
   }
   const adopt = (result: PluginDetail) => { setSaved(result); setBaseline(result.manifestJson); setSource(result.manifestJson); clearNumeric(); client.setQueryData([...key(customerId), result.pluginId], result) }
   const command = async (action: 'save' | 'check' | 'version' | 'archive') => {
-    if (readOnly || busy || assistantBusy || !document || invalidFields) return
+    if (readOnly || busy || !document || invalidFields) return
     if (action === 'check') setReviewRequired(true)
     if (action === 'version' && missing.length) {
       setReviewRequired(true); setStep(5); setShowSource(false); setCheck(null); setError(''); setMessage('')
@@ -232,7 +231,7 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
   const chosenVersion = immutableSource && document ? textAt(document, ['version']) : saved?.latestVersion
   const useHref = saved && saved.status !== 'ARCHIVED' && chosenVersion && back ? (() => { const url = new URL(back, 'https://console.invalid'); const brainId = url.pathname.split('/')[2]; url.pathname = `/smart-brains/${brainId}/capabilities/add`; url.searchParams.set('pluginId', saved.pluginId); url.searchParams.set('pluginVersion', chosenVersion); url.searchParams.set('view', 'setup'); url.searchParams.set('type', 'DATA'); return `${url.pathname}${url.search}` })() : null
   return <AssistantWorkspace scope={saved && !immutableSource ? { resourceKind: 'PRIVATE_DATA_PLUGIN', resourceId: saved.pluginId, task: 'DATA_PLUGIN' } : null}
-    editorBusy={manualBusy} onBusyChange={setAssistantBusy} readOnlyReason={readOnly ? 'This private definition is read-only.' : undefined}
+    editorBusy={manualBusy} readOnlyReason={readOnly ? 'This private definition is read-only.' : undefined}
     onSaved={async () => {
       if (!saved || immutableSource) return
       adopt(await api.get(saved.pluginId, customerId)); resetFeedback()
@@ -303,6 +302,6 @@ function DefinitionEditor({ detail, immutableSource, customerId, canManage }: { 
       catch (error) { setError(error instanceof Error ? error.message : 'The current draft could not be loaded.') }
       finally { setBusy(false) }
     }}>Discard &amp; reload</Button></DialogActions></Dialog>
-    <Dialog open={blocker.state === 'blocked'}><DialogTitle>{busy || assistantBusy ? 'An operation is still running' : 'Leave this definition?'}</DialogTitle><DialogContent>{busy || assistantBusy ? 'Wait for its result before leaving.' : 'Your unsaved edits will be discarded. Saved versions and installed Brains are unchanged.'}</DialogContent><DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button><Button color="warning" disabled={busy || assistantBusy} onClick={() => { leaving.current = true; if (blocker.state === 'blocked') blocker.proceed() }}>Discard &amp; leave</Button></DialogActions></Dialog>
+    <Dialog open={blocker.state === 'blocked'}><DialogTitle>{busy ? 'An operation is still running' : 'Leave this definition?'}</DialogTitle><DialogContent>{busy ? 'Wait for its result before leaving.' : 'Your unsaved edits will be discarded. Saved versions and installed Brains are unchanged.'}</DialogContent><DialogActions><Button onClick={() => blocker.state === 'blocked' && blocker.reset()}>Keep editing</Button><Button color="warning" disabled={busy} onClick={() => { leaving.current = true; if (blocker.state === 'blocked') blocker.proceed() }}>Discard &amp; leave</Button></DialogActions></Dialog>
   </AssistantWorkspace>
 }

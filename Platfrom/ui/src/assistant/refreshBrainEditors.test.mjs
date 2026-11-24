@@ -43,7 +43,7 @@ test('failed webhook telemetry does not lock a successfully refreshed draft or c
   } finally { f.close() }
 })
 
-test('a required draft refresh failure still rejects and keeps stale-editor protection', async () => {
+test('a required draft refresh failure remains visible as an invalidated read', async () => {
   const f = fixture()
   try {
     f.observe(['deployment-draft', 'brain-1'], async () => { throw new Error('Draft access denied') })

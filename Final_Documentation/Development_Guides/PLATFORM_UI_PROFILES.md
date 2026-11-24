@@ -51,6 +51,13 @@ Target-specific storage/vector bindings remain with their existing workflows.
 See `verification-support/customer-secrets/README.md`.
 
 Build with AI is available across the Smart Brain workspace and opens on entry.
+Owner clarification, 24 November 2026: AI activity does not lock manual editors,
+footer actions or navigation. Requested AI changes may replace manual values;
+the normal journey is AI finishes, then the user reviews and edits before
+publishing. Do not introduce parallel-editing locks or conflict approvals.
+Retain normal pending-save controls, unsaved-navigation confirmation, resource
+authorization, idempotency and atomic saves. A failed saved-value refresh must
+show its error without leaving manual editing or the assistant permanently busy.
 Keep its close control and persistent reopen button. Respect dismissal while
 moving between the same Brain's pages; a new visit/Brain opens it again. Editing
 pages retain their existing task scopes. Operational pages offer guidance only,

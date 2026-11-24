@@ -5,6 +5,50 @@ has a verified native release, but production migration and full acceptance are
 not complete. The owner approved the full010.75migration and framework work.
 No infrastructure/capacity or spending-cap change has been performed.
 
+## Current Qualification - 24 November 2026
+
+This section supersedes the historical candidate versions below; it is not a
+production acceptance record.
+
+- Framework 0.8.69 is officially published. Public build 45409684432 and Central
+  publication 45413133017 passed; nine downloaded JARs match their repository
+  checksums. Only one publication was submitted.
+- Private source 3eed832354d73192d35976ab837d1aff0cda0a91 is pushed. Core,
+  Runtime, storage and quota CI passed. Staging backend and the existing native
+  authoring service use that source and 0.8.69. The original database, service
+  identity, credentials, usage history and funding store remain intact.
+- A fresh complete backend suite passed: 6,145 tests, zero failures/errors and
+  one opt-in skip. Runtime regression passed: 812 tests, zero failures/errors,
+  five opt-in skips. The native completion-feedback integration passed three
+  scripted-provider cases. These are not live model-quality results.
+- Three live blank-Brain API preparations passed, plus follow-up rename, Undo
+  and Warm/Brief presets. Temporary resources and normal test sessions were
+  removed. Live cancellation/source erasure passed, as did real Support document
+  preview (13 proposed differences; saved settings and revision unchanged).
+- Multi-step quality is still open. The first sequential-two-save test stopped
+  truthfully after one save. The prompt-only release rel-c1b3e390 applied and
+  verified, but its retest combined the edits into one actual save and falsely
+  described two receipts. The requested final values were saved; the required
+  two-save execution and truthful narration did not pass. Do not mark this as
+  accepted or add a forced-write/text-matching workaround.
+- Owner-directed UI lock removal is implemented locally: no AI-triggered inert
+  fieldset, overlay, footer lock or navigation lock in Brain/plugin/Engage
+  editors. Requested AI values may replace manual values. Ordinary manual-save
+  pending controls, unsaved-navigation confirmation and server authorization/
+  atomic save/idempotency contracts remain. Refresh failures show their actual
+  error without permanently disabling manual input or assistant follow-ups.
+- Lock-removal verification: 71 assistant/search unit tests and all 52 browser
+  groups passed. The latter use mocked API responses, including real Brain and
+  plugin editor components at desktop/mobile sizes; they are not live UI proof.
+  The complete UI production build also passed with the existing bundle-size
+  warning. Live deployment remains a separate gate.
+- Production remains on the previous 0.8.67 authoring path. The full migration,
+  published-binding parity and final production qualification are not closed.
+- The owner authorized unlimited qualification turns and a USD 50 combined
+  staging/production ceiling. Staging's finite ledger now permits 10,000 turns;
+  native limits remain 4 million tokens and USD 5 per environment, deliberately
+  below that ceiling. Original recorded usage and expiry were not reset.
+
 ## Worktrees and Baseline
 
 - Product source: Platform-V11, baseline 136134b05d9157ed959937e4fc1c9708765d478c.

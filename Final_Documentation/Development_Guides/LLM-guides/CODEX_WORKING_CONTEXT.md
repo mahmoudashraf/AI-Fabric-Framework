@@ -21018,3 +21018,59 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Newsecurity-readback.mjsstagingproofpre-069-valid-requestsPASS,normalidentities
   loggedout. Still222/230staging,4M/USD5,noextrainference. Prod210/4M/USD5.
 
+- Finalqualified-sourcecandidateNOW3eed832354d73192d35976ab837d1aff0cda0a91
+  local(notpushed),childof8c1261492. Includes69default+alignmentguardand11PASS
+  affectedapply/PGtests. Allsix/tmpverificationhelpersnowuse3eed83235source/
+  artifact/coreprefixes,69versionanddistinctCentralproof. Keepthissourcefor
+  actualimageattestation;pendingnotesalonearenotnewsoftwareimages.
+
+- Framework69NOWofficiallypublished: Centralrun45413133017SUCCESS,distinct
+  official9JARchecksumproofPASSinframework-0869-official-jars-proofand
+  /private/tmp/loomai-01075-central-069/proof.json. Observer6546finishedPASS.
+  Publicbuild45409684432alsoSUCCESS. No duplicateupload.
+- Private3eed832354d73192d35976ab837d1aff0cda0a91NOWpushednormalFFto
+  Platform-V11. ExactCI:core45417874415/runtime45417874555/
+  storage45417874230/quota45418025606(allinprogressatthisentry). Quota
+  explicitlydispatchedoncebecausepathfilterdidnotapply. Observerexec25761
+  tracksallfourandstopsifanyfails. Fullalignedbackendexec14999continues.
+  DoNOTclaimstaging69orproductionmigrationyet;stagebackendJ/runtimeG/FW68
+  andproductionoldFW67stillcurrent. Stagingusage222/230unmodified.
+
+### 010.75 Current Checkpoint - 24 November 2026, After UI Lock Removal
+
+- Framework 0.8.69 officially published; Central 45413133017 and public build
+  45409684432 passed. Private source 3eed832354d73192d35976ab837d1aff0cda0a91
+  pushed; Core/Runtime/storage/quota CI passed. Staging backend and native Runtime
+  use it, original service/PG/credentials/wallet preserved. Production authoring
+  remains 0.8.67, not migrated. No infrastructure change.
+- Full aligned backend 6,145 tests / 0 failures / 0 errors / 1 opt-in skip PASS.
+  Runtime 812 / 0 / 0 / 5 opt-in skips PASS. Three real blank-Brain API cases,
+  follow-up rename, Undo, Warm/Brief passed on 69, with normal fixture cleanup.
+- Prompt-only staging release rel-c1b3e390/ver-769d5770 APPLIED_VERIFIED/PASSED.
+  Its explicit two-save retest FAILED: one actual save, requested final name
+  present, model falsely narrated two saves. Keep this quality finding open.
+  Native action/write/model budgets were not exhausted. Do not force arbitrary
+  write counts or interpret model prose with matching. Template/test edits for
+  this experiment remain separate from the UI-lock change.
+- User explicitly rejected AI/manual parallel-edit blocking. Removed local
+  inert/disabled fieldset, wait overlay, Brain/plugin/Engage AI-busy gates and
+  assistant setup-link AI-busy navigation lock. Ordinary manual saves/dirty
+  leave confirmation, authorization, short atomic saves and idempotency stay.
+  Requested AI changes can replace manual values; user reviews/edits after AI.
+  Failed saved-editor reload no longer leaves assistant permanently busy or
+  tells users manual editing is paused. README/plan/UI guidance updated.
+- UI 71 unit tests and 52 browser groups PASS. Logs:
+  /private/tmp/loomai-01075-unlocked-ui-unit.log and
+  /private/tmp/loomai-01075-unlocked-ui-browser-full-v2.log. Browser evidence is
+  fixture-only, not deployed UI. Complete UI production build also PASS with
+  existing bundle-size warning; log /private/tmp/loomai-01075-unlocked-ui-build-v2.log.
+- Live cancellation/source erasure PASS, prefix tasks-staging-fw069-nonblocking.
+  Actual Support document preview PASS, 13 differences, saved config/revision
+  unchanged; private prefix authoring-01075-staging-document-preview-fw069-document-preview.
+  Sessions logged out and temporary resources removed.
+- Owner approved unlimited test turns and USD50 TOTAL across both environments.
+  Staging effective allowance 10,000 turns; native 4M tokens/USD5 each retained
+  as lower safeguards. Production 210 turns unchanged. No funding/history reset.
+  Remaining full migration work includes sequential-step quality, published
+  binding checks, new UI deployment and qualified production rollout.
+

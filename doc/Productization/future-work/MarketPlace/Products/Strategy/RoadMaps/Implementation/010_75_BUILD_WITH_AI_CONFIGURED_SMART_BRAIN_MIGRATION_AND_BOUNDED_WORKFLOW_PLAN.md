@@ -569,6 +569,13 @@ Manual values within the user's requested change scope may be replaced, as alrea
 approved; preserve unrelated edits. Do not hold a DB transaction open across LLM
 calls or introduce a universal writer-version framework.
 
+Owner clarification, 24 November 2026: assume one configuring user. AI activity
+must not lock manual editors, footer actions or navigation, and must not require
+conflict approval before replacing requested values. The normal journey is AI
+finishes -> user reviews and makes manual edits -> explicit publication. Retain
+ordinary pending-save controls, unsaved-navigation confirmation, idempotency and
+short atomic save transactions; these are not a parallel-editing product.
+
 Plugin/app/source revisions retain their existing contracts. Brain draft
 `revisionNumber` is not a per-edit content version: record a bounded configuration
 fingerprint/actual save receipt for work observations, not a fictional revision.

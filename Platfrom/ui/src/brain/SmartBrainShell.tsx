@@ -66,7 +66,6 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const color = useCustomerColorPreference()
   const [menuOpen, setMenuOpen] = useState(false)
   const [editor, setEditor] = useState<BrainEditorState | null>(null)
-  const [assistantBusy, setAssistantBusy] = useState(false)
   const footerRef = useRef<HTMLElement>(null)
   const [footerHeight, setFooterHeight] = useState(64)
   const registerEditor = useCallback((value: BrainEditorState | null) => setEditor(value), [])
@@ -96,7 +95,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
   const dirty = Boolean(editor?.dirty)
   const specialistRoute = location.pathname === `/smart-brains/${encodeURIComponent(brainId)}/human-support/specialists`
   const manualBusy = Boolean(editor?.busy) || specialistRoute && mutations > 0
-  const busy = manualBusy || assistantBusy
+  const busy = manualBusy
   const assistantScope = valid ? brainPageAssistantScope(location.pathname, location.search, brainId) : null
   const editingRelease = useRef<{ scope: string; release: typeof candidateRelease } | null>(null)
   editingRelease.current = retainEditingRelease(editingRelease.current, `${brainId}:${targetProfileId}`, candidateRelease, dirty || busy)
@@ -233,7 +232,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
           sx={{ width: compact ? 0 : 210, flexShrink: 0, '& .MuiDrawer-paper': { width: 210, position: compact ? 'fixed' : 'relative', height: '100%', bgcolor: 'background.paper', boxSizing: 'border-box' } }}>{nav}</Drawer>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <AssistantWorkspace scope={assistantScope} initiallyOpen visibilityKey={JSON.stringify([session?.actorId, session?.customerId, brainId])}
-            editorBusy={manualBusy} onBusyChange={setAssistantBusy}
+            editorBusy={manualBusy}
             guideOnly={assistantScope?.task === 'KIT' || section === 'action-reviews'}
             setupLinks={section === '' ? [
               { label: 'Add your documents', href: href('knowledge/documents') },

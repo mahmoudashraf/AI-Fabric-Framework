@@ -167,7 +167,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
   const [customerId, setCustomerId] = useState(() => customerScopeLocked ? (auth.session?.customerId ?? '') : initialCustomerId ?? '')
   const [selected, setSelected] = useState<AIWorkspaceInstallationSummary | null>(null)
   const [editing, setEditing] = useState<AIWorkspaceInstallationSummary | 'new' | null>(null)
-  const [assistantBusy, setAssistantBusy] = useState(false), [assistantInitiallyOpen, setAssistantInitiallyOpen] = useState(false)
+  const [assistantInitiallyOpen, setAssistantInitiallyOpen] = useState(false)
   const [form, setForm] = useState<FormState>(defaultForm)
   const [appearance, setAppearance] = useState<WorkspaceAppearance>(() => readWorkspaceAppearance({}, defaultForm.packCode))
   const [appearanceEdited, setAppearanceEdited] = useState(false)
@@ -600,7 +600,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
 
   const operationError = saveMutation.error || activateMutation.error || disableMutation.error || deleteMutation.error
   const manualCommandPending = saveMutation.isPending || activateMutation.isPending || disableMutation.isPending || deleteMutation.isPending
-  const appCommandPending = manualCommandPending || assistantBusy
+  const appCommandPending = manualCommandPending
   const requestDestructive = (command: 'disable' | 'delete', installation: AIWorkspaceInstallationSummary) => {
     if (customerScopeLocked) setPendingDestructive({ command, installation, actorId: auth.session?.actorId })
     else if (command === 'disable') disableMutation.mutate({ installation, operationKey: crypto.randomUUID() })
@@ -731,7 +731,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
         <DialogTitle>{editing === 'new' ? 'Create Engage app' : 'Appearance & preview'}</DialogTitle>
         <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <AssistantWorkspace scope={editing && editing !== 'new' ? { resourceKind: 'ENGAGE_APP', resourceId: editing.installationId, task: 'ENGAGE' } : null}
-            initiallyOpen={assistantInitiallyOpen} editorBusy={manualCommandPending} onBusyChange={setAssistantBusy}
+            initiallyOpen={assistantInitiallyOpen} editorBusy={manualCommandPending}
             readOnlyReason={editingActive ? 'Active Engage apps can only be previewed.' : undefined}
             onSaved={async () => {
               if (!editing || editing === 'new') return
@@ -974,7 +974,7 @@ export function AIWorkspacesPage({ initialCustomerId, initialInstallationId, ini
       {customerScopeLocked ? <Dialog open={Boolean(pendingDestructive)} onClose={() => setPendingDestructive(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{pendingDestructive?.command === 'delete' ? (pendingDestructive.installation.status === 'DRAFT' ? 'Delete draft app?' : 'Delete app?') : 'Disable app?'}</DialogTitle>
         <DialogContent><Stack spacing={2}><Typography>{pendingDestructive?.installation.displayName}</Typography><Typography color="text.secondary">{pendingDestructive?.command === 'delete' ? `This permanently removes this inactive app and its web addresses. It does not delete its ${deploymentTerm.lowercase}, documents or conversations.` : `This disables the selected app installation. It does not stop or delete its ${deploymentTerm.lowercase}.`}</Typography>{!pendingCurrent ? <Alert severity="warning">The app or account scope changed. Close this dialog and review the current app.</Alert> : null}</Stack></DialogContent>
-        <DialogActions><Button disabled={assistantBusy} onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={assistantBusy || !pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
+        <DialogActions><Button onClick={() => setPendingDestructive(null)}>Cancel</Button><Button color="error" disabled={!pendingCurrent || disableMutation.isPending || deleteMutation.isPending} onClick={() => {
           if (!pendingCurrent || !pendingInstallation || !pendingDestructive) return
           if (pendingDestructive.command === 'delete') deleteMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })
           else disableMutation.mutate({ installation: pendingInstallation, operationKey: crypto.randomUUID() })

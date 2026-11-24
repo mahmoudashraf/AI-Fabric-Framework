@@ -48,6 +48,19 @@ class WorkflowAssistanceCompilerTest {
         ordinary.putObject("workflowAssistance").put("enabled", false);
         assertThat(compiler.compileBehavior(ordinary, null)).isEqualTo(ordinary);
     }
+    @Test void everyWorkerTreatsAReceiptAsOneStepRatherThanTheWholeRequestedOutcome() {
+        var config = template.behavior().path("workflowAssistance");
+        for (var profile : config.path("profiles"))
+            assertThat(profile.path("instructions").asText()).contains("Continue remaining authorized draft steps",
+                "A receipt completes its own step, not necessarily the whole request",
+                "Preserve user-requested intermediate saves and readbacks as separate tool operations",
+                "use authoring_get_work_status to inspect the actual operation receipts");
+        var api = java.util.stream.StreamSupport.stream(config.path("profiles").spliterator(), false)
+            .filter(profile -> "api".equals(profile.path("id").asText())).findFirst().orElseThrow();
+        assertThat(api.path("instructions").asText()).contains("not a stopping rule for multi-step requests",
+            "Do not put the second edit's value into the initial save");
+        assertThat(config.path("policy").path("maxWriteSteps").asInt()).isEqualTo(3);
+    }
     @Test void installedAuthorityCannotBeManufacturedByTheManifest() {
         assertThatThrownBy(() -> compiler.compileBehavior(template.behavior(), new SpecialistAssistanceCompiler.Authority(Map.of(), Set.of(), Map.of())))
             .hasMessageContaining("unconfigured READ");
