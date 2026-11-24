@@ -71,6 +71,13 @@ Restoration GETs the session; it never replays inference or saves. Lost turn
 responses offer retry using the original Idempotency-Key. Poll/cancel errors are
 visible; old poll responses cannot supersede a newer command.
 
+Earlier helper conversations are read-only after the configured-Brain cutover.
+Start Build with AI opens the current configured session without deleting the
+earlier one or automatically sharing its sources/history. Session options can
+return to the earlier conversation after reload. Only its scoped session ID is
+retained in sessionStorage; viewing old save receipts does not reload the manual
+editor or replay a mutation.
+
 New imports and explicit same-resource reuse are selected by ID. Visible document
 chips open an authenticated redacted-content review dialog on request; import
 does not force another modal step. Every turn sends sourceIds

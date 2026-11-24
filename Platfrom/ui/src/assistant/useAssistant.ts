@@ -23,6 +23,7 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
   const lastError = useRef<unknown>(null)
   const commandEpoch = useRef(0)
   const [retryTurn, setRetryTurn] = useState(false)
+  const [earlierSessionId, setEarlierSessionId] = useState<string | null>(null)
   const status = useQuery({ queryKey: ['configuration-assistant-status'], queryFn: assistantApi.status, enabled, retry: false })
   const actor = useQuery({ queryKey: ['configuration-assistant-identity'], queryFn: fetchPlatformAuthSession, enabled, retry: false, staleTime: 0 })
   const actorKey = actor.data ? `${actor.data.actorId ?? ''}:${actor.data.customerId ?? ''}` : ''
@@ -36,7 +37,7 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
     latest.current = next
     setSession(next)
     try { sessionStorage.setItem(storageKey, next.id) } catch { /* Storage is optional. */ }
-    const receipts = next.turns.flatMap(turn => turn.operations?.length
+    const receipts = next.engine === 'LEGACY' ? [] : next.turns.flatMap(turn => turn.operations?.length
       ? turn.operations.filter(operation => operation.status === 'EXECUTED').map(operation => `${turn.id}:${operation.operationId}:${stringifyExactJson(operation.receipt ?? null)}`)
       : turn.status === 'SAVED' ? [`${turn.id}:${stringifyExactJson(turn.receipt ?? turn.diff ?? null)}`] : [])
     const unseen = receipts.filter(id => !saved.current.has(id))
@@ -65,7 +66,7 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
 
   const start = useCallback(async () => {
     let id: string | null = null
-    try { id = sessionStorage.getItem(storageKey) } catch { /* Storage is optional. */ }
+    try { id = sessionStorage.getItem(storageKey); setEarlierSessionId(sessionStorage.getItem(`${storageKey}:earlier`)) } catch { /* Storage is optional. */ }
     return command(() => id ? assistantApi.get(id) : assistantApi.create(scope))
   }, [storageKey, scope.resourceKind, scope.resourceId, scope.task, command])
 
@@ -128,6 +129,10 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
       await assistantApi.delete(session.id)
       if (!mounted.current) return
       try { sessionStorage.removeItem(storageKey) } catch { /* Storage is optional. */ }
+      if (session.id === earlierSessionId) {
+        setEarlierSessionId(null)
+        try { sessionStorage.removeItem(`${storageKey}:earlier`) } catch { /* Storage is optional. */ }
+      }
       latest.current = null; setSession(null); saved.current.clear()
     } catch (error) { if (mounted.current) setError(errorMessage(error)) }
     finally { inFlight.current = false; if (mounted.current) setPending(false) }
@@ -135,7 +140,16 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
   return {
     session, status, error: error || (status.error ? errorMessage(status.error) : actor.error ? errorMessage(actor.error) : ''),
     pending, running, busy: pending || running || refreshing || retryTurn, retryTurn, start, submit, retry, cancel, remove,
-    newSession: () => command(() => assistantApi.create(scope)),
+    newSession: () => {
+      if (latest.current?.engine === 'LEGACY') {
+        const id = latest.current.id
+        setEarlierSessionId(id)
+        try { sessionStorage.setItem(`${storageKey}:earlier`, id) } catch { /* Storage is optional. */ }
+      }
+      return command(() => assistantApi.create(scope))
+    },
+    earlierSessionId,
+    earlierHistory: () => earlierSessionId ? command(() => assistantApi.get(earlierSessionId)) : Promise.resolve(false),
     refresh: () => session ? command(() => assistantApi.get(session.id)) : start(),
     addSource: async (input: SourceInput): Promise<AssistantSession | null> => {
       if (!session) return null

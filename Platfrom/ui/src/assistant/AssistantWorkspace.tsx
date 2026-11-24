@@ -191,7 +191,8 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
   }, [sources])
   const readOnly = readOnlyReason || (guideOnly ? 'Guide only. Open the selected resource editor to make changes.' : '') || (c.session?.editable === false ? c.session.readOnlyReason || 'This resource is read-only.' : '')
   const unavailable = c.status.data && (!c.status.data.enabled || !c.status.data.ready)
-  const disabled = Boolean(!c.session || unavailable || editorBusy)
+  const earlierHistory = c.session?.engine === 'LEGACY' && c.status.data?.engine === 'CONFIGURED_BRAIN'
+  const disabled = Boolean(!c.session || unavailable || editorBusy || earlierHistory)
   const feedbackCapability = c.status.data?.validationFeedback
   const correctionCeiling = feedbackCeiling(feedbackCapability)
   const correctionAllowed = !explain && !guideOnly && scope.task !== 'KIT'
@@ -240,6 +241,7 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
         <Button size="small" startIcon={<RefreshOutlined />} aria-label="Refresh assistant session" disabled={c.pending} onClick={() => { void c.status.refetch(); void c.refresh() }}>Refresh</Button>
         <Button size="small" color="error" startIcon={<DeleteOutline />} aria-label="Delete assistant session" disabled={!c.session || c.busy} onClick={() => setDeleteOpen(true)}>Delete session</Button>
       </Stack>
+      {c.earlierSessionId && c.session?.id !== c.earlierSessionId && <Button size="small" disabled={c.busy} onClick={() => void c.earlierHistory()}>View earlier conversation</Button>}
       <Typography variant="caption" color="text.secondary" display="block" sx={{ overflowWrap: 'anywhere' }}>Resource: {scope.resourceId}</Typography>
       {context.selectedDefinitionIds?.length ? <Typography variant="caption" display="block">Selected: {context.selectedDefinitionIds.join(', ')}</Typography> : null}
       {c.session && <Typography variant="caption" color="text.secondary" display="block">Session expires {new Date(c.session.expiresAt).toLocaleString()}</Typography>}
@@ -253,6 +255,9 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
     </Box>
     {Boolean(setupLinks?.length) && <Stack component="nav" aria-label="AI setup steps" sx={{ mb: 1, flexShrink: 0 }}>{setupLinks?.map(link => <Button key={link.href} component={RouterLink} to={link.href} disabled={editorBusy} endIcon={<ArrowForwardRounded fontSize="small" />} sx={{ justifyContent: 'space-between', textAlign: 'left', px: 0, py: 1, borderBottom: 1, borderColor: 'divider', fontWeight: 600 }}>{link.label}</Button>)}</Stack>}
     {readOnly && <Alert severity="info" sx={{ mt: 1 }}>{readOnly}{!guideOnly && ' Preview only; no live resource is changed.'}</Alert>}
+    {earlierHistory && <Button variant="contained" disabled={c.busy || unavailable || editorBusy} onClick={async () => {
+      if (await c.newSession()) { setQuery(''); setSourceIds([]); setOperationIds([]) }
+    }}>Start Build with AI</Button>}
     {Boolean(links?.length) && <Box component="details" sx={{ mt: 1, fontSize: 12, maxHeight: '24dvh', overflow: 'auto', flexShrink: 0 }}><summary>Open resource editor</summary><Stack alignItems="flex-start">{links?.map(link => <Button key={link.href} size="small" component={RouterLink} to={link.href} onClick={onClose}>{link.label}</Button>)}</Stack></Box>}
     {unavailable && <Alert severity="warning" sx={{ mt: 1 }}>{c.status.data?.unavailableReason || 'The configuration assistant is unavailable. Manual editing is still available.'}</Alert>}
     {editorBusy && <Alert severity="info" sx={{ mt: 1 }}>Wait for the editor's current operation to finish.</Alert>}

@@ -21074,3 +21074,43 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Remaining full migration work includes sequential-step quality, published
   binding checks, new UI deployment and qualified production rollout.
 
+### 010.75 Continued Qualification - 24 November 2026, 16:12 UTC
+
+- User correctly challenged the premature stopping point: continue until full
+  migration/live proof, not only the editor-unlock subtask. No production cutover
+  or overall completion has been claimed.
+- Pushed a9e29a453ff09cccfe90f187ed9089704c217209 (UI unlock and workflow
+  guidance), then cb742bc1d6ccb1058c641e026d5e0901346e14d8 (explicit user
+  requirements precede the generic PREPARE context). Both Core/storage/quota
+  sets passed. Stage UI a9e and backend cb742 are healthy; original capacities,
+  environment, storage and keys preserved. Runtime stays 3eed83235 / FW69.
+- Real staging UI manual fields/save/navigation remain enabled during a live
+  AI turn: a9e-ui-unlocked/complete-repeat-2 PASS, actual draft save and all
+  fixtures cleaned, both normal sessions logged out. No UI-only bypass added.
+- Real 69 private-plugin mapping and inactive Engage edits PASS with exact
+  auth/origin/identity preservation; resource fixtures removed or uninstalled
+  definition archived, normal customer signed out. Whole-Brain setup PASS.
+- Published MODELS -> guide binding test prevented writes; restored via normal
+  publication to models-search, rel-3de3670b/ver-d7002062 APPLIED_VERIFIED/PASSED.
+  A combined helper's two actual test cases passed, but its final customer UI
+  logout timed out during UI/backend rollout; preserve that run's exit1 rather
+  than relabeling it all green. Later fresh UI qualification signed out normally.
+- Ordered two-save direct message PASS (two real writes plus intermediate read),
+  but PREPARE repeats remain FAILED: unnecessary clarification, wrong shape or
+  premature stop. Request text is intact and budgets remain. Do not claim the
+  user-requirements-first change alone fixed this. A new consolidated prompt
+  configuration is being qualified: rel-5f37e19b, observer exec10592. No new FW
+  publication; no forced-write or prose-matching validator.
+- Search test saved maxResults12 instead of requested6. Added existing Console
+  label/meaning guidance for maxCandidates vs maxResults, not new config or
+  execution gates. Focused resource/contracts/compiler/intent/integration tests
+  passed. Final search live retest awaits the next backend image.
+- Local legacy-history UI transition now preserves earlier sessions, starts the
+  configured assistant explicitly and returns to earlier history after reload.
+  No source/history auto-sharing; old saved receipts do not reload manual input.
+  New focused browser test PASS; full 53-group run PASS, plus71 unit checks,
+  final typecheck and production build PASS. These new UI changes are not yet
+  deployed. Pending source edits are all owned assistant files only.
+- No current live fixture cleanup outstanding. Staging allowance remains10000
+  turns/4Mtokens/USD5; USD50 combined owner ceiling retained, not a new native cap.
+

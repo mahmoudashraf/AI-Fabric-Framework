@@ -10,6 +10,7 @@ export type AssistantScope = {
 export type ValidationFeedbackPolicy = { enabled: boolean; maxCorrections: number }
 export type AssistantStatus = {
   enabled: boolean; ready: boolean; documentFetchEnabled: boolean; unavailableReason?: string
+  engine?: 'LEGACY' | 'CONFIGURED_BRAIN'
   validationFeedback?: { defaultEnabled: boolean; maxCorrections: number }
 }
 export type TurnStatus = 'SAVED' | 'PREVIEW' | 'NEEDS_INPUT' | 'EXPLAIN' | 'UNSUPPORTED' | 'INVALID' | 'FAILED' | 'CANCELLED' | 'RUNNING' | 'UNDONE' | 'READY'

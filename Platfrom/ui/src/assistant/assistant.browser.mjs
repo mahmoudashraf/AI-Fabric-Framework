@@ -87,7 +87,7 @@ async function run(name, work, options = {}) {
     if (workflowDraft && path === '/api/deployments/brain-37/workflow-actions') return send({ deploymentId: 'brain-37', readActions: ['authoring_get_context'], writeActions: ['authoring_update_draft'] })
     if (workflowDraft && path === '/api/deployments/brain-37/draft') return send(workflowDraft)
     if (workflowDraft && path === '/api/deployment-drafts/draft-same' && method === 'PUT') { workflowDraft = { ...workflowDraft, ...input }; return send(workflowDraft) }
-    if (path === '/api/configuration-assistant/status') return send({ enabled: !options.unavailable, ready: !options.unavailable, documentFetchEnabled: Boolean(options.url), unavailableReason: options.unavailable ? 'Authoring provider is not configured.' : '', validationFeedback: options.validationFeedback === null ? undefined : options.validationFeedback ?? { defaultEnabled: true, maxCorrections: 2 } })
+    if (path === '/api/configuration-assistant/status') return send({ enabled: !options.unavailable, ready: !options.unavailable, engine: 'CONFIGURED_BRAIN', documentFetchEnabled: Boolean(options.url), unavailableReason: options.unavailable ? 'Authoring provider is not configured.' : '', validationFeedback: options.validationFeedback === null ? undefined : options.validationFeedback ?? { defaultEnabled: true, maxCorrections: 2 } })
     if (path === '/api/editor') return reloadError ? send({ message: 'Saved editor could not be read.' }, 503) : send({ value: editorValue })
     if (path === '/api/customer-self-service/deployments') return send([{ deploymentId: 'brain-37', name: 'Customer knowledge', status: 'DRAFT' }])
     if (path === '/api/customer-experience-kits/kit-37') return send({ id: 'kit-37', name: 'Customer experience kit', kitCode: 'ai-customer-experience', deploymentId: 'brain-37', offerId: 'offer-37', deliveryMode: 'standalone', workspace: null, humanSupportEnabled: false, updatedAt: '2026-11-10T12:00:00Z' })
@@ -105,6 +105,8 @@ async function run(name, work, options = {}) {
     if (path === '/api/customer/plugin-library/plugin-37/versions/1.0.0') return send({ version: '1.0.0', manifest: currentPlugin.manifest })
     if (path === '/api/configuration-assistant/sessions' && method === 'POST') {
       session = { ...input, id: `session-${++sequence}`, displayName: 'Customer knowledge', status: 'IDLE', editable: !options.active, readOnlyReason: options.active ? 'Active app preview only.' : '', activeTurnId: null, expiresAt: '2026-11-11T00:00:00Z', sources: [], turns: [] }
+      session.engine = options.legacy && sequence === 1 ? 'LEGACY' : 'CONFIGURED_BRAIN'
+      if (session.engine === 'LEGACY') Object.assign(session, { editable: false, readOnlyReason: 'Earlier assistant history is read-only. Start a new Build with AI session.', turns: [{ id: 'old-turn', query: 'Earlier request', status: 'SAVED', message: 'Earlier preserved answer', receipt: { published: false }, attempts: [] }] })
       sessions.set(session.id, session)
       return send(session)
     }
@@ -748,6 +750,22 @@ try {
     assert.equal(await page.getByLabel('Manual value', { exact: true }).isEnabled(), true)
     assert.equal(await panel(page).getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Use a concise response style')
   }, { turnError: true })
+  await run('legacy history starts the configured assistant without deletion and remains accessible after reload', async ({ page, calls }) => {
+    await page.getByRole('button', { name: 'Build with AI', exact: true }).click()
+    const p = panel(page)
+    await p.getByText('Earlier preserved answer', { exact: true }).waitFor()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).isDisabled(), true)
+    await p.getByRole('button', { name: 'Start Build with AI', exact: true }).click()
+    await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+    await page.reload(); await open(page, false)
+    await p.getByRole('button', { name: 'Assistant session options' }).click()
+    await p.getByRole('button', { name: 'View earlier conversation', exact: true }).click()
+    await p.getByText('Earlier preserved answer', { exact: true }).waitFor()
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).isDisabled(), true)
+    assert.equal(calls.filter(call => call.method === 'DELETE' || call.path.endsWith('/turns')).length, 0)
+    assert.equal(calls.filter(call => call.path === '/api/editor').length, 0, 'Viewing earlier saved history must not reload the manual buffer')
+    assert.ok(calls.some(call => call.method === 'GET' && call.path.endsWith('/sessions/session-1')))
+  }, { legacy: true })
   await run('save reload failures remain visible without blocking manual editing or follow-ups', async ({ page, finish, allowReload }) => {
     await open(page); await send(page); finish()
     await panel(page).getByRole('alert').filter({ hasText: 'Draft changes were saved, but the editor could not be reloaded.' }).waitFor()

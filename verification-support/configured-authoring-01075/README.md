@@ -51,6 +51,27 @@ production acceptance record.
 
 ## Worktrees and Baseline
 
+### Continuing Release Qualification
+
+- Stage UI a9e29a453 and backend cb742bc1d are deployed and healthy; their Core,
+  storage and quota CI passed. Runtime remains the separately attested 3eed83235
+  image on 0.8.69. The unlock behavior also passed a real running UI turn,
+  with normal test-account logout and resource deletion.
+- Published task binding was tested and restored. MODELS bound to guide had no
+  write effect; models-search was restored in rel-3de3670b/ver-d7002062. Keep the
+  separate helper's logout timeout during rollout visible in its report.
+- Live private DATA mapping, inactive Engage branding and whole-Brain setup
+  passed on 0.8.69. An ordered direct message completed two real writes and a
+  readback. PREPARE repetitions still failed despite intact request text; the
+  next consolidated instruction release is a candidate, not accepted quality.
+- Search guidance now names the actual Console field labels and distinguishes
+  final AI evidence from the candidate pool. This follows a real failed request
+  that saved 12 final results rather than 6; its evidence is retained.
+- The legacy-history transition has a focused browser regression, plus a full
+  53-group browser run, 71 unit tests, typecheck and production build passing.
+  Earlier history remains read-only and retrievable without automatically
+  submitting it to the configured Brain. Production rollout is still pending.
+
 - Product source: Platform-V11, baseline 136134b05d9157ed959937e4fc1c9708765d478c.
 - Framework source: /private/tmp/loomai-framework-01075,
   codex/configured-authoring-01075, based on released f933227e.

@@ -5,6 +5,17 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class AuthoringResourceContractsTest {
+    @Test void searchGuidanceDistinguishesCandidatePoolFromFinalEvidenceUsingConsoleLabels() {
+        var mapper = new ObjectMapper();
+        for (String task : new String[] {"SEARCH", "BRAIN_SETUP"}) {
+            var catalogue = mapper.createObjectNode();
+            AuthoringResourceContracts.populate(mapper, catalogue, task);
+            assertThat(catalogue.at("/searchFieldMeanings/maxCandidates").asText())
+                .contains("Maximum candidate results", "not the final evidence count");
+            assertThat(catalogue.at("/searchFieldMeanings/maxResults").asText())
+                .contains("Evidence items for AI", "final number");
+        }
+    }
     @Test void managerGuidanceNamesTheExactFieldAndSeparatesDraftEditsFromPublication() {
         var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
         AuthoringResourceContracts.populate(mapper, catalogue, "SPECIALISTS");
