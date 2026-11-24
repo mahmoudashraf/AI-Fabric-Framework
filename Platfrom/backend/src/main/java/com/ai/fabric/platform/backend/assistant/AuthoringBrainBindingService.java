@@ -20,7 +20,12 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class AuthoringBrainBindingService {
     public record Binding(String deploymentId, String releaseId, String runtimeUrl, String profileId,
                           String specialistId, String bundleHash, int maxWrites, int maxCorrections,
-                          List<String> scopes) { }
+                          List<String> scopes, boolean autonomousEnabled) {
+        public Binding(String deploymentId, String releaseId, String runtimeUrl, String profileId,
+            String specialistId, String bundleHash, int maxWrites, int maxCorrections, List<String> scopes) {
+            this(deploymentId, releaseId, runtimeUrl, profileId, specialistId, bundleHash, maxWrites, maxCorrections, scopes, false);
+        }
+    }
     private final AuthoringProperties properties;
     private final DeploymentRepository deployments;
     private final DeploymentReleaseRepository releases;
@@ -73,7 +78,7 @@ public class AuthoringBrainBindingService {
         return new Binding(deployment.getId(), release.getId(), endpoints.runtimeBaseUrl(release), profile,
             selected.path("specialistRef").asText(), hash,
             AuthoringNativeCapabilities.WRITES.stream().anyMatch(action -> scopes.contains("action:" + action)) ? bundle.at("/policy/maxWriteSteps").asInt() : 0,
-            bundle.at("/policy/maxCorrections").asInt(), List.copyOf(scopes));
+            bundle.at("/policy/maxCorrections").asInt(), List.copyOf(scopes), bundle.at("/goal/enabled").asBoolean());
     }
     public Map<String, String> headers(Binding binding, String sessionId) {
         var current = conversationBinding();

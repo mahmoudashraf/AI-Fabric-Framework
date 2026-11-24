@@ -21,6 +21,8 @@ test('human status labels use exact protocol states, never the model message', (
   assert.equal(turnStatusLabel('INVALID'), 'Needs correction')
   assert.equal(turnStatusLabel('EXPLAIN'), 'Guidance')
   assert.equal(turnStatusLabel('UNDONE'), 'Change undone')
+  assert.equal(turnStatusLabel('PAUSED'), 'Paused')
+  assert.equal(turnStatusLabel('BLOCKED'), 'Remaining work blocked')
   assert.equal(turnStatusLabel('SAVED but not really'), 'SAVED but not really')
 })
 

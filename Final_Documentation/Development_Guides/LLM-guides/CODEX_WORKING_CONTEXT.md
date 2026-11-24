@@ -21328,3 +21328,158 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   service override on upgrades; source's new-host fallback isLOW, other products
   defaultNONE. Do not change unrelated user files or expand into010.74 here.
 
+### Harbor Qualification And 010.76 Plan Only - 24 November 2026
+
+- Real normal-customer UI recording rebuilt Harbor dep-86ad8f93's empty action/
+  knowledge configuration draft, reusing existing managed infrastructure. Bulk
+  preparation of five OpenAPI operations failed twice: one context READ, four
+  model calls, two corrections, zero writes; three empty planning outputs per
+  attempt. Manual narrower requests saved product search and delivery READs.
+  Product details, enquiry WRITE and receipt READ remain unqualified in this run.
+- Two new approved TXT files uploaded under walkthrough-20261124/ in the SAME
+  private hosted bucket and indexed ACTIVE. Harbor v13/ver-1d693161,
+  rel-3465fd67 on artifactdsa-698a679c/FW69 is APPLIED_VERIFIED/PASSED:
+  30checks passed/0failed/4skipped after indexing and explicit recheck. Existing
+  Engage awi_pub_22c8a38f5cffca12415185e93e035898 is ACTIVE/ready and assigned
+  that release. Existing runtime, connector and PG UUIDs were verified reused;
+  no paid infrastructure added. Four real Engage answers passed with the new
+  source metadata matched; own customer session signed out, no page errors.
+- Video /Users/mahmoudashraf/Movies/LoomAI/Harbor-2026-11-24/harbor-build-with-ai-walkthrough.mp4:
+  19m14s, H264/fast-start,22chapters, cursor highlights, real failures retained,
+  waiting/navigation accelerated. Playback/seeking, source assertions, sampled
+  frames and full decode PASS. Private receipts/raw video live under
+  ~/.codex/private/harbor-walkthrough-20261124; never commit private logs/auth.
+- Read-only follow-up confirmed live goal-like workflow limits8tools/3writes/
+  16modelCalls/2corrections/120s and MEDIUM reasoning. Host output setting now
+  reads8192, while compiled specialist final-output limits declare4096. Exact
+  failed-call provider finish reason/effective cap is NOT established; do not
+  claim token exhaustion as the root cause. Logs confirm empty content only.
+- Owner requested an implementation PLAN for full goal-driven autonomy. See
+  doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_76_GOAL_DRIVEN_FULL_AUTONOMY_AND_ADAPTIVE_AUTHORING_PLAN.md.
+  It proposes
+  persistent native goal execution, nonterminal segment yield, adaptive recovery,
+  scoped one-level goal profile delegation, incremental capability tools and real
+  completion checks. Existing read-only SpecialistChain is not write-capable.
+  Review FW-G1/G2/G3 before implementation. This turn changed documentation only;
+  no new framework/application behavior, release, allowance or infrastructure.
+  Keep Support read-only, manual editing unlocked, publish separate and original
+  ledgers/financial caps intact. No Codex goal or automation was created.
+
+### 010.76 Owner Approved And Started - 24 November 2026
+
+- Owner explicitly approved full010.76implementation and unlimited/very-high
+  testing turns/caps under USD50 combined qualification. This supersedes the
+  plan-only approval gate and old nativeUSD5 testing ceiling; do not ask again.
+  No paid infrastructure change or unlimited-money authority follows.
+- Durable additive top-ups applied and read back: staging1Mturns/100Mtokens/
+  USD25; production1Mturns/100Mtokens/USD20. USD5reserved for externalHarbor
+  checks keeps the combined ceilingUSD50. Original grants/stores/expiry and all
+  cumulative usage retained. Before usage: stageUSD4.07551425, prodUSD2.90031.
+  Private evidence/helper ~/.codex/private/loomai-autonomy-01076/;
+  approved-qualification-limits.mjs completedPASSboth with normal own-admin auth
+  and logout. Do not reset those limits back to old010.75USD5 assertions.
+- Implementation ongoing, NOT complete/deployed: main owns Runtime goal host,
+  WorkflowAssistanceCompiler integration, releases/qualification/docs. Worker
+  Linnaeus01a20f43-94b8-7a90-a840-389587898794 owns genericFW in clean
+  /private/tmp/loomai-framework-01075; Lagrange01a20f43-cc08-7dd3-b12f-c6c90e874d79
+  owns Platform assistant persistence/authority/tools; Jason01a20f43-f61a-7f43-b070-ee654369779b
+  owns UI; Carver01a20f45-e314-7c33-9c92-53d2089460a6 owns provider-safe transport
+  observations and RuntimeBudgetTurnScopes. Coordinate public contracts early.
+- Official Central latest0.8.69 checked. Proposed nextimmutable0.8.70, not yet
+  tagged/published. Preserve normal chat, read-onlySupport, current identity,
+  source authorization, manual editing freedom and existing immutable artifacts.
+
+- Continued implementation: Carver now owns Runtime workflow host/controllers,
+  in addition to safe provider observations; main owns compiler/catalog, Runtime
+  V29/manifest/version alignment and legacy SmartBrainOperationService enum
+  compatibility. Lagrange owns assistant backend/normalized operations/goal
+  authority; Jason owns the panel and published-policy controls. Runtime root
+  host references must stay outside the strict query input schema, in existing
+  canonical server-owned state, not an extra model input property. SDK immutable
+  input/identity restoration checks must remain intact.
+- Local0.8.70 artifacts installed for development; NOT an official release or
+  deployed upgrade. Main Runtime/backend manifest defaults are70 in source only.
+  Focused core goal/bounded tests and Platform assistant tests have passing
+  results, but new durable gateway/restart checks and full integration are still
+  being fixed/qualified. Do not claim completion or publish until gates pass.
+- Read-only preflight BOTH: healthy configured workflow on actual0.8.69, original
+  grant stores intact, effective test limitsstage1M/100M/USD25 andprod1M/100M/USD20,
+  no new provider use during inspection. Main private release helper prepared
+  at ~/.codex/private/loomai-autonomy-01076/framework-release.mjs; not dispatched.
+  It prevents duplicate immutable uploads. New development guide
+  AUTONOMOUS_BUILD_WITH_AI.md and UI entry notes describe the contract, not live
+  acceptance. Preserve unrelated.gitignore/tsbuildinfo/four Brain PNG changes.
+
+### 010.76 Local Closure In Progress - 24 November 2026
+
+- Generic framework source is frozen and fast-forward pushed to public main at
+  d59a452d8e1368c16b0a5e0fb68afd0dd5d493cf. All32 reactor projects passed
+  locally:2769tests/0failures/0errors/4opt-in skips, plus109focused checks.
+  Follow-up preserves native PAUSED checkpoints for funding/control interruption
+  and the latest bounded approved tool result without losing24Ksource ranges.
+  Public Framework Build45497827404 is the release gate. No70tag/publication
+  was created at this checkpoint; actual hosted services remain69.
+- UI frozen:88unit/90browsergroups/typecheck/build PASS. Auth25unit/36browser
+  scenarios PASS. Updated old auth fixture assertions to current public products
+  and template cards, without production redesign. Main added authenticated
+  logout revocation before browser credential clearing, separate cookie logout
+  and visible failure. Full assistant/auth browser checks now run in existing
+  platform-code-regression.yml whenui_build is selected.
+- Main RuntimeV29/legacyenum compatibility3PASS; compiler/catalog/version21PASS.
+  Backend/Runtime full tests and final host integration still ongoing. Final
+  review found missing native verifyDelegatedAction integration and a volatile
+  get_context.goal projection that could mask repeated-read non-progress; these
+  are being corrected before release. Stored credential-reference selection
+  for private HTTP actions is also under review; never weaken literal-secret
+  protections or claim Harbor's five operations qualified before actual tests.
+- Private01076 release helpers now include framework-release.mjs,
+  rollout-core.mjs, register-runtime.mjs, publish-authoring.mjs and
+  harbor-preparation.mjs. Syntax checked, not deployed. Core rollout requires
+  source-exact core/storage/quota/code CI gates; registration checks actual
+  native manifest and all nine official CentralJAR hashes. Production is gated
+  on genuine staging-acceptance.private.json, never a placeholder PASS.
+- Current tracked implementation remains uncommitted in Platform-V11 after
+  baseline777b2c510. Only explicit01076 files should be staged; preserve all
+  unrelated dirty/untracked files. verification-support/autonomous-build-with-ai/
+  README.md records local progress and outstanding hosted gates, not acceptance.
+- Subsequent release gate: public Framework Build45497827404 completedSUCCESS
+  on exactd59a452d, including realapps/IncidentRoom/vectorcontainers. Main created
+  immutabletagai-fabric-framework-v0.8.70 and dispatched ONE Central release run
+  45500458316. InitialobservationIN_PROGRESS/CentralBOM404. Never duplicate that
+  publication; useprivateframework-release.mjs observe, thenverify-central once
+  available. RootremotePlatform-V11 still777b2c510, noapplicationpush/deployment.
+- Subsequent auth closure: main added explicitcustomer-token/no-cookie logout
+  for any retained Supabase session being cleared, including after a staff
+  cookie/key switch. Nativecookie revocation remains separate; no credentials
+  mix and no browser clearing on failed server acknowledgment. Latest26auth
+  units/38browser scenarios PASS, UItypecheck/buildPASS. Local logsunder
+  /private/tmp/loomai-01076-auth-{units-final,browser-final-2}.log and
+  loomai-01076-ui-build-final.log. Existing assistant90browsergroups unchanged.
+- Framework70 publication is now COMPLETE: Central release45500458316SUCCESS,
+  officialBOM200 and nine independently downloaded/checked JARs; private proof
+  framework-official-jars-proof.private.json. Do not create another publication.
+- Runtime/provider/sourceversioncode committed+pushed as19282a279420b74d8ffda1df36302adcea199e1c.
+  Runtimeimage45503364904 and initialCore45503364857SUCCESS. Full fresh local
+  productreactorPASS: connector163, Runtime847, Relay35, zero failures/errors,
+  five opt-in skips (1045total). Main fixed stalecount+8to+9 in the seven-case
+  actualPostgres migration-overview test; allsevenPASS. Runtime source is frozen.
+- StageRuntimeartifact registered/promoted through normal own-admin flow and
+  nineofficialJARchecksum/manifest attestation: dsa-0a673f73,
+  sha256:51fcd9f7eb8752bf5fbcd93e8720f9094e1ea20801a2936c326b8990a017f538.
+  Source19282a279; privateprefixruntime-19282a279-staging. Registration is NOT an
+  applied release; actualnativeassistantstill69 and no UI/backendrollout yet.
+- Backendagent closingstableget_context.goal + ownedreference selection +
+  explicitdocumentedAPI-keycoverage. Newformalreference expansion must not allow
+  exporting credentials into prompts, bodies or URLs; literal/global/foreign
+  values staydenied, actualvalue nevergoestoAI. Latestfocusruns in/tmp/01076-
+  backend-closures-*.log; earlier failures are historical until finalreport.
+  Full originalBackendrun continues separately in/private/tmp/loomai-01076-
+  backend-final/Platfrom/backend (agentexec17966, log/tmp/01076-backend-full-frozen.log).
+  Main cannot poll that agent exec ID directly; agent owns collection, not restart.
+- Private goal-controls.mjs and quick-edit-regression.mjs are syntax-checked,
+  not runlive. Existing distinct foreignCustomerAdmin/Supabase fixtures were
+  verified read-only BOTH environments, saved0600 atgoal-controls-foreign-
+  {staging,production}.private.json withforeign-fixture-verification.private.json.
+  Ownerfixture remainsoriginal01049 onboarding; bothaccounts aredifferent actual
+  customers, no newusers/workspaces/infrastructure. Allownsessionsloggedout.
+

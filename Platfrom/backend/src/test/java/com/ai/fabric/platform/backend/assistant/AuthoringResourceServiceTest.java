@@ -504,6 +504,29 @@ class AuthoringResourceServiceTest {
         assertThat(catalogue.path("secretReferences")).isEqualTo(mapper.valueToTree(List.of("CUSTOMER_TEST_API")));
         assertThat(catalogue.toString()).doesNotContain("private-value-never-to-model");
     }
+    @Test void normalDraftSaveSelectsOnlyCurrentOwnedReferencesAndPublishesTheRealWireContract() throws Exception {
+        brainFixture();
+        var own = new com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity();
+        own.setName("CUSTOMER_TEST_API"); own.setDeploymentId(BRAIN); own.setSecretValue("private-material-never-to-model");
+        var foreign = new com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity();
+        foreign.setName("FOREIGN_API"); foreign.setDeploymentId("other-brain"); foreign.setSecretValue("foreign-private-material");
+        when(secrets.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
+            com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType.DEPLOYMENT_OVERRIDE, BRAIN)).thenReturn(List.of(own, foreign));
+        var catalogue = resources.load("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS").catalogue();
+        assertThat(catalogue.path("secretReferences")).isEqualTo(mapper.valueToTree(List.of("CUSTOMER_TEST_API")));
+        assertThat(catalogue.at("/storedSecretReferenceSelection/wireFormat").asText()).isEqualTo("${NAME}");
+        assertThat(catalogue.at("/storedSecretReferenceSelection/createsSecrets").asBoolean()).isFalse();
+        var patch = mapper.createArrayNode().add(mapper.createObjectNode().put("path", "/routingConfig/actions/lookup_order/headers/X-Lab-Key")
+            .put("operation", "SET").put("value", "${secret:CUSTOMER_TEST_API}"));
+        var saved = resources.save("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS", patch);
+        assertThat(capturedDraftUpdate().routingConfig().at("/actions/lookup_order/headers/X-Lab-Key").asText()).isEqualTo("${CUSTOMER_TEST_API}");
+        assertThat(saved.diff().toString()).contains("${CUSTOMER_TEST_API}").doesNotContain("private-material-never-to-model", "foreign-private-material");
+        for (String value : List.of("${FOREIGN_API}", "${OPENAI_API_KEY}", "raw-new-key")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) patch.get(0)).put("value", value);
+            assertThatThrownBy(() -> resources.save("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS", patch));
+        }
+        verify(brains, times(1)).updateDraft(eq(DRAFT), any());
+    }
 
     @Test void engageRefinementPreservesCustomerCustomDomainsAndAllUntouchedIdentityConnectionAndAuthFields() throws Exception {
         var app = engageFixture("DRAFT");

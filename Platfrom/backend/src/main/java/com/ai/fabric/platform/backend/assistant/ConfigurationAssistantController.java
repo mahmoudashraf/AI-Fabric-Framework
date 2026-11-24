@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasAnyRole('CUSTOMER_ADMIN','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
 public class ConfigurationAssistantController {
     private final ConfigurationAssistantService service;
+    private AuthoringGoalService goals;
     public ConfigurationAssistantController(ConfigurationAssistantService service) { this.service = service; }
+    @org.springframework.beans.factory.annotation.Autowired public void setGoals(AuthoringGoalService goals) { this.goals = goals; }
     @ModelAttribute void noCache(jakarta.servlet.http.HttpServletResponse response) { response.setHeader("Cache-Control", "no-store"); }
     @GetMapping("/status") public JsonNode status() { return service.status(); }
     @PostMapping("/sessions") public JsonNode create(@RequestBody ConfigurationAssistantService.CreateSession request) { return service.create(request); }
@@ -27,6 +29,18 @@ public class ConfigurationAssistantController {
     @GetMapping("/sessions/{id}/turns/{turnId}") public JsonNode turn(@PathVariable String id, @PathVariable String turnId) { return service.get(id); }
     @PostMapping("/sessions/{id}/cancel") public JsonNode cancel(@PathVariable String id,
         @RequestBody(required = false) ConfigurationAssistantService.CancelRequest request) { return service.cancel(id, request == null ? null : request.turnId()); }
+    @PostMapping("/sessions/{id}/goals/{goalId}/control") public JsonNode control(@PathVariable String id, @PathVariable String goalId,
+        @RequestBody AuthoringGoalService.Control request) {
+        goals.control(id, goalId, request); goals.refresh(goalId); return service.get(id);
+    }
+    @PostMapping("/sessions/{id}/goals/{goalId}/directives") public JsonNode directive(@PathVariable String id, @PathVariable String goalId,
+        @RequestBody AuthoringGoalService.Directive request, @RequestHeader("Idempotency-Key") String key) {
+        goals.directive(id, goalId, request, key); goals.refresh(goalId); return service.get(id);
+    }
+    @GetMapping("/sessions/{id}/goals/{goalId}/operations") public JsonNode operations(@PathVariable String id, @PathVariable String goalId,
+        @RequestParam(defaultValue = "0") int offset, @RequestParam(defaultValue = "20") int limit) {
+        return goals.operationPage(id, goalId, offset, limit);
+    }
     @PostMapping("/sessions/{id}/proposals/{turnId}/check") public JsonNode check(@PathVariable String id, @PathVariable String turnId) { return service.proposal(id, turnId, "check"); }
     @PostMapping("/sessions/{id}/proposals/{turnId}/apply") public JsonNode apply(@PathVariable String id, @PathVariable String turnId) { return service.proposal(id, turnId, "apply"); }
     @PostMapping("/sessions/{id}/proposals/{turnId}/undo") public JsonNode undo(@PathVariable String id, @PathVariable String turnId) { return service.proposal(id, turnId, "undo"); }

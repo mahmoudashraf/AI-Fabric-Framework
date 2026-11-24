@@ -37,6 +37,30 @@ public class ConfiguredAuthoringRuntimeClient {
     public JsonNode conversation(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId) {
         return exchange(binding, sessionId, conversationId, "GET", "", null, null, Instant.now().plusSeconds(10));
     }
+    public JsonNode startGoal(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId,
+        String turnId, String task, String query, JsonNode authority) {
+        var request = mapper.createObjectNode().put("query", query);
+        var work = request.putObject("configurationWork").put("sessionId", sessionId).put("turnId", turnId).put("task", task)
+            .put("profileId", binding.profileId()).put("releaseId", binding.releaseId()).put("bundleHash", binding.bundleHash())
+            .put("goalMode", true).put("authorityReference", authority.path("authorityId").asText())
+            .put("goalId", authority.path("goalId").asText()).put("authorityDeadline", authority.path("validUntil").asText())
+            .put("previewOnly", authority.path("previewOnly").asBoolean()).put("maxCorrections", binding.maxCorrections());
+        for (String field : java.util.List.of("requestRevision", "cancellationEpoch", "segment")) work.set(field, authority.path(field));
+        return exchange(binding, sessionId, conversationId, "POST", "/messages", request, turnId, Instant.now().plusSeconds(15));
+    }
+    public JsonNode work(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId, String workId) {
+        return exchange(binding, sessionId, conversationId, "GET", "/work/" + workPath(workId), null, null, Instant.now().plusSeconds(10));
+    }
+    public JsonNode controlWork(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId,
+        String workId, JsonNode control) {
+        String key = workId + ":" + control.path("command").asText() + ":" + control.path("requestRevision").asLong()
+            + ":" + control.path("cancellationEpoch").asLong();
+        return exchange(binding, sessionId, conversationId, "POST", "/work/" + workPath(workId) + "/control", control, key, Instant.now().plusSeconds(10));
+    }
+    private String workPath(String workId) {
+        if (workId == null || !workId.matches("[a-zA-Z0-9][a-zA-Z0-9:_-]{0,199}")) throw new IllegalArgumentException("AUTHORING_WORK_ID_INVALID");
+        return workId;
+    }
     public void close(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId) {
         exchange(binding, sessionId, conversationId, "DELETE", "", null, "close-" + conversationId, Instant.now().plusSeconds(10));
     }

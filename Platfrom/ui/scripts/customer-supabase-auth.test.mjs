@@ -19,7 +19,7 @@ async function load(path) {
 }
 const { isCustomerSession, isCustomerAuthenticationMode } = await load('../src/auth/customerSession.ts')
 globalThis.window = { __PLATFORM_RUNTIME_CONFIG__: { apiBaseUrl: 'https://api.example.test' } }
-const { platformCredentials, platformRequest, setPlatformAccessTokenProvider } = await load('../src/api/platformApi.ts')
+const { platformCredentials, platformRequest, setPlatformAccessTokenProvider, logoutFromPlatform, logoutCustomerFromPlatform, setStoredPlatformApiKey, clearStoredPlatformApiKey } = await load('../src/api/platformApi.ts')
 delete globalThis.window
 const { requireDeskAuthorization, requireDeskCallback } = await load('../src/auth/deskOAuthPolicy.ts')
 const { authorizeDeskOnce } = await load('../src/auth/deskAuthorizationAttempt.ts')
@@ -75,6 +75,44 @@ test('an expired customer SDK session must not fall back to a staff credential',
   setPlatformAccessTokenProvider(async () => null)
   await assert.rejects(platformCredentials('/api/deployments', 'staff-key'), /Customer session expired/)
   setPlatformAccessTokenProvider(null)
+})
+
+test('logout notifies the current customer before separately clearing a native cookie session', async () => {
+  const original = globalThis.fetch, calls = []
+  setPlatformAccessTokenProvider(async () => 'current-customer-token')
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, method: init.method, headers: init.headers, credentials: init.credentials })
+    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  try {
+    await logoutFromPlatform('default')
+    await logoutFromPlatform()
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0].url, 'https://api.example.test/api/platform/auth/logout')
+    assert.equal(calls[0].headers.Authorization, 'Bearer current-customer-token')
+    assert.equal(calls[0].headers['X-PLATFORM-API-KEY'], undefined)
+    assert.equal(calls[0].credentials, 'omit')
+    assert.equal(calls[1].headers.Authorization, undefined)
+    assert.equal(calls[1].headers['X-PLATFORM-API-KEY'], undefined)
+    assert.equal(calls[1].credentials, 'include')
+  } finally { globalThis.fetch = original; setPlatformAccessTokenProvider(null) }
+})
+
+test('clearing a retained customer session never uses the selected staff identity', async () => {
+  const original = globalThis.fetch, calls = []
+  setStoredPlatformApiKey('current-staff-key')
+  setPlatformAccessTokenProvider(async () => { throw new Error('Do not resolve the selected identity') })
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, headers: init.headers, credentials: init.credentials })
+    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  try {
+    await logoutCustomerFromPlatform('retained-customer-token')
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].headers.Authorization, 'Bearer retained-customer-token')
+    assert.equal(calls[0].headers['X-PLATFORM-API-KEY'], undefined)
+    assert.equal(calls[0].credentials, 'omit')
+  } finally { globalThis.fetch = original; setPlatformAccessTokenProvider(null); clearStoredPlatformApiKey() }
 })
 
 test('only MCP authorization can bind a browser cookie while retaining customer authentication', async () => {

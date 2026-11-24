@@ -43,8 +43,25 @@ public class AuthoringToolAuthentication {
         if (action != null && !member(headers, "X-AIFABRIC-AUTH-SCOPES", "action:" + action)) throw denied();
         try { if (!Instant.parse(single(headers, "X-AIFABRIC-AUTH-EXPIRES-AT")).isAfter(Instant.now())) throw denied(); }
         catch (java.time.format.DateTimeParseException invalid) { throw denied(); }
+        String goalId = headers.containsKey("X-LOOMAI-AUTHORING-GOAL-ID") ? single(headers, "X-LOOMAI-AUTHORING-GOAL-ID") : null;
         return new AuthoringDraftOperations.Caller(sessionId, turnId, properties.getDeploymentId(), single(headers, RELEASE_HEADER), action,
-            member(headers, "X-AIFABRIC-AUTH-SCOPES", "action:authoring_read_selected_sources"));
+            member(headers, "X-AIFABRIC-AUTH-SCOPES", "action:authoring_read_selected_sources"), goalId,
+            goalId == null ? 0 : number(headers, "X-LOOMAI-AUTHORING-REQUEST-REVISION"),
+            goalId == null ? 0 : number(headers, "X-LOOMAI-AUTHORING-CANCELLATION-EPOCH"),
+            goalId == null ? 0 : Math.toIntExact(number(headers, "X-LOOMAI-AUTHORING-SEGMENT")));
+    }
+    /** Renewal authenticates the fixed host, not the expired assertion being renewed. */
+    public AuthoringDraftOperations.Caller verifyAuthority(HttpHeaders headers, String sessionId, String turnId) {
+        if (!properties.isEnabled() || !properties.isConfiguredBrainEnabled()) throw new ResponseStatusException(NOT_FOUND);
+        var key = secrets.resolveSecret(properties.getApiKeySecretRef());
+        if (key == null || key.isBlank()) throw new ResponseStatusException(SERVICE_UNAVAILABLE, "AUTHORING_TOOL_AUTH_UNAVAILABLE");
+        if (!MessageDigest.isEqual(key.getBytes(StandardCharsets.UTF_8), single(headers, KEY_HEADER).getBytes(StandardCharsets.UTF_8))) throw denied();
+        String release = single(headers, RELEASE_HEADER); bindings.identity(release);
+        return new AuthoringDraftOperations.Caller(sessionId, turnId, properties.getDeploymentId(), release);
+    }
+    private long number(HttpHeaders headers, String name) {
+        try { long value = Long.parseLong(single(headers, name)); if (value < 0 || value > Integer.MAX_VALUE) throw denied(); return value; }
+        catch (IllegalArgumentException invalid) { throw denied(); }
     }
     private boolean member(HttpHeaders headers, String name, String value) {
         return Arrays.stream(single(headers, name).split(",")).map(String::trim).anyMatch(value::equals);

@@ -124,6 +124,7 @@ public final class AuthoringDocumentImporter {
                 ObjectNode operation = operations.addObject();
                 operation.put("id", sourceId + "#tool:" + name);
                 operation.put("kind", "MCP_TOOL"); operation.put("toolName", name);
+                for (String field : List.of("connectionId", "serverRef", "snapshotId")) if (safe.path(field).isTextual()) operation.set(field, safe.get(field));
                 operation.put("summary", tool.path("title").asText(name));
                 operation.put("description", tool.path("description").asText(""));
                 operation.put("sourcePointer", "#/tools/" + i);

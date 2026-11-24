@@ -28,6 +28,7 @@ public class McpAssistantSourceController {
             || request == null || request.toolNames() == null || request.toolNames().isEmpty()
             || request.toolNames().size() > 500) throw new ResponseStatusException(BAD_REQUEST, "Select a bounded MCP tool catalogue for this Brain's action assistant.");
         JsonNode catalogue = catalogues.catalogue(session.path("resourceId").asText(), request.connectionId(), request.snapshotId(), request.toolNames());
+        if (catalogue.isObject()) ((com.fasterxml.jackson.databind.node.ObjectNode) catalogue).put("connectionId", request.connectionId()).put("snapshotId", request.snapshotId());
         return assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Selected MCP capabilities",
             "application/vnd.loomai.mcp+json", catalogue.toString(), null, null));
     }

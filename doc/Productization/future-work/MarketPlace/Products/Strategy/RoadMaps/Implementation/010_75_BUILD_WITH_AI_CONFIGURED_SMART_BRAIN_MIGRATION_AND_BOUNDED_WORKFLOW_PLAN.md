@@ -20,6 +20,15 @@ Cancellation uses a generic
 history-preserving `INTERRUPT_AI` epoch transition within FW2; erasure of
 authoring content retains closed owner tombstones and financial receipts.
 
+Follow-up qualification, 24 November 2026: Harbor's five-operation bulk import
+returned empty planning content and exhausted the two-correction turn allowance;
+manual narrowing produced two READ capabilities. The recorded publish/index/
+Engage journey passed, but it did not qualify all five operations or goal-level
+autonomous recovery. See
+[010.76 Goal-Driven Full Autonomy](010_76_GOAL_DRIVEN_FULL_AUTONOMY_AND_ADAPTIVE_AUTHORING_PLAN.md)
+for the proposed persistent-goal, adaptive-recovery and scoped-delegation work.
+That proposal is not implemented or deployed by this migration's completion.
+
 ## 1. Decision Summary
 
 Build with AI must be a real configured, versioned, Platform-managed Smart Brain.

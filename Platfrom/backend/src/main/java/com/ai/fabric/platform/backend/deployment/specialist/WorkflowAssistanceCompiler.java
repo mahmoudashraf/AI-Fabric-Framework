@@ -18,35 +18,69 @@ public final class WorkflowAssistanceCompiler {
     public static final String FIELD = "workflowAssistance";
     public static final String CONTRACT = "LOOMAI_WORKFLOW_ASSISTANCE_V1";
     public static final String CAPABILITY = "configured-workflow-assistance";
+    public static final String GOAL_CAPABILITY = "goal-driven-workflow-assistance";
+    public static final String EXTENDED_BUNDLE_CAPABILITY = "workflow-bundle-capacity-v2";
     public static final String PROJECTOR = "workflow-answer@1";
-    public static final int MAX_BYTES = 65_536;
+    // Base64 stays below Linux's single environment-entry limit, including its key.
+    public static final int MAX_BYTES = 96_000;
     private final ObjectMapper mapper;
     public WorkflowAssistanceCompiler(ObjectMapper mapper) { this.mapper = mapper; }
     public static boolean enabled(JsonNode behavior) { return behavior.path(FIELD).path("enabled").asBoolean(false); }
+    public static boolean goalEnabled(JsonNode behavior) { return enabled(behavior) && behavior.path(FIELD).path("goal").path("enabled").asBoolean(false); }
+    public static boolean extendedBundleRequired(JsonNode behavior) {
+        var bundle = behavior.path(FIELD).path("compiled");
+        return bundle.isObject() && bundle.toString().getBytes(StandardCharsets.UTF_8).length > 65_536;
+    }
 
     public void validateConfiguration(JsonNode behavior) {
         var config = behavior.path(FIELD);
         if (config.isMissingNode() || config.isNull()) return;
         require(config.isObject() && config.path("enabled").isBoolean(), "Workflow assistance needs an explicit enabled flag.");
-        only(config, "enabled", "profiles", "taskBindings", "defaultProfileId", "policy", "compiled", "contentHash");
+        only(config, "enabled", "profiles", "taskBindings", "defaultProfileId", "policy", "goal", "compiled", "contentHash");
         if (!enabled(behavior)) return;
         require("CONVERSATIONAL".equals(behavior.path("type").asText()), "Interactive workflow assistance requires Conversational behavior.");
         var policy = config.path("policy");
         only(policy, "maxActionSteps", "maxWriteSteps", "maxModelCalls", "maxCorrections", "deadlineSeconds");
-        number(policy, "maxActionSteps", 1, 8); number(policy, "maxWriteSteps", 0, 3);
-        number(policy, "maxModelCalls", 1, 16); number(policy, "maxCorrections", 0, 2);
-        number(policy, "deadlineSeconds", 5, 120);
+        boolean autonomous = goalEnabled(behavior);
+        if (config.hasNonNull("goal")) {
+            var goal = config.path("goal");
+            only(goal, "enabled", "maxElapsedSeconds", "continuationDelaySeconds", "maxConsecutiveNoProgress", "maxConsecutivePlannerFailures");
+            require(goal.path("enabled").isBoolean(), "Goal execution needs an explicit enabled flag.");
+            if (autonomous) {
+                number(goal, "maxElapsedSeconds", 5, 2_592_000);
+                number(goal, "continuationDelaySeconds", 0, 3600);
+                number(goal, "maxConsecutiveNoProgress", 1, 1000);
+                number(goal, "maxConsecutivePlannerFailures", 1, 100);
+            }
+        }
+        boolean retainedGoalPolicy = config.hasNonNull("goal");
+        number(policy, "maxActionSteps", 1, retainedGoalPolicy ? 64 : 8);
+        number(policy, "maxWriteSteps", 0, retainedGoalPolicy ? 64 : 3);
+        number(policy, "maxModelCalls", 1, retainedGoalPolicy ? 64 : 16);
+        number(policy, "maxCorrections", 0, retainedGoalPolicy ? 8 : 2);
+        number(policy, "deadlineSeconds", 5, retainedGoalPolicy ? 140 : 120);
         require(policy.path("maxWriteSteps").asInt() <= policy.path("maxActionSteps").asInt(), "Writes cannot exceed the action limit.");
         var profiles = config.path("profiles");
         require(profiles.isArray() && !profiles.isEmpty() && profiles.size() <= 9, "Configure between one and nine workflow profiles.");
         var ids = new LinkedHashSet<String>();
         for (var profile : profiles) {
-            only(profile, "id", "name", "purpose", "instructions", "readActions", "writeActions");
+            only(profile, "id", "name", "purpose", "instructions", "readActions", "writeActions", "delegatedProfiles");
             var id = text(profile, "id", 48);
             require(id.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)*") && ids.add(id), "Workflow profile IDs must be unique lowercase identifiers.");
             text(profile, "name", 120); text(profile, "purpose", 500); text(profile, "instructions", 8000);
             var reads = strings(profile.path("readActions")); var writes = strings(profile.path("writeActions"));
             require(java.util.Collections.disjoint(reads, writes), "An action cannot be both READ and WRITE in one profile.");
+        }
+        for (var profile : profiles) {
+            var delegates = profile.has("delegatedProfiles") ? strings(profile.path("delegatedProfiles")) : List.<String>of();
+            if (!autonomous) continue;
+            var rootReads = strings(profile.path("readActions")); var rootWrites = strings(profile.path("writeActions"));
+            for (var target : delegates) {
+                require(ids.contains(target) && !target.equals(profile.path("id").asText()), "Select an existing different delegated profile.");
+                var child = findProfile(profiles, target);
+                require(rootReads.containsAll(strings(child.path("readActions"))) && rootWrites.containsAll(strings(child.path("writeActions"))),
+                    "A delegated profile cannot widen its goal owner's action authority.");
+            }
         }
         require(ids.contains(text(config, "defaultProfileId", 48)), "Choose a configured default profile.");
         var bindings = config.path("taskBindings");
@@ -68,7 +102,9 @@ public final class WorkflowAssistanceCompiler {
         require(authority != null, "Workflow capabilities require installed action authority.");
         var config = behavior.path(FIELD);
         var bundle = mapper.createObjectNode().put("contractVersion", CONTRACT);
-        bundle.set("policy", config.path("policy").deepCopy()); bundle.set("taskBindings", config.path("taskBindings").deepCopy());
+        var policy = compiledPolicy(config);
+        bundle.set("policy", policy); bundle.set("taskBindings", config.path("taskBindings").deepCopy());
+        if (config.has("goal")) bundle.set("goal", config.path("goal").deepCopy());
         bundle.put("defaultProfileId", config.path("defaultProfileId").asText());
         var resources = bundle.putArray("resources"); var catalogue = bundle.putArray("profiles");
         var inputSchema = mapper.createObjectNode().put("type", "object").put("additionalProperties", false);
@@ -94,11 +130,20 @@ public final class WorkflowAssistanceCompiler {
             var spec = specialist.putObject("spec").put("mode", "executor");
             spec.putObject("instructions").put("objective", profile.path("purpose").asText()).put("promptProfileRef", name + "@1");
             var execution = spec.putObject("execution").put("strategy", "BOUNDED_ITERATIVE").put("writePolicy", writes.isEmpty() ? "DISABLED" : "ACTION_POLICY");
-            var policy = config.path("policy");
             execution.putObject("workflow").put("enabled", true).put("maxActions", policy.path("maxActionSteps").asInt())
                 .put("maxWrites", writes.isEmpty() ? 0 : policy.path("maxWriteSteps").asInt())
                 .put("maxModelCalls", policy.path("maxModelCalls").asInt()).put("maxCorrections", policy.path("maxCorrections").asInt())
                 .put("timeout", "PT" + policy.path("deadlineSeconds").asInt() + "S");
+            var delegates = goalEnabled(behavior) && profile.has("delegatedProfiles") ? strings(profile.path("delegatedProfiles")) : List.<String>of();
+            if (goalEnabled(behavior)) {
+                var goal = config.path("goal");
+                var compiledGoal = execution.withObject("/workflow").putObject("goal").put("enabled", true)
+                    .put("maxElapsed", "PT" + goal.path("maxElapsedSeconds").asInt() + "S")
+                    .put("continuationDelay", "PT" + goal.path("continuationDelaySeconds").asInt() + "S")
+                    .put("maxConsecutiveNoProgress", goal.path("maxConsecutiveNoProgress").asInt())
+                    .put("maxConsecutivePlannerFailures", goal.path("maxConsecutivePlannerFailures").asInt());
+                compiledGoal.set("delegatedProfiles", mapper.valueToTree(delegates));
+            }
             var capabilities = spec.putObject("capabilities");
             capabilities.putObject("retrieval").put("enabled", false).putArray("vectorSpaces");
             var actions = capabilities.putObject("actions");
@@ -121,7 +166,10 @@ public final class WorkflowAssistanceCompiler {
             resources.add(specialist);
             var entry = catalogue.addObject().put("id", id).put("name", profile.path("name").asText())
                 .put("specialistRef", name + "@1");
+            entry.set("allowedActions", mapper.valueToTree(visible));
+            entry.set("delegatedProfiles", mapper.valueToTree(delegates));
             var scopes = new LinkedHashSet<String>(); scopes.add("specialist:" + name + "@1");
+            delegates.forEach(target -> scopes.add("specialist:workflow-" + target + "@1"));
             reads.forEach(action -> { scopes.add("action:" + action); scopes.addAll(authority.readActionScopes().get(action)); });
             writes.forEach(action -> { scopes.add("action:" + action); scopes.addAll(authority.writeActionScopes().get(action)); });
             require(scopes.size() <= 64, "The selected workflow resources exceed the execution scope limit.");
@@ -155,6 +203,21 @@ public final class WorkflowAssistanceCompiler {
     }
     private ObjectNode schema(String name, String direction, JsonNode schema) {
         var result = resource("SpecialistSchema", name); result.putObject("spec").put("direction", direction).put("draft", "2020-12").set("schema", schema); return result;
+    }
+    private JsonNode findProfile(JsonNode profiles, String id) {
+        for (var profile : profiles) if (id.equals(profile.path("id").asText())) return profile;
+        throw new IllegalArgumentException("Validated workflow profile is unavailable");
+    }
+    private ObjectNode compiledPolicy(JsonNode config) {
+        ObjectNode result = config.path("policy").deepCopy();
+        if (!config.path("goal").path("enabled").asBoolean(false)) {
+            result.put("maxActionSteps", Math.min(result.path("maxActionSteps").asInt(), 8));
+            result.put("maxWriteSteps", Math.min(result.path("maxWriteSteps").asInt(), 3));
+            result.put("maxModelCalls", Math.min(result.path("maxModelCalls").asInt(), 16));
+            result.put("maxCorrections", Math.min(result.path("maxCorrections").asInt(), 2));
+            result.put("deadlineSeconds", Math.min(result.path("deadlineSeconds").asInt(), 120));
+        }
+        return result;
     }
     private void number(JsonNode value, String key, int min, int max) {
         require(value.path(key).isIntegralNumber() && value.path(key).canConvertToInt()

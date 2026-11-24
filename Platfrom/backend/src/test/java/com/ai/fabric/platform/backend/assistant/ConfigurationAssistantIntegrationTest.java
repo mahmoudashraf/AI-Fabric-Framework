@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /** Real encrypted facade/receipts; canonical runtime and resource receivers are explicit test fixtures. */
 @SpringBootTest(properties = {"platform.bootstrap.sample-enabled=false", "platform.auth.bootstrap-admin-enabled=false",
+    "spring.datasource.url=jdbc:h2:mem:configuration-assistant-goals;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
     "platform.assistant.enabled=true", "platform.assistant.configured-brain-enabled=true",
     "platform.assistant.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="})
 @ActiveProfiles("test")
@@ -37,15 +39,25 @@ class ConfigurationAssistantIntegrationTest {
     @Autowired PlatformUserRepository users;
     @Autowired AuthoringChanges changes;
     @Autowired ObjectMapper mapper;
+    @Autowired AuthoringCrypto crypto;
+    @SpyBean AuthoringGoalService goals;
+    @Autowired AuthoringGoalRepository goalRecords;
+    @Autowired AuthoringOperationRepository operationRecords;
+    @Autowired AuthoringGoalDirectiveRepository directiveRecords;
+    @MockBean AuthoringGoalLoginAuthority logins;
     @MockBean AuthoringBrainBindingService bindings;
     @MockBean ConfiguredAuthoringRuntimeClient runtime;
     @MockBean AuthoringResourceService resources;
     @MockBean AuthoringDraftLock draftLock;
     String customerId, resourceId, userId, actor, sessionId;
     AtomicReference<ObjectNode> configuration = new AtomicReference<>();
+    List<String> secretReferences = List.of();
     @BeforeEach void prepare() throws Exception {
+        // Tests drive refresh explicitly; background polling must not race mock replacement.
+        doNothing().when(goals).refresh();
         String suffix = UUID.randomUUID().toString(); customerId = "customer-" + suffix; resourceId = "dep-" + suffix;
         userId = "user-" + suffix; actor = suffix + "@example.test";
+        secretReferences = List.of();
         var customer = new PlatformCustomerEntity(); customer.setId(customerId); customer.setSlug(customerId); customer.setName("Fixture");
         customer.setStatus("ACTIVE"); customer.setCreatedAt(Instant.now()); customer.setUpdatedAt(Instant.now()); customers.saveAndFlush(customer);
         var user = new PlatformUserEntity(); user.setId(userId); user.setEmail(actor); user.setDisplayName("Fixture author");
@@ -56,16 +68,19 @@ class ConfigurationAssistantIntegrationTest {
         AuthoringNativeCapabilities.READS.forEach(action -> scopes.add("action:" + action));
         AuthoringNativeCapabilities.WRITES.forEach(action -> scopes.add("action:" + action));
         when(bindings.resolve(anyString())).thenReturn(new AuthoringBrainBindingService.Binding("assistant-brain", "release", "https://runtime.example.test", "responses",
-            "responses@1", "sha256:fixture", 3, 2, List.copyOf(scopes)));
+            "responses@1", "sha256:fixture", 3, 2, List.copyOf(scopes), true));
+        when(logins.capture(any())).thenAnswer(call -> mapper.createObjectNode().put("validUntil", Instant.now().plusSeconds(3600).toString()).put("loginSessionId", "fixture-login"));
         when(bindings.conversationBinding()).thenAnswer(call -> bindings.resolve("CONFIGURATION"));
         when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString())).thenAnswer(call -> snapshot(call.getArgument(2)));
         when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode().put("valid", true).put("publishReady", true));
         when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString(), any())).thenAnswer(call -> {
-            var result = changes.apply(configuration.get(), call.getArgument(3), snapshot(call.getArgument(2)).allowedPaths());
+            var snapshot = snapshot(call.getArgument(2));
+            var result = changes.apply(configuration.get(), call.getArgument(3), snapshot.allowedPaths(), snapshot.catalogue().path("secretReferences"));
             configuration.set(result.candidate()); return saved(result);
         });
         when(resources.undo(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString(), any())).thenAnswer(call -> {
-            var result = changes.undo(configuration.get(), call.getArgument(3), snapshot(call.getArgument(2)).allowedPaths());
+            var snapshot = snapshot(call.getArgument(2));
+            var result = changes.undo(configuration.get(), call.getArgument(3), snapshot.allowedPaths(), snapshot.catalogue().path("secretReferences"));
             configuration.set(result.candidate()); return saved(result);
         });
         when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any()))
@@ -78,7 +93,15 @@ class ConfigurationAssistantIntegrationTest {
             });
     }
     @AfterEach void cleanup() {
-        if (sessionId != null) { try { assistant.cancel(sessionId); } catch (Exception ignored) { } sessions.findById(sessionId).ifPresent(sessions::delete); }
+        if (sessionId != null) {
+            try { assistant.cancel(sessionId); } catch (Exception ignored) { }
+            for (var goal : goalRecords.findBySessionId(sessionId)) {
+                directiveRecords.deleteAll(directiveRecords.findByGoalId(goal.id));
+                operationRecords.deleteAll(operationRecords.findByGoalIdOrderByCreatedAtAscIdAsc(goal.id, org.springframework.data.domain.PageRequest.of(0, 1000)));
+                goalRecords.delete(goal);
+            }
+            sessions.findById(sessionId).ifPresent(sessions::delete);
+        }
         SecurityContextHolder.clearContext(); users.deleteById(userId); customers.deleteById(customerId);
     }
     void signIn(String who) {
@@ -87,9 +110,10 @@ class ConfigurationAssistantIntegrationTest {
             List.of(new SimpleGrantedAuthority(principal.role().authority()))));
     }
     AuthoringResourceService.Snapshot snapshot(String task) {
-        return new AuthoringResourceService.Snapshot(customerId, "Fixture", configuration.get(), mapper.createObjectNode(),
-            "BRAIN_SETUP".equals(task) ? List.of("/actionsConfig", "/promptConfig")
-                : List.of("ACTIONS".equals(task) ? "/actionsConfig" : "/promptConfig"), "draft", true, "");
+        var catalogue = mapper.createObjectNode(); catalogue.set("secretReferences", mapper.valueToTree(secretReferences));
+        return new AuthoringResourceService.Snapshot(customerId, "Fixture", configuration.get(), catalogue,
+            "BRAIN_SETUP".equals(task) ? List.of("/actionsConfig", "/routingConfig", "/promptConfig")
+                : "ACTIONS".equals(task) ? List.of("/actionsConfig", "/routingConfig") : List.of("/promptConfig"), "draft", true, "");
     }
     AuthoringResourceService.Saved saved(AuthoringChanges.Result result) {
         return new AuthoringResourceService.Saved(result.diff(), mapper.createObjectNode().put("valid", true),
@@ -110,6 +134,447 @@ class ConfigurationAssistantIntegrationTest {
     JsonNode await() throws Exception {
         for (int i = 0; i < 500; i++) { var state = assistant.get(sessionId); if (!"RUNNING".equals(state.path("status").asText())) return state; Thread.sleep(10); }
         throw new AssertionError("Assistant fixture did not finish");
+    }
+    JsonNode startGoal() {
+        create("BEHAVIOUR");
+        var nativeView = mapper.createObjectNode().put("workId", "exec-goal-fixture");
+        nativeView.putObject("goal").put("state", "RUNNING").put("segment", 1);
+        when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenReturn(nativeView);
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(nativeView);
+        return assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("Set the greeting.", false, null, null, null, null, null, "AUTONOMOUS"), "goal-start").path("goal");
+    }
+    AuthoringDraftOperations.Caller goalCaller(JsonNode goal) {
+        return new AuthoringDraftOperations.Caller(sessionId, goal.path("turnId").asText(), "assistant-brain", "release", null, true,
+            goal.path("id").asText(), goal.path("requestRevision").asLong(), goal.path("cancellationEpoch").asLong(), goal.path("segment").asInt());
+    }
+    @Test void goalAdmissionUsesOneCanonicalAcknowledgementAndPollsWithoutNewUserTurns() {
+        var goal = startGoal();
+        assertThat(goal.path("state").asText()).isEqualTo("RUNNING");
+        assertThat(goal.path("originalRequest").asText()).isEqualTo("Set the greeting.");
+        assertThat(goal.has("latestRequestUpdate")).isFalse();
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThat(goal.toString()).doesNotContain("principal", "loginSessionId", "runtimeHeaders");
+        assistant.get(sessionId); assistant.get(sessionId);
+        verify(runtime, times(1)).startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(runtime, never()).message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any());
+        assertThat(sessions.findById(sessionId).orElseThrow().deadline).isAfter(Instant.now().plusSeconds(1000));
+    }
+    @Test void toolGoalFactsStayEqualAcrossRenewalAndPollingButRealChangesRemainVisible() {
+        var goal = startGoal(); var first = operations.context(goalCaller(goal)); String id = goal.path("id").asText();
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 0, 2));
+        var nativeView = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        var state = nativeView.putObject("goal").put("state", "YIELDED").put("segment", 2).put("nextEligibleAt", Instant.now().plusSeconds(3).toString());
+        state.putObject("usage").put("modelCalls", 7); state.putObject("progress").put("summary", "A changing native summary.");
+        state.putObject("providerDiagnostics").putArray("observations").addObject().put("outputTokens", 123);
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(nativeView);
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        var view = assistant.get(sessionId).path("goal"); var who = goalCaller(view);
+        assertThat(operations.context(who)).isEqualTo(first);
+        for (String field : List.of("state", "segment", "updatedAt", "usage", "progress", "providerDiagnostics", "nextEligibleAt"))
+            assertThat(first.path("goal").has(field)).as(field).isFalse();
+        assertThat(view.path("state").asText()).isEqualTo("YIELDED");
+        assertThat(view.at("/usage/modelCalls").asInt()).isEqualTo(7);
+        assertThat(view.path("providerDiagnostics").isObject()).isTrue();
+        configuration.get().withObject("/promptConfig").put("systemPrompt", "A real manual edit.");
+        var manual = operations.context(who); assertThat(manual).isNotEqualTo(first);
+        operations.save(who, goal.path("workId").asText() + ":step:1", change("A real saved effect."));
+        var saved = operations.context(who); assertThat(saved).isNotEqualTo(manual);
+        assertThat(saved.at("/goal/operationCount").asInt()).isEqualTo(1);
+        assertThat(saved.at("/goal/operations/0").has("savedAt")).isFalse();
+        goals.directive(sessionId, id, new AuthoringGoalService.Directive("Keep the legal name.", null, null), "stable-directive");
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 2, 1, 2));
+        var revised = operations.context(goalCaller(assistant.get(sessionId).path("goal")));
+        assertThat(revised).isNotEqualTo(saved);
+        assertThat(revised.at("/goal/latestRequestUpdate/query").asText()).isEqualTo("Keep the legal name.");
+        assertThat(revised.at("/goal/latestRequestUpdate").has("createdAt")).isFalse();
+        assertThat(revised.at("/goal/originalRequest").asText()).isEqualTo("Set the greeting.");
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+    }
+    @Test void parsedPrivateApiRequiresAnOwnedReferenceThroughCheckSaveAndUndo() {
+        secretReferences = List.of("OWNED_API_KEY"); create("ACTIONS");
+        assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("Private API", "application/json", """
+            {"openapi":"3.0.3","info":{"title":"Private API","version":"1"},"servers":[{"url":"https://api.example.test"}],
+             "security":[{"LabKey":[]}],"components":{"securitySchemes":{"LabKey":{"type":"apiKey","in":"header","name":"X-Lab-Key"}}},
+             "paths":{"/private":{"get":{"operationId":"privateLookup","responses":{"200":{"description":"OK"}}}}}}
+            """, null, null));
+        var nativeView = mapper.createObjectNode().put("workId", "exec-private-goal"); nativeView.putObject("goal").put("state", "RUNNING");
+        when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenReturn(nativeView);
+        var goal = assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("", false, null, null, null,
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of()), "AUTONOMOUS"), "private-goal").path("goal");
+        var who = goalCaller(goal); var setup = mapper.createArrayNode();
+        setup.addObject().put("path", "/actionsConfig/actions").put("operation", "UPSERT").put("key", "privateLookup")
+            .putObject("value").put("name", "privateLookup").put("accessMode", "READ");
+        setup.addObject().put("path", "/routingConfig/actions/privateLookup").put("operation", "SET")
+            .putObject("value").put("method", "GET").put("url", "https://api.example.test/private");
+        operations.save(who, "exec-private-goal:step:1", setup);
+        assertThat(operations.context(who).at("/sourceCoverage/complete").asBoolean()).isFalse();
+        var select = mapper.createArrayNode().add(mapper.createObjectNode().put("path", "/routingConfig/actions/privateLookup/headers/X-Lab-Key")
+            .put("operation", "SET").put("value", "${secret:OWNED_API_KEY}"));
+        assertThat(operations.check(who, select).at("/sourceCoverage/complete").asBoolean()).isTrue();
+        assertThat(assistant.get(sessionId).at("/goal/progress/coverage/completed").asInt()).isZero();
+        operations.save(who, "exec-private-goal:step:2", select);
+        assertThat(configuration.get().at("/routingConfig/actions/privateLookup/headers/X-Lab-Key").asText()).isEqualTo("${OWNED_API_KEY}");
+        assertThat(operations.context(who).at("/configuration/routingConfig/actions/privateLookup/headers/X-Lab-Key").asText()).isEqualTo("${OWNED_API_KEY}");
+        assertThat(operations.status(who).at("/sourceCoverage/complete").asBoolean()).isTrue();
+        assertThat(assistant.get(sessionId).at("/goal/progress/coverage/completed").asInt()).isEqualTo(1);
+        operations.undo(who, "exec-private-goal:step:3", "exec-private-goal:step:2");
+        assertThat(operations.context(who).at("/sourceCoverage/complete").asBoolean()).isFalse();
+        verify(runtime, never()).message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any());
+    }
+    @Test void rootReceiptsSurviveSegmentsWithNoThreeWriteLifetimeLimitOrReplay() {
+        var goal = startGoal(); var who = goalCaller(goal); String root = goal.path("workId").asText();
+        var first = operations.save(who, root + ":step:1", change("First"));
+        operations.save(who, root + ":step:2", change("Second")); operations.save(who, root + ":step:3", change("Third"));
+        assertThatThrownBy(() -> operations.save(who, root + ":step:4", change("Fourth"))).hasMessageContaining("WRITE_LIMIT");
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, 2, "exec-goal-fixture"));
+        var next = new AuthoringDraftOperations.Caller(sessionId, goal.path("turnId").asText(), "assistant-brain", "release", null, true, goal.path("id").asText(), 1, 0, 2);
+        assertThat(renewed.path("segment").asInt()).isEqualTo(2);
+        assertThat(operations.save(next, root + ":step:1", change("First"))).isEqualTo(first);
+        operations.save(next, root + ":step:4", change("Fourth"));
+        assertThat(assistant.get(sessionId).at("/goal/operations")).hasSize(4);
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThat(operations.status(next, new AuthoringDraftOperations.ReceiptRead(root + ":step:4", null, null)).path("operations")).hasSize(1);
+        assertThatThrownBy(() -> operations.save(who, root + ":step:5", change("Old segment"))).hasMessageContaining("FENCED");
+        assertThatThrownBy(() -> operations.save(next, root + ":step:1", change("Changed replay"))).hasMessageContaining("REPLAY_CONFLICT");
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()),
+            new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, 2, "exec-other"))).hasMessageContaining("ACCESS_DENIED");
+        assertThatThrownBy(() -> operations.save(next, goal.path("turnId").asText() + ":step:6", change("Wrong namespace")))
+            .hasMessageContaining("ACCESS_DENIED");
+    }
+    @Test void delayedOldCancellationCannotClearANewerGoalActiveTurn() {
+        var old = startGoal(); String id = old.path("id").asText();
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenThrow(new IllegalStateException("Delivery unavailable"));
+        assistant.cancel(sessionId);
+        var nativeView = mapper.createObjectNode().put("workId", "exec-next-goal");
+        nativeView.putObject("goal").put("state", "RUNNING");
+        when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenReturn(nativeView);
+        var next = assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("A new explicit goal.", false, null, null, null, null, null, "AUTONOMOUS"), "next-goal").path("goal");
+        assertThat(next.path("id").asText()).isNotEqualTo(id);
+        var cancelled = mapper.createObjectNode().put("workId", old.path("workId").asText());
+        cancelled.putObject("goal").put("state", "CANCELLED").put("terminal", true);
+        doReturn(cancelled).when(runtime).controlWork(any(), anyString(), anyString(), anyString(), any());
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        var session = sessions.findById(sessionId).orElseThrow();
+        assertThat(session.activeTurnId).isEqualTo(next.path("turnId").asText());
+        assertThat(session.status).isEqualTo("RUNNING");
+        assertThat(operations.context(goalCaller(next)).path("task").asText()).isEqualTo("BEHAVIOUR");
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(2);
+    }
+    @Test void pauseAndLogoutFenceEveryLaterWriteAndResumeRequiresFreshLogin() {
+        var goal = startGoal(); var who = goalCaller(goal); String root = goal.path("workId").asText();
+        operations.save(who, root + ":step:1", change("Committed"));
+        goals.control(sessionId, goal.path("id").asText(), new AuthoringGoalService.Control("PAUSE"));
+        assertThatThrownBy(() -> operations.save(who, root + ":step:2", change("Late"))).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThat(assistant.get(sessionId).at("/goal/operations")).hasSize(1);
+        goals.control(sessionId, goal.path("id").asText(), new AuthoringGoalService.Control("RESUME"));
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 1, 1));
+        var resumed = goalCaller(assistant.get(sessionId).path("goal"));
+        operations.save(resumed, root + ":step:2", change("After resume"));
+        goals.revokeActor(actor);
+        assertThat(assistant.get(sessionId).at("/goal/reasonCode").asText()).isEqualTo("LOGOUT_REAUTHENTICATION_REQUIRED");
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 1, 2)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        verify(logins, times(2)).capture(any());
+    }
+    @Test void expiredAuthorityPausesAndFreshAuthenticationResumesTheSameRootAndReceipts() {
+        var goal = startGoal(); String id = goal.path("id").asText(); String operation = goal.path("workId").asText() + ":step:1";
+        operations.save(goalCaller(goal), operation, change("Saved before expiry"));
+        var original = goalRecords.findById(id).orElseThrow(); original.validUntil = Instant.now().minusSeconds(1);
+        original.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(original);
+        goals.refresh(id);
+        var paused = assistant.get(sessionId).path("goal");
+        assertThat(paused.path("state").asText()).isEqualTo("PAUSED");
+        assertThat(paused.path("reasonCode").asText()).isEqualTo("REAUTHENTICATION_REQUIRED");
+        assertThat(paused.path("operationCount").asInt()).isEqualTo(1);
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 0, 1)))
+            .hasMessageContaining("FENCED");
+        goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"));
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 1, 1, goal.path("workId").asText()));
+        assertThat(renewed.path("workId")).isEqualTo(goal.path("workId"));
+        assertThat(renewed.path("requestRevision").asInt()).isEqualTo(1);
+        var resumed = goalCaller(assistant.get(sessionId).path("goal"));
+        operations.save(resumed, operation, change("Saved before expiry"));
+        operations.save(resumed, goal.path("workId").asText() + ":step:2", change("After reauthentication"));
+        assertThat(assistant.get(sessionId).at("/goal/operationCount").asInt()).isEqualTo(2);
+        verify(runtime, times(1)).startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+    @Test void directivesAreImmutableIdempotentAndFenceOldRevisionWithoutNewTranscriptTurn() {
+        var goal = startGoal(); String id = goal.path("id").asText(); var who = goalCaller(goal);
+        var request = new AuthoringGoalService.Directive("Use a concise greeting.", List.of(), List.of());
+        goals.directive(sessionId, id, request, "directive"); goals.directive(sessionId, id, request, "directive");
+        var revised = assistant.get(sessionId).path("goal"); assertThat(revised.path("requestRevision").asLong()).isEqualTo(2);
+        assertThat(revised.at("/latestRequestUpdate/query").asText()).isEqualTo(request.query());
+        assertThat(revised.at("/latestRequestUpdate/requestRevision").asLong()).isEqualTo(2);
+        assertThat(Instant.parse(revised.at("/latestRequestUpdate/createdAt").asText())).isNotNull();
+        assertThat(revised.path("originalRequest").asText()).isEqualTo("Set the greeting.");
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThat(directiveRecords.findByGoalId(id)).hasSize(1);
+        assertThatThrownBy(() -> operations.context(who)).hasMessageContaining("FENCED");
+        assertThatThrownBy(() -> goals.directive(sessionId, id, new AuthoringGoalService.Directive("Different", null, null), "directive"))
+            .hasMessageContaining("REPLAY_CONFLICT");
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 2, 1, 1));
+        assertThat(renewed.at("/directive/query").asText()).isEqualTo("Use a concise greeting.");
+    }
+    @Test void pendingRequestUpdatesKeepOrderedVerifiedContextAndLatestProjectionWithoutNewTurns() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        goals.directive(sessionId, id, new AuthoringGoalService.Directive("Preserve the formal name.", null, null), "update-one");
+        var latest = goals.directive(sessionId, id, new AuthoringGoalService.Directive("Also keep it concise.", null, null), "update-two");
+        assertThat(latest.at("/latestRequestUpdate/query").asText()).isEqualTo("Also keep it concise.");
+        assertThat(latest.at("/latestRequestUpdate/requestRevision").asLong()).isEqualTo(3);
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
+            var control = call.getArgument(4, JsonNode.class);
+            if ("DIRECTIVE".equals(control.path("command").asText())) {
+                assertThat(control.at("/directive/requestUpdates")).hasSize(2);
+                assertThat(control.at("/directive/requestUpdates/0/query").asText()).isEqualTo("Preserve the formal name.");
+                assertThat(control.at("/directive/requestUpdates/0/requestRevision").asLong()).isEqualTo(2);
+                assertThat(control.at("/directive/requestUpdates/1/query").asText()).isEqualTo("Also keep it concise.");
+                assertThat(control.at("/directive/requestUpdates/1/requestRevision").asLong()).isEqualTo(3);
+            }
+            return mapper.createObjectNode().put("workId", goal.path("workId").asText()).set("goal", mapper.createObjectNode().put("state", "RUNNING"));
+        });
+        goals.refresh(id);
+        verify(runtime).controlWork(any(), anyString(), anyString(), anyString(), argThat(control -> "DIRECTIVE".equals(control.path("command").asText())));
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 3, 2, 1));
+        assertThat(renewed.at("/directive/requestUpdates")).hasSize(2);
+        assertThat(renewed.at("/directive/requestRevision").asLong()).isEqualTo(3);
+        assertThat(renewed.at("/directive/query").asText()).isEqualTo("Also keep it concise.");
+        assertThat(assistant.get(sessionId).at("/goal/latestRequestUpdate/query").asText()).isEqualTo("Also keep it concise.");
+        assertThat(directiveRecords.findByGoalId(id)).hasSize(2);
+        verify(runtime, times(1)).startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+    @Test void requestUpdateCountLimitRejectsExplicitlyRatherThanDroppingOlderRevisions() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        for (int index = 0; index < AuthoringGoalService.MAX_REQUEST_UPDATES; index++)
+            goals.directive(sessionId, id, new AuthoringGoalService.Directive("Requirement " + index, null, null), "update-" + index);
+        assertThatThrownBy(() -> goals.directive(sessionId, id, new AuthoringGoalService.Directive("Overflow", null, null), "overflow"))
+            .hasMessageContaining("AUTHORING_DIRECTIVE_CONTEXT_LIMIT");
+        assertThat(directiveRecords.findByGoalId(id)).hasSize(AuthoringGoalService.MAX_REQUEST_UPDATES);
+        assertThat(assistant.get(sessionId).at("/goal/latestRequestUpdate/query").asText()).isEqualTo("Requirement 31");
+    }
+    @Test void requestUpdateUtf8ByteLimitKeepsTheLastAcceptedRevision() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        var accepted = new AuthoringGoalService.Directive("x".repeat(8000), null, null);
+        for (int index = 0; index < 4; index++) goals.directive(sessionId, id, accepted, "bytes-" + index);
+        assertThatThrownBy(() -> goals.directive(sessionId, id, new AuthoringGoalService.Directive("\u20ac".repeat(257), null, null), "bytes-overflow"))
+            .hasMessageContaining("AUTHORING_DIRECTIVE_CONTEXT_LIMIT");
+        assertThat(directiveRecords.findByGoalId(id)).hasSize(4);
+        assertThat(assistant.get(sessionId).at("/goal/latestRequestUpdate/requestRevision").asLong()).isEqualTo(5);
+    }
+    @Test void sourceErasureClearsProtectedGoalAndDirectiveBodiesButKeepsActualReceipts() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        String canary = "Protected follow-up source facts";
+        operations.check(goalCaller(goal), change(canary));
+        var saved = operations.save(goalCaller(goal), goal.path("workId").asText() + ":step:1", change(canary));
+        goals.directive(sessionId, id, new AuthoringGoalService.Directive(canary, null, null), "erase-followup");
+        goals.erase(sessionId);
+        var erased = assistant.get(sessionId).path("goal");
+        assertThat(erased.path("state").asText()).isEqualTo("CANCELLED");
+        assertThat(erased.path("operations")).hasSize(1);
+        assertThat(erased.toString()).doesNotContain(canary, "Set the greeting.");
+        assertThat(erased.has("latestRequestUpdate")).isFalse();
+        assertThat(erased.at("/operations/0/status").asText()).isEqualTo("EXECUTED");
+        assertThat(erased.at("/operations/0/parameterFingerprint")).isEqualTo(saved.path("parameterFingerprint"));
+        assertThat(erased.at("/operations/0/protectedBodyErased").asBoolean()).isTrue();
+        assertThat(erased.at("/operations/0").has("diff")).isFalse();
+        assertThat(erased.at("/operations/0").has("findings")).isFalse();
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo(canary);
+        assertThat(goals.operationPage(sessionId, id, 0, 20).toString()).doesNotContain(canary);
+        assertThat(assistant.get(sessionId).toString()).doesNotContain(canary);
+        assertThat(crypto.decrypt(sessionId, sessions.findById(sessionId).orElseThrow().encryptedContent)).doesNotContain(canary);
+        var record = goalRecords.findById(id).orElseThrow();
+        assertThat(crypto.decrypt(id, record.encryptedAuthority)).doesNotContain(canary, "Set the greeting.");
+        assertThat(crypto.decrypt(id, record.encryptedProjection)).doesNotContain(canary);
+        for (var directive : directiveRecords.findByGoalId(id)) assertThat(crypto.decrypt(directive.id, directive.encryptedRequest)).doesNotContain(canary);
+        for (var operation : operationRecords.findByGoalIdOrderByCreatedAtAscIdAsc(id, org.springframework.data.domain.PageRequest.of(0, 100)))
+            assertThat(crypto.decrypt(operation.id, operation.encryptedReceipt)).doesNotContain(canary);
+        assertThatThrownBy(() -> goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME")))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        var late = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        late.putObject("goal").put("state", "CANCELLED").put("answer", "Protected follow-up source facts")
+            .putObject("progress").put("summary", "Protected follow-up source facts");
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(late);
+        goals.refresh(id);
+        assertThat(assistant.get(sessionId).path("goal").toString()).doesNotContain("Protected follow-up source facts");
+    }
+    @Test void goalRevalidationRejectsRevokedActorAndReadOnlyResourceStillCannotWrite() {
+        var goal = startGoal(); var who = goalCaller(goal);
+        var user = users.findById(userId).orElseThrow(); user.setStatus("DISABLED"); users.saveAndFlush(user);
+        assertThatThrownBy(() -> operations.context(who)).hasMessageContaining("ACCESS_DENIED");
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, 1)))
+            .hasMessageContaining("ACCESS_DENIED");
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void draftWriteGoalPausesWhenTheResourceLifecycleBecomesReadOnly() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString())).thenAnswer(call ->
+            new AuthoringResourceService.Snapshot(customerId, "Fixture", configuration.get(), mapper.createObjectNode(),
+                snapshot(call.getArgument(2)).allowedPaths(), "draft", false, "Archived resource."));
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 0, 1)))
+            .hasMessageContaining("AUTHORING_RESOURCE_LIFECYCLE_CHANGED");
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        assertThat(assistant.get(sessionId).at("/goal/state").asText()).isEqualTo("PAUSED");
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void sourcedGoalUsesStoredSourceIdAndStableVersionAcrossRenewalAndPaginatedReads() {
+        create("BEHAVIOUR");
+        var imported = assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("Greeting notes", "text/plain",
+            "Use welcoming and concise wording from this selected source.", null, null));
+        String source = imported.at("/sources/0/id").asText();
+        var goal = startGoal();
+        assertThat(goal.path("sourceIds").get(0).asText()).isEqualTo(source);
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, 1));
+        var page = operations.selectedSources(goalCaller(goal), new AuthoringDraftOperations.SourceRead(source, null, 0, 1, 256, 0, false));
+        assertThat(page.at("/items/0/sourceId").asText()).isEqualTo(source);
+        assertThat(page.at("/items/0/sourceVersion")).isEqualTo(renewed.path("sourceVersions").path(source));
+        assertThat(page.at("/content/text").asText()).contains("welcoming");
+        assertThatThrownBy(() -> operations.selectedSources(goalCaller(goal), new AuthoringDraftOperations.SourceRead("foreign-source", null, 0, 1, 256, 0, false)))
+            .hasMessageContaining("ACCESS_DENIED");
+        assistant.removeSource(sessionId, source);
+        assertThat(assistant.get(sessionId).path("sources")).isEmpty();
+        assertThat(assistant.get(sessionId).at("/goal/state").asText()).isEqualTo("CANCELLED");
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, 2)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    }
+    @Test void goalAvailabilityComesFromPublishedPolicyAndDoesNotDisableBoundedEditing() {
+        assertThat(assistant.status().path("autonomousEnabled").asBoolean()).isTrue();
+        var current = bindings.resolve("CONFIGURATION");
+        when(bindings.resolve(anyString())).thenReturn(new AuthoringBrainBindingService.Binding(current.deploymentId(), current.releaseId(), current.runtimeUrl(),
+            current.profileId(), current.specialistId(), current.bundleHash(), current.maxWrites(), current.maxCorrections(), current.scopes(), false));
+        var status = assistant.status(); assertThat(status.path("ready").asBoolean()).isTrue();
+        assertThat(status.path("autonomousEnabled").asBoolean()).isFalse();
+        assertThat(status.path("executionModes")).hasSize(1); assertThat(status.path("autonomousUnavailableReason").asText()).isNotBlank();
+    }
+    @Test void waitingQuestionsAndTerminalNativeExpiryAreVisibleWithoutEndlessPolling() {
+        var goal = startGoal(); var record = goalRecords.findById(goal.path("id").asText()).orElseThrow();
+        var waiting = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        waiting.putObject("goal").put("state", "WAITING_FOR_INPUT").put("answer", "Which stored credential reference should I use?")
+            .put("reasonMessage", "A stored credential reference is missing.").put("canResume", true).put("terminal", false)
+            .putArray("questions").add("Which stored credential reference should I use?");
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(waiting);
+        record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record); goals.refresh(record.id);
+        var view = assistant.get(sessionId);
+        assertThat(view.at("/turns/0/status").asText()).isEqualTo("NEEDS_INPUT");
+        assertThat(view.at("/turns/0/message").asText()).contains("stored credential reference");
+        assertThat(view.at("/turns/0/questions/0/question").asText()).contains("stored credential reference");
+        assertThat(view.at("/goal/reasonMessage").asText()).contains("missing");
+        var expired = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        expired.putObject("goal").put("state", "EXPIRED").put("terminal", true).put("canResume", false);
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(expired);
+        goals.control(sessionId, record.id, new AuthoringGoalService.Control("RESUME")); goals.refresh(record.id);
+        assertThat(assistant.get(sessionId).at("/goal/state").asText()).isEqualTo("FAILED");
+        assertThat(goalRecords.findById(record.id).orElseThrow().nextPollAt).isNull();
+    }
+    @Test void unsupportedNativeTerminalGoalCanStillBeCancelledLocallyAndErased() {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        var blocked = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        blocked.putObject("goal").put("state", "BLOCKED").put("terminal", true).put("canResume", false)
+            .put("reasonCode", "UNSUPPORTED_WORK");
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(blocked);
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        assertThat(assistant.get(sessionId).at("/goal/terminal").asBoolean()).isTrue();
+        assertThat(assistant.cancel(sessionId).at("/goal/state").asText()).isEqualTo("BLOCKED");
+        assistant.delete(sessionId);
+        assertThat(sessions.findById(sessionId)).isEmpty();
+        assertThat(goalRecords.findById(id)).isEmpty();
+    }
+    @Test void appAndPluginRevisionChangesDoNotBlockTheNextAuthorizedGoalSave() {
+        for (String kind : List.of("ENGAGE_APP", "PRIVATE_DATA_PLUGIN")) {
+            var revision = new AtomicInteger(1);
+            when(resources.load(eq(kind), eq(resourceId), anyString())).thenAnswer(call -> new AuthoringResourceService.Snapshot(customerId,
+                "Editable fixture", configuration.get(), mapper.createObjectNode(), List.of("/promptConfig"), Integer.toString(revision.get()), true, ""));
+            when(resources.save(eq(kind), eq(resourceId), anyString(), any())).thenAnswer(call -> {
+                var changed = changes.apply(configuration.get(), call.getArgument(3), List.of("/promptConfig"));
+                configuration.set(changed.candidate()); revision.incrementAndGet(); return saved(changed);
+            });
+            sessionId = assistant.create(new ConfigurationAssistantService.CreateSession(kind, resourceId, "BEHAVIOUR")).path("id").asText();
+            var nativeView = mapper.createObjectNode().put("workId", "exec-" + kind);
+            nativeView.putObject("goal").put("state", "RUNNING").put("segment", 1);
+            when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenReturn(nativeView);
+            var goal = assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("Set the greeting.", false, null, null, null, null, null, "AUTONOMOUS"), "revision-goal").path("goal");
+            operations.save(goalCaller(goal), goal.path("workId").asText() + ":step:1", change("First save"));
+            revision.incrementAndGet(); configuration.get().withObject("/promptConfig").put("systemPrompt", "Manual refinement");
+            operations.save(goalCaller(goal), goal.path("workId").asText() + ":step:2", change("Requested replacement"));
+            assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Requested replacement");
+            assistant.delete(sessionId); sessionId = null;
+        }
+    }
+    @Test void longGoalKeepsMoreThanOneHundredDurableReceiptsPageableWithoutGrowingTheSessionJournal() {
+        var goal = startGoal(); int segment = 1; var caller = goalCaller(goal);
+        for (int step = 1; step <= 105; step++) {
+            if (step > 1 && (step - 1) % 3 == 0) {
+                segment++;
+                goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 0, segment));
+                caller = new AuthoringDraftOperations.Caller(sessionId, goal.path("turnId").asText(), "assistant-brain", "release", null, true,
+                    goal.path("id").asText(), 1, 0, segment);
+            }
+            operations.save(caller, goal.path("workId").asText() + ":step:" + step, change("Revision " + step));
+        }
+        var first = goals.operationPage(sessionId, goal.path("id").asText(), 0, 100);
+        var second = goals.operationPage(sessionId, goal.path("id").asText(), 100, 100);
+        assertThat(first.path("operations")).hasSize(100); assertThat(first.path("hasMore").asBoolean()).isTrue();
+        assertThat(second.path("operations")).hasSize(5); assertThat(second.path("hasMore").asBoolean()).isFalse();
+        assertThat(second.at("/operations/4/operationId").asText()).endsWith(":step:105");
+        assertThat(second.path("total").asLong()).isEqualTo(105);
+        assertThat(assistant.get(sessionId).at("/goal/operationCount").asLong()).isEqualTo(105);
+        var encrypted = sessions.findById(sessionId).orElseThrow().encryptedContent;
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThat(encrypted.length()).isLessThan(30000);
+        signIn("another-actor@example.test");
+        try { assertThatThrownBy(() -> goals.operationPage(sessionId, goal.path("id").asText(), 0, 20)).hasMessageContaining("ACCESS_DENIED"); }
+        finally { signIn(actor); }
+    }
+    @Test void formalGoalProgressComesFromCurrentDraftNotModelClaimsAndSupportsAlreadySatisfiedState() {
+        create("ACTIONS");
+        assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("API", "application/json", """
+            {"openapi":"3.0.3","info":{"title":"Catalogue","version":"1"},"servers":[{"url":"https://api.example.test"}],
+             "paths":{"/products":{"get":{"operationId":"products","responses":{"200":{"description":"OK"}}}},
+                      "/delivery":{"get":{"operationId":"delivery","responses":{"200":{"description":"OK"}}}}}}
+            """, null, null));
+        var nativeView = mapper.createObjectNode().put("workId", "exec-coverage");
+        nativeView.putObject("goal").put("state", "RUNNING").putObject("progress").putObject("coverage").put("completed", 999).put("total", 999);
+        when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenReturn(nativeView);
+        var goal = assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("", false, null, null, null,
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of()), "AUTONOMOUS"), "coverage-goal").path("goal");
+        assertThat(goal.at("/progress/coverage/completed").asInt()).isZero();
+        assertThat(goal.at("/progress/coverage/total").asInt()).isEqualTo(2);
+        assertThat(goal.at("/progress/remaining")).hasSize(2);
+        configuration.get().withArray("/actionsConfig/actions").addObject().put("name", "products");
+        configuration.get().withObject("/routingConfig/actions/products").put("method", "GET").put("url", "https://api.example.test/products");
+        var partial = assistant.get(sessionId).path("goal");
+        assertThat(partial.at("/progress/coverage/completed").asInt()).isEqualTo(1);
+        assertThat(partial.at("/progress/remaining")).hasSize(1);
+        configuration.get().withArray("/actionsConfig/actions").addObject().put("name", "delivery");
+        configuration.get().withObject("/routingConfig/actions/delivery").put("method", "GET").put("url", "https://api.example.test/delivery");
+        var satisfied = assistant.get(sessionId).path("goal");
+        assertThat(satisfied.at("/progress/coverage/completed").asInt()).isEqualTo(2);
+        assertThat(satisfied.at("/progress/remaining")).isEmpty();
+        assertThat(satisfied.path("operationCount").asInt()).isZero();
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void autonomousPreviewExposesCheckedCandidateWithoutGrantingOrClaimingASave() {
+        create("BEHAVIOUR");
+        when(runtime.startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
+            JsonNode authority = call.getArgument(6);
+            var who = new AuthoringDraftOperations.Caller(sessionId, call.getArgument(3), "assistant-brain", "release", null, true,
+                authority.path("goalId").asText(), 1, 0, 1);
+            var checked = operations.check(who, change("Preview wording"));
+            assertThat(checked.path("sourceCoverage").path("evidence").asText()).isEqualTo("CANDIDATE_NOT_SAVED");
+            assertThat(operations.status(who).at("/lastCandidateCoverage/evidence").asText()).isEqualTo("CANDIDATE_NOT_SAVED");
+            var result = mapper.createObjectNode().put("workId", "exec-preview");
+            result.putObject("goal").put("state", "COMPLETE").put("terminal", true).put("answer", "Prepared the preview.");
+            return result;
+        });
+        var view = assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("Preview a greeting.", true, null, null, null, null, null, "AUTONOMOUS"), "preview-goal");
+        assertThat(view.at("/turns/0/status").asText()).isEqualTo("PREVIEW");
+        assertThat(view.at("/turns/0/diff")).hasSize(1);
+        assertThat(view.at("/goal/operationCount").asInt()).isZero();
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
     }
     @Test void requestedEditUsesOneCanonicalTurnAndActualReceiptWithUndo() throws Exception {
         create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "save"); var state = await();

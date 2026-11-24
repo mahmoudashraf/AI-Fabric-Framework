@@ -202,7 +202,7 @@ public class AuthoringResourceService {
             current = load(kind, id, task);
         }
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
-        var result = changes.apply(current.configuration(), requestedChanges, current.allowedPaths());
+        var result = changes.apply(current.configuration(), requestedChanges, current.allowedPaths(), current.catalogue().path("secretReferences"));
         if ("DEPLOYMENT_DRAFT".equals(kind)) McpAuthoringPolicy.requirePreserved(current.configuration(), result.candidate());
         return persist(kind, id, current, requestedChanges, result);
     }
@@ -215,7 +215,7 @@ public class AuthoringResourceService {
             current = load(kind, id, task);
         }
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
-        return persist(kind, id, current, changes.inverse(diff), changes.undo(current.configuration(), diff, current.allowedPaths()), true);
+        return persist(kind, id, current, changes.inverse(diff), changes.undo(current.configuration(), diff, current.allowedPaths(), current.catalogue().path("secretReferences")), true);
     }
 
     private Saved persist(String kind, String id, Snapshot current, JsonNode requestedChanges, AuthoringChanges.Result result) {

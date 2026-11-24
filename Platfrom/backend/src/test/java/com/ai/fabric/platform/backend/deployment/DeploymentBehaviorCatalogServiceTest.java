@@ -13,6 +13,23 @@ class DeploymentBehaviorCatalogServiceTest {
     private final DeploymentBehaviorCatalogService service = new DeploymentBehaviorCatalogService(mapper);
 
     @Test
+    void publishedGoalsRequireNativeContinuationAndDelegationCapabilities() {
+        var behavior = new com.ai.fabric.platform.backend.assistant.ConfigurationAssistantTemplate(mapper).behavior();
+        var requirements = service.releaseRequirements(behavior);
+        assertThat(requirements.capabilities()).contains("configured-workflow-assistance",
+            "goal-driven-workflow-assistance", "workflow-goal-profile-delegation-v1");
+        assertThat(requirements.endpointClasses()).contains("canonical-goal-work-control");
+        assertThat(requirements.migrationIds()).contains("workflow-goal-continuation-v29");
+
+        ((ObjectNode) behavior.at("/workflowAssistance/goal")).put("enabled", false);
+        var bounded = service.releaseRequirements(behavior);
+        assertThat(bounded.capabilities()).contains("configured-workflow-assistance")
+            .doesNotContain("goal-driven-workflow-assistance", "workflow-goal-profile-delegation-v1");
+        assertThat(bounded.endpointClasses()).doesNotContain("canonical-goal-work-control");
+        assertThat(bounded.migrationIds()).doesNotContain("workflow-goal-continuation-v29");
+    }
+
+    @Test
     void conversationHandoverRequiresCanonicalOrchestrationState() {
         var requirements = service.releaseRequirements(handoverConfig());
 

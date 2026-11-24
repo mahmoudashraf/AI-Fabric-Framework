@@ -25,3 +25,29 @@ test('ordinary typed requests carry fresh editor context with no generated inten
   await exports.assistantApi.turn('session-37', input, 'key')
   assert.deepEqual(JSON.parse(calls.at(-1)[1].body), input)
 })
+test('autonomous admission is explicit and does not inject a bounded correction ceiling', async () => {
+  const input = { query: '', command: 'PREPARE', executionMode: 'AUTONOMOUS', previewOnly: false, sourceIds: ['doc'], operationIds: [] }
+  await exports.assistantApi.turn('original session', input, 'root-key')
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body), input)
+  assert.equal(calls.at(-1)[0], '/api/configuration-assistant/sessions/original%20session/turns')
+  assert.equal('validationFeedback' in JSON.parse(calls.at(-1)[1].body), false)
+})
+test('goal controls and directives retain exact goal and session identities', async () => {
+  for (const command of ['PAUSE', 'RESUME', 'CANCEL']) {
+    await exports.assistantApi.goalControl('s/1', 'g/1', command)
+    assert.equal(calls.at(-1)[0], '/api/configuration-assistant/sessions/s%2F1/goals/g%2F1/control')
+    assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { command })
+  }
+  await exports.assistantApi.directive('s/1', 'g/1', { query: 'Keep the original scope' }, 'same-directive-key')
+  assert.equal(calls.at(-1)[0], '/api/configuration-assistant/sessions/s%2F1/goals/g%2F1/directives')
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { query: 'Keep the original scope' })
+  assert.equal(calls.at(-1)[1].headers['Idempotency-Key'], 'same-directive-key')
+})
+test('receipt paging uses an authenticated read of the pinned session/goal with explicit offset and limit', async () => {
+  const abort = new AbortController()
+  await exports.assistantApi.goalOperations('original/session', 'original/goal', 100, 20, abort.signal)
+  assert.equal(calls.at(-1)[0], '/api/configuration-assistant/sessions/original%2Fsession/goals/original%2Fgoal/operations?offset=100&limit=20')
+  assert.equal(calls.at(-1)[1].signal, abort.signal)
+  assert.equal(calls.at(-1)[1].method, undefined)
+  assert.equal(calls.at(-1)[1].body, undefined)
+})

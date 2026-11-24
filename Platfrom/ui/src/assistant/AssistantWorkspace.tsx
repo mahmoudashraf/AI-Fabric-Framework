@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, FormControlLabel, IconButton, LinearProgress, MenuItem, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material'
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined'
 import CloseOutlined from '@mui/icons-material/CloseOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
@@ -19,9 +19,12 @@ import { ControlledConversation, type ControlledConversationMessage } from '../.
 import { stringifyExactJson } from '../lib/losslessJson'
 import { AssistantSources } from './AssistantSources'
 import { BuildWithAIButton } from './BuildWithAIButton'
+import { GoalProgress } from './GoalProgress'
+import { ProviderDiagnosticsDetails } from './ProviderDiagnosticsDetails'
+import { autonomousAvailability, defaultExecutionMode, goalOpen, goalStatus, savedGoalOperations, sessionScope } from './goalPresentation'
 import { operation, scopeIdentity } from './scope'
 import { useAssistant, type AssistantController } from './useAssistant'
-import type { AssistantScope, AssistantSession, AssistantTurn, ValidationFeedbackPolicy } from './types'
+import type { AssistantExecutionMode, AssistantScope, AssistantSession, AssistantTurn, ValidationFeedbackPolicy } from './types'
 import { ChangeSummary, ValidationOutcome } from './TurnDetails'
 import { turnStatusLabel, validationSummary } from './turnPresentation'
 import { feedbackCeiling, feedbackPolicy, feedbackProgress, feedbackReason } from './validationFeedback'
@@ -97,7 +100,8 @@ export function useAssistantPanelInputs() {
   const [sourceIds, setSourceIds] = useState<string[]>([]), [operationIds, setOperationIds] = useState<string[]>([])
   const [feedbackPreference, setFeedbackPreference] = useState<Partial<ValidationFeedbackPolicy>>({})
   const [optionsOpen, setOptionsOpen] = useState(false), [prepareOpen, setPrepareOpen] = useState(false)
-  return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference, optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen }
+  const [executionPreference, setExecutionPreference] = useState<AssistantExecutionMode | null>(null)
+  return { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference, optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen, executionPreference, setExecutionPreference }
 }
 
 function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, sourceRequest, ...panelProps }: Omit<Parameters<typeof AssistantPanel>[0], 'controller' | 'inputs'> & {
@@ -167,19 +171,27 @@ function JsonDetails({ label, value }: { label: string; value: unknown }) {
   return <Box component="details" sx={{ mt: 1, fontSize: 12, whiteSpace: 'normal' }}><summary>{label}</summary><Box component="pre" sx={{ m: 0, mt: 1, p: 1, bgcolor: 'action.hover', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11, maxHeight: 260, overflow: 'auto' }}>{stringifyExactJson(value, 2)}</Box></Box>
 }
 
-export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBusy, readOnlyReason, guideOnly: requestedGuideOnly, links, setupLinks, reviewHref }: {
+export function AssistantPanel({ controller: c, inputs, scope: pageScope, onClose, editorBusy, readOnlyReason, guideOnly: requestedGuideOnly, links, setupLinks, reviewHref }: {
   controller: AssistantController; scope: AssistantScope; onClose: () => void; editorBusy?: boolean; readOnlyReason?: string
   inputs: ReturnType<typeof useAssistantPanelInputs>
   guideOnly?: boolean; links?: { label: string; href: string }[]
   setupLinks?: { label: string; href: string }[]; reviewHref?: string
 }) {
   const { query, setQuery, preview, setPreview, explain, setExplain, sourceIds, setSourceIds, operationIds, setOperationIds, feedbackPreference, setFeedbackPreference } = inputs
-  const { optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen } = inputs
+  const { optionsOpen, setOptionsOpen, prepareOpen, setPrepareOpen, executionPreference, setExecutionPreference } = inputs
+  const scope = c.session && (c.session.goal || c.awaitingGoal) ? sessionScope(c.session) : pageScope
+  const pinnedElsewhere = scopeIdentity(scope) !== scopeIdentity(pageScope)
   const context = editorContext(scope), page = assistantPage(scope)
-  const guideOnly = requestedGuideOnly || scope.task === 'KIT' || context.section === 'ACTION_REVIEWS'
+  const guideOnly = !pinnedElsewhere && requestedGuideOnly || scope.task === 'KIT' || context.section === 'ACTION_REVIEWS'
   const hasTurns = Boolean(c.session?.turns.length), showPreparation = !hasTurns || prepareOpen
   const turns = c.session?.turns
-  const needsInput = turns?.[turns.length - 1]?.status === 'NEEDS_INPUT'
+  const needsInput = c.session?.goal?.state === 'WAITING_FOR_INPUT' || turns?.[turns.length - 1]?.status === 'NEEDS_INPUT'
+  const continuingGoal = goalOpen(c.session?.goal)
+  const showPageTools = !c.session?.goal || prepareOpen
+  const availability = autonomousAvailability(c.status.error ? undefined : c.status.data)
+  const executionMode = availability.enabled ? executionPreference ?? defaultExecutionMode(scope, showPreparation, operationIds.length) : 'BOUNDED'
+  const autonomous = !guideOnly && executionMode === 'AUTONOMOUS'
+  const pinnedReviewHref = scope.resourceId !== pageScope.resourceId && scope.resourceKind === 'DEPLOYMENT_DRAFT' ? `/smart-brains/${encodeURIComponent(scope.resourceId)}/updates` : reviewHref
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [sessionOptions, setSessionOptions] = useState(false)
   const sources = c.session?.sources
@@ -189,7 +201,7 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
     setSourceIds(ids => ids.filter(id => validSources.has(id)))
     setOperationIds(ids => ids.filter(id => validOperations.has(id)))
   }, [sources])
-  const readOnly = readOnlyReason || (guideOnly ? 'Guide only. Open the selected resource editor to make changes.' : '') || (c.session?.editable === false ? c.session.readOnlyReason || 'This resource is read-only.' : '')
+  const readOnly = (!pinnedElsewhere && readOnlyReason) || (guideOnly ? 'Guide only. Open the selected resource editor to make changes.' : '') || (c.session?.editable === false ? c.session.readOnlyReason || 'This resource is read-only.' : '')
   const unavailable = c.status.data && (!c.status.data.enabled || !c.status.data.ready)
   const earlierHistory = c.session?.engine === 'LEGACY' && c.status.data?.engine === 'CONFIGURED_BRAIN'
   const disabled = Boolean(!c.session || unavailable || editorBusy || earlierHistory)
@@ -198,16 +210,18 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
   const correctionAllowed = !explain && !guideOnly && scope.task !== 'KIT'
   const validationFeedback = feedbackPolicy(feedbackCapability, feedbackPreference, correctionAllowed)
   const correctionLimit = feedbackPolicy(feedbackCapability, { ...feedbackPreference, enabled: true }).maxCorrections
-  const submitLabel = explain || guideOnly ? 'Explain' : preview || readOnly ? 'Preview' : 'Send'
+  const submitLabel = continuingGoal ? needsInput ? 'Answer goal' : 'Update goal' : explain || guideOnly ? 'Explain' : preview || readOnly ? 'Preview' : 'Send'
   const messages: Message[] = (c.session?.turns ?? []).flatMap(turn => [
     { id: `${turn.id}:query`, role: 'user', text: userTurnText(turn, scope) },
     { id: turn.id, role: 'assistant', text: turn.message ?? '', turn },
   ])
   const submit = async (value: string, command?: 'PREPARE') => {
+    if (continuingGoal) { if (await c.directive(value)) setQuery(''); return }
     if (command && (value.length > 6000 || explain && !guideOnly)) return
     if (await c.submit({ query: !command && (explain || guideOnly) ? `Explain only; do not change the draft.\n\n${value}` : value,
       ...(command ? { command } : {}), editorContext: context,
-      previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds, validationFeedback })) {
+      previewOnly: preview || Boolean(readOnly) || explain || Boolean(guideOnly), sourceIds, operationIds,
+      executionMode: autonomous && !explain ? 'AUTONOMOUS' : 'BOUNDED', ...(!autonomous || explain ? { validationFeedback } : {}) })) {
       setQuery(''); setPrepareOpen(false)
     }
   }
@@ -239,53 +253,64 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
     {sessionOptions && <Box component="section" aria-label="Assistant session settings" sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, flexShrink: 0, maxHeight: 140, overflow: 'auto' }}>
       <Stack direction="row" gap={1} alignItems="center">
         <Button size="small" startIcon={<RefreshOutlined />} aria-label="Refresh assistant session" disabled={c.pending} onClick={() => { void c.status.refetch(); void c.refresh() }}>Refresh</Button>
-        <Button size="small" color="error" startIcon={<DeleteOutline />} aria-label="Delete assistant session" disabled={!c.session || c.busy} onClick={() => setDeleteOpen(true)}>Delete session</Button>
+        <Button size="small" color="error" startIcon={<DeleteOutline />} aria-label="Delete assistant session" disabled={!c.session || c.busy || c.openGoal} onClick={() => setDeleteOpen(true)}>Delete session</Button>
       </Stack>
       {c.earlierSessionId && c.session?.id !== c.earlierSessionId && <Button size="small" disabled={c.busy} onClick={() => void c.earlierHistory()}>View earlier conversation</Button>}
       <Typography variant="caption" color="text.secondary" display="block" sx={{ overflowWrap: 'anywhere' }}>Resource: {scope.resourceId}</Typography>
       {context.selectedDefinitionIds?.length ? <Typography variant="caption" display="block">Selected: {context.selectedDefinitionIds.join(', ')}</Typography> : null}
       {c.session && <Typography variant="caption" color="text.secondary" display="block">Session expires {new Date(c.session.expiresAt).toLocaleString()}</Typography>}
     </Box>}
-    <Box component="section" aria-label="Page guidance" sx={{ my: 1, flexShrink: 0 }}>
+    {c.session?.goal && <GoalProgress session={c.session} pending={c.pending} onControl={c.controlGoal} compact={prepareOpen && !continuingGoal} />}
+    {c.awaitingGoal && <Alert severity="info" sx={{ my: 1 }}>Confirming the goal for {c.session?.resourceId}. No new request is needed.</Alert>}
+    {pinnedElsewhere && <Typography variant="caption" color="text.secondary" sx={{ mt: .5 }}>Viewing {assistantPage(pageScope).title}. This goal still targets its original resource.</Typography>}
+    {pinnedElsewhere && !continuingGoal && <Button size="small" disabled={c.busy} onClick={async () => {
+      if (await c.returnToPage()) { setQuery(''); setSourceIds([]); setOperationIds([]); setExecutionPreference(null) }
+    }}>Return to this page's assistant</Button>}
+    {!continuingGoal && showPageTools && <Box component="section" aria-label="Page guidance" sx={{ my: 1, flexShrink: 0 }}>
       <Typography fontSize={13} color="text.secondary" sx={{ mb: 1.5 }}>{c.session?.displayName ?? (scope.resourceKind === 'DEPLOYMENT_DRAFT' ? 'Your Smart Brain' : 'Your workspace')} · {page.title}</Typography>
       <Stack direction="row" alignItems="center" gap={.5}><Typography fontSize={12} fontWeight={600} color="text.secondary" sx={{ flex: 1 }}>{guideOnly ? 'Plan your next step' : hasTurns ? 'Your current task' : 'Build from your requirements'}</Typography>
         {hasTurns && <Tooltip title={showPreparation ? 'Collapse page guidance' : 'Show page guidance'}><IconButton size="small" aria-label="Page guidance" aria-expanded={showPreparation} onClick={() => setPrepareOpen(!prepareOpen)}><ExpandMoreOutlined fontSize="small" sx={{ transform: showPreparation ? 'rotate(180deg)' : undefined }} /></IconButton></Tooltip>}
       </Stack>
       {showPreparation && <Typography variant="body2" sx={{ mt: .5, fontSize: 13, lineHeight: 1.6 }}>{page.welcome}</Typography>}
-    </Box>
-    {Boolean(setupLinks?.length) && <Stack component="nav" aria-label="AI setup steps" sx={{ mb: 1, flexShrink: 0 }}>{setupLinks?.map(link => <Button key={link.href} component={RouterLink} to={link.href} disabled={editorBusy} endIcon={<ArrowForwardRounded fontSize="small" />} sx={{ justifyContent: 'space-between', textAlign: 'left', px: 0, py: 1, borderBottom: 1, borderColor: 'divider', fontWeight: 600 }}>{link.label}</Button>)}</Stack>}
+    </Box>}
+    {!continuingGoal && showPageTools && Boolean(setupLinks?.length) && <Stack component="nav" aria-label="AI setup steps" sx={{ mb: 1, flexShrink: 0 }}>{setupLinks?.map(link => <Button key={link.href} component={RouterLink} to={link.href} disabled={editorBusy} endIcon={<ArrowForwardRounded fontSize="small" />} sx={{ justifyContent: 'space-between', textAlign: 'left', px: 0, py: 1, borderBottom: 1, borderColor: 'divider', fontWeight: 600 }}>{link.label}</Button>)}</Stack>}
     {readOnly && <Alert severity="info" sx={{ mt: 1 }}>{readOnly}{!guideOnly && ' Preview only; no live resource is changed.'}</Alert>}
     {earlierHistory && <Button variant="contained" disabled={c.busy || unavailable || editorBusy} onClick={async () => {
       if (await c.newSession()) { setQuery(''); setSourceIds([]); setOperationIds([]) }
     }}>Start Build with AI</Button>}
     {Boolean(links?.length) && <Box component="details" sx={{ mt: 1, fontSize: 12, maxHeight: '24dvh', overflow: 'auto', flexShrink: 0 }}><summary>Open resource editor</summary><Stack alignItems="flex-start">{links?.map(link => <Button key={link.href} size="small" component={RouterLink} to={link.href} onClick={onClose}>{link.label}</Button>)}</Stack></Box>}
     {unavailable && <Alert severity="warning" sx={{ mt: 1 }}>{c.status.data?.unavailableReason || 'The configuration assistant is unavailable. Manual editing is still available.'}</Alert>}
+    {c.notice && <Alert severity="warning" sx={{ mt: 1, maxHeight: 100, overflow: 'auto', flexShrink: 0 }}>{c.notice}</Alert>}
     {editorBusy && <Alert severity="info" sx={{ mt: 1 }}>Wait for the editor's current operation to finish.</Alert>}
     {c.pending && <LinearProgress sx={{ my: 1, flexShrink: 0 }} />}
     {!c.session && !c.pending && c.status.data?.ready && <Button onClick={() => void c.newSession()}>Start new session</Button>}
-    <AssistantSources controller={c} scope={scope} sourceIds={sourceIds} setSourceIds={setSourceIds} operationIds={operationIds} setOperationIds={setOperationIds} />
-    <ControlledConversation<Message> className="configuration-conversation" messages={messages} value={query} onValueChange={setQuery} onSubmit={value => void submit(value)} busy={c.busy} disabled={disabled || c.retryTurn} onCancel={c.running || c.retryTurn ? c.cancel : undefined} error={c.error}
+    {!continuingGoal && showPageTools && <AssistantSources controller={c} scope={scope} sourceIds={sourceIds} setSourceIds={setSourceIds} operationIds={operationIds} setOperationIds={setOperationIds} />}
+    <ControlledConversation<Message> className="configuration-conversation" messages={messages} value={query} onValueChange={setQuery} onSubmit={value => void submit(value)} busy={c.composerBusy} disabled={disabled || c.retryTurn} onCancel={!continuingGoal && (c.running || c.retryTurn) ? c.cancel : undefined} error={c.error}
       submitLabel={submitLabel}
       submitContent={<SendRounded fontSize="small" />}
-      placeholder={hasTurns ? 'Add a detail or ask for a change...' : guideOnly ? 'What would you like to set up?' : 'Share what you want your AI to do...'}
+      placeholder={continuingGoal ? needsInput ? 'Answer the outstanding question...' : 'Add a detail to this goal...' : hasTurns ? 'Add a detail or ask for a change...' : guideOnly ? 'What would you like to set up?' : 'Share what you want your AI to do...'}
       style={{ fontSize: 13, marginTop: 8 }}
       composerExtras={<>
         {c.retryTurn && <Alert severity="warning" action={<Button disabled={c.pending} onClick={() => void c.retry()}>Retry same turn</Button>}>The turn response was not confirmed. Retry uses the same request key; no second turn is created.</Alert>}
-        <Stack direction="row" gap={.5} alignItems="center" flexWrap="wrap">
+        {!guideOnly && !continuingGoal && <ToggleButtonGroup size="small" exclusive value={executionMode} aria-label="Execution mode" disabled={c.busy || disabled} onChange={(_, mode: AssistantExecutionMode | null) => { if (mode) setExecutionPreference(mode) }} sx={{ alignSelf: 'flex-start', '& .MuiToggleButton-root': { textTransform: 'none', fontSize: 12, py: .5 } }}>
+          <ToggleButton value="BOUNDED">Quick edit</ToggleButton><ToggleButton value="AUTONOMOUS" disabled={!availability.enabled} title={availability.reason || undefined}>Autonomous</ToggleButton>
+        </ToggleButtonGroup>}
+        {!guideOnly && !continuingGoal && !availability.enabled && <Typography variant="caption" color="text.secondary">{availability.reason}</Typography>}
+        {!continuingGoal && <Stack direction="row" gap={.5} alignItems="center" flexWrap="wrap">
           {showPreparation ? <Button type="button" size="small" variant="outlined" startIcon={<AutoAwesomeOutlined fontSize="small" />} disabled={disabled || c.busy || c.retryTurn || query.length > 6000 || explain && !guideOnly}
             onClick={() => void submit(query, 'PREPARE')} sx={{ mr: 'auto', minWidth: 0, textAlign: 'left', fontSize: 12 }}>{page.command}{preview || readOnly && !guideOnly ? ' (preview)' : ''}</Button>
             : <Button type="button" size="small" startIcon={<AutoAwesomeOutlined fontSize="small" />} disabled={c.busy || disabled} onClick={() => setPrepareOpen(true)} sx={{ mr: 'auto', fontSize: 12 }}>New preparation</Button>}
           <Tooltip title="Turn options"><IconButton type="button" size="small" aria-label="Turn options" aria-expanded={optionsOpen} onClick={() => setOptionsOpen(!optionsOpen)}><TuneOutlined fontSize="small" /></IconButton></Tooltip>
           <Tooltip title="Your request, selected documents and scoped configuration are shared with LoomAI's AI provider. Do not include credentials or unnecessary personal data."><IconButton type="button" size="small" aria-label="AI data sharing"><InfoOutlined sx={{ fontSize: 16 }} /></IconButton></Tooltip>
-        </Stack>
-        {showPreparation && query.length > 6000 && <Typography role="alert" variant="caption" color="error.main">Keep the optional preparation hint to 6,000 characters. Typed requests can use up to 8,000.</Typography>}
+        </Stack>}
+        {!continuingGoal && showPreparation && query.length > 6000 && <Typography role="alert" variant="caption" color="error.main">Keep the optional preparation hint to 6,000 characters. Typed requests can use up to 8,000.</Typography>}
         {needsInput && !showPreparation && <Typography variant="caption" color="text.secondary">Answer the question, then {submitLabel}.</Typography>}
-        {!needsInput && <Typography variant="caption" color="text.secondary">{showPreparation ? 'Optional focus hint, or type a request' : 'Type a follow-up request'}</Typography>}
-        {optionsOpen && <Box component="section" aria-label="Turn options" sx={{ maxHeight: 144, overflowY: 'auto', borderTop: 1, borderColor: 'divider', pt: .5 }}>
+        {!needsInput && !continuingGoal && <Typography variant="caption" color="text.secondary">{showPreparation ? 'Optional focus hint, or type a request' : 'Type a follow-up request'}</Typography>}
+        {!continuingGoal && optionsOpen && <Box component="section" aria-label="Turn options" sx={{ maxHeight: 144, overflowY: 'auto', borderTop: 1, borderColor: 'divider', pt: .5 }}>
         {!guideOnly && <Stack direction="row" gap={1} flexWrap="wrap"><FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={preview || Boolean(readOnly)} disabled={c.busy || Boolean(readOnly)} onChange={event => setPreview(event.target.checked)} />} label="Preview only" />
           <FormControlLabel sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} control={<Switch size="small" checked={explain} disabled={c.busy} onChange={event => setExplain(event.target.checked)} />} label="Explain only" /></Stack>
         }
-        <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+        {(!autonomous || explain) && <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
           <FormControlLabel sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { fontSize: 12, overflowWrap: 'anywhere' } }}
             control={<Switch size="small" checked={validationFeedback.enabled} disabled={c.busy || disabled || !correctionAllowed || !correctionCeiling}
               onChange={event => setFeedbackPreference(value => ({ ...value, enabled: event.target.checked }))} />} label="Let AI fix validation errors" />
@@ -294,10 +319,10 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
             sx={{ width: 128, flexShrink: 0, mt: .5 }}>
             {Array.from({ length: correctionCeiling || 1 }, (_, index) => <MenuItem key={index + 1} value={index + 1}>{index + 1}</MenuItem>)}
           </TextField>
-        </Stack>
+        </Stack>}
         </Box>}
       </>}
-      renderMessage={message => message.turn ? <TurnView turn={message.turn} controller={c} readOnly={Boolean(readOnly)} editorBusy={editorBusy} reviewHref={reviewHref} onReview={onClose} /> : <><Typography variant="caption" color="text.secondary">You</Typography><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography></>} />
+      renderMessage={message => message.turn ? <TurnView turn={message.turn} controller={c} readOnly={Boolean(readOnly)} editorBusy={editorBusy} reviewHref={pinnedReviewHref} onReview={onClose} /> : <><Typography variant="caption" color="text.secondary">You</Typography><Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography></>} />
     <Stack direction="row" alignItems="flex-start" gap={.75} sx={{ pt: 1, flexShrink: 0 }}><ShieldOutlined sx={{ fontSize: 14, color: 'text.secondary', mt: .2 }} /><Typography variant="caption" color="text.secondary">{guideOnly ? 'Guidance only. No draft changes.' : explain ? 'Explanation only. No draft changes.' : preview || readOnly ? 'Preview only. No draft save.' : 'Saves draft only. Review or undo after. Never publishes.'}</Typography></Stack>
     <Box component="style">{`.configuration-conversation form button:not(.MuiButtonBase-root){font:inherit;min-height:36px;padding:6px 12px;border-radius:6px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}.configuration-conversation form button:disabled{opacity:.45;cursor:default}.configuration-conversation form button:focus-visible,.configuration-conversation textarea:focus-visible{outline:2px solid currentColor;outline-offset:2px}.configuration-conversation [role=alert]{color:inherit}`}</Box>
     <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth><DialogTitle>Delete this assistant session?</DialogTitle><DialogContent>Its conversation and imported sources will be deleted. Saved resource changes are not undone.</DialogContent><DialogActions><Button onClick={() => setDeleteOpen(false)}>Keep session</Button><Button color="error" disabled={c.busy} onClick={async () => { await c.remove(); setDeleteOpen(false); setSourceIds([]); setOperationIds([]) }}>Delete session</Button></DialogActions></Dialog>
@@ -305,13 +330,15 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
 }
 
 function TurnView({ turn, controller: c, readOnly, editorBusy, reviewHref, onReview }: { turn: AssistantTurn; controller: AssistantController; readOnly: boolean; editorBusy?: boolean; reviewHref?: string; onReview: () => void }) {
-  const hasSaved = turn.status === 'SAVED' || Boolean(turn.operations?.length && turn.status !== 'UNDONE')
-  const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status === 'SAVED' || item.operations?.length && item.status !== 'UNDONE')?.id
+  const autonomousTurn = c.session?.goal?.turnId === turn.id
+  const operations = autonomousTurn && c.session ? savedGoalOperations(c.session) : (turn.operations ?? []).filter(operation => operation.status === 'EXECUTED')
+  const hasSaved = turn.status !== 'UNDONE' && (turn.status === 'SAVED' || operations.length > 0)
+  const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status !== 'UNDONE' && (item.status === 'SAVED' || item.operations?.some(operation => operation.status === 'EXECUTED') || item.id === c.session?.goal?.turnId && operations.length > 0))?.id
   const disabled = c.busy || editorBusy
   const validation = validationSummary(turn)
-  const progress = feedbackProgress(turn)
+  const progress = autonomousTurn ? undefined : feedbackProgress(turn)
   return <>
-    <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75 }}><AutoAwesomeOutlined sx={{ fontSize: 15, color: 'primary.main' }} /><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip data-assistant-turn-status={turn.status} size="small" variant="outlined" color={turn.status === 'SAVED' ? validation.outcome === 'attention' ? 'warning' : 'default' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={turnStatusLabel(turn.status)} /></Stack>
+    <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75, flexWrap: 'wrap' }}><AutoAwesomeOutlined sx={{ fontSize: 15, color: 'primary.main' }} /><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip data-assistant-turn-status={turn.status} size="small" variant="outlined" color={turn.status === 'SAVED' ? validation.outcome === 'attention' ? 'warning' : 'default' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={autonomousTurn && c.session?.goal && turn.status !== 'UNDONE' ? goalStatus(c.session.goal) : turnStatusLabel(turn.status)} sx={{ maxWidth: '100%', height: 'auto', minHeight: 24, '& .MuiChip-label': { whiteSpace: 'normal', py: .25, overflowWrap: 'anywhere' } }} /></Stack>
     <ValidationOutcome turn={turn} />
     {turn.workflow?.selection && <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: .75 }}>
       {turn.workflow.selection.name}
@@ -323,19 +350,19 @@ function TurnView({ turn, controller: c, readOnly, editorBusy, reviewHref, onRev
       <Typography variant="caption" fontWeight={600}>Saved to draft · Not published</Typography>
     </Stack>}
     {turn.notice && <Alert severity="info" sx={{ mt: 1 }}>{turn.notice}</Alert>}
-    {turn.operations?.length ? <Box component="section" aria-label="Saved operations" sx={{ mt: 1 }}>
-      {turn.operations.map((operation, index) => <Typography variant="caption" display="block" key={operation.operationId}>
-        {index + 1}. {operation.action === 'authoring_undo_request' ? 'Draft change undone' : 'Draft change saved'} · Not published
+    {operations.length ? <Box component="section" aria-label={turn.status === 'UNDONE' ? 'Saved operation history' : 'Saved operations'} sx={{ mt: 1 }}>
+      {autonomousTurn ? <Typography variant="caption" display="block">{turn.status === 'UNDONE' ? 'Earlier operation receipts' : 'Saved operation receipts'}: {Math.max(c.session?.goal?.operationCount ?? 0, operations.length)}</Typography> : operations.map((operation, index) => <Typography variant="caption" display="block" key={operation.operationId}>
+        {index + 1}. {operation.action === 'authoring_undo_request' ? 'Draft change undone' : turn.status === 'UNDONE' ? 'Draft change saved earlier' : 'Draft change saved'} · Not published
       </Typography>)}
     </Box> : null}
-    {turn.workflow?.usage && <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+    {!autonomousTurn && turn.workflow?.usage && <Typography variant="caption" display="block" sx={{ mt: 1 }}>
       {turn.workflow.usage.actions}{turn.workflow.limits ? ` / ${turn.workflow.limits.actions}` : ''} tool steps · {turn.workflow.usage.writes}{turn.workflow.limits ? ` / ${turn.workflow.limits.writes}` : ''} {turn.workflow.usage.writes === 1 ? 'write attempt' : 'write attempts'} · {turn.workflow.usage.modelCalls}{turn.workflow.limits ? ` / ${turn.workflow.limits.modelCalls}` : ''} model calls · {turn.workflow.usage.corrections}{turn.workflow.limits ? ` / ${turn.workflow.limits.corrections}` : ''} corrections
     </Typography>}
-    {turn.workflow?.stopCode && <Alert severity="warning" sx={{ mt: 1 }}>Work stopped: {turn.workflow.stopCode}. Review any saved operations before continuing.</Alert>}
+    {!autonomousTurn && turn.workflow?.stopCode && <Alert severity="warning" sx={{ mt: 1 }}>Work stopped: {turn.workflow.stopCode}. Review any saved operations before continuing.</Alert>}
     {turn.questions?.map(question => <Alert severity="info" key={question.id} sx={{ mt: 1, whiteSpace: 'normal' }}>{question.question}{question.field && <Typography display="block" variant="caption">{question.field}</Typography>}</Alert>)}
     <ChangeSummary turn={turn} compact />
-    {turn.feedbackStopReason && <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>{feedbackReason(turn.feedbackStopReason)}</Typography>}
-    {(turn.validationFeedback || turn.attempts?.length || turn.feedbackStopReason) && <Box component="details" sx={{ mt: 1, minWidth: 0, fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+    {!autonomousTurn && turn.feedbackStopReason && <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>{feedbackReason(turn.feedbackStopReason)}</Typography>}
+    {!autonomousTurn && (turn.validationFeedback || turn.attempts?.length || turn.feedbackStopReason) && <Box component="details" sx={{ mt: 1, minWidth: 0, fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
       <summary>{turn.workflow ? 'Correction preference' : `Validation feedback (${turn.attempts?.length ?? 0} attempts)`}</summary>
       <JsonDetails label="Turn correction policy" value={turn.validationFeedback} />
       <Box component="ol" sx={{ pl: 2, m: 0 }}>{turn.attempts?.map((attempt, index) => <Box component="li" key={`${attempt.number}:${index}`} sx={{ py: 1, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
@@ -360,13 +387,14 @@ function TurnView({ turn, controller: c, readOnly, editorBusy, reviewHref, onRev
     <JsonDetails label="Usage" value={turn.usage} />
     <JsonDetails label="Runtime, usage and accounting" value={turn.runtime} />
     <JsonDetails label="Diagnostics" value={turn.diagnostics} />
+    {!autonomousTurn && <ProviderDiagnosticsDetails value={turn.providerDiagnostics} />}
     <JsonDetails label="Brain workflow" value={turn.workflow} />
     <JsonDetails label="Operation receipts" value={turn.operations} />
     </Box>
     <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
       {hasSaved && turn.id === latestSaved && reviewHref && <Button size="small" variant="outlined" disabled={disabled} component={RouterLink} to={reviewHref} onClick={onReview} endIcon={<ArrowForwardRounded />}>Review draft</Button>}
       {turn.status === 'PREVIEW' && <><Button size="small" disabled={disabled} onClick={() => void c.proposal(turn.id, 'check')}>Check preview</Button><Button size="small" disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'apply')}>Save preview to draft</Button></>}
-      {hasSaved && turn.id === latestSaved && <Button size="small" startIcon={<UndoOutlined />} disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'undo')}>Undo saved changes</Button>}
+      {hasSaved && turn.id === latestSaved && <Button size="small" startIcon={<UndoOutlined />} disabled={disabled || readOnly || c.openGoal} onClick={() => void c.proposal(turn.id, 'undo')}>Undo saved changes</Button>}
     </Stack>
   </>
 }

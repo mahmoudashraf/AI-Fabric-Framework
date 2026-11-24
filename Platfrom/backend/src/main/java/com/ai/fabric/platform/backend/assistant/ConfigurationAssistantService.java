@@ -53,12 +53,15 @@ public class ConfigurationAssistantService {
     private AuthoringBrainBindingService brainBindings;
     private ConfiguredAuthoringRuntimeClient brainRuntime;
     private AuthoringDraftOperations draftOperations;
+    private AuthoringGoalService goals;
 
     @org.springframework.beans.factory.annotation.Autowired
     public void setConfiguredBrain(AuthoringBrainBindingService bindings, ConfiguredAuthoringRuntimeClient client,
         AuthoringDraftOperations operations) {
         this.brainBindings = bindings; this.brainRuntime = client; this.draftOperations = operations;
     }
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setGoals(AuthoringGoalService goals) { this.goals = goals; }
 
     public ConfigurationAssistantService(AuthoringProperties properties, AuthoringCrypto crypto, AuthoringSessionRepository sessions,
         AuthoringResourceService resources, AuthoringChanges changes, AuthoringDocumentImporter documents,
@@ -70,17 +73,23 @@ public class ConfigurationAssistantService {
     }
     public JsonNode status() {
         boolean transportReady = false;
+        boolean goalReady = false;
         if (properties.isConfiguredBrainEnabled()) {
-            try { brainBindings.resolve("CONFIGURATION"); transportReady = true; }
+            try { goalReady = brainBindings.resolve("CONFIGURATION").autonomousEnabled(); transportReady = true; }
             catch (RuntimeException unavailable) { transportReady = false; }
         }
         boolean ready = properties.isEnabled() && crypto.configured() && transportReady;
         var result = mapper.createObjectNode().put("enabled", properties.isEnabled()).put("ready", ready)
             .put("documentFetchEnabled", properties.isDocumentFetchEnabled())
             .put("engine", "CONFIGURED_BRAIN")
+            .put("autonomousEnabled", ready && goalReady)
+            .put("autonomousUnavailableReason", ready && goalReady ? "" : ready
+                ? "Autonomous execution is not enabled by the published assistant. Quick edit remains available."
+                : "AI configuration is not configured on this environment. Manual editing remains available.")
             .put("unavailableReason", ready ? "" : "AI configuration is not configured on this environment. Manual editing remains available.");
         result.putObject("validationFeedback").put("defaultEnabled", properties.isValidationFeedbackEnabled() && properties.getValidationFeedbackMaxCorrections() > 0)
             .put("maxCorrections", Math.max(0, Math.min(AuthoringFeedbackPolicy.MAX_CORRECTIONS, properties.getValidationFeedbackMaxCorrections())));
+        var modes = result.putArray("executionModes"); modes.add("BOUNDED"); if (ready && goalReady) modes.add("AUTONOMOUS");
         return result;
     }
     public JsonNode create(CreateSession request) {
@@ -189,6 +198,7 @@ public class ConfigurationAssistantService {
     }
     public JsonNode removeSource(String id, String sourceId) {
         cancel(id);
+        goals.erase(id);
         clearBrainHistory(id);
         return tx.execute(ignored -> {
             var session = owned(id, true); var resource = resource(session); var content = content(session);
@@ -205,7 +215,10 @@ public class ConfigurationAssistantService {
         requireEnabled();
         if (request == null) throw bad("Provide a configuration request or preparation command.");
         if (key == null || key.isBlank() || key.length() > 128) throw bad("An Idempotency-Key is required.");
-        var feedback = AuthoringFeedbackPolicy.resolve(request.validationFeedback(), properties);
+        String executionMode = request.executionMode() == null ? "BOUNDED" : request.executionMode();
+        if (!Set.of("BOUNDED", "AUTONOMOUS").contains(executionMode)) throw bad("Choose Quick edit or Autonomous.");
+        boolean autonomous = "AUTONOMOUS".equals(executionMode);
+        var feedback = autonomous ? new AuthoringFeedbackPolicy(false, 0) : AuthoringFeedbackPolicy.resolve(request.validationFeedback(), properties);
         String commandHash = digest(mapper.valueToTree(request).toString());
         var claim = tx.execute(ignored -> {
             var session = owned(id, true); var resource = resource(session); var content = content(session);
@@ -217,6 +230,7 @@ public class ConfigurationAssistantService {
                 return new Claim(session.id, null, view(session, resource));
             }
             requireIdle(session);
+            if (goals.hasOpenGoal(session.id)) throw new ResponseStatusException(CONFLICT, "Resume, direct or cancel the existing goal before starting another request.");
             var sourceIds = new java.util.ArrayList<String>();
             content.path("sources").forEach(source -> sourceIds.add(source.path("sourceId").asText()));
             if (request.sourceIds() != null && !sourceIds.containsAll(request.sourceIds())) throw bad("A selected source is not part of this session.");
@@ -233,6 +247,7 @@ public class ConfigurationAssistantService {
             if (turns.size() >= 30) throw bad("This session has reached 30 turns. Start a new session to keep the configuration context bounded.");
             String turnId = "cat-" + UUID.randomUUID();
             var turn = turns.addObject().put("id", turnId).put("query", documents.redactText(intent.query()))
+                .put("executionMode", executionMode)
                 .put("previewOnly", request.previewOnly()).put("requestKey", key).put("commandHash", commandHash)
                 .put("status", "RUNNING").put("createdAt", Instant.now().toString());
             if (intent.command() != null) turn.put("command", intent.command()).put("hint", documents.redactText(request.query() == null ? "" : request.query()));
@@ -241,10 +256,16 @@ public class ConfigurationAssistantService {
             turn.set("sourceIds", mapper.valueToTree(request.sourceIds() == null ? sourceIds : request.sourceIds()));
             turn.set("operationIds", mapper.valueToTree(request.operationIds() == null ? List.of() : request.operationIds()));
             session.status = "RUNNING"; session.activeTurnId = turnId; session.deadline = Instant.now().plusSeconds(140);
+            String goalId = null;
+            if (autonomous) {
+                if (!resource.editable()) turn.put("previewOnly", true).put("notice", resource.readOnlyReason());
+                goalId = goals.prepare(session, content, turn, brainBindings.resolve(session.task), resource);
+            }
             write(session, content);
-            return new Claim(session.id, turnId, view(session, resource));
+            return new Claim(session.id, turnId, view(session, resource), goalId);
         });
-        if (claim.turnId() != null) {
+        if (claim.goalId() != null) goals.refresh(claim.goalId());
+        else if (claim.turnId() != null) {
             var work = new FutureTask<Void>(new DelegatingSecurityContextRunnable(() -> runConfiguredBrain(claim.sessionId(), claim.turnId())), null);
             pending.put(claim.turnId(), work);
             try { workers.execute(work); }
@@ -266,7 +287,7 @@ public class ConfigurationAssistantService {
             });
             var binding = brainBindings.resolve(work.task());
             draftOperations.bind(id, turnId, new AuthoringDraftOperations.Binding(binding.deploymentId(), binding.releaseId(),
-                binding.specialistId(), binding.bundleHash(), work.preview() ? 0 : binding.maxWrites(), work.preview(),
+                binding.specialistId(), binding.bundleHash(), work.preview() ? 0 : Math.min(3, binding.maxWrites()), work.preview(),
                 binding.scopes().stream().filter(scope -> scope.startsWith("action:")).map(scope -> scope.substring(7)).toList()));
             JsonNode response = brainRuntime.message(binding, id, work.conversationId(), turnId, work.task(), work.query(),
                 work.preview(), work.corrections(), work.deadline());
@@ -330,7 +351,7 @@ public class ConfigurationAssistantService {
         boolean awaitingInput = "NEEDS_INPUT".equals(status);
         if (awaitingInput) turn.put("notice", "More information is needed. Proposed changes remain in the attempt history; no draft change was saved.");
         if (!awaitingInput && !output.path("changes").isEmpty()) {
-            var candidate = changes.apply(resource.configuration(), output.path("changes"), resource.allowedPaths());
+            var candidate = changes.apply(resource.configuration(), output.path("changes"), resource.allowedPaths(), resource.catalogue().path("secretReferences"));
             turn.set("diff", candidate.diff());
             turn.set("findings", resources.check(session.resourceKind, session.resourceId, resource, candidate.candidate()));
             if (!preview && resource.editable()) {
@@ -362,15 +383,17 @@ public class ConfigurationAssistantService {
                 if (!"PREVIEW".equals(turn.path("status").asText())) throw bad("Only an unsaved preview can be applied.");
                 complete(session, content, turn, resource, turn.deepCopy().put("contractVersion", CONTRACT).put("status", "READY"), false);
             } else if ("check".equals(command)) {
-                var candidate = changes.apply(resource.configuration(), turn.path("changes"), resource.allowedPaths());
+                var candidate = changes.apply(resource.configuration(), turn.path("changes"), resource.allowedPaths(), resource.catalogue().path("secretReferences"));
                 turn.set("findings", resources.check(session.resourceKind, session.resourceId, resource, candidate.candidate())); write(session, content);
             } else if ("undo".equals(command)) {
                 var operations = turn.at("/brainWork/operations");
+                if (turn.hasNonNull("goalId")) operations = goals.receiptsForTurn(session.id, turnId);
                 if (operations.isArray() && !operations.isEmpty() && !"UNDONE".equals(turn.path("status").asText())) {
                     var receipts = turn.putArray("undoReceipt");
                     for (int index = operations.size() - 1; index >= 0; index--) {
                         var restored = resources.undo(session.resourceKind, session.resourceId, session.task, operations.get(index).path("diff"));
-                        receipts.add(restored.receipt());
+                        if (turn.hasNonNull("goalId")) { receipts.removeAll(); receipts.add(restored.receipt()); }
+                        else receipts.add(restored.receipt());
                     }
                     turn.put("status", "UNDONE"); write(session, content);
                 } else {
@@ -388,6 +411,15 @@ public class ConfigurationAssistantService {
         return cancel(id, null);
     }
     public JsonNode cancel(String id, String expectedTurnId) {
+        var goal = tx.execute(ignored -> { var session = owned(id, true); resource(session); return goals.view(id); });
+        if (goal != null && goal.isObject() && !goal.path("terminal").asBoolean()
+            && !AuthoringGoalService.TERMINAL.contains(goal.path("state").asText())) {
+            if (expectedTurnId != null && !expectedTurnId.equals(goal.path("turnId").asText()))
+                throw new ResponseStatusException(CONFLICT, "A newer goal is active. Refresh before cancelling it.");
+            goals.control(id, goal.path("id").asText(), new AuthoringGoalService.Control("CANCEL"));
+            goals.refresh(goal.path("id").asText());
+            return get(id);
+        }
         String turnId = tx.execute(ignored -> {
             var session = owned(id, true); resource(session);
             if (!"RUNNING".equals(session.status)) return null;
@@ -407,6 +439,7 @@ public class ConfigurationAssistantService {
     }
     public void delete(String id) {
         cancel(id);
+        goals.erase(id);
         clearBrainHistory(id);
         tx.executeWithoutResult(ignored -> { var session = owned(id, true); resource(session); sessions.delete(session);
             audit.record("AUTHORING_SESSION_DELETED", "AUTHORING_SESSION", id, Map.of("resourceId", session.resourceId)); });
@@ -419,9 +452,9 @@ public class ConfigurationAssistantService {
         });
     }
     private void clearBrainHistory(String id) {
-        if (!properties.isConfiguredBrainEnabled()) return;
         var history = brainHistory(id);
         if (history != null) brainRuntime.close(brainBindings.conversationBinding(), id, history.conversationId());
+        goals.historyErased(id);
     }
     private record BrainHistory(String task, String conversationId) { }
     private void fail(String id, String turnId, String message) {
@@ -468,6 +501,7 @@ public class ConfigurationAssistantService {
         if (!crypto.configured()) return;
         var expired = sessions.findByStatusAndDeadlineBefore("RUNNING", Instant.now());
         for (var session : expired) {
+            if (goals.hasOpenGoal(session.id)) continue;
             var future = pending.remove(session.activeTurnId); if (future != null) future.cancel(true);
             fail(session.id, session.activeTurnId, "The configuration request timed out. No late result will be applied.");
         }
@@ -508,6 +542,7 @@ public class ConfigurationAssistantService {
             .put("displayName", resource.displayName()).put("status", session.status).put("activeTurnId", session.activeTurnId)
             .put("expiresAt", session.expiresAt.toString()).put("editable", resource.editable()).put("readOnlyReason", resource.readOnlyReason());
         result.put("engine", content.path("engine").asText("LEGACY"));
+        result.set("goal", goals.view(session.id));
         if (properties.isConfiguredBrainEnabled() && !"CONFIGURED_BRAIN".equals(content.path("engine").asText()))
             result.put("editable", false).put("readOnlyReason", "Earlier assistant history is read-only. Start a new Build with AI session.");
         var sourceViews = result.putArray("sources");
@@ -557,19 +592,26 @@ public class ConfigurationAssistantService {
     private void requireEnabled() { if (!status().path("ready").asBoolean()) throw new ResponseStatusException(SERVICE_UNAVAILABLE, "AUTHORING_NOT_CONFIGURED"); }
     private String digest(String value) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private ResponseStatusException bad(String message) { return new ResponseStatusException(BAD_REQUEST, message); }
-    private record Claim(String sessionId, String turnId, JsonNode view) { }
+    private record Claim(String sessionId, String turnId, JsonNode view, String goalId) {
+        Claim(String sessionId, String turnId, JsonNode view) { this(sessionId, turnId, view, null); }
+    }
     public record CreateSession(String resourceKind, String resourceId, String task) { }
     public record SourceRequest(String title, String mediaType, String content, String base64, String url) { }
     public record ReuseSources(String sessionId, List<String> sourceIds) { }
     public record CancelRequest(String turnId) { }
     public record TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
-                              AuthoringFeedbackPolicy validationFeedback, String command, AuthoringTaskIntent.EditorContext editorContext) {
+                              AuthoringFeedbackPolicy validationFeedback, String command, AuthoringTaskIntent.EditorContext editorContext,
+                              String executionMode) {
+        public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
+            AuthoringFeedbackPolicy validationFeedback, String command, AuthoringTaskIntent.EditorContext editorContext) {
+            this(query, previewOnly, sourceIds, operationIds, validationFeedback, command, editorContext, null);
+        }
         public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds,
                            AuthoringFeedbackPolicy validationFeedback) {
-            this(query, previewOnly, sourceIds, operationIds, validationFeedback, null, null);
+            this(query, previewOnly, sourceIds, operationIds, validationFeedback, null, null, null);
         }
         public TurnRequest(String query, boolean previewOnly, List<String> sourceIds, List<String> operationIds) {
-            this(query, previewOnly, sourceIds, operationIds, null, null, null);
+            this(query, previewOnly, sourceIds, operationIds, null, null, null, null);
         }
     }
 }

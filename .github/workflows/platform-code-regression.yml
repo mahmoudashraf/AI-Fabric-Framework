@@ -112,6 +112,28 @@ jobs:
           npm run test:search-quality
           node --test scripts/plugin-creator-document.test.mjs scripts/plugin-json-fidelity.test.mjs scripts/plugin-creator-requirements.test.mjs scripts/plugin-library-api.test.mjs
 
+      - name: Verify customer authentication and session continuity
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        run: node --test scripts/customer-supabase-auth.test.mjs scripts/customer-auth-session-continuity.test.mjs
+
+      - name: Install Chromium for UI browser regressions
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify configuration assistant browser journeys
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        env:
+          ASSISTANT_EVIDENCE_DIR: ${{ runner.temp }}/configuration-assistant-browser
+        run: node src/assistant/assistant.browser.mjs
+
+      - name: Verify customer authentication browser journeys
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        run: node scripts/customer-supabase-auth-ui-smoke.mjs
+
       - name: Validate hosted verification shell scripts
         if: ${{ inputs.shell_syntax_checks }}
         run: |
@@ -124,3 +146,11 @@ jobs:
           bash -n scripts/verify-vector-deployment.sh
           bash -n scripts/verify-managed-vector-providers.sh
           bash -n .github/scripts/smoke-p1-relay-local.sh
+
+      - name: Upload configuration assistant browser evidence
+        if: ${{ always() && inputs.ui_build }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: configuration-assistant-browser
+          path: ${{ runner.temp }}/configuration-assistant-browser
+          if-no-files-found: ignore

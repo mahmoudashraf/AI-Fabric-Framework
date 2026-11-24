@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
+import { Alert, Snackbar } from '@mui/material'
 import { customerAuthReturn, consumeCustomerAuthReturn } from './customerAuthReturn'
 import { isSameAuthenticatedSubject } from './customerSession'
 import {
   clearStoredPlatformApiKey, fetchPlatformAuthSession, fetchCustomerAuthConfig, getStoredPlatformApiKey,
-  linkCustomerSupabaseIdentity, loginToPlatform, logoutFromPlatform, setStoredPlatformApiKey,
+  linkCustomerSupabaseIdentity, loginToPlatform, logoutFromPlatform, logoutCustomerFromPlatform, setStoredPlatformApiKey,
   recoverCustomerAccount,
   setPlatformAccessTokenProvider, type CustomerAuthConfig, type PlatformAuthSessionSummary,
 } from '../api/platformApi'
@@ -40,6 +41,7 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
   const [customerAuthLoading, setCustomerAuthLoading] = useState(true)
   const [configError, setConfigError] = useState<Error | null>(null)
   const [customerAuthError, setCustomerAuthError] = useState<Error | null>(null)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
   const transition = useRef(0)
   const authGeneration = useRef(0)
   const acceptedSupabaseSubject = useRef<string | null>(null)
@@ -177,9 +179,22 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     },
     signOut: async () => {
       const command = ++transition.current
+      setSignOutError(null)
+      try {
+        const customerIdentity = await supabase?.auth.getSession()
+        if (customerIdentity?.error) throw customerIdentity.error
+        if (command !== transition.current) return
+        if (customerIdentity?.data.session) await logoutCustomerFromPlatform(customerIdentity.data.session.access_token)
+        else if (sessionQuery.data?.authenticationMode === 'SUPABASE') await logoutFromPlatform('default')
+        if (command !== transition.current) return
+        await logoutFromPlatform()
+      } catch {
+        if (command === transition.current) setSignOutError('Sign-out could not be confirmed. Please try again before leaving this device.')
+        return
+      }
+      if (command !== transition.current) return
       setPlatformAccessTokenProvider(null)
       clearStoredPlatformApiKey()
-      await logoutFromPlatform().catch(() => null)
       const result = await supabase?.auth.signOut({ scope: 'local' })
       if (command !== transition.current) return
       if (result?.error) throw result.error
@@ -191,7 +206,11 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     },
   }
 
-  return <PlatformAuthContext.Provider value={value}>{children}</PlatformAuthContext.Provider>
+  return <PlatformAuthContext.Provider value={value}>{children}
+    <Snackbar open={Boolean(signOutError)} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }} sx={{ mb: 8 }}>
+      <Alert severity="error" onClose={() => setSignOutError(null)} sx={{ maxWidth: 420 }}>{signOutError}</Alert>
+    </Snackbar>
+  </PlatformAuthContext.Provider>
 }
 
 export function startCustomerIdentityLink() { sessionStorage.setItem(modeKey, 'link') }

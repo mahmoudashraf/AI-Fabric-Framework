@@ -619,10 +619,23 @@ public class DeploymentBehaviorCatalogService {
         boolean managedTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
         if (com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(behaviorConfig)) {
             capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.CAPABILITY);
+            if (com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.extendedBundleRequired(behaviorConfig))
+                capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.EXTENDED_BUNDLE_CAPABILITY);
             capabilities.add("ai-fabric-execution");
             endpointClasses.add("chat-query");
             migrationIds.add("workflow-execution-checkpoint-v27");
             migrationIds.add("protected-conversation-message-capacity-v28");
+            if (com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.goalEnabled(behaviorConfig)) {
+                capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.GOAL_CAPABILITY);
+                for (JsonNode profile : behaviorConfig.at("/workflowAssistance/profiles")) {
+                    if (profile.path("delegatedProfiles").isArray() && !profile.path("delegatedProfiles").isEmpty()) {
+                        capabilities.add("workflow-goal-profile-delegation-v1");
+                        break;
+                    }
+                }
+                endpointClasses.add("canonical-goal-work-control");
+                migrationIds.add("workflow-goal-continuation-v29");
+            }
         }
         if (managedTasks) {
             capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CAPABILITY);

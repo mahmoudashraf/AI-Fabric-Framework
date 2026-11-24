@@ -4,6 +4,7 @@ const turnLabels: Record<string, string> = {
   SAVED: 'Saved to draft', PREVIEW: 'Preview', NEEDS_INPUT: 'Needs your input',
   EXPLAIN: 'Guidance', UNSUPPORTED: 'Not supported', INVALID: 'Needs correction',
   FAILED: 'Could not finish', CANCELLED: 'Cancelled', RUNNING: 'Preparing',
+  PAUSED: 'Paused', BLOCKED: 'Remaining work blocked',
   UNDONE: 'Change undone', READY: 'Ready for review',
 }
 export function turnStatusLabel(status: string): string { return turnLabels[status] ?? status }

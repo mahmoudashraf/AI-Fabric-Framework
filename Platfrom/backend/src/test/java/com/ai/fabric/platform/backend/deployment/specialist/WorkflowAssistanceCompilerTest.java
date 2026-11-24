@@ -38,7 +38,7 @@ class WorkflowAssistanceCompilerTest {
             assertThat(resource.at("/spec/capabilities/retrieval/enabled").asBoolean()).isFalse();
             assertThat(resource.at("/spec/capabilities/actions/proposableWrites")).hasSize(guide ? 0 : 2);
         }
-        assertThat(compiler.serialized(config.path("compiled")).getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isLessThanOrEqualTo(65536);
+        assertThat(compiler.serialized(config.path("compiled")).getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isLessThanOrEqualTo(WorkflowAssistanceCompiler.MAX_BYTES);
         String export = System.getProperty("workflow.fixture.export");
         if (export != null) Files.writeString(Path.of(export), mapper.writerWithDefaultPrettyPrinter().writeValueAsString(config));
     }
@@ -66,15 +66,15 @@ class WorkflowAssistanceCompilerTest {
     @Test void installedAuthorityCannotBeManufacturedByTheManifest() {
         assertThatThrownBy(() -> compiler.compileBehavior(template.behavior(), new SpecialistAssistanceCompiler.Authority(Map.of(), Set.of(), Map.of())))
             .hasMessageContaining("unconfigured READ");
-        var config = template.behavior();
+        var config = boundedBehavior();
         ((ObjectNode) config.at("/workflowAssistance/profiles/0")).putArray("readActions").add("unregistered_admin_tool");
         assertThatThrownBy(() -> compiler.compileBehavior(config, authority())).hasMessageContaining("unconfigured READ");
     }
     @Test void publicationRejectsUnboundedPolicyAndCrossAccessAliases() {
-        var config = template.behavior();
+        var config = boundedBehavior();
         ((ObjectNode) config.at("/workflowAssistance/policy")).put("maxWriteSteps", 4);
         assertThatThrownBy(() -> compiler.validateConfiguration(config)).hasMessageContaining("maxWriteSteps");
-        var invalid = template.behavior();
+        var invalid = boundedBehavior();
         ((ObjectNode) invalid.at("/workflowAssistance/profiles/0")).putArray("writeActions").add("authoring_get_context");
         assertThatThrownBy(() -> compiler.validateConfiguration(invalid)).hasMessageContaining("both READ and WRITE");
     }
@@ -93,5 +93,100 @@ class WorkflowAssistanceCompilerTest {
         var result = compiler.compileBehavior(config, authority());
         assertThat(result.at("/workflowAssistance/compiled/forged").isMissingNode()).isTrue();
         assertThat(result.at("/workflowAssistance/contentHash").asText()).startsWith("sha256:");
+    }
+    @Test void goalSegmentsCompileWithFiniteLifetimeAndPinnedProfileDelegation() {
+        var behavior = goalBehavior();
+        var config = (ObjectNode) behavior.path("workflowAssistance");
+        ((ObjectNode) config.path("policy")).put("maxCorrections", 8).put("maxModelCalls", 64).put("maxActionSteps", 64).put("maxWriteSteps", 32);
+        var setup = profile(config, "setup"); setup.putArray("delegatedProfiles").add("api").add("responses");
+        var compiled = compiler.compileBehavior(behavior, authority());
+        var bundle = compiled.at("/workflowAssistance/compiled");
+        assertThat(bundle.at("/goal/maxElapsedSeconds").asInt()).isEqualTo(86400);
+        var resource = java.util.stream.StreamSupport.stream(bundle.path("resources").spliterator(), false)
+            .filter(r -> "Specialist".equals(r.path("kind").asText()) && "workflow-setup".equals(r.at("/metadata/name").asText())).findFirst().orElseThrow();
+        assertThat(resource.at("/spec/execution/workflow/goal/enabled").asBoolean()).isTrue();
+        assertThat(resource.at("/spec/execution/workflow/goal/maxElapsed").asText()).isEqualTo("PT86400S");
+        assertThat(resource.at("/spec/execution/workflow/goal/delegatedProfiles")).hasSize(2);
+        assertThat(resource.at("/spec/execution/workflow/maxCorrections").asInt()).isEqualTo(8);
+        var publishedSetup = java.util.stream.StreamSupport.stream(bundle.path("profiles").spliterator(), false)
+            .filter(r -> "setup".equals(r.path("id").asText())).findFirst().orElseThrow();
+        assertThat(publishedSetup.path("requiredScopes").toString()).contains("specialist:workflow-api@1", "specialist:workflow-responses@1");
+        assertThat(publishedSetup.path("allowedActions")).hasSize(AuthoringNativeCapabilities.READS.size() + AuthoringNativeCapabilities.WRITES.size());
+    }
+    @Test void boundedModeDoesNotInheritGoalPolicyCeilings() {
+        var behavior = boundedBehavior();
+        ((ObjectNode) behavior.at("/workflowAssistance/policy")).put("maxCorrections", 8);
+        assertThatThrownBy(() -> compiler.validateConfiguration(behavior)).hasMessageContaining("maxCorrections");
+        assertThat(WorkflowAssistanceCompiler.goalEnabled(behavior)).isFalse();
+    }
+    @Test void disablingGoalsPreservesConfiguredDelegationWithoutGrantingItToBoundedExecution() {
+        var behavior = template.behavior();
+        profile((ObjectNode) behavior.path("workflowAssistance"), "setup").put("instructions", "x".repeat(8000));
+        ((ObjectNode) behavior.at("/workflowAssistance/goal")).put("enabled", false);
+        ((ObjectNode) behavior.at("/workflowAssistance/policy")).put("maxActionSteps", 64).put("maxWriteSteps", 32)
+            .put("maxModelCalls", 64).put("maxCorrections", 8).put("deadlineSeconds", 140);
+        var compiled = compiler.compileBehavior(behavior, authority());
+        assertThat(profile((ObjectNode) compiled.path("workflowAssistance"), "setup").path("delegatedProfiles")).hasSize(8);
+        assertThat(compiled.at("/workflowAssistance/policy")).isEqualTo(behavior.at("/workflowAssistance/policy"));
+        var bundle = compiled.at("/workflowAssistance/compiled");
+        assertThat(bundle.at("/policy/maxActionSteps").asInt()).isEqualTo(8);
+        assertThat(bundle.at("/policy/maxWriteSteps").asInt()).isEqualTo(3);
+        assertThat(bundle.at("/policy/maxModelCalls").asInt()).isEqualTo(16);
+        assertThat(bundle.at("/policy/maxCorrections").asInt()).isEqualTo(2);
+        assertThat(bundle.at("/policy/deadlineSeconds").asInt()).isEqualTo(120);
+        assertThat(WorkflowAssistanceCompiler.extendedBundleRequired(compiled)).isTrue();
+        var requirements = new com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService(mapper).releaseRequirements(compiled);
+        assertThat(requirements.capabilities()).contains(WorkflowAssistanceCompiler.EXTENDED_BUNDLE_CAPABILITY)
+            .doesNotContain(WorkflowAssistanceCompiler.GOAL_CAPABILITY, "workflow-goal-profile-delegation-v1");
+        for (var entry : bundle.path("profiles")) {
+            assertThat(entry.path("delegatedProfiles")).isEmpty();
+            assertThat(entry.path("requiredScopes").toString()).doesNotContain("specialist:workflow-foreign");
+            assertThat(java.util.stream.StreamSupport.stream(entry.path("requiredScopes").spliterator(), false)
+                .filter(scope -> scope.asText().startsWith("specialist:")).count()).isOne();
+        }
+        for (var resource : bundle.path("resources")) if ("Specialist".equals(resource.path("kind").asText())) {
+            assertThat(resource.at("/spec/execution/workflow/goal").isMissingNode()).isTrue();
+            assertThat(resource.at("/spec/execution/workflow/maxModelCalls").asInt()).isEqualTo(16);
+            assertThat(resource.at("/spec/execution/workflow/maxCorrections").asInt()).isEqualTo(2);
+        }
+    }
+    @Test void goalPolicyCannotRemoveFiniteLifetimeOrIntroduceUnknownProfiles() {
+        var invalid = goalBehavior();
+        ((ObjectNode) invalid.at("/workflowAssistance/goal")).put("maxElapsedSeconds", -1);
+        assertThatThrownBy(() -> compiler.validateConfiguration(invalid)).hasMessageContaining("maxElapsedSeconds");
+        var unknown = goalBehavior(); profile((ObjectNode) unknown.path("workflowAssistance"), "setup").putArray("delegatedProfiles").add("foreign");
+        assertThatThrownBy(() -> compiler.validateConfiguration(unknown)).hasMessageContaining("existing different");
+        var recursive = goalBehavior(); profile((ObjectNode) recursive.path("workflowAssistance"), "setup").putArray("delegatedProfiles").add("setup");
+        assertThatThrownBy(() -> compiler.validateConfiguration(recursive)).hasMessageContaining("existing different");
+    }
+    @Test void delegatedProfileCannotEscalateReadOnlyGoalOwner() {
+        var behavior = goalBehavior();
+        profile((ObjectNode) behavior.path("workflowAssistance"), "guide").putArray("delegatedProfiles").add("api");
+        assertThatThrownBy(() -> compiler.validateConfiguration(behavior)).hasMessageContaining("cannot widen");
+    }
+    @Test void startupBundleRemainsBoundedBelowTheEncodedEnvironmentLimit() {
+        var oversized = goalBehavior();
+        oversized.at("/workflowAssistance/profiles").forEach(profile ->
+            ((ObjectNode) profile).put("instructions", "\u20ac".repeat(8000)));
+        assertThatThrownBy(() -> compiler.compileBehavior(oversized, authority())).hasMessageContaining("bundle size limit");
+        assertThat(4 * ((WorkflowAssistanceCompiler.MAX_BYTES + 2) / 3)
+            + "LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64=".length() + 1).isLessThan(131072);
+    }
+    private ObjectNode boundedBehavior() {
+        var result = template.behavior(); var config = (ObjectNode) result.path("workflowAssistance");
+        config.remove("goal"); ((ObjectNode) config.path("policy")).put("maxCorrections", 2);
+        config.path("profiles").forEach(p -> ((ObjectNode) p).remove("delegatedProfiles"));
+        return result;
+    }
+    private ObjectNode goalBehavior() {
+        var result = boundedBehavior();
+        ((ObjectNode) result.path("workflowAssistance")).putObject("goal").put("enabled", true)
+            .put("maxElapsedSeconds", 86400).put("continuationDelaySeconds", 1)
+            .put("maxConsecutiveNoProgress", 8).put("maxConsecutivePlannerFailures", 4);
+        return result;
+    }
+    private ObjectNode profile(ObjectNode config, String id) {
+        return (ObjectNode) java.util.stream.StreamSupport.stream(config.path("profiles").spliterator(), false)
+            .filter(p -> id.equals(p.path("id").asText())).findFirst().orElseThrow();
     }
 }

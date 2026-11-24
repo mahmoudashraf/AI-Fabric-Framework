@@ -116,7 +116,10 @@ async function scenario(name, action, options = {}) {
       return respond({ accessToken: jwt('account-recovered'), refreshToken: 'fixture-refresh-token', expiresAt: timestamp + 3600, userId: user.id })
     }
     if (url.pathname.endsWith('/login')) { local = options.localCustomer ? { ...customer, authenticationMode: 'SESSION' } : staff; return respond(local) }
-    if (url.pathname.endsWith('/logout')) { local = anonymous; return respond(anonymous) }
+    if (url.pathname.endsWith('/logout')) {
+      if (options.logoutUnavailable) return respond({ message: 'Logout unavailable' }, 503)
+      local = anonymous; return respond(anonymous)
+    }
     if (url.pathname.endsWith('/session')) {
       if (options.backendUnavailable) return respond({ message: 'Unavailable' }, 503)
       if (headers.authorization) {
@@ -153,13 +156,49 @@ try {
     await page.getByRole('button', { name: 'Logout', exact: true }).click(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
     assert.ok(calls.some(call => call.query === '?grant_type=refresh_token'))
     assert.ok(calls.some(call => call.authorization === `Bearer ${jwt('refreshed')}` && call.path === '/api/platform/auth/session'))
+    const revocations = calls.filter(call => call.path === '/api/platform/auth/logout')
+    assert.equal(revocations.length, 2)
+    assert.equal(revocations[0].authorization, `Bearer ${jwt('refreshed')}`)
+    assert.equal(revocations[0].cookie, undefined)
+    assert.equal(revocations[1].authorization, undefined)
+    const providerLogout = calls.findIndex(call => call.path === '/auth/v1/logout')
+    assert.ok(providerLogout > calls.findIndex(call => call.path === '/api/platform/auth/logout'))
+    await page.reload(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
   })
+  const failedLogout = { logoutUnavailable: true }
+  await scenario('failed_work_revocation_does_not_silently_finish_logout', async ({ page, calls, base }) => {
+    await page.goto(`${base}/test-auth`); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
+    await page.getByRole('button', { name: 'Customer login' }).click(); await page.getByTestId('identity').filter({ hasText: 'SUPABASE' }).waitFor()
+    await page.getByRole('button', { name: 'Logout', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'Sign-out could not be confirmed.' }).waitFor()
+    assert.equal(await page.getByTestId('identity').innerText(), 'SUPABASE')
+    assert.equal(calls.filter(call => call.path === '/auth/v1/logout').length, 0)
+    failedLogout.logoutUnavailable = false
+    await page.getByRole('button', { name: 'Logout', exact: true }).click(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
+    await page.reload(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
+  }, failedLogout)
   await scenario('staff_key_to_customer_credentials_do_not_mix', async ({ page, calls, base }) => {
     await page.goto(`${base}/test-auth`); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
     await page.getByRole('button', { name: 'Staff key' }).click(); await page.getByTestId('identity').filter({ hasText: 'API_KEY' }).waitFor()
     await page.getByRole('button', { name: 'Customer login' }).click(); await page.getByTestId('identity').filter({ hasText: 'SUPABASE' }).waitFor()
     assert.ok(calls.some(call => call.key === 'staff-fixture-key'))
     assert.ok(calls.some(call => call.authorization?.startsWith('Bearer ')))
+  })
+  for (const selected of ['Staff login', 'Staff key']) await scenario(`logout_revokes_retained_customer_after_${selected.replaceAll(' ', '_')}`, async ({ page, calls, base }) => {
+    await page.goto(`${base}/test-auth`); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
+    await page.getByRole('button', { name: 'Customer login' }).click(); await page.getByTestId('identity').filter({ hasText: 'SUPABASE' }).waitFor()
+    await page.getByRole('button', { name: selected, exact: true }).click()
+    await page.getByTestId('identity').filter({ hasText: selected === 'Staff login' ? 'SESSION' : 'API_KEY' }).waitFor()
+    await page.getByRole('button', { name: 'Logout', exact: true }).click(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
+    const revocations = calls.filter(call => call.path === '/api/platform/auth/logout')
+    assert.equal(revocations.length, 2)
+    assert.equal(revocations[0].authorization, `Bearer ${jwt('signed-in')}`)
+    assert.equal(revocations[0].cookie, undefined)
+    assert.equal(revocations[0].key, undefined)
+    assert.equal(revocations[1].authorization, undefined)
+    assert.equal(revocations[1].key, undefined)
+    assert.equal(calls.filter(call => call.path === '/auth/v1/logout').length, 1)
+    await page.reload(); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
   })
   await scenario('native_customer_link_requires_existing_session_and_switches_to_supabase', async ({ page, linked, base }) => {
     await page.goto(`${base}/test-auth`); await page.getByTestId('identity').filter({ hasText: 'anonymous' }).waitFor()
@@ -292,7 +331,8 @@ try {
   await scenario('cancelled_login_creates_no_token_or_oauth_approval', async ({ page, calls, base }) => {
     await page.goto(`${base}/auth/desk/authorize?authorization_id=request-one`)
     await page.getByRole('link', { name: 'Cancel', exact: true }).click()
-    await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
+    await page.waitForURL(`${base}/`)
+    await page.getByRole('heading', { level: 1 }).waitFor()
     assert.equal(calls.filter(call => call.path === '/auth/v1/token' || call.path.endsWith('/consent')).length, 0)
   })
   await scenario('existing_console_owner_registers_verifies_and_explicitly_links_both_identities', async ({ page, calls, linked, base }) => {
@@ -317,7 +357,7 @@ try {
     await page.waitForURL('**/home')
   }, { deskOnly: true, localCustomer: true })
   await scenario('public_products_are_readable_without_membership_and_keep_simple_navigation', async ({ page, calls, base }) => {
-    await page.goto(base)
+    await page.goto(`${base}/products`)
     await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
     assert.equal(await page.locator('[data-public-products-theme]').getAttribute('data-public-products-theme'), 'dark')
     assert.equal(await page.getByRole('navigation').count(), 0)
@@ -352,12 +392,25 @@ try {
     await page.getByRole('heading', { name: 'Set up your Smart Brain', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Choose a smart brain template', exact: true }).click()
     await page.waitForURL('**/deployments?view=setup&step=template')
-    await page.getByLabel('Product offer', { exact: true }).waitFor()
-    await page.getByLabel('Product offer', { exact: true }).click()
-    await page.getByRole('option', { name: /Dealership simulator/ }).waitFor()
-    await page.getByRole('option', { name: /Knowledge workspace/ }).waitFor()
-    assert.equal(await page.getByRole('option').count(), 2)
-    await page.keyboard.press('Escape')
+    await page.getByRole('heading', { name: 'Get your AI ready for customers', exact: true }).waitFor()
+    const templates = page.getByRole('group', { name: 'Available starting templates', exact: true })
+    const dealership = templates.getByRole('button', { name: 'Dealership simulator', exact: true })
+    const knowledge = templates.getByRole('button', { name: 'Knowledge workspace', exact: true })
+    await dealership.waitFor(); await knowledge.waitFor()
+    assert.equal(await templates.getByRole('button').count(), 2)
+    assert.equal(await dealership.getAttribute('aria-pressed'), 'true')
+    await knowledge.click()
+    assert.equal(await knowledge.getAttribute('aria-pressed'), 'true')
+    assert.equal(await dealership.getAttribute('aria-pressed'), 'false')
+    await page.getByLabel('Name your smart brain', { exact: true }).fill('Customer knowledge')
+    await page.getByText('Template and target references', { exact: true }).click()
+    await page.getByText('Template: public-knowledge-workspace-v1', { exact: true }).waitFor()
+    const stages = page.getByRole('navigation', { name: 'Smart Brain setup stages', exact: true })
+    assert.equal(await stages.getByRole('button', { name: /Starting point$/ }).getAttribute('aria-current'), 'step')
+    for (const stage of ['Connect your business', 'Prepare staging', 'Go live', 'Manage staging']) {
+      assert.equal(await stages.getByRole('button', { name: new RegExp(`${stage}$`) }).isDisabled(), true)
+    }
+    assert.equal(await page.getByRole('button', { name: 'Create my setup', exact: true }).isDisabled(), true)
     assert.equal(calls.filter(call => call.path.endsWith('/customer-onboarding') && call.method === 'POST').length, 1)
     assert.equal(calls.filter(call => call.path === '/api/customer-self-service/enrollment').length, 1)
     assert.equal(calls.filter(call => call.method === 'POST' && /\/(apply|staging-releases|deployments)$/.test(call.path)).length, 0)
@@ -425,7 +478,7 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/customer-recovery') || call.path === '/auth/v1/verify').length, 0)
   })
   await scenario('product_discovery_survives_backend_unavailability_without_authentication_bypass', async ({ page, calls, base }) => {
-    await page.goto(base)
+    await page.goto(`${base}/products`)
     await page.getByRole('heading', { name: 'LoomAI products', exact: true }).waitFor()
     await page.getByRole('link', { name: 'Explore Engage', exact: true }).click()
     await page.getByRole('heading', { name: 'LoomAI Engage', exact: true }).waitFor()

@@ -57,6 +57,20 @@ class ConfiguredAuthoringRuntimeClientTest {
         assertThatThrownBy(() -> client.message(binding, "cas-test", "../other", "cat-test", "ACTIONS", "Prepare", false, 2, Instant.now().plusSeconds(5)))
             .hasMessageContaining("ID_INVALID"); verifyNoInteractions(bindings);
     }
+    @Test void autonomousSubmissionReturnsHandleAndKeepsStableAuthorityAndMessageIdentity() {
+        server.createContext("/api/chat/me/conversations/conversation-test/messages", exchange -> {
+            var body = mapper.readTree(exchange.getRequestBody());
+            assertThat(body.at("/configurationWork/goalMode").asBoolean()).isTrue();
+            assertThat(body.at("/configurationWork/authorityReference").asText()).isEqualTo("cag-test");
+            assertThat(body.at("/configurationWork/requestRevision").asLong()).isEqualTo(2);
+            assertThat(exchange.getRequestHeaders().getFirst("Idempotency-Key")).isEqualTo("cat-test");
+            byte[] response = "{\"workId\":\"exec-native\",\"goal\":{\"state\":\"QUEUED\"}}".getBytes();
+            exchange.sendResponseHeaders(202, response.length); exchange.getResponseBody().write(response); exchange.close();
+        });
+        var authority = mapper.createObjectNode().put("authorityId", "cag-test").put("goalId", "cag-test")
+            .put("requestRevision", 2).put("cancellationEpoch", 1).put("segment", 1).put("validUntil", Instant.now().plusSeconds(3600).toString());
+        assertThat(client.startGoal(binding, "cas-test", "conversation-test", "cat-test", "ACTIONS", "Prepare", authority).path("workId").asText()).isEqualTo("exec-native");
+    }
     private com.fasterxml.jackson.databind.JsonNode message(Instant deadline) {
         return client.message(binding, "cas-test", "conversation-test", "cat-test", "ACTIONS", "Prepare the documented actions", false, 2, deadline);
     }

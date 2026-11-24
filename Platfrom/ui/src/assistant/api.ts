@@ -1,6 +1,6 @@
 import { platformRequest } from '../api/platformApi'
 import { parseExactJson, stringifyExactJson } from '../lib/losslessJson'
-import type { AssistantScope, AssistantSession, AssistantStatus, ReusableSource, SourceInput, TurnInput } from './types'
+import type { AssistantGoalCommand, AssistantOperationPage, AssistantScope, AssistantSession, AssistantStatus, ReusableSource, SourceInput, TurnInput } from './types'
 
 const root = '/api/configuration-assistant'
 const sessionPath = (id: string) => `${root}/sessions/${encodeURIComponent(id)}`
@@ -20,6 +20,9 @@ export const assistantApi = {
   reuseSource: (id: string, sessionId: string, sourceIds: string[]) => post<AssistantSession>(`${sessionPath(id)}/sources/reuse`, { sessionId, sourceIds }),
   turn: (id: string, input: TurnInput, key: string) => post<AssistantSession>(`${sessionPath(id)}/turns`, input, key),
   cancel: (id: string, turnId?: string | null) => post<AssistantSession>(`${sessionPath(id)}/cancel`, { turnId: turnId ?? undefined }),
+  goalControl: (id: string, goalId: string, command: AssistantGoalCommand) => post<AssistantSession>(`${sessionPath(id)}/goals/${encodeURIComponent(goalId)}/control`, { command }),
+  goalOperations: (id: string, goalId: string, offset = 0, limit = 20, signal?: AbortSignal) => request<AssistantOperationPage>(`${sessionPath(id)}/goals/${encodeURIComponent(goalId)}/operations?${new URLSearchParams({ offset: String(offset), limit: String(limit) })}`, signal ? { signal } : undefined),
+  directive: (id: string, goalId: string, input: { query: string; sourceIds?: string[]; operationIds?: string[] }, key: string) => post<AssistantSession>(`${sessionPath(id)}/goals/${encodeURIComponent(goalId)}/directives`, input, key),
   proposal: (id: string, turnId: string, command: 'check' | 'apply' | 'undo') => post<AssistantSession>(`${sessionPath(id)}/proposals/${encodeURIComponent(turnId)}/${command}`),
   delete: (id: string) => request<void>(sessionPath(id), { method: 'DELETE' }),
 }

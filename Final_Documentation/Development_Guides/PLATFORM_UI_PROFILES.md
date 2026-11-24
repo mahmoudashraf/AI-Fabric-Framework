@@ -70,6 +70,15 @@ after three cycles and respects reduced-motion preferences. The inspector entry
 opens the existing Brain workspace/assistant; it does not create a second
 assistant or submit an AI request.
 
+010.76 extends that same panel with Quick edit / Autonomous, original-target
+progress, actual draft receipts and Pause / Resume / Cancel. Opening, restoring,
+navigating or polling must not submit inference. A running goal never follows a
+new page's target implicitly. Keep manual editors, source selection, review and
+Undo available; do not restore AI/manual locking. Native goal execution is not
+publication or ordinary Support write permission. Read
+`AUTONOMOUS_BUILD_WITH_AI.md` for the contract and the latest working-context
+acceptance record for hosted availability.
+
 ## AI-First Brain Workspace - Owner Approval, 15 November 2026
 
 The owner approved the two AI-first mockups for the Brain library, its guided

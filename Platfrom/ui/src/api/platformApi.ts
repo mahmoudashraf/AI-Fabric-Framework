@@ -4776,10 +4776,17 @@ export function loginToPlatform(payload: PlatformLoginRequest) {
   }, 'local')
 }
 
-export function logoutFromPlatform() {
+export function logoutFromPlatform(policy: 'local' | 'default' = 'local') {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/logout', {
     method: 'POST',
-  }, 'local')
+  }, policy)
+}
+
+export function logoutCustomerFromPlatform(accessToken: string) {
+  if (!accessToken) throw new Error('A verified customer session is required.')
+  return request<PlatformAuthSessionSummary>('/api/platform/auth/logout', {
+    method: 'POST', headers: { Authorization: `Bearer ${accessToken}` },
+  }, 'none')
 }
 
 export function fetchPlatformUserPreferences() {

@@ -26,19 +26,19 @@ public class AuthoringChanges {
     public AuthoringChanges(ObjectMapper mapper) { this.mapper = mapper; }
 
     public JsonNode project(JsonNode value) {
-        return safeProject(value, List.of());
+        return safeProject(value, List.of(), Set.of());
     }
-    private JsonNode safeProject(JsonNode value, List<String> path) {
+    public JsonNode project(JsonNode value, JsonNode ownedReferences) {
+        return safeProject(value, List.of(), AuthoringSecretReferences.names(ownedReferences));
+    }
+    private JsonNode safeProject(JsonNode value, List<String> path, Set<String> references) {
         var literals = new java.util.HashSet<String>();
-        var fields = new java.util.TreeMap<String, String>(); collectCredentials(value, path, fields);
-        for (String serialized : fields.values()) {
-            try { collectLiterals(mapper.readTree(serialized), literals); }
-            catch (java.io.IOException impossible) { throw new IllegalStateException("Credential projection could not be prepared."); }
-        }
+        var fields = new java.util.LinkedHashMap<List<String>, JsonNode>(); collectCredentials(value, path, fields);
+        for (var field : fields.values()) if (!AuthoringSecretReferences.owned(field, references)) collectLiterals(field, literals);
         var ordered = literals.stream().sorted(java.util.Comparator.comparingInt(String::length).reversed()).toList();
         var matcher = ordered.isEmpty() ? null : java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(REDACTED) + "|"
             + ordered.stream().map(java.util.regex.Pattern::quote).collect(java.util.stream.Collectors.joining("|")));
-        return redactLiterals(project(value, path), matcher);
+        return redactLiterals(project(value, path, references), matcher);
     }
     private void collectLiterals(JsonNode value, Set<String> literals) {
         if (value.isTextual() && !value.asText().isBlank() && !REDACTED.equals(value.asText())) literals.add(value.asText());
@@ -53,7 +53,7 @@ public class AuthoringChanges {
         else if (value.isArray()) for (int i = 0; i < value.size(); i++) ((ArrayNode) value).set(i, redactLiterals(value.get(i), literals));
         return value;
     }
-    private JsonNode project(JsonNode value, List<String> path) {
+    private JsonNode project(JsonNode value, List<String> path, Set<String> references) {
         if (value == null) return mapper.createObjectNode();
         JsonNode copy = value.deepCopy();
         if (copy.isObject()) {
@@ -61,21 +61,28 @@ public class AuthoringChanges {
             while (fields.hasNext()) {
                 var field = fields.next();
                 ((ObjectNode) copy).set(field.getKey(), credential(path, field.getKey(), field.getValue(), value)
-                    ? mapper.getNodeFactory().textNode(REDACTED) : project(field.getValue(), child(path, field.getKey())));
+                    && !AuthoringSecretReferences.owned(field.getValue(), references)
+                    ? mapper.getNodeFactory().textNode(REDACTED) : project(field.getValue(), child(path, field.getKey()), references));
             }
         } else if (copy.isArray()) {
-            for (int i = 0; i < copy.size(); i++) ((ArrayNode) copy).set(i, project(copy.get(i), child(path, Integer.toString(i))));
+            for (int i = 0; i < copy.size(); i++) ((ArrayNode) copy).set(i, project(copy.get(i), child(path, Integer.toString(i)), references));
         }
         return copy;
     }
 
     public Result apply(JsonNode current, JsonNode changes, List<String> allowedPaths) {
-        return apply(current, changes, allowedPaths, false);
+        return apply(current, changes, allowedPaths, false, Set.of());
+    }
+    public Result apply(JsonNode current, JsonNode changes, List<String> allowedPaths, JsonNode ownedReferences) {
+        return apply(current, changes, allowedPaths, false, AuthoringSecretReferences.names(ownedReferences));
     }
     public Result undo(JsonNode current, JsonNode diff, List<String> allowedPaths) {
-        return apply(current, inverse(diff), allowedPaths, true);
+        return apply(current, inverse(diff), allowedPaths, true, Set.of());
     }
-    private Result apply(JsonNode current, JsonNode changes, List<String> allowedPaths, boolean restoring) {
+    public Result undo(JsonNode current, JsonNode diff, List<String> allowedPaths, JsonNode ownedReferences) {
+        return apply(current, inverse(diff), allowedPaths, true, AuthoringSecretReferences.names(ownedReferences));
+    }
+    private Result apply(JsonNode current, JsonNode changes, List<String> allowedPaths, boolean restoring, Set<String> references) {
         if (changes == null || !changes.isArray() || changes.size() > 30) throw invalid("Expected at most 30 structured changes.");
         var candidate = (ObjectNode) current.deepCopy();
         var diffs = mapper.createArrayNode();
@@ -106,17 +113,19 @@ public class AuthoringChanges {
             if (!parent.isObject()) throw invalid("Use UPSERT or REMOVE_ITEM to replace or remove an entire array item; the final parent must be an object.");
             String field = parts.getLast();
             var target = (ObjectNode) parent;
-            if (credential(parts.subList(0, parts.size() - 1), field, target.get(field), target))
+            if (credential(parts.subList(0, parts.size() - 1), field, target.get(field), target)
+                && !("SET".equals(operation) && selectable(parts, change.get("value"), target.get(field), references))
+                && !(restoring && AuthoringSecretReferences.selection(candidate, parts, target.get(field), references)))
                 throw invalid("Use the secure connection form for credentials.");
             switch (operation) {
                 case "SET" -> {
                     if (!change.has("value")) throw invalid("SET requires a value.");
                     if (!restoring && NAMED_COLLECTIONS.contains(field) && change.path("value").isArray())
                         throw invalid("Use UPSERT or REMOVE_ITEM for named items, preserving the other entries.");
-                    target.set(field, merge(target.get(field), change.get("value"), parts, restoring));
+                    target.set(field, merge(target.get(field), change.get("value"), parts, restoring, references));
                 }
                 case "REMOVE" -> {
-                    if (containsCredentials(target.get(field), parts)) throw invalid("Credential-bearing fields cannot be removed by the assistant.");
+                    if (protectedRemoval(candidate, target.get(field), parts, restoring, references)) throw invalid("Credential-bearing fields cannot be removed by the assistant.");
                     target.remove(field);
                 }
                 case "UPSERT", "REMOVE_ITEM" -> {
@@ -132,11 +141,11 @@ public class AuthoringChanges {
                     for (int i = 0; i < array.size(); i++) if (key.equals(array.get(i).path(identity).asText())) { found = i; break; }
                     if ("REMOVE_ITEM".equals(operation)) {
                         if (found >= 0) {
-                            if (containsCredentials(array.get(found), parts)) throw invalid("Use the secure form to remove credential-bearing items.");
+                            if (protectedRemoval(candidate, array.get(found), parts, restoring, references)) throw invalid("Use the secure form to remove credential-bearing items.");
                             array.remove(found);
                         }
-                    } else if (found >= 0) array.set(found, merge(array.get(found), value, parts, restoring));
-                    else array.add(merge(null, value, parts, restoring));
+                    } else if (found >= 0) array.set(found, merge(array.get(found), value, parts, restoring, references));
+                    else array.add(merge(null, value, parts, restoring, references));
                 }
                 default -> throw invalid("Unsupported structured change operation.");
             }
@@ -149,14 +158,15 @@ public class AuthoringChanges {
                 after = item(after, identity, change.path("key").asText());
             }
             diff.put("existed", !before.isMissingNode());
-            diff.set("before", safeProject(before, parts)); diff.set("after", safeProject(after, parts));
+            diff.set("before", safeProject(before, parts, references)); diff.set("after", safeProject(after, parts, references));
         }
-        if (!credentials(current).equals(credentials(candidate)))
-            throw invalid("Credential values cannot be added, changed or removed by the assistant. Use a secure connection form.");
+        validateCredentials(current, candidate, restoring, references);
+        validateReferenceExpansion(current, candidate, List.of(), candidate, references);
         return new Result(candidate, diffs);
     }
 
-    private JsonNode merge(JsonNode before, JsonNode proposed, List<String> path, boolean restoring) {
+    private JsonNode merge(JsonNode before, JsonNode proposed, List<String> path, boolean restoring, Set<String> references) {
+        if (selectable(path, proposed, before, references)) return mapper.getNodeFactory().textNode(AuthoringSecretReferences.wire(proposed));
         if (proposed.isTextual() && REDACTED.equals(proposed.textValue())) {
             if (before == null) throw invalid("A credential reference is missing.");
             return before.deepCopy();
@@ -167,10 +177,14 @@ public class AuthoringChanges {
                 JsonNode previous = before == null ? null : before.get(field.getKey());
                 if (credential(path, field.getKey(), field.getValue(), proposed)
                     || credential(path, field.getKey(), field.getValue(), before)) {
-                    if (!field.getValue().isTextual() || !REDACTED.equals(field.getValue().textValue()) || previous == null)
+                    if (selectable(child(path, field.getKey()), field.getValue(), previous, references))
+                        result.put(field.getKey(), AuthoringSecretReferences.wire(field.getValue()));
+                    else if (previous != null && previous.equals(field.getValue()) && AuthoringSecretReferences.name(previous) != null)
+                        result.set(field.getKey(), previous.deepCopy());
+                    else if (!field.getValue().isTextual() || !REDACTED.equals(field.getValue().textValue()) || previous == null)
                         throw invalid("The assistant cannot supply credential values. Select a stored connection instead.");
-                    result.set(field.getKey(), previous.deepCopy());
-                } else result.set(field.getKey(), merge(previous, field.getValue(), child(path, field.getKey()), restoring));
+                    else result.set(field.getKey(), previous.deepCopy());
+                } else result.set(field.getKey(), merge(previous, field.getValue(), child(path, field.getKey()), restoring, references));
             });
             return result;
         }
@@ -183,14 +197,14 @@ public class AuthoringChanges {
                         throw invalid("Named collection items require a stable " + identity + ".");
                     String key = value.path(identity).asText(); int found = -1;
                     for (int i = 0; i < result.size(); i++) if (key.equals(result.get(i).path(identity).asText())) { found = i; break; }
-                    if (found < 0) result.add(merge(null, value, path, false));
-                    else result.set(found, merge(result.get(found), value, path, false));
+                    if (found < 0) result.add(merge(null, value, path, false, references));
+                    else result.set(found, merge(result.get(found), value, path, false, references));
                 }
                 return result;
             }
             var result = mapper.createArrayNode();
             for (int i = 0; i < proposed.size(); i++) result.add(merge(before != null && before.isArray() && before.size() > i ? before.get(i) : null,
-                proposed.get(i), child(path, Integer.toString(i)), restoring));
+                proposed.get(i), child(path, Integer.toString(i)), restoring, references));
             return result;
         }
         if (containsCredentials(before, path)) throw invalid("Use the secure form for credential-bearing values.");
@@ -242,17 +256,42 @@ public class AuthoringChanges {
         return Set.of("headers", "default-headers", "defaultHeaders").contains(parent)
             && !Set.of("content-type", "accept", "user-agent").contains(key.toLowerCase(java.util.Locale.ROOT));
     }
-    private Map<String, String> credentials(JsonNode value) {
-        var found = new java.util.TreeMap<String, String>(); collectCredentials(value, List.of(), found); return found;
+    private Map<List<String>, JsonNode> credentials(JsonNode value) {
+        var found = new java.util.LinkedHashMap<List<String>, JsonNode>(); collectCredentials(value, List.of(), found); return found;
     }
-    private void collectCredentials(JsonNode value, List<String> path, Map<String, String> found) {
+    private void collectCredentials(JsonNode value, List<String> path, Map<List<String>, JsonNode> found) {
         if (value == null) return;
         if (value.isObject()) value.fields().forEachRemaining(field -> {
             var next = child(path, field.getKey());
-            if (credential(path, field.getKey(), field.getValue(), value)) found.put(String.join("/", next), field.getValue().toString());
+            if (credential(path, field.getKey(), field.getValue(), value)) found.put(List.copyOf(next), field.getValue());
             else collectCredentials(field.getValue(), next, found);
         });
         else if (value.isArray()) for (int i = 0; i < value.size(); i++) collectCredentials(value.get(i), child(path, Integer.toString(i)), found);
+    }
+    private boolean selectable(List<String> path, JsonNode proposed, JsonNode before, Set<String> references) {
+        return AuthoringSecretReferences.slot(path) && AuthoringSecretReferences.owned(proposed, references)
+            && (before == null || before.isNull() || before.isTextual() && before.asText().isBlank() || AuthoringSecretReferences.name(before) != null);
+    }
+    private boolean protectedRemoval(JsonNode root, JsonNode value, List<String> path, boolean restoring, Set<String> references) {
+        var protectedValues = new java.util.LinkedHashMap<List<String>, JsonNode>();
+        collectCredentials(value, path, protectedValues);
+        return protectedValues.entrySet().stream().anyMatch(e -> !restoring || !AuthoringSecretReferences.selection(root, e.getKey(), e.getValue(), references));
+    }
+    private void validateCredentials(JsonNode before, JsonNode after, boolean restoring, Set<String> references) {
+        var old = credentials(before); var next = credentials(after);
+        for (var entry : old.entrySet()) if (!next.containsKey(entry.getKey())
+            && !(restoring && AuthoringSecretReferences.selection(before, entry.getKey(), entry.getValue(), references)))
+            throw invalid("Credential values cannot be removed by the assistant. Use a secure connection form.");
+        for (var entry : next.entrySet()) if (!entry.getValue().equals(old.get(entry.getKey()))
+            && !AuthoringSecretReferences.selection(after, entry.getKey(), entry.getValue(), references))
+            throw invalid("Credential values cannot be added or changed. Select an owned stored reference at a supported route field.");
+    }
+    private void validateReferenceExpansion(JsonNode before, JsonNode after, List<String> path, JsonNode root, Set<String> references) {
+        if (after.equals(before)) return;
+        if (AuthoringSecretReferences.containsReference(after) && !AuthoringSecretReferences.selection(root, path, after, references))
+            throw invalid("Only exact owned stored references may be selected at supported route credential fields.");
+        if (after.isObject()) after.fields().forEachRemaining(f -> validateReferenceExpansion(before.path(f.getKey()), f.getValue(), child(path, f.getKey()), root, references));
+        else if (after.isArray()) for (int i = 0; i < after.size(); i++) validateReferenceExpansion(before.path(i), after.get(i), child(path, Integer.toString(i)), root, references);
     }
     private List<String> pointers(String path) {
         var result = new ArrayList<String>();

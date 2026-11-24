@@ -83,4 +83,22 @@ class AuthoringToolAuthenticationTest {
         when(bindings.identity("release")).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "AUTHORING_MANAGED_BRAIN_UNAVAILABLE"));
         assertThatThrownBy(() -> authentication.verify(headers(), "session", "turn")).hasMessageContaining("MANAGED_BRAIN_UNAVAILABLE");
     }
+    @Test void authorityRenewalUsesFixedHostProofNotExpiredRuntimeAssertion() {
+        var proof = new HttpHeaders(); proof.set(AuthoringToolAuthentication.KEY_HEADER, "local-tool-test-secret");
+        proof.set(AuthoringToolAuthentication.RELEASE_HEADER, "release");
+        assertThat(authentication.verifyAuthority(proof, "session", "turn").releaseId()).isEqualTo("release");
+        proof.set(AuthoringToolAuthentication.KEY_HEADER, "wrong-key");
+        assertThatThrownBy(() -> authentication.verifyAuthority(proof, "session", "turn")).hasMessageContaining("ACCESS_DENIED");
+    }
+    @Test void goalToolScopeRequiresExactVersionedFencingHeaders() {
+        var scoped = headers(); scoped.set("X-LOOMAI-AUTHORING-GOAL-ID", "goal");
+        assertThatThrownBy(() -> authentication.verify(scoped, "session", "turn")).hasMessageContaining("ACCESS_DENIED");
+        scoped.set("X-LOOMAI-AUTHORING-REQUEST-REVISION", "2"); scoped.set("X-LOOMAI-AUTHORING-CANCELLATION-EPOCH", "4");
+        scoped.set("X-LOOMAI-AUTHORING-SEGMENT", "3");
+        var caller = authentication.verify(scoped, "session", "turn");
+        assertThat(caller.goalId()).isEqualTo("goal"); assertThat(caller.requestRevision()).isEqualTo(2);
+        assertThat(caller.cancellationEpoch()).isEqualTo(4); assertThat(caller.segment()).isEqualTo(3);
+        scoped.add("X-LOOMAI-AUTHORING-SEGMENT", "3");
+        assertThatThrownBy(() -> authentication.verify(scoped, "session", "turn")).hasMessageContaining("ACCESS_DENIED");
+    }
 }

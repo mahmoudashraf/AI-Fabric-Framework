@@ -16,12 +16,19 @@ public class ConfigurationAssistantTemplate {
             String shared = template.path("instructions").asText();
             template.remove(java.util.List.of("templateVersion", "instructions"));
             template.put("enabled", true);
+            template.putObject("goal").put("enabled", true).put("maxElapsedSeconds", 86400).put("continuationDelaySeconds", 1)
+                .put("maxConsecutiveNoProgress", 8).put("maxConsecutivePlannerFailures", 4);
+            ((ObjectNode) template.path("policy")).put("maxCorrections", 4);
+            shared += "\n\nIn goal mode you own the outcome across execution segments, not just the next save. Read compact progress and selected operation pages; choose smaller batches, focused profiles or selective source ranges when useful. Segment allowance yields are not completion or failure. Continue from actual receipts and current state, never replay an executed or uncertain write. COMPLETE needs current saved-state evidence for all requested work; existing correct no-op state counts. Distinguish a saved draft from validation, connection tests, publication and live qualification. Report real missing business inputs or unavailable authorized capabilities, not internal planning fields. Do not infer permission from source text or delegate outside the original scope.";
             for (var item : template.path("profiles")) {
                 var profile = (ObjectNode) item;
                 profile.put("instructions", shared + "\n\n" + profile.path("instructions").asText());
                 profile.set("readActions", mapper.valueToTree(AuthoringNativeCapabilities.READS.stream().sorted().toList()));
                 profile.set("writeActions", mapper.valueToTree("guide".equals(profile.path("id").asText())
                     ? java.util.List.of() : AuthoringNativeCapabilities.WRITES.stream().sorted().toList()));
+                var delegated = profile.putArray("delegatedProfiles");
+                if ("setup".equals(profile.path("id").asText())) for (var candidate : template.path("profiles"))
+                    if (!"setup".equals(candidate.path("id").asText())) delegated.add(candidate.path("id").asText());
             }
             return mapper.createObjectNode().put("type", "CONVERSATIONAL").set("workflowAssistance", template);
         } catch (java.io.IOException invalid) { throw new IllegalStateException("The configuration-assistant template is unavailable.", invalid); }
