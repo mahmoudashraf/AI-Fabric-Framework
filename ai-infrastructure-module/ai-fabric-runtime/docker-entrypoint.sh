@@ -9,6 +9,10 @@ prepare_specialist_bundle() {
   bundle_prefix="$1"
   bundle_url="$(printenv "${bundle_prefix}_BUNDLE_URL" || true)"
   [ -n "$bundle_url" ] || return 0
+  bundle_limit=65536
+  if [ "$bundle_prefix" = "LOOMAI_WORKFLOW_ASSISTANCE" ]; then
+    bundle_limit=96000
+  fi
   case "$bundle_url" in
     https://*) ;;
     *) echo "Specialist bundle requires HTTPS." >&2; exit 1 ;;
@@ -29,12 +33,12 @@ prepare_specialist_bundle() {
   bundle_file="$(mktemp)"
   trap 'rm -f "$bundle_file"' EXIT HUP INT TERM
   if ! curl --fail --silent --proto '=https' --proto-redir '=https' --location --max-redirs 3 \
-      --connect-timeout 10 --max-time 30 --max-filesize 65536 --output "$bundle_file" "$bundle_url"; then
+      --connect-timeout 10 --max-time 30 --max-filesize "$bundle_limit" --output "$bundle_file" "$bundle_url"; then
     echo "Specialist bundle download failed." >&2
     exit 1
   fi
   bundle_bytes="$(wc -c < "$bundle_file")"
-  if [ "$bundle_bytes" -lt 1 ] || [ "$bundle_bytes" -gt 65536 ]; then
+  if [ "$bundle_bytes" -lt 1 ] || [ "$bundle_bytes" -gt "$bundle_limit" ]; then
     echo "Specialist bundle exceeds its startup budget or is empty." >&2
     exit 1
   fi

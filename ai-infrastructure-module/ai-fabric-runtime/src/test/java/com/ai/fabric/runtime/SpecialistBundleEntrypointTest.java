@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime;
 
+import com.ai.fabric.runtime.workflow.WorkflowAssistanceBundle;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,9 +31,24 @@ class SpecialistBundleEntrypointTest {
     }
 
     @Test
+    void workflowBundleAcceptsItsDeclaredCapacityWithoutWideningSupport() throws Exception {
+        var bytes = "x".repeat(WorkflowAssistanceBundle.MAX_BUNDLE_BYTES).getBytes();
+        assertThat(run(bytes, Map.of(), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isZero();
+        assertThat(Files.readString(directory.resolve("loaded"))).isEqualTo(Base64.getEncoder().encodeToString(bytes));
+        Files.delete(directory.resolve("loaded"));
+        assertThat(run(bytes, Map.of()).exitCode()).isNotZero();
+        assertThat(Files.exists(directory.resolve("loaded"))).isFalse();
+    }
+
+    @Test
     void workflowBundleCannotBypassHashSizeOrTransportChecks() throws Exception {
         assertThat(run("{}".getBytes(), Map.of("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", "sha256:" + "a".repeat(64)), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
-        assertThat(run("x".repeat(65537).getBytes(), Map.of(), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
+        var oversized = "x".repeat(WorkflowAssistanceBundle.MAX_BUNDLE_BYTES + 1).getBytes();
+        assertThat(run(oversized, Map.of(), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
+        assertThat(run(oversized, Map.of("TEST_IGNORE_CURL_LIMIT", "true"), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
+        assertThat(run(new byte[0], Map.of(), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
+        assertThat(run("{}".getBytes(), Map.of("TEST_DOWNLOAD_FAIL", "true"), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
+        assertThat(run("{}".getBytes(), Map.of("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", "both"), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
         assertThat(run("{}".getBytes(), Map.of("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_URL", "http://insecure.example"), "LOOMAI_WORKFLOW_ASSISTANCE").exitCode()).isNotZero();
         assertThat(Files.exists(directory.resolve("loaded"))).isFalse();
     }
@@ -56,7 +72,7 @@ class SpecialistBundleEntrypointTest {
     private Result run(byte[] content, Map<String,String> overrides, String prefix) throws Exception {
         Path input = directory.resolve("input"); Files.write(input, content);
         script("id", "echo 10001");
-        script("curl", "[ \"${TEST_DOWNLOAD_FAIL:-false}\" != true ] || exit 22\nwhile [ $# -gt 0 ]; do if [ \"$1\" = --output ]; then shift; cp \"$TEST_INPUT\" \"$1\"; exit 0; fi; shift; done\nexit 1");
+        script("curl", "[ \"${TEST_DOWNLOAD_FAIL:-false}\" != true ] || exit 22\nlimit=0\noutput=\nwhile [ $# -gt 0 ]; do\ncase \"$1\" in\n--max-filesize) shift; limit=\"$1\" ;;\n--output) shift; output=\"$1\" ;;\nesac\nshift\ndone\n[ -n \"$output\" ] && [ \"$limit\" -gt 0 ] || exit 1\nif [ \"${TEST_IGNORE_CURL_LIMIT:-false}\" != true ] && [ \"$(wc -c < \"$TEST_INPUT\")\" -gt \"$limit\" ]; then exit 63; fi\ncp \"$TEST_INPUT\" \"$output\"");
         script("sha256sum", "echo \"$TEST_DIGEST  $1\"");
         script("java", "printf '%s' \"${" + prefix + "_BUNDLE_BASE64:-}\" > \"$TEST_LOADED\"");
         Path entrypoint = Path.of("docker-entrypoint.sh").toAbsolutePath();
