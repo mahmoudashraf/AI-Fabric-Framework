@@ -60,3 +60,4 @@ loomai:
     enabled: true
     rate-card-reference: ${LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE:openai-gpt4omini-gpt54mini-embedding3small-20261024-v2}
     output-cap-mode: MAX_COMPLETION_TOKENS
+    reasoning-effort: ${LOOMAI_PROVIDER_BUDGET_REASONING_EFFORT:LOW}

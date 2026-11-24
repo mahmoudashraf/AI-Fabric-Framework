@@ -25,6 +25,27 @@ import static com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver.Out
 import static org.junit.jupiter.api.Assertions.*;
 
 class GuardedResolverContractTest {
+    @ParameterizedTest @org.junit.jupiter.params.provider.EnumSource(GuardedReasoningEffort.class)
+    void trustedReasoningSelectionRetainsTheSameAllGeneratedTokenCap(GuardedReasoningEffort effort) {
+        var config = config(); config.getOpenai().setModel(GPT_54_MINI_MODEL);
+        var resolver = new BudgetGuardedSpringAiModelResolver(config, ObservationRegistry.NOOP, ledger,
+            identity -> { throw new AssertionError("No IO allowed"); }, operation -> OpenAiBudgetInvocation.NONE,
+            MAX_COMPLETION_TOKENS, effort);
+        try {
+            var options = (OpenAiChatOptions) resolver.resolveChatOptions("openai", AIGenerationRequest.builder().maxTokens(400).build());
+            assertEquals(effort.wireValue(), options.getReasoningEffort());
+            assertEquals(400, options.getMaxCompletionTokens()); assertNull(options.getMaxTokens());
+            var exactGuard = new OpenAiExchangeGuard(ledger, identity -> { throw new AssertionError("No IO allowed"); },
+                okhttp3.HttpUrl.get(OpenAiExchangeGuard.BASE_URL), new OpenAiMeteringStops(ledger), effort);
+            for (var requested : GuardedReasoningEffort.values()) {
+                var nativeRequest = request("chat/completions", "{\"model\":\"gpt-5.4-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"fixture\"}],"
+                    + "\"max_completion_tokens\":400,\"service_tier\":\"default\",\"reasoning_effort\":\"" + requested.wireValue() + "\"}");
+                if (requested == effort) assertDoesNotThrow(() -> exactGuard.plan(nativeRequest));
+                else assertThrows(OpenAiBudgetException.class, () -> exactGuard.plan(nativeRequest));
+            }
+            assertEquals(0, ledgerCalls.get());
+        } finally { resolver.destroy(); }
+    }
     private final AtomicInteger ledgerCalls = new AtomicInteger();
     private final ProviderBudgetLedger ledger = new ProviderBudgetLedger() {
         private AssertionError unexpected() { ledgerCalls.incrementAndGet(); return new AssertionError("Ledger IO is forbidden"); }

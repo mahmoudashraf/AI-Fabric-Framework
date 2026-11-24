@@ -63,6 +63,20 @@ import org.springframework.core.io.DefaultResourceLoader;
 class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.TestScope {
     private static final String KEY = "fixture-config-key-not-a-provider-credential";
 
+    @Test void reasoningSelectionIsTrustedStartupConfigurationAndDoesNotIssueFunding() throws Exception {
+        for (String value : List.of("NONE", "LOW", "MEDIUM")) {
+            var fixture = new RuntimeBudgetFixture();
+            enabled(fixture).withPropertyValues("loomai.provider-budget.reasoning-effort=" + value).run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(RuntimeProviderBudgetProperties.class).reasoningEffort().name()).isEqualTo(value);
+                assertThat(context.getBean(RuntimeBudgetBindingService.class).readStore().binding().state())
+                    .isEqualTo(RuntimeBudgetBindingService.State.UNINITIALIZED);
+            });
+        }
+        enabled(new RuntimeBudgetFixture()).withPropertyValues("loomai.provider-budget.reasoning-effort=HIGH")
+            .run(context -> assertThat(context).hasFailed());
+    }
+
     @Test
     void disabledOrAbsentFlagAddsNoBeansAndRequiresNoBudgetConfiguration() {
         for (String[] properties : new String[][]{{}, {"loomai.provider-budget.enabled=false"}}) {

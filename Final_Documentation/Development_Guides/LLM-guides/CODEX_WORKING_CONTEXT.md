@@ -21114,3 +21114,47 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
 - No current live fixture cleanup outstanding. Staging allowance remains10000
   turns/4Mtokens/USD5; USD50 combined owner ceiling retained, not a new native cap.
 
+### 010.75 Bounded Reasoning Qualification - 24 November 2026, 16:26 UTC
+
+- Pushed 8c5d7816589fa11757b4c6045c48f6fa4a4d18ce (legacy-history UI,
+  search field meanings, consolidated workflow instructions). Core45434553602
+  FAILED after the backend image was pushed because optional GitHub Actions
+  cache export returned504. Storage45434590899/quota45434596846 PASS. Do not
+  deploy8c images through a failed CI gate. Added cache-to ignore-error=true
+  only for optional cache export; build/image/test failures remain fatal.
+- Stage still backendcb742/UIa9e/Runtime3eed/FW69. Consolidated prompt-only
+  rel-5f37e19b/ver-5ac6dd8f APPLIED_VERIFIED/PASSED, but its NONE-reasoning
+  two-save repetitions all FAILED quality (one save, wrong requested label or
+  early completion). Do not hide or relabel these trials.
+- Found guarded OpenAI resolver/transport hardcoded reasoning_effort:none for
+  gpt-5.4-mini. Official model docs support low/medium; existing maximum
+  completion tokens include reasoning and existing metering already accounts
+  for it. New owned code permits trusted host NONE/LOW/MEDIUM, defaults NONE
+  elsewhere, candidate configured-authoring profile LOW. Same output cap4096,
+  model/action/write/correction limits, original ratecard/store and financial
+  caps. No untrusted request override. Admin inference readback now exposes
+  guardedReasoningEffort. No public FW changes or publication needed.
+- Product ledger/OpenAI transport:188tests/0fail/0error/0skip PASS. New complete
+  Runtime:815tests/0fail/0error/5opt-in skips PASS in
+  /private/tmp/loomai-01075-guarded-reasoning-runtime-full-final.log. Initial new
+  test compilation failed only for a missing throws declaration and was fixed;
+  retain the earlier failed log. LOW is not live or quality-qualified yet.
+- A real production LEGACY baseline is intentionally retained for post-cutover
+  UI/history/source-reuse qualification: Braindep-f53267df,
+  sessioncas-a6be7ba4-665a-406d-818a-e7658b283ba6. Resource-free, EXPLAIN-only,
+  draft unchanged and test customer signed out. Helper:
+  /private/tmp/loomai-01075-production-legacy-history.mjs prepare|verify|cleanup.
+  Private prefix authoring-01075-production-real-legacy-history. Do not forget
+  exact fixture deletion after verification; do not touch customer resources.
+- Last staged native usage252turns/495providerattempts, input3183448,
+  output90380tokens, USD2.794296. Effective10000turns/4Mtokens/USD5, unchanged.
+  Native reservations hold the model's full400k context; plan remaining tests
+  accordingly. Production original210turns/4M/USD5 plus one baseline turn.
+- Continue: commit/push current guarded-provider/Runtime/cache changes, wait for
+  Core+Runtime+storage+quota CI, attest the new Runtime's SAME nine official69
+  JARs, stage core/UI and apply existing ver-5ac6dd8f with the new Runtime
+  artifact (no prompt rewrite) to compare LOW fairly. Qualify actual two-write
+  ordering and remaining profiles/security; only then production adoption,
+  activation, real legacy transition and full live checks. Do not stop at local
+  implementation or claim overall completion.
+

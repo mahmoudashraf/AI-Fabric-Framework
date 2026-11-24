@@ -6,6 +6,7 @@ import ai.fabric.provider.onnx.ONNXEmbeddingProvider;
 import com.ai.fabric.budget.ProviderBudgetLedger;
 import com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver;
 import com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver.OutputCapMode;
+import com.ai.fabric.budget.openai.GuardedReasoningEffort;
 import com.ai.fabric.budget.openai.OpenAiBudgetException;
 import com.ai.fabric.budget.openai.ReviewedOpenAiRateCard;
 import io.micrometer.observation.ObservationRegistry;
@@ -20,6 +21,12 @@ public final class RuntimeBudgetResolverFactory {
     public static BudgetGuardedSpringAiModelResolver create(AIProviderConfig providers, ObservationRegistry observations,
         ProviderBudgetLedger ledger, RuntimeBudgetBindingService budgets, RuntimeBudgetTurnScopes turns,
         EmbeddingProvider localOnnx, OutputCapMode outputCapMode) {
+        return create(providers, observations, ledger, budgets, turns, localOnnx, outputCapMode, GuardedReasoningEffort.NONE);
+    }
+
+    public static BudgetGuardedSpringAiModelResolver create(AIProviderConfig providers, ObservationRegistry observations,
+        ProviderBudgetLedger ledger, RuntimeBudgetBindingService budgets, RuntimeBudgetTurnScopes turns,
+        EmbeddingProvider localOnnx, OutputCapMode outputCapMode, GuardedReasoningEffort reasoningEffort) {
         Objects.requireNonNull(providers); Objects.requireNonNull(ledger); Objects.requireNonNull(turns);
         if (outputCapMode != OutputCapMode.MAX_COMPLETION_TOKENS) throw unsupported();
         if (Boolean.TRUE.equals(providers.getEnableFallback()) || configured(providers.getGenerationFallbackProviders())
@@ -52,7 +59,7 @@ public final class RuntimeBudgetResolverFactory {
             throw unsupported();
         }
         return new BudgetGuardedSpringAiModelResolver(providers, observations, ledger,
-            new RuntimeOpenAiBudgetScopeResolver(budgets), turns, outputCapMode);
+            new RuntimeOpenAiBudgetScopeResolver(budgets), turns, outputCapMode, reasoningEffort);
     }
 
     private static boolean configured(List<String> values) { return values != null && !values.isEmpty(); }

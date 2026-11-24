@@ -13,6 +13,20 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class RuntimeBudgetResolverFactoryTest extends RuntimeBudgetFixture.TestScope {
+    @Test void hostCanSelectBoundedReasoningWithoutChangingFundingOrTokenLimits() throws Exception {
+        var fixture = new RuntimeBudgetFixture(); var original = scope();
+        var extended = new Scope(original.customerId(), original.deploymentId(), original.targetProfileId(), original.environment(),
+            original.credentialIdentity(), ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE);
+        var budgets = fixture.service(extended); var config = providers(); config.getOpenai().setModel(ReviewedOpenAiRateCard.GPT_54_MINI_MODEL);
+        var resolver = RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
+            budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS,
+            com.ai.fabric.budget.openai.GuardedReasoningEffort.LOW);
+        try {
+            var options = (org.springframework.ai.openai.OpenAiChatOptions) resolver.resolveChatOptions("openai", null);
+            assertThat(options.getReasoningEffort()).isEqualTo("low"); assertThat(options.getMaxCompletionTokens()).isEqualTo(300);
+            assertThat(budgets.readStore().binding().state()).isEqualTo(RuntimeBudgetBindingService.State.UNINITIALIZED);
+        } finally { resolver.destroy(); }
+    }
     private static final String FIXTURE_KEY = "fixture-key-not-a-provider-credential";
 
     @Test

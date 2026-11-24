@@ -199,8 +199,16 @@ The [official model specification](https://developers.openai.com/api/docs/models
 defines a 400,000-token context and standard uncached rates of USD 0.75 per
 million input tokens and USD 4.50 per million output tokens. This bounded host
 profile reserves the full context, caps output at 16,384, uses
-`max_completion_tokens`, fixes reasoning to `none`, and omits unsupported
-sampling options. Native usage, including reported reasoning output, settles
+`max_completion_tokens`, defaults reasoning to `none`, and omits unsupported
+sampling options. A trusted host can explicitly select `LOW` or `MEDIUM` using
+`GuardedReasoningEffort`; request data cannot raise or replace that selection.
+The Runtime startup setting is `loomai.provider-budget.reasoning-effort`
+(`LOOMAI_PROVIDER_BUDGET_REASONING_EFFORT`), default `NONE`. Only the
+`configured-authoring` profile selects `LOW` by default for qualification;
+ordinary deployed products retain `NONE`. Admin inference-profile readback
+reports the effective guarded effort. This adds no grant, expiry, token,
+spending, action or retry allowance. All generated reasoning and visible text
+share the same existing completion-token cap. Native usage, including reported reasoning output, settles
 the reservation. Standard uncached prices conservatively account for cached
 tokens; they are not an invoice-exact billing claim. Existing fallback, official
 endpoint, credential, response-model and transport restrictions remain intact.

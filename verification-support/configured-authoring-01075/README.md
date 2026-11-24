@@ -53,6 +53,22 @@ production acceptance record.
 
 ### Continuing Release Qualification
 
+Candidate host improvement, not yet deployed: the guarded model resolver had
+forced `reasoning_effort:none`. It now supports trusted NONE/LOW/MEDIUM selection
+inside the same completion-token/accounting limit, with NONE retained for normal
+products and LOW proposed for configured authoring. All188 budget/transport
+checks and the complete815-test Runtime suite passed (zero failures/errors,
+five opt-in Runtime skips). Live quality must still determine adoption.
+The [model specification](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+and [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
+were checked for supported levels and token accounting. This changes no spend
+ceiling, action authority or public framework version.
+
+Core CI for8c5d78165 failed on a GitHub cache504 after publishing the backend
+image, while storage/quota passed. Optional cache export now uses Docker's
+documented `ignore-error=true`; image/test failures still fail the workflow.
+The failed run is retained, not treated as a successful release.
+
 - Stage UI a9e29a453 and backend cb742bc1d are deployed and healthy; their Core,
   storage and quota CI passed. Runtime remains the separately attested 3eed83235
   image on 0.8.69. The unlock behavior also passed a real running UI turn,

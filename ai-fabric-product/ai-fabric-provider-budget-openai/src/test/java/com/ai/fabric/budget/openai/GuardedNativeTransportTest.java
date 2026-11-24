@@ -113,8 +113,12 @@ class GuardedNativeTransportTest {
         if (executor != null) executor.shutdownNow();
     }
 
-    @ParameterizedTest @ValueSource(strings = {GPT_54_MINI_MODEL, GPT_54_MINI_SNAPSHOT})
-    void miniReservesItsOwnEnvelopeAndSettlesNativeUsageIncludingReasoning(String model) throws Exception {
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> miniReasoningProfiles() {
+        return java.util.stream.Stream.of(GPT_54_MINI_MODEL, GPT_54_MINI_SNAPSHOT).flatMap(model ->
+            java.util.Arrays.stream(GuardedReasoningEffort.values()).map(effort -> org.junit.jupiter.params.provider.Arguments.of(model, effort)));
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.MethodSource("miniReasoningProfiles")
+    void miniReservesItsOwnEnvelopeAndSettlesNativeUsageIncludingReasoning(String model, GuardedReasoningEffort effort) throws Exception {
         miniScope();
         approve(600_000);
         var json = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -127,7 +131,7 @@ class GuardedNativeTransportTest {
         replies.add(new Reply(200, json.writeValueAsString(response), null, release));
         var request = AIGenerationRequest.builder().model(model).maxTokens(1000).temperature(0.2)
             .parameters(Map.of("response_format", Map.of("type", "json_object"))).build();
-        var chatModel = resolver().resolveChatModel("openai", request);
+        var chatModel = resolver(MAX_COMPLETION_TOKENS, effort).resolveChatModel("openai", request);
         var future = java.util.concurrent.CompletableFuture.supplyAsync(() -> chatModel.call(new Prompt("fixture")));
         try {
             long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
@@ -139,7 +143,7 @@ class GuardedNativeTransportTest {
             assertEquals(model, body.path("model").textValue());
             assertEquals(1000, body.path("max_completion_tokens").intValue());
             assertFalse(body.has("max_tokens")); assertFalse(body.has("temperature"));
-            assertEquals("none", body.path("reasoning_effort").textValue());
+            assertEquals(effort.wireValue(), body.path("reasoning_effort").textValue());
             assertEquals("json_object", body.path("response_format").path("type").textValue());
         } finally { release.countDown(); }
         future.get(3, TimeUnit.SECONDS);
@@ -697,9 +701,13 @@ class GuardedNativeTransportTest {
     }
 
     private BudgetGuardedSpringAiModelResolver resolver(BudgetGuardedSpringAiModelResolver.OutputCapMode mode) {
+        return resolver(mode, GuardedReasoningEffort.NONE);
+    }
+
+    private BudgetGuardedSpringAiModelResolver resolver(BudgetGuardedSpringAiModelResolver.OutputCapMode mode, GuardedReasoningEffort effort) {
         var config = new AIProviderConfig(); config.getOpenai().setApiKey(KEY);
         var resolver = new BudgetGuardedSpringAiModelResolver(config, ObservationRegistry.NOOP,
-            (key, timeout) -> root(0, timeout), captures, mode);
+            (key, timeout) -> root(0, timeout, effort), captures, mode, effort);
         closeables.add(resolver::destroy);
         return resolver;
     }
@@ -722,18 +730,26 @@ class GuardedNativeTransportTest {
     }
 
     private BudgetGuardedSpringAiModelResolver.RootConnection root(int sdkRetries, Duration timeout) {
+        return root(sdkRetries, timeout, GuardedReasoningEffort.NONE);
+    }
+
+    private BudgetGuardedSpringAiModelResolver.RootConnection root(int sdkRetries, Duration timeout, GuardedReasoningEffort effort) {
         rootsCreated.incrementAndGet();
-        var transport = transport(timeout);
+        var transport = transport(timeout, effort);
         var client = new OpenAIClientImpl(ClientOptions.builder().apiKey(KEY).baseUrl(endpoint).maxRetries(sdkRetries)
             .timeout(timeout).httpClient(transport).build());
         return new BudgetGuardedSpringAiModelResolver.RootConnection(client, transport);
     }
 
     private NativeOpenAiHttpClient transport(Duration timeout) {
+        return transport(timeout, GuardedReasoningEffort.NONE);
+    }
+
+    private NativeOpenAiHttpClient transport(Duration timeout, GuardedReasoningEffort effort) {
         return new NativeOpenAiHttpClient(new OkHttpClient.Builder().retryOnConnectionFailure(false)
             .followRedirects(false).followSslRedirects(false).callTimeout(timeout).readTimeout(timeout)
             .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, identity -> new OpenAiBudgetScopeResolver.Binding("approval", scope),
-                HttpUrl.get(endpoint), meteringStops)).build());
+                HttpUrl.get(endpoint), meteringStops, effort)).build());
     }
 
     private ChatCompletionCreateParams params() {

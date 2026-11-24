@@ -118,7 +118,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.build.outputs.time }}
           cache-from: type=gha,scope=loomai-platform-backend
-          cache-to: type=gha,mode=max,scope=loomai-platform-backend
+          cache-to: type=gha,mode=max,scope=loomai-platform-backend,ignore-error=true
 
       - name: Record immutable image identity
         shell: bash
@@ -170,7 +170,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.build.outputs.time }}
           cache-from: type=gha,scope=loomai-platform-ui
-          cache-to: type=gha,mode=max,scope=loomai-platform-ui
+          cache-to: type=gha,mode=max,scope=loomai-platform-ui,ignore-error=true
 
       - name: Record immutable image identity
         shell: bash

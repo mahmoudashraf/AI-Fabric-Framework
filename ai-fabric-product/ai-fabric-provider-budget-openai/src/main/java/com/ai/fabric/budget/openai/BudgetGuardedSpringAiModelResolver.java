@@ -36,6 +36,7 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
     private final NativeClientFactory clients;
     private final OpenAiBudgetInvocation.Capture invocations;
     private final OutputCapMode outputCapMode;
+    private final GuardedReasoningEffort reasoningEffort;
     private final Map<String, RootConnection> connections = new ConcurrentHashMap<>();
     private boolean destroyed;
 
@@ -53,13 +54,20 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
     public BudgetGuardedSpringAiModelResolver(AIProviderConfig config, ObservationRegistry observations,
         ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, OpenAiBudgetInvocation.Capture invocations,
         OutputCapMode outputCapMode) {
-        this(config, observations, guardedClients(ledger, scopes), invocations, outputCapMode);
+        this(config, observations, ledger, scopes, invocations, outputCapMode, GuardedReasoningEffort.NONE);
     }
 
-    private static NativeClientFactory guardedClients(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes) {
+    public BudgetGuardedSpringAiModelResolver(AIProviderConfig config, ObservationRegistry observations,
+        ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, OpenAiBudgetInvocation.Capture invocations,
+        OutputCapMode outputCapMode, GuardedReasoningEffort reasoningEffort) {
+        this(config, observations, guardedClients(ledger, scopes, reasoningEffort), invocations, outputCapMode, reasoningEffort);
+    }
+
+    private static NativeClientFactory guardedClients(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes,
+        GuardedReasoningEffort reasoningEffort) {
         var meteringStops = new OpenAiMeteringStops(ledger);
         return (apiKey, timeout) -> {
-            var transport = new NativeOpenAiHttpClient(ledger, scopes, timeout, meteringStops);
+            var transport = new NativeOpenAiHttpClient(ledger, scopes, timeout, meteringStops, reasoningEffort);
             try {
                 var client = new OpenAIClientImpl(ClientOptions.builder().apiKey(apiKey)
                     .baseUrl(OpenAiExchangeGuard.BASE_URL).timeout(timeout).maxRetries(0).httpClient(transport).build());
@@ -80,12 +88,18 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
 
     BudgetGuardedSpringAiModelResolver(AIProviderConfig config, ObservationRegistry observations, NativeClientFactory clients,
         OpenAiBudgetInvocation.Capture invocations, OutputCapMode outputCapMode) {
+        this(config, observations, clients, invocations, outputCapMode, GuardedReasoningEffort.NONE);
+    }
+
+    BudgetGuardedSpringAiModelResolver(AIProviderConfig config, ObservationRegistry observations, NativeClientFactory clients,
+        OpenAiBudgetInvocation.Capture invocations, OutputCapMode outputCapMode, GuardedReasoningEffort reasoningEffort) {
         super(config, observations);
         this.config = java.util.Objects.requireNonNull(config);
         this.observations = observations == null ? ObservationRegistry.NOOP : observations;
         this.clients = java.util.Objects.requireNonNull(clients);
         this.invocations = java.util.Objects.requireNonNull(invocations);
         this.outputCapMode = java.util.Objects.requireNonNull(outputCapMode);
+        this.reasoningEffort = java.util.Objects.requireNonNull(reasoningEffort);
         configuration();
     }
 
@@ -114,10 +128,10 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
         if (isGpt54Mini(options.getModel())) {
             if (options.getMaxCompletionTokens() == null && outputCapMode != OutputCapMode.MAX_COMPLETION_TOKENS)
                 throw new OpenAiBudgetException(UNSUPPORTED_OUTPUT_LIMIT_MODE);
-            // The bounded mini profile does not expose sampling or configurable reasoning options.
+            // Sampling stays disabled; only the trusted host chooses bounded reasoning.
             guarded.temperature(null).topP(null).logprobs(null).topLogprobs(null)
                 .frequencyPenalty(null).presencePenalty(null).logitBias(null).seed(null).stop(null)
-                .reasoningEffort("none");
+                .reasoningEffort(reasoningEffort.wireValue());
         }
         if (outputCapMode == OutputCapMode.MAX_COMPLETION_TOKENS) {
             // Explicit host opt-in moves the same effective cap using only the public native option API.

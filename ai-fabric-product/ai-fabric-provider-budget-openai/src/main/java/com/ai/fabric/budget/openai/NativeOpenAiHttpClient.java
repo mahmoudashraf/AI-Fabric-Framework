@@ -36,11 +36,16 @@ final class NativeOpenAiHttpClient implements HttpClient {
 
     NativeOpenAiHttpClient(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, Duration timeout,
         OpenAiMeteringStops meteringStops) {
+        this(ledger, scopes, timeout, meteringStops, GuardedReasoningEffort.NONE);
+    }
+
+    NativeOpenAiHttpClient(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, Duration timeout,
+        OpenAiMeteringStops meteringStops, GuardedReasoningEffort reasoningEffort) {
         this(new OkHttpClient.Builder()
             .retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false)
             .authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE).proxy(Proxy.NO_PROXY)
             .cache(null).connectTimeout(timeout).readTimeout(timeout).writeTimeout(timeout).callTimeout(timeout)
-            .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, scopes, okhttp3.HttpUrl.get(OpenAiExchangeGuard.BASE_URL), meteringStops)).build());
+            .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, scopes, okhttp3.HttpUrl.get(OpenAiExchangeGuard.BASE_URL), meteringStops, reasoningEffort)).build());
     }
 
     // Test-only package hook; no public factory/property permits replacing the guarded production transport.

@@ -38,6 +38,7 @@ final class OpenAiExchangeGuard implements Interceptor {
     private final OpenAiBudgetScopeResolver scopes;
     private final HttpUrl origin;
     private final OpenAiMeteringStops meteringStops;
+    private final GuardedReasoningEffort reasoningEffort;
 
     OpenAiExchangeGuard(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes) {
         this(ledger, scopes, HttpUrl.get(BASE_URL), new OpenAiMeteringStops(ledger));
@@ -50,10 +51,16 @@ final class OpenAiExchangeGuard implements Interceptor {
 
     OpenAiExchangeGuard(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, HttpUrl origin,
         OpenAiMeteringStops meteringStops) {
+        this(ledger, scopes, origin, meteringStops, GuardedReasoningEffort.NONE);
+    }
+
+    OpenAiExchangeGuard(ProviderBudgetLedger ledger, OpenAiBudgetScopeResolver scopes, HttpUrl origin,
+        OpenAiMeteringStops meteringStops, GuardedReasoningEffort reasoningEffort) {
         this.ledger = java.util.Objects.requireNonNull(ledger);
         this.scopes = java.util.Objects.requireNonNull(scopes);
         this.origin = origin;
         this.meteringStops = java.util.Objects.requireNonNull(meteringStops);
+        this.reasoningEffort = java.util.Objects.requireNonNull(reasoningEffort);
     }
 
     @Override public Response intercept(Chain chain) throws IOException {
@@ -156,7 +163,7 @@ final class OpenAiExchangeGuard implements Interceptor {
             || body.path("stream").asBoolean() || (body.has("n") && integer(body.get("n")) != 1)
             || !"default".equals(body.path("service_tier").asText())) throw unsupported();
         if (isGpt54Mini(model)) {
-            if (!"none".equals(body.path("reasoning_effort").asText())
+            if (!reasoningEffort.wireValue().equals(body.path("reasoning_effort").asText())
                 || MINI_UNREVIEWED_OPTIONS.stream().anyMatch(body::has)) throw unsupported();
         } else if (body.has("reasoning_effort")) throw unsupported();
         if (body.has("modalities") && (!body.get("modalities").isArray() || body.get("modalities").size() != 1

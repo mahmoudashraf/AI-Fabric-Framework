@@ -49,6 +49,9 @@ public class RuntimeAdminOverviewController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ai.fabric.runtime.workflow.WorkflowAssistanceStatus workflowAssistance;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ai.fabric.runtime.budget.RuntimeProviderBudgetProperties guardedProviderProfile;
+
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
@@ -578,6 +581,7 @@ public class RuntimeAdminOverviewController {
             ? providerConfig.getGeneration().getManagedServiceRef()
             : null);
         profile.put("generationHasConnectionOverride", providerConfig != null && providerConfig.generationHasConnectionOverride());
+        if (guardedProviderProfile != null) profile.put("guardedReasoningEffort", guardedProviderProfile.reasoningEffort().wireValue());
         return profile;
     }
 }

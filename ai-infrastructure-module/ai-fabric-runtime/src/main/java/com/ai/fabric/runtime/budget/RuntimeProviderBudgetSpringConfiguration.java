@@ -32,11 +32,12 @@ public class RuntimeProviderBudgetSpringConfiguration {
         @Value("${loomai.provider-budget.environment:${LOOMAI_PROVIDER_BUDGET_ENVIRONMENT:}}") String environment,
         @Value("${loomai.provider-budget.credential-identity:${LOOMAI_PROVIDER_BUDGET_CREDENTIAL_IDENTITY:}}") String credential,
         @Value("${loomai.provider-budget.rate-card-reference:${LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE:}}") String rateCard,
-        @Value("${loomai.provider-budget.output-cap-mode:${LOOMAI_PROVIDER_BUDGET_OUTPUT_CAP_MODE:}}") String outputCapMode) {
+        @Value("${loomai.provider-budget.output-cap-mode:${LOOMAI_PROVIDER_BUDGET_OUTPUT_CAP_MODE:}}") String outputCapMode,
+        @Value("${loomai.provider-budget.reasoning-effort:${LOOMAI_PROVIDER_BUDGET_REASONING_EFFORT:NONE}}") com.ai.fabric.budget.openai.GuardedReasoningEffort reasoningEffort) {
         if (!OutputCapMode.MAX_COMPLETION_TOKENS.name().equals(outputCapMode)) {
             throw new IllegalArgumentException("RUNTIME_BUDGET_EXPLICIT_MAX_COMPLETION_TOKENS_REQUIRED");
         }
-        return new RuntimeProviderBudgetProperties(environment, credential, rateCard, OutputCapMode.MAX_COMPLETION_TOKENS);
+        return new RuntimeProviderBudgetProperties(environment, credential, rateCard, OutputCapMode.MAX_COMPLETION_TOKENS, reasoningEffort);
     }
 
     @Bean
@@ -73,7 +74,7 @@ public class RuntimeProviderBudgetSpringConfiguration {
         RuntimeBudgetTurnScopes turns, @Qualifier("onnxEmbeddingProvider") ObjectProvider<EmbeddingProvider> localOnnx,
         RuntimeProviderBudgetProperties properties) {
         return RuntimeBudgetResolverFactory.create(providers, observations.getIfAvailable(() -> ObservationRegistry.NOOP), ledger,
-            budgets, turns, "onnx".equals(providers.getEmbeddingProvider()) ? localOnnx.getIfAvailable() : null, properties.outputCapMode());
+            budgets, turns, "onnx".equals(providers.getEmbeddingProvider()) ? localOnnx.getIfAvailable() : null, properties.outputCapMode(), properties.reasoningEffort());
     }
 
     @Bean
