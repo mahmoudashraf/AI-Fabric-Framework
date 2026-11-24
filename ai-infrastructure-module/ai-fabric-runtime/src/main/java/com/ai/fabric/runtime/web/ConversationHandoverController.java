@@ -49,6 +49,10 @@ public class ConversationHandoverController {
     private final RuntimeConversationHandoverService handoverService;
     private final ChatRuntimeController chatRuntimeController;
     private final TaskExecutor sseExecutor;
+    private com.ai.fabric.runtime.workflow.RuntimeDurableGoalHost durableGoals;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setDurableGoals(com.ai.fabric.runtime.workflow.RuntimeDurableGoalHost service) { durableGoals = service; }
 
     public ConversationHandoverController(
         RuntimeRequestAuthResolver authResolver,
@@ -75,6 +79,9 @@ public class ConversationHandoverController {
             "/api/chat/me/conversations/{conversationId}/messages"
         );
         body.setConversationId(conversationId);
+        if (body.getConfigurationWork() != null && body.getConfigurationWork().goalMode()
+            && !idempotencyKey.equals(body.getConfigurationWork().turnId()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AUTHORING_GOAL_ROOT_KEY_MISMATCH");
         ConversationView before = handoverService.view(identity, conversationId, 0);
         if (before.controlState() == ConversationControlState.HUMAN_PENDING
             || before.controlState() == ConversationControlState.HUMAN_ACTIVE) {
@@ -101,15 +108,16 @@ public class ConversationHandoverController {
             ));
         }
 
+        var userMetadata = new java.util.LinkedHashMap<String, Object>();
+        userMetadata.put("source", "canonical-message-api"); userMetadata.put("attachmentRefs", attachmentRefs(body));
+        if (body.getConfigurationWork() != null && body.getConfigurationWork().goalMode())
+            userMetadata.put("authoringGoalId", body.getConfigurationWork().goalId());
         ConversationMessage userMessage = handoverService.appendUserMessage(
             identity,
             conversationId,
             idempotencyKey,
             body.getQuery(),
-            Map.of(
-                "source", "canonical-message-api",
-                "attachmentRefs", attachmentRefs(body)
-            )
+            userMetadata
         );
         AiInteractionAdmission interaction = handoverService.claimAiInteraction(
             identity,
@@ -190,6 +198,10 @@ public class ConversationHandoverController {
             handoverService.failAiInteraction(identity, conversationId, idempotencyKey, "EMPTY_RESPONSE");
             return response;
         }
+        if (response.getStatusCode().value() == 202 && "WORK_ACCEPTED".equals(payload.getType())) {
+            // Admission has a replayable receipt, but only the durable host may append the final AI message.
+            return completeInteraction(identity, conversationId, idempotencyKey, response);
+        }
         try {
             handoverService.commitAiInteraction(turn, idempotencyKey, response.getStatusCode().value(), payload);
             return response;
@@ -233,11 +245,31 @@ public class ConversationHandoverController {
     }
 
     public record Interruption(String messageKey) { }
+
+    @GetMapping("/{conversationId}/work/{workId}")
+    public ChatQueryResponse work(@PathVariable String conversationId, @PathVariable String workId, HttpServletRequest request) {
+        var identity = authorize(request, RuntimeScopeCatalog.CHAT_MESSAGES, "/api/chat/me/conversations/{conversationId}/work/{workId}");
+        authResolver.requireScope(identity, "configuration:author", "configured authoring work");
+        if (durableGoals == null) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "DURABLE_AUTHORING_HOST_UNAVAILABLE");
+        return durableGoals.find(identity, conversationId, workId);
+    }
+
+    @PostMapping("/{conversationId}/work/{workId}/control")
+    public ChatQueryResponse controlWork(@PathVariable String conversationId, @PathVariable String workId,
+        @RequestHeader("Idempotency-Key") String key,
+        @RequestBody com.ai.fabric.runtime.workflow.RuntimeDurableGoalHost.Control body, HttpServletRequest request) {
+        var identity = authorize(request, RuntimeScopeCatalog.CHAT_MESSAGES, "/api/chat/me/conversations/{conversationId}/work/{workId}/control");
+        authResolver.requireScope(identity, "configuration:author", "configured authoring work control");
+        if (key == null || key.isBlank() || key.length() > 512) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AUTHORING_CONTROL_KEY_INVALID");
+        if (durableGoals == null) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "DURABLE_AUTHORING_HOST_UNAVAILABLE");
+        return durableGoals.control(identity, conversationId, workId, body, key);
+    }
     @PostMapping("/{conversationId}/interruptions")
     public ConversationView interrupt(@PathVariable String conversationId, @RequestHeader("Idempotency-Key") String key,
         @RequestBody Interruption body, HttpServletRequest request) {
         var identity = authorize(request, RuntimeScopeCatalog.CHAT_MESSAGES, "/api/chat/me/conversations/{conversationId}/interruptions");
         authResolver.requireScope(identity, "configuration:author", "/api/chat/me/conversations/{conversationId}/interruptions");
+        if (durableGoals != null) durableGoals.interrupt(identity, conversationId, body.messageKey());
         return handoverService.interruptAuthoringTurn(identity, conversationId, body.messageKey(), key);
     }
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.69",
+  "aiFabricVersion": "0.8.70",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -27,6 +27,9 @@
   ],
   "capabilities": [
     "configured-workflow-assistance",
+    "workflow-bundle-capacity-v2",
+    "goal-driven-workflow-assistance",
+    "workflow-goal-profile-delegation-v1",
     "bounded-workflow-completion-feedback",
     "internal-decision-recovery-v1",
     "automatic-action-evidence-v1",
@@ -80,6 +83,7 @@
     "managed-task-decision",
     "chat-query",
     "canonical-conversation-message",
+    "canonical-goal-work-control",
     "owner-handover-control",
     "conversation-event-stream-replay",
     "conversation-channel-dispatch",
@@ -142,6 +146,7 @@
     ,"runtime-release-scoped-retirement-v24"
     ,"workflow-execution-checkpoint-v27"
     ,"protected-conversation-message-capacity-v28"
+    ,"workflow-goal-continuation-v29"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",

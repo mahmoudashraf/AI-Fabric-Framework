@@ -165,6 +165,7 @@ public class ChatRuntimeController {
     private RuntimeBudgetTurnScopes providerBudgetTurns;
     private com.ai.fabric.runtime.workflow.RuntimeConfiguredWorkflowDispatcher configuredWorkflows;
     private com.ai.fabric.runtime.workflow.RuntimeWorkflowPrivacy workflowPrivacy;
+    private com.ai.fabric.runtime.workflow.RuntimeDurableGoalHost durableGoals;
     private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -189,6 +190,9 @@ public class ChatRuntimeController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setWorkflowPrivacy(com.ai.fabric.runtime.workflow.RuntimeWorkflowPrivacy service) { this.workflowPrivacy = service; }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setDurableGoals(com.ai.fabric.runtime.workflow.RuntimeDurableGoalHost service) { this.durableGoals = service; }
 
     @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
     private String transientFileUrlAllowedHosts;
@@ -318,6 +322,12 @@ public class ChatRuntimeController {
             }
             try (budgetTurn) {
                 if (budgetTurn != null) context.setOrchestrationTurnGuard(budgetTurn);
+                if (request.getConfigurationWork() != null && request.getConfigurationWork().goalMode()) {
+                    if (durableGoals == null || budgetTurn == null) throw new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE, "DURABLE_AUTHORING_HOST_UNAVAILABLE");
+                    return ResponseEntity.accepted().body(durableGoals.submit(request, identity, controlledTurn,
+                        budgetTurn.chatReceipt().orElseThrow()));
+                }
                 long orchestrationStartTime = System.currentTimeMillis();
                 OrchestrationResult result = request.getConfigurationWork() != null
                     ? configuredWorkflows.dispatch(request, context, identity, controlledTurn,

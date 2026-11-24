@@ -30,6 +30,127 @@ import org.junit.jupiter.api.Test;
 
 class RuntimeBudgetTurnScopesTest extends RuntimeBudgetFixture.TestScope {
     @Test
+    void durableSegmentsReuseTheAdmittedRootButRecheckCurrentFundingAndIdentity() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        var auth = identity("customer", "deployment", List.of("configuration:author")).getAuthContext().toBuilder()
+            .callerType(com.ai.fabric.runtime.auth.RuntimeAuthCallerType.TRUSTED_BACKEND)
+            .expiresAt(java.time.Instant.now().plusSeconds(600)).build();
+        var verified = com.ai.fabric.runtime.auth.RuntimeResolvedIdentity.builder().authContext(auth).warnings(List.of()).build();
+        com.ai.fabric.budget.ProviderBudgetLedger.ChatReceipt receipt;
+        try (var root = turns.openAuthoring(verified)) { receipt = root.chatReceipt().orElseThrow(); }
+        var guard = mock(OrchestrationTurnGuard.class);
+        for (int segment = 0; segment < 20; segment++) try (var restored = turns.openGoalSegment(verified, receipt, guard)) {
+            restored.verifyBeforeOrchestration(); assertThat(restored.chatReceipt()).contains(receipt);
+        }
+        assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(1);
+        assertThatThrownBy(() -> turns.openGoalSegment(verified, null, guard)).isInstanceOf(IllegalArgumentException.class);
+        var foreign = verified.toBuilder().authContext(auth.toBuilder().deploymentId("foreign").build()).build();
+        assertThatThrownBy(() -> turns.openGoalSegment(foreign, receipt, guard)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(turns.currentProviderDiagnostics()).isEmpty();
+    }
+    @Test
+    void completionCaptureRetainsOriginAcrossAsyncCallbacksWithoutChangingResultsOrAccounting() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        assertThat(turns.currentProviderDiagnostics()).isEmpty();
+        try (var first = turns.openChat(chatIdentity(), null)) {
+            var invocation = turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+            var completion = completion(invocation);
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                executor.submit(() -> {
+                    assertThat(turns.currentProviderDiagnostics()).isEmpty();
+                    try (var other = turns.openChat(chatIdentity(), null)) {
+                        invocation.completionObserver().onCompleted(completion);
+                        assertThat(other.providerDiagnostics().observations()).isEmpty();
+                        assertThat(other.interruption()).isEmpty();
+                    }
+                }).get(5, TimeUnit.SECONDS);
+            }
+            assertThat(first.providerDiagnostics().observations()).containsExactly(completion);
+            assertThat(turns.currentProviderDiagnostics()).contains(first.providerDiagnostics());
+            assertThat(first.interruption()).isEmpty();
+            var result = success();
+            result.setMetadata(Map.of("existing", "retained"));
+            result.setSanitizedPayload(Map.of("answer", "retained"));
+            first.verifyBeforeResultCommit(result);
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getMetadata()).containsExactlyEntriesOf(Map.of("existing", "retained"));
+            assertThat(result.getSanitizedPayload()).containsExactlyEntriesOf(Map.of("answer", "retained"));
+        }
+        assertThat(turns.currentProviderDiagnostics()).isEmpty();
+        assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(2);
+        assertThat(budgets.readCurrent().providerAttempts()).isZero();
+    }
+
+    @Test
+    void propagatedChildrenShareBoundedSnapshotsWithoutAnotherIngressOrLosingDenials() throws Exception {
+        var budgets = new RuntimeBudgetFixture().register();
+        var turns = new RuntimeBudgetTurnScopes(budgets);
+        try (var parent = turns.openChat(chatIdentity(), null);
+             var executor = Executors.newSingleThreadExecutor()) {
+            var original = parent.providerDiagnostics();
+            var total = MAX_PROVIDER_OBSERVATIONS + 7;
+            var operationIds = new java.util.ArrayList<UUID>();
+            for (int index = 0; index < total; index++) {
+                executor.submit(turns.propagateTask(() -> {
+                    var invocation = turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+                    operationIds.add(invocation.operationId());
+                    invocation.completionObserver().onCompleted(completion(invocation));
+                })).get(5, TimeUnit.SECONDS);
+            }
+            deny(turns);
+            var snapshot = parent.providerDiagnostics();
+            assertThat(snapshot.observations()).hasSize(MAX_PROVIDER_OBSERVATIONS);
+            assertThat(snapshot.observations()).extracting(OpenAiBudgetInvocation.Completion::operationId)
+                .containsExactlyElementsOf(operationIds.subList(7, total));
+            assertThat(snapshot.droppedObservations()).isEqualTo(7);
+            assertThat(parent.interruption()).isPresent();
+            assertThat(original.observations()).isEmpty();
+            assertThat(original.droppedObservations()).isZero();
+            assertThatThrownBy(() -> snapshot.observations().clear()).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(budgets.readCurrent().chatAttempts()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void concurrentCompletionCallbacksCannotOverflowOrLoseTheDropCount() throws Exception {
+        var turns = new RuntimeBudgetTurnScopes(new RuntimeBudgetFixture().register());
+        try (var turn = turns.openChat(chatIdentity(), null);
+             var executor = Executors.newFixedThreadPool(4)) {
+            var invocation = turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+            int total = MAX_PROVIDER_OBSERVATIONS * 3;
+            var callbacks = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (int index = 0; index < total; index++) {
+                callbacks.add(executor.submit(() -> invocation.completionObserver().onCompleted(completion(invocation))));
+            }
+            for (var callback : callbacks) callback.get(5, TimeUnit.SECONDS);
+            var snapshot = turn.providerDiagnostics();
+            assertThat(snapshot.observations()).hasSize(MAX_PROVIDER_OBSERVATIONS);
+            assertThat(snapshot.observations()).extracting(OpenAiBudgetInvocation.Completion::attemptId).doesNotHaveDuplicates();
+            assertThat(snapshot.droppedObservations()).isEqualTo(total - MAX_PROVIDER_OBSERVATIONS);
+            assertThat(turn.interruption()).isEmpty();
+        }
+    }
+
+    @Test
+    void lateCompletionStaysWithClosedOriginAndCannotContaminateTheNextTurn() throws Exception {
+        var turns = new RuntimeBudgetTurnScopes(new RuntimeBudgetFixture().register());
+        RuntimeBudgetTurnScopes.Turn closed;
+        OpenAiBudgetInvocation invocation;
+        try (var first = turns.openChat(chatIdentity(), null)) {
+            closed = first;
+            invocation = turns.capture(OpenAiBudgetInvocation.Operation.CHAT_COMPLETION);
+        }
+        try (var next = turns.openChat(chatIdentity(), null)) {
+            var completion = completion(invocation);
+            invocation.completionObserver().onCompleted(completion);
+            assertThat(closed.providerDiagnostics().observations()).containsExactly(completion);
+            assertThat(next.providerDiagnostics().observations()).isEmpty();
+        }
+    }
+
+    @Test
     void documentEvaluationHasItsOwnScopeAndSharesTheFundedInteractiveAllowance() throws Exception {
         var budgets = new RuntimeBudgetFixture().register();
         var turns = new RuntimeBudgetTurnScopes(budgets);
@@ -302,6 +423,12 @@ class RuntimeBudgetTurnScopesTest extends RuntimeBudgetFixture.TestScope {
 
     private static OpenAiBudgetInvocation.Denial failure(OpenAiBudgetInvocation invocation) {
         return new OpenAiBudgetInvocation.Denial(invocation.operationId(), UUID.randomUUID(), BudgetException.Code.LIMIT_EXCEEDED, null);
+    }
+
+    private static OpenAiBudgetInvocation.Completion completion(OpenAiBudgetInvocation invocation) {
+        return new OpenAiBudgetInvocation.Completion(invocation.operationId(), UUID.randomUUID(), "req_fixture_1",
+            OpenAiBudgetInvocation.Operation.CHAT_COMPLETION, "gpt-5.4-mini", "gpt-5.4-mini-2026-03-17",
+            8192L, "length", 12, 13L, 10L, 0, true);
     }
 
     private static void deny(RuntimeBudgetTurnScopes turns) {

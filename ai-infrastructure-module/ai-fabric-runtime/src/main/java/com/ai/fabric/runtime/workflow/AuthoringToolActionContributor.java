@@ -31,6 +31,20 @@ public final class AuthoringToolActionContributor implements AIActionRegistryCon
         Handler(String name, boolean write) {
             var schemas = new java.util.LinkedHashMap<String, AIActionParamSchema>();
             var required = new java.util.LinkedHashSet<String>();
+            if ("authoring_get_context".equals(name)) {
+                for (String field : List.of("actionNames", "routeNames")) schemas.put(field, strings(field));
+            }
+            if ("authoring_read_selected_sources".equals(name)) {
+                schemas.put("sourceId", AIActionParamSchema.builder().name("sourceId").type(AIActionParamType.STRING).build());
+                schemas.put("operationIds", strings("operationIds"));
+                schemas.put("summariesOnly", AIActionParamSchema.builder().name("summariesOnly").type(AIActionParamType.BOOLEAN).build());
+                for (String field : List.of("offset", "limit", "maxCharacters", "contentOffset"))
+                    schemas.put(field, AIActionParamSchema.builder().name(field).type(AIActionParamType.INTEGER).build());
+            }
+            if ("authoring_get_work_status".equals(name)) {
+                schemas.put("operationId", AIActionParamSchema.builder().name("operationId").type(AIActionParamType.STRING).build());
+                for (String field : List.of("offset", "limit")) schemas.put(field, AIActionParamSchema.builder().name(field).type(AIActionParamType.INTEGER).build());
+            }
             if ("authoring_check_candidate".equals(name) || "authoring_update_draft".equals(name)) {
                 schemas.put("changes", AIActionParamSchema.builder().name("changes").type(AIActionParamType.ARRAY).required(true)
                     .description("Structured changes following the selected resource's contracts: operation SET, REMOVE, UPSERT or REMOVE_ITEM; path; optional key; value. Read the context/contracts before proposing changes.")
@@ -77,6 +91,10 @@ public final class AuthoringToolActionContributor implements AIActionRegistryCon
         @Override public ActionResult handleError(Exception failure, ActionContext context) {
             return ActionResult.builder().success(false).errorCode("AUTHORING_TOOL_OUTCOME_UNAVAILABLE").build();
         }
+    }
+    private static AIActionParamSchema strings(String field) {
+        return AIActionParamSchema.builder().name(field).type(AIActionParamType.ARRAY)
+            .items(AIActionParamSchema.builder().type(AIActionParamType.STRING).build()).build();
     }
     private String description(String name) {
         return switch (name) {

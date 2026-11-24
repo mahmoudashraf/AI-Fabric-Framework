@@ -24,6 +24,8 @@ public class ChatQueryResponse {
     @JsonIgnore
     private String message;
     private String conversationId;
+    private String workId;
+    private Map<String, Object> goal;
     private String mode;
     private String position;
     @Builder.Default

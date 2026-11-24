@@ -17,6 +17,17 @@ import static org.mockito.Mockito.mock;
 class SmartBrainOperationServiceTest {
 
     @Test
+    void legacyProjectionDoesNotCompleteNewNonterminalSdkStates() {
+        var service = mock(SmartBrainOperationService.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        for (var status : java.util.List.of(ai.fabric.execution.gateway.ExecutionHandleStatus.YIELDED,
+            ai.fabric.execution.gateway.ExecutionHandleStatus.PAUSED)) {
+            assertThat(org.springframework.test.util.ReflectionTestUtils.<String>invokeMethod(service, "map", status)).isEqualTo("RUNNING");
+            assertThat(org.springframework.test.util.ReflectionTestUtils.<Boolean>invokeMethod(service, "isActive", status)).isTrue();
+            assertThat(org.springframework.test.util.ReflectionTestUtils.<Boolean>invokeMethod(service, "isTerminal", status)).isFalse();
+        }
+    }
+
+    @Test
     void exposesStoredResultAsJsonCompatibleValues() {
         SpecialistClientFactory specialistClientFactory = mock(SpecialistClientFactory.class);
         SpecialistClient<JsonNode, JsonNode> specialistClient = mock(SpecialistClient.class);

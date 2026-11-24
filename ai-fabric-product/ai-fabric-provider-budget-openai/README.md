@@ -188,6 +188,37 @@ Read on 2026-10-18; changes require a newly reviewed rate-card reference:
 
 ## Tests
 
+### Native Completion Diagnostics
+
+`OpenAiBudgetInvocation` accepts an optional third `CompletionObserver`; the
+existing `(UUID, DenialObserver)` constructor and denial observer are unchanged.
+The observer runs after successful native usage settlement, before the SDK sees
+the restored response body. It reports exchange evidence, not SDK/schema or
+generation success. Its failure cannot change settlement or trigger a retry.
+
+`Completion` contains only `operationId`, `attemptId`, `providerRequestId`,
+`operation`, requested `model`, `responseModel`, `effectiveOutputCap`,
+`finishReason`, `inputTokens`, `outputTokens`, `reasoningTokens`, `contentLength`
+and `contentEmpty`. The output cap is taken from the actual guarded wire request,
+not an environment default. Reasoning-token counts are a subset of output tokens,
+never additional billed usage. Known native finish reasons are retained exactly;
+unknown reasons, absent/malformed optional fields and unsafe request IDs are null.
+Chat-only fields are null for embeddings. Text length uses Java string length;
+blank text and explicit null content are empty, while missing/unrecognized content
+is unknown. No request/response body, reasoning text, refusal, arbitrary header,
+API key, credential identity or private parameter is retained.
+
+Runtime's `Turn.providerDiagnostics()` and synchronous-worker
+`RuntimeBudgetTurnScopes.currentProviderDiagnostics()` expose immutable
+`ProviderDiagnostics(observations, droppedObservations)` snapshots. Explicit child
+task propagation shares the originating turn's buffer. It keeps the latest 64
+observations in callback order and counts evictions; it is not an unbounded audit
+store. Late callbacks retain their originating buffer, never a subsequent turn.
+No diagnostics are automatically copied to ordinary result metadata or sanitized
+chat output. Internal authoring integration must explicitly project the snapshot
+through its existing authorized status/diagnostic path; it must not infer token
+exhaustion from empty content without the actual finish reason.
+
 ### Additional Reviewed Mini Profile (24 October 2026)
 
 `openai-gpt4omini-gpt54mini-embedding3small-20261024-v2` additionally permits

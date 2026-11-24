@@ -9,6 +9,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 final class AuthoringCompletionContract {
     private AuthoringCompletionContract() { }
 
+    static CompletionFinding coverage(JsonNode status, boolean previewOnly) {
+        var saved = status.path("sourceCoverage");
+        if (previewOnly) {
+            if (!saved.path("required").asBoolean()) return null;
+            var candidate = status.path("lastCandidateCoverage");
+            if (candidate.isObject() && candidate.path("complete").asBoolean()
+                || !candidate.isObject() && saved.path("complete").asBoolean()) return null;
+            return new CompletionFinding("AUTHORING_PREVIEW_COVERAGE_INCOMPLETE",
+                "The preview does not yet cover all requested source operations. Read lastCandidateCoverage and correct the preview candidate without saving. Current saved-state coverage is not required for a preview.");
+        }
+        if (!saved.isObject()) return new CompletionFinding("AUTHORING_COVERAGE_UNAVAILABLE",
+            "The current saved-state coverage could not be read. Inspect the current work status before claiming completion.");
+        if (saved.path("required").asBoolean() && !saved.path("complete").asBoolean())
+            return new CompletionFinding("AUTHORING_SOURCE_COVERAGE_INCOMPLETE",
+                "The selected source operations are not all represented by current saved definitions and routes. Read sourceCoverage from authoring_get_work_status, inspect pending operations and decide the next authorized step. Already-correct saved definitions need no new write.");
+        return null;
+    }
+
     static CompletionFinding validate(WorkflowCheckpoint checkpoint, ObjectMapper mapper) {
         JsonNode checked = null;
         int checkedIndex = -1;

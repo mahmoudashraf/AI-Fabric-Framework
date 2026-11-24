@@ -203,6 +203,9 @@ class GuardedNativeTransportTest {
 
     @Test void nativeChatSettlesOnceFromJsonAndKeepsStructuredOptions() throws Exception {
         approve(200_000);
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        UUID operationId = UUID.randomUUID();
+        captures = operation -> new OpenAiBudgetInvocation(operationId, failure -> fail("Unexpected denial"), completions::add);
         replies.add(new Reply(200, CHAT, null, null));
         var resolver = resolver();
         var request = AIGenerationRequest.builder().model(CHAT_MODEL).maxTokens(1000).temperature(0.2)
@@ -221,6 +224,9 @@ class GuardedNativeTransportTest {
         assertFalse(snapshot.stopped());
         assertEquals("identity", acceptEncodings.element());
         UUID clientId = UUID.fromString(clientRequestIds.element());
+        assertEquals(List.of(new OpenAiBudgetInvocation.Completion(operationId, clientId, "req_fixture_1",
+            OpenAiBudgetInvocation.Operation.CHAT_COMPLETION, CHAT_MODEL, "gpt-4o-mini-2024-07-18", 1000L,
+            "stop", 12, 3L, null, 2, false)), List.copyOf(completions));
         try (var connection = source.getConnection(); var query = connection.prepareStatement(
             "SELECT evidence_reference FROM provider_budget_attempt WHERE approval_id = 'approval' AND attempt_id = ?")) {
             query.setString(1, clientId.toString());
@@ -229,6 +235,177 @@ class GuardedNativeTransportTest {
                 assertEquals("openai-request:req_fixture_1:client-attempt:" + clientId, row.getString(1));
             }
         }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"stop", "length", "tool_calls", "content_filter", "function_call"})
+    void emptyNativeResponseReportsItsActualFinishCapAndReasoningAfterSettlement(String finish) throws Exception {
+        miniScope(); approve(600_000);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        response.put("model", GPT_54_MINI_SNAPSHOT);
+        response.withObject("/usage").put("completion_tokens", 13).put("total_tokens", 25);
+        response.withObject("/usage/completion_tokens_details").put("reasoning_tokens", 10);
+        var choice = (com.fasterxml.jackson.databind.node.ObjectNode) response.path("choices").get(0);
+        choice.put("finish_reason", finish);
+        choice.withObject("/message").put("content", "");
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null));
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        var settlements = new AtomicInteger();
+        var ambiguities = new AtomicInteger();
+        ledger = new ForwardingLedger(ledger) {
+            @Override public Attempt settle(String id, Scope scope, UUID attempt, Usage usage, String ref) {
+                var result = super.settle(id, scope, attempt, usage, ref);
+                settlements.incrementAndGet();
+                return result;
+            }
+            @Override public Attempt markAmbiguous(String id, Scope scope, UUID attempt, String reason) {
+                ambiguities.incrementAndGet();
+                return super.markAmbiguous(id, scope, attempt, reason);
+            }
+        };
+        UUID operationId = UUID.randomUUID();
+        captures = operation -> new OpenAiBudgetInvocation(operationId, failure -> fail("Unexpected denial"), completion -> {
+            assertEquals(1, settlements.get());
+            assertEquals(chat(GPT_54_MINI_MODEL, 12, 13), ledger.read("approval", scope).accountedUsage());
+            completions.add(completion);
+        });
+        var model = resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.MEDIUM).resolveChatModel("openai",
+            AIGenerationRequest.builder().model(GPT_54_MINI_MODEL).maxTokens(8192).build());
+        model.call(new Prompt("fixture"));
+        assertEquals(List.of(new OpenAiBudgetInvocation.Completion(operationId, UUID.fromString(clientRequestIds.element()),
+            "req_fixture_1", OpenAiBudgetInvocation.Operation.CHAT_COMPLETION, GPT_54_MINI_MODEL, GPT_54_MINI_SNAPSHOT,
+            8192L, finish, 12, 13L, 10L, 0, true)), List.copyOf(completions));
+        assertEquals(1, sends.get());
+        assertEquals(1, settlements.get());
+        assertEquals(0, ambiguities.get());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"null", "\"   \"", "\"fixture-private-response\""})
+    void completionProjectionNeverRetainsContentReasoningCredentialsOrPrivateParameters(String content) throws Exception {
+        approve(200_000);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        var message = (com.fasterxml.jackson.databind.node.ObjectNode) response.path("choices").get(0).path("message");
+        message.set("content", json.readTree(content));
+        message.put("reasoning_content", "fixture-private-reasoning");
+        message.put("refusal", "fixture-private-refusal");
+        response.put("private_parameter", "fixture-private-param");
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null,
+            Map.of("x-request-id", "sk-fixture-secret", "private-header", "fixture-private-header"), null));
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        var invocation = new OpenAiBudgetInvocation(UUID.randomUUID(), failure -> fail("Unexpected denial"), completions::add);
+        try (var result = rawChat(invocation)) { assertEquals(200, result.code()); }
+        assertEquals(1, completions.size());
+        var completion = completions.element();
+        String text = json.readTree(content).textValue();
+        assertEquals(text == null ? 0 : text.length(), completion.contentLength());
+        assertEquals(text == null || text.isBlank(), completion.contentEmpty());
+        assertNull(completion.providerRequestId());
+        String projected = json.writeValueAsString(completion);
+        for (String secret : List.of(KEY, "fixture-private-response", "fixture-private-reasoning", "fixture-private-refusal",
+            "fixture-private-param", "sk-fixture-secret", "fixture-private-header", "fixture-private-request")) {
+            assertFalse(projected.contains(secret));
+        }
+        assertEquals(chat(12, 3), ledger.read("approval", scope).accountedUsage());
+        assertEquals(1, sends.get());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"-1", "4", "1.5", "\"fixture-secret\"", "null", "9223372036854775808"})
+    void malformedOptionalMetadataDoesNotRejectOrChangeNativeSettlement(String reasoning) throws Exception {
+        approve(200_000);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        response.withObject("/usage/completion_tokens_details").set("reasoning_tokens", json.readTree(reasoning));
+        var choice = (com.fasterxml.jackson.databind.node.ObjectNode) response.path("choices").get(0);
+        choice.put("finish_reason", "fixture-secret");
+        choice.withObject("/message").putObject("content").put("private", "fixture-secret");
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null));
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        try (var result = rawChat(new OpenAiBudgetInvocation(UUID.randomUUID(), failure -> fail("Unexpected denial"), completions::add))) {
+            assertEquals(200, result.code());
+        }
+        assertEquals(1, completions.size());
+        var completion = completions.element();
+        assertNull(completion.reasoningTokens());
+        assertNull(completion.finishReason());
+        assertNull(completion.contentLength());
+        assertNull(completion.contentEmpty());
+        assertEquals(12, completion.inputTokens());
+        assertEquals(3L, completion.outputTokens());
+        assertEquals(chat(12, 3), ledger.read("approval", scope).accountedUsage());
+        assertFalse(completion.toString().contains("fixture-secret"));
+        assertEquals(1, sends.get());
+    }
+
+    @Test void missingOptionalMetadataIsUnknownRatherThanInventedEmptyOrZero() throws Exception {
+        approve(200_000);
+        replies.add(new Reply(200, "{\"model\":\"gpt-4o-mini\",\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,\"total_tokens\":15}}", null, null));
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        try (var result = rawChat(new OpenAiBudgetInvocation(UUID.randomUUID(), failure -> fail("Unexpected denial"), completions::add))) {
+            assertEquals(200, result.code());
+        }
+        assertEquals(1, completions.size());
+        var completion = completions.element();
+        assertNull(completion.finishReason()); assertNull(completion.reasoningTokens());
+        assertNull(completion.contentLength()); assertNull(completion.contentEmpty());
+        assertEquals(chat(12, 3), ledger.read("approval", scope).accountedUsage());
+    }
+
+    @Test void completionObserverFailureCannotReclassifySettlementOrTriggerAnotherSend() {
+        approve(200_000);
+        var callbacks = new AtomicInteger();
+        var denials = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Denial>();
+        captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), denials::add, completion -> {
+            callbacks.incrementAndGet();
+            throw new IllegalStateException("fixture-private-observer-detail");
+        });
+        replies.add(new Reply(200, CHAT, null, null));
+        assertDoesNotThrow(() -> call(resolver()));
+        assertEquals(1, callbacks.get()); assertTrue(denials.isEmpty());
+        assertEquals(chat(12, 3), ledger.read("approval", scope).accountedUsage());
+        assertEquals(1, sends.get()); assertEquals(1, ledger.read("approval", scope).providerAttempts());
+    }
+
+    @Test void failedSettlementReportsDenialWithoutSuccessfulCompletion() {
+        approve(200_000);
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        var denials = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Denial>();
+        captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), denials::add, completions::add);
+        ledger = new ForwardingLedger(ledger) {
+            @Override public Attempt settle(String id, Scope scope, UUID attempt, Usage usage, String ref) {
+                throw new BudgetException(BudgetException.Code.STORAGE_UNAVAILABLE);
+            }
+        };
+        replies.add(new Reply(200, CHAT, null, null));
+        assertThrows(RuntimeException.class, () -> call(resolver()));
+        assertTrue(completions.isEmpty()); assertEquals(1, denials.size());
+        assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
+        assertEquals(1, sends.get());
+    }
+
+    @Test void preboundNativeClientsKeepSuccessfulAsyncExchangesWithTheirOwnInvocation() throws Exception {
+        approve(400_000);
+        replies.add(new Reply(200, CHAT, null, null));
+        replies.add(new Reply(200, CHAT, null, null));
+        var root = root(0, Duration.ofSeconds(2));
+        closeables.add(root.client()::close);
+        var firstEvents = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        var secondEvents = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        UUID firstId = UUID.randomUUID(); UUID secondId = UUID.randomUUID();
+        var firstClient = root.client().withOptions(options -> options.httpClient(new BoundHttpClient(root.transport(),
+            new OpenAiBudgetInvocation(firstId, failure -> fail("Unexpected denial"), firstEvents::add))));
+        var secondClient = root.client().withOptions(options -> options.httpClient(new BoundHttpClient(root.transport(),
+            new OpenAiBudgetInvocation(secondId, failure -> fail("Unexpected denial"), secondEvents::add))));
+        var first = firstClient.async().chat().completions().create(params());
+        var second = secondClient.async().chat().completions().create(params());
+        first.get(3, TimeUnit.SECONDS); second.get(3, TimeUnit.SECONDS);
+        assertEquals(1, firstEvents.size()); assertEquals(1, secondEvents.size());
+        assertEquals(firstId, firstEvents.element().operationId()); assertEquals(secondId, secondEvents.element().operationId());
+        assertNotEquals(firstEvents.element().attemptId(), secondEvents.element().attemptId());
+        assertTrue(clientRequestIds.contains(firstEvents.element().attemptId().toString()));
+        assertTrue(clientRequestIds.contains(secondEvents.element().attemptId().toString()));
+        assertEquals(chat(24, 6), ledger.read("approval", scope).accountedUsage());
+        assertEquals(2, sends.get());
     }
 
     @ParameterizedTest @ValueSource(ints = {1, 400, 16384})
@@ -317,12 +494,15 @@ class GuardedNativeTransportTest {
     @ParameterizedTest @ValueSource(ints = {302, 307, 401, 408, 429, 500, 503})
     void errorsAndRedirectsDoNotRetryAndKeepFullHold(int status) {
         approve(200_000);
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), failure -> { }, completions::add);
         replies.add(new Reply(status, "{}", endpoint + "/embeddings", null));
         replies.add(new Reply(200, CHAT, null, null));
         assertThrows(RuntimeException.class, () -> call(resolver()));
         assertEquals(1, sends.get());
         assertEquals(1, ledger.read("approval", scope).providerAttempts());
         assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
+        assertTrue(completions.isEmpty());
     }
 
     @Test void sdkAutomaticRetryStillReservesBeforeEveryNetworkAttempt() {
@@ -354,12 +534,15 @@ class GuardedNativeTransportTest {
         "{\"prompt_tokens\":12,\"prompt_tokens\":11,\"completion_tokens\":3,\"total_tokens\":15}"})
     void missingMalformedOrAmbiguousUsageRetainsFullHoldWithoutScopeStop(String usage) {
         approve(200_000);
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), failure -> { }, completions::add);
         replies.add(new Reply(200, "{\"model\":\"gpt-4o-mini\",\"usage\":" + usage + "}", null, null));
         var error = assertThrows(RuntimeException.class, () -> call(resolver()));
         assertEquals(OpenAiBudgetException.Code.ATTEMPT_AMBIGUOUS, OpenAiBudgetTransportException.find(error).orElseThrow().guardCode().orElseThrow());
         assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
         assertFalse(ledger.read("approval", scope).stopped());
         assertEquals(1, sends.get());
+        assertTrue(completions.isEmpty());
     }
 
     @ParameterizedTest @ValueSource(strings = {"{\"prompt_tokens\":12,\"completion_tokens\":1001,\"total_tokens\":1013}",
@@ -661,6 +844,8 @@ class GuardedNativeTransportTest {
 
     @Test void realEmbeddingBatchSettlesWithNoChatCount() {
         approve(200_000);
+        var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        UUID operationId = UUID.randomUUID();
         replies.add(new Reply(200, """
             {"object":"list","model":"text-embedding-3-small","data":[
              {"object":"embedding","index":0,"embedding":[0.1,0.2]},
@@ -671,7 +856,7 @@ class GuardedNativeTransportTest {
         captures = operation -> {
             assertSame(caller, Thread.currentThread());
             assertEquals(OpenAiBudgetInvocation.Operation.EMBEDDING, operation);
-            return OpenAiBudgetInvocation.NONE;
+            return new OpenAiBudgetInvocation(operationId, failure -> fail("Unexpected denial"), completions::add);
         };
         var resolver = resolver();
         var model = resolver.resolveEmbeddingModel("openai", null);
@@ -680,6 +865,9 @@ class GuardedNativeTransportTest {
         assertEquals(1, sends.get());
         assertEquals(embedding(5), ledger.read("approval", scope).accountedUsage());
         assertEquals(0, ledger.read("approval", scope).chatAttempts());
+        assertEquals(List.of(new OpenAiBudgetInvocation.Completion(operationId, UUID.fromString(clientRequestIds.element()),
+            "req_fixture_1", OpenAiBudgetInvocation.Operation.EMBEDDING, EMBEDDING_MODEL, EMBEDDING_MODEL, null, null,
+            5, null, null, null, null)), List.copyOf(completions));
     }
 
     @Test void nativeAsyncBodyCannotBypassStreamingRestriction() {
@@ -714,6 +902,19 @@ class GuardedNativeTransportTest {
 
     private void call(BudgetGuardedSpringAiModelResolver resolver) {
         resolver.resolveChatModel("openai", null).call(new Prompt("fixture", resolver.resolveChatOptions("openai", null)));
+    }
+
+    private okhttp3.Response rawChat(OpenAiBudgetInvocation invocation) throws Exception {
+        var client = new OkHttpClient.Builder().retryOnConnectionFailure(false).followRedirects(false)
+            .callTimeout(Duration.ofSeconds(2)).addNetworkInterceptor(new OpenAiExchangeGuard(ledger,
+                identity -> new OpenAiBudgetScopeResolver.Binding("approval", scope), HttpUrl.get(endpoint), meteringStops)).build();
+        closeables.add(() -> { client.dispatcher().executorService().shutdown(); client.connectionPool().evictAll(); });
+        var request = new okhttp3.Request.Builder().url(endpoint + "/chat/completions").header("Authorization", "Bearer " + KEY)
+            .tag(OpenAiBudgetInvocation.class, invocation).post(okhttp3.RequestBody.create("""
+                {"model":"gpt-4o-mini","messages":[{"role":"user","content":"fixture-private-request"}],
+                 "max_completion_tokens":1000,"service_tier":"default","metadata":{"private":"fixture-private-param"}}
+                """, okhttp3.MediaType.get("application/json"))).build();
+        return client.newCall(request).execute();
     }
 
     private String responseWithTier(String tier) throws Exception {

@@ -114,7 +114,7 @@ class RuntimeAdminOverviewControllerTest {
                 .locations("classpath:db/runtime-migration").load();
             v20.migrate(); v20.validate();
             beans.addBean("flyway", v20);
-            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("28");
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("29");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1", "loomai-document-preparation-evaluation-v1")
@@ -125,7 +125,7 @@ class RuntimeAdminOverviewControllerTest {
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "release-scoped-retirement-v24",
                 "version", "24", "description", "release scoped retirement", "state", "SUCCESS"));
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("reranking-budget-binding-v1")
-                .hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 8);
+                .hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 9);
         }
     }
 
@@ -281,7 +281,7 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.69"));
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.70"));
         assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.8.52");
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
@@ -303,7 +303,7 @@ class RuntimeAdminOverviewControllerTest {
             "schemaVersion",
             "loomai-runtime-capabilities-v1"
         );
-        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.69");
+        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.70");
         assertThat(runtimeCapabilityManifest.get("supportedBehaviorTypes")).isEqualTo(List.of(
             "AGENTIC_SPECIALIST_TEAM",
             "CONVERSATIONAL",

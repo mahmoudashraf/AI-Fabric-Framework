@@ -54,4 +54,21 @@ class AuthoringCompletionContractTest {
         var failedReceipt = step("save", "authoring_update_draft", true, Map.of("status", "FAILED"));
         assertThat(AuthoringCompletionContract.validate(checkpoint(check(true, true, "candidate"), failedReceipt), mapper)).isNotNull();
     }
+    @Test void previewUsesCheckedCandidateCoverageAndNeverRequiresSavingIt() {
+        var status = mapper.createObjectNode();
+        status.putObject("sourceCoverage").put("required", true).put("complete", false);
+        status.putObject("lastCandidateCoverage").put("evidence", "CANDIDATE_NOT_SAVED").put("complete", true);
+        assertThat(AuthoringCompletionContract.coverage(status, true)).isNull();
+        assertThat(AuthoringCompletionContract.coverage(status, false).code()).isEqualTo("AUTHORING_SOURCE_COVERAGE_INCOMPLETE");
+        status.withObject("/lastCandidateCoverage").put("complete", false);
+        assertThat(AuthoringCompletionContract.coverage(status, true).code()).isEqualTo("AUTHORING_PREVIEW_COVERAGE_INCOMPLETE");
+    }
+    @Test void currentCompleteNoOpAndNonRequiredCoverageDoNotForceAnotherCheckOrWrite() {
+        var status = mapper.createObjectNode();
+        status.putObject("sourceCoverage").put("required", true).put("complete", true);
+        assertThat(AuthoringCompletionContract.coverage(status, false)).isNull();
+        assertThat(AuthoringCompletionContract.coverage(status, true)).isNull();
+        status.withObject("/sourceCoverage").put("required", false).put("complete", false);
+        assertThat(AuthoringCompletionContract.coverage(status, true)).isNull();
+    }
 }

@@ -32,6 +32,7 @@ final class OpenAiExchangeGuard implements Interceptor {
     private static final Set<String> MINI_UNREVIEWED_OPTIONS = Set.of("temperature", "top_p", "logprobs", "top_logprobs",
         "frequency_penalty", "presence_penalty", "logit_bias", "seed", "stop");
     private static final Set<String> EMBEDDING_FIELDS = Set.of("model", "input", "dimensions", "encoding_format", "user");
+    private static final Set<String> FINISH_REASONS = Set.of("stop", "length", "tool_calls", "content_filter", "function_call");
     private final ObjectMapper json = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private final ProviderBudgetLedger ledger;
@@ -95,12 +96,15 @@ final class OpenAiExchangeGuard implements Interceptor {
             }
             byte[] bytes = response.body().byteStream().readNBytes(MAX_BODY_BYTES + 1);
             if (bytes.length > MAX_BODY_BYTES) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
-            Usage actual = actual(plan, json.readTree(bytes));
+            JsonNode nativeResponse = json.readTree(bytes);
+            Usage actual = actual(plan, nativeResponse);
+            String providerRequestId = providerRequestId(response);
             Response result = response.newBuilder().body(ResponseBody.create(bytes, response.body().contentType())).build();
             response.close();
             response = null;
             // Successful settlement is performed once, from the native body, before the SDK sees it.
             ledger.settle(binding.approvalId(), binding.scope(), attemptId, actual, requestEvidence);
+            observeCompletion(request, plan, nativeResponse, actual, attemptId, providerRequestId);
             return result;
         } catch (Exception unknown) {
             if (response != null) {
@@ -128,6 +132,47 @@ final class OpenAiExchangeGuard implements Interceptor {
     private static void observe(Request request, OpenAiBudgetTransportException failure) {
         OpenAiBudgetInvocation invocation = request.tag(OpenAiBudgetInvocation.class);
         if (invocation != null) invocation.denied(failure);
+    }
+
+    private static void observeCompletion(Request request, Plan plan, JsonNode response, Usage usage,
+        UUID attemptId, String providerRequestId) {
+        OpenAiBudgetInvocation invocation = request.tag(OpenAiBudgetInvocation.class);
+        if (invocation == null) return;
+        try {
+            JsonNode choices = response.path("choices");
+            JsonNode choice = plan.chat() && choices.isArray() && choices.size() == 1 ? choices.get(0) : null;
+            JsonNode content = choice == null ? null : choice.path("message").get("content");
+            Integer length = null;
+            Boolean empty = null;
+            if (content != null && content.isNull()) {
+                length = 0;
+                empty = true;
+            } else if (content != null && content.isTextual()) {
+                length = content.textValue().length();
+                empty = content.textValue().isBlank();
+            }
+            String finish = choice == null ? null : choice.path("finish_reason").textValue();
+            if (finish == null || !FINISH_REASONS.contains(finish)) finish = null;
+            Long reasoning = plan.chat() ? optionalTokens(response.path("usage").path("completion_tokens_details").get("reasoning_tokens")) : null;
+            if (reasoning != null && reasoning > usage.outputTokens()) reasoning = null;
+            invocation.completed(new OpenAiBudgetInvocation.Completion(invocation.operationId(), attemptId, providerRequestId,
+                plan.chat() ? OpenAiBudgetInvocation.Operation.CHAT_COMPLETION : OpenAiBudgetInvocation.Operation.EMBEDDING,
+                plan.model(), response.path("model").textValue(), plan.chat() ? plan.outputCap() : null, finish,
+                usage.inputTokens(), plan.chat() ? usage.outputTokens() : null, reasoning, length, empty));
+        } catch (RuntimeException unavailable) {
+            // Metadata extraction is non-authoritative; never change the already-settled exchange.
+        }
+    }
+
+    private static Long optionalTokens(JsonNode node) {
+        return node != null && node.isIntegralNumber() && node.canConvertToLong() && node.longValue() >= 0 ? node.longValue() : null;
+    }
+
+    private static String providerRequestId(Response response) {
+        var values = response.headers("x-request-id");
+        // Only the provider's identifier shape may cross the diagnostic boundary, never arbitrary header prose.
+        return values.size() == 1 && values.getFirst().length() <= 128 && values.getFirst().matches("req_[A-Za-z0-9_-]+")
+            ? values.getFirst() : null;
     }
 
     private static String evidenceReference(Response response, UUID attemptId) {

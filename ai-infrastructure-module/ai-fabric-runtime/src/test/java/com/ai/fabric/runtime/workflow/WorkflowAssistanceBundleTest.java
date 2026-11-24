@@ -50,4 +50,45 @@ class WorkflowAssistanceBundleTest {
         content.withArray("taskBindings").add(content.path("taskBindings").get(0));
         assertThatThrownBy(() -> bundle(content)).isInstanceOf(IllegalStateException.class);
     }
+    @Test void delegationDescriptorsUsePinnedResourceInstructionsAndCannotWidenPublishedScopes() throws Exception {
+        var content = (ObjectNode) fixture().path("compiled");
+        for (var item : content.path("profiles")) {
+            var profile = (ObjectNode) item;
+            var allowed = profile.putArray("allowedActions");
+            for (var scope : profile.path("requiredScopes")) if (scope.asText().startsWith("action:")) allowed.add(scope.asText().substring(7));
+            if ("setup".equals(profile.path("id").asText())) profile.putArray("delegatedProfiles").add("api");
+        }
+        var published = bundle(content);
+        assertThat(published.profiles()).hasSize(9);
+        assertThat(published.byId("setup").delegatedProfiles()).containsExactly("api");
+        assertThatThrownBy(() -> published.profiles().clear()).isInstanceOf(UnsupportedOperationException.class);
+        var registry = org.mockito.Mockito.mock(ai.fabric.execution.specialist.SpecialistRegistry.class);
+        var registered = org.mockito.Mockito.mock(ai.fabric.execution.specialist.RegisteredSpecialist.class);
+        org.mockito.Mockito.when(registered.contentHash()).thenReturn("a".repeat(64));
+        org.mockito.Mockito.when(registry.requireRegistered(published.byId("api").specialist())).thenReturn(registered);
+        var descriptor = published.delegationProfiles("setup", registry).getFirst();
+        assertThat(descriptor.definitionFingerprint()).isEqualTo("a".repeat(64));
+        assertThat(descriptor.instructions()).contains("Prepare all supported operations");
+        assertThat(descriptor.allowedActions()).contains("authoring_update_draft");
+        ((ObjectNode) content.path("profiles").get(0)).withArray("allowedActions").add("unpublished_admin_write");
+        assertThatThrownBy(() -> bundle(content)).isInstanceOf(IllegalStateException.class);
+    }
+    @Test void nativeLifecyclesRemainTypedInsteadOfUnparseablePollingStates() {
+        var empty = MAPPER.createObjectNode();
+        assertThat(RuntimeDurableGoalHost.lifecycle(ai.fabric.execution.gateway.ExecutionHandleStatus.REJECTED, empty)).isEqualTo("BLOCKED");
+        assertThat(RuntimeDurableGoalHost.lifecycle(ai.fabric.execution.gateway.ExecutionHandleStatus.EXPIRED, empty)).isEqualTo("FAILED");
+        assertThat(RuntimeDurableGoalHost.lifecycle(ai.fabric.execution.gateway.ExecutionHandleStatus.FAILED, empty.put("state", "UNSUPPORTED"))).isEqualTo("BLOCKED");
+        assertThat(RuntimeDurableGoalHost.lifecycle(ai.fabric.execution.gateway.ExecutionHandleStatus.PAUSED, empty.put("state", "NEEDS_INPUT"))).isEqualTo("WAITING_FOR_INPUT");
+    }
+    @Test void publishedGoalBundleMayExceed64kButCannotExceedTheSingleEnvironmentValueBound() throws Exception {
+        var content = (ObjectNode) fixture().path("compiled");
+        int initial = MAPPER.writeValueAsBytes(content).length;
+        content.put("padding", "x".repeat(90000 - initial));
+        assertThat(MAPPER.writeValueAsBytes(content).length).isBetween(65537, WorkflowAssistanceBundle.MAX_BUNDLE_BYTES);
+        assertThat(bundle(content).enabled()).isTrue();
+        content.put("padding", "x".repeat(WorkflowAssistanceBundle.MAX_BUNDLE_BYTES));
+        assertThatThrownBy(() -> bundle(content)).hasMessageContaining("96000 bytes");
+        assertThatThrownBy(() -> new WorkflowAssistanceBundle(MAPPER, "x".repeat(WorkflowAssistanceBundle.MAX_BASE64_CHARACTERS + 1), "sha256:" + "0".repeat(64)))
+            .hasMessageContaining("128000 Base64 characters");
+    }
 }

@@ -28,7 +28,19 @@ public class ChatQueryRequest {
     /** Optional backend authoring reference; accepted only with dedicated verified authoring scope. */
     private ConfigurationWork configurationWork;
     public record ConfigurationWork(String sessionId, String turnId, String task, String profileId,
-                                    String releaseId, String bundleHash, boolean previewOnly, int maxCorrections) { }
+                                    String releaseId, String bundleHash, boolean previewOnly, int maxCorrections,
+                                    boolean goalMode, String authorityReference, String goalId, java.time.Instant authorityDeadline,
+                                    long requestRevision, long cancellationEpoch, int segment) {
+        public ConfigurationWork(String sessionId, String turnId, String task, String profileId,
+            String releaseId, String bundleHash, boolean previewOnly, int maxCorrections) {
+            this(sessionId, turnId, task, profileId, releaseId, bundleHash, previewOnly, maxCorrections,
+                false, null, null, null, 0, 0, 0);
+        }
+        public ConfigurationWork renewed(long revision, long epoch, int nextSegment, java.time.Instant deadline) {
+            return new ConfigurationWork(sessionId, turnId, task, profileId, releaseId, bundleHash, previewOnly,
+                maxCorrections, goalMode, authorityReference, goalId, deadline, revision, epoch, nextSegment);
+        }
+    }
 
     @JsonIgnore
     @Schema(hidden = true)

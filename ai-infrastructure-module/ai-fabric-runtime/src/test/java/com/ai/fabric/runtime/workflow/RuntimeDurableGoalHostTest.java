@@ -1,0 +1,250 @@
+package com.ai.fabric.runtime.workflow;
+
+import ai.fabric.chat.control.*;
+import ai.fabric.execution.gateway.*;
+import ai.fabric.execution.state.*;
+import ai.fabric.intent.orchestration.OrchestrationContext;
+import ai.fabric.intent.orchestration.control.OrchestrationControlException;
+import ai.fabric.intent.orchestration.control.OrchestrationTurnGuard;
+import ai.fabric.intent.orchestration.conversation.ApprovedConversationSnapshot;
+import com.ai.fabric.budget.ProviderBudgetLedger.ChatReceipt;
+import com.ai.fabric.runtime.auth.*;
+import com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes;
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.handover.*;
+import com.ai.fabric.runtime.web.dto.ChatQueryRequest.ConfigurationWork;
+import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.atomic.*;
+import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.web.server.ResponseStatusException;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+class RuntimeDurableGoalHostTest {
+    @Test void expiredLoginPausesWithoutCallsAndFreshAuthorityResumesWithinTheOriginalRootLifetime() throws Exception {
+        var fixture = new Fixture(); var calls = new AtomicInteger();
+        when(fixture.platform.renew(any(), anyString())).thenThrow(new ResponseStatusException(UNAUTHORIZED));
+        var paused = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+        assertThat(paused.status()).isEqualTo(AIExecutionStatus.PAUSED);
+        assertThat(paused.failure().reason()).isEqualTo("AUTHORING_REAUTHENTICATION_REQUIRED");
+        assertThat(calls).hasValue(0);
+        assertThat(fixture.record.deadline()).isAfter(Instant.now().plusSeconds(3000));
+        verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+
+        doReturn(fixture.lease()).when(fixture.platform).renew(any(), anyString());
+        var completed = fixture.host.executeSegment(fixture.claim, fixture.request, request -> {
+            assertThat(request.input()).isEqualTo(fixture.request.input());
+            assertThat(request.deadline()).isEqualTo(fixture.record.deadline());
+            assertThat(request.trustedExecutionContext().subject()).isEqualTo(fixture.request.trustedExecutionContext().subject());
+            assertThat(request.trustedExecutionContext().callerIdentity().expiresAt()).isEqualTo(fixture.auth.getExpiresAt());
+            assertThat(request.trustedExecutionContext().callerIdentity().authMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+            fixture.guard.get().verifyBeforeOrchestration(); calls.incrementAndGet(); return fixture.success();
+        });
+        assertThat(completed.status()).isEqualTo(AIExecutionStatus.SUCCEEDED);
+        assertThat(calls).hasValue(1);
+        assertThat(fixture.installed.get().authorityDeadline()).isEqualTo(fixture.freshGrant);
+        assertThat(fixture.work.authorityDeadline()).isBefore(Instant.now());
+        assertThatThrownBy(() -> fixture.guard.get().verifyBeforeOrchestration())
+            .isInstanceOfSatisfying(OrchestrationControlException.class, failure -> assertThat(failure.code()).isEqualTo("AUTHORING_SEGMENT_RELEASED"));
+        verify(fixture.turn).close(); verify(fixture.snapshots).release(any());
+        assertThat(fixture.record.protectedRequest()).doesNotContain("Bearer", "fresh-fixture");
+    }
+
+    @Test void aRenewalCannotChangeThePinnedTenantOrPrincipal() throws Exception {
+        var fixture = new Fixture(); var calls = new AtomicInteger();
+        when(fixture.platform.renew(any(), anyString())).thenReturn(fixture.lease());
+        when(fixture.assertions.validateAssertionHeader(anyString())).thenReturn(fixture.auth.toBuilder().tenantId("foreign").build());
+        var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+        assertThat(result.status()).isEqualTo(AIExecutionStatus.PAUSED); assertThat(calls).hasValue(0);
+        verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+    }
+    @Test void waitingStatusPreservesTheActualQuestionAndOffersAnswerAndResume() throws Exception {
+        var fixture = new Fixture();
+        var waiting = fixture.record.goalTransition(ExecutionHandleStatus.PAUSED, null, "WORKFLOW_NEEDS_INPUT", null, fixture.now, true);
+        when(fixture.repository.findById(fixture.id)).thenReturn(Optional.of(waiting));
+        String question = "Which owned connection should I use?";
+        var output = fixture.mapper.createObjectNode(); output.putObject("work").put("state", "NEEDS_INPUT").putArray("questions").add(question);
+        var result = new AIExecutionResult<>(fixture.id, fixture.request.specialistId(), AIExecutionStatus.PAUSED,
+            null, List.of(), Map.of("workflow", fixture.mapper.convertValue(output.path("work"), Map.class)), null, fixture.now, fixture.now);
+        var snapshot = new ExecutionSnapshot(new ExecutionHandle(fixture.id, ExecutionDurability.DURABLE, ExecutionHandleStatus.PAUSED,
+            waiting.deadline(), waiting.expiresAt(), "WORKFLOW_NEEDS_INPUT"), result);
+        when(fixture.gateway.find(eq(fixture.id), any())).thenReturn(Optional.of(snapshot));
+        var view = fixture.host.find(RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build(), fixture.conversation, fixture.id);
+        assertThat(view.getGoal()).containsEntry("state", "WAITING_FOR_INPUT").containsEntry("reasonMessage", question)
+            .containsEntry("answer", question).containsEntry("questions", List.of(question)).containsEntry("canResume", true)
+            .containsEntry("terminal", false).containsEntry("nextAction", "ANSWER_AND_RESUME");
+        verify(fixture.platform, never()).renew(any(), any());
+    }
+
+    @Test void failedNativeControlDeliveryCanRetryTheSameKeyWithoutDroppingTheCommand() throws Exception {
+        var fixture = new Fixture();
+        when(fixture.gateway.controlGoal(eq(fixture.id), eq(GoalExecutionControl.PAUSE), any()))
+            .thenThrow(new IllegalStateException("fixture-store-unavailable")).thenReturn(true);
+        when(fixture.gateway.find(eq(fixture.id), any())).thenReturn(Optional.of(new ExecutionSnapshot(new ExecutionHandle(fixture.id,
+            ExecutionDurability.DURABLE, ExecutionHandleStatus.PAUSED, fixture.record.deadline(), fixture.record.expiresAt(), "GOAL_USER_PAUSED"), null)));
+        var control = new RuntimeDurableGoalHost.Control("PAUSE", fixture.goal, fixture.goal, fixture.work.sessionId(), fixture.work.turnId(), 1, 1, 1, null);
+        var identity = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+        assertThatThrownBy(() -> fixture.host.control(identity, fixture.conversation, fixture.id, control, "pause-retry"))
+            .isInstanceOf(IllegalStateException.class);
+        fixture.host.control(identity, fixture.conversation, fixture.id, control, "pause-retry");
+        fixture.host.control(identity, fixture.conversation, fixture.id, control, "pause-retry");
+        verify(fixture.gateway, times(2)).controlGoal(eq(fixture.id), eq(GoalExecutionControl.PAUSE), any());
+    }
+
+    @Test void narrowedAndEmptySourceSelectionsNeverRestoreTheBroaderPinnedDelegationGrant() {
+        var mapper = new ObjectMapper();
+        var pins = mapper.createObjectNode().put("one", "hash-one").put("two", "hash-two");
+        var lease = mapper.createObjectNode(); lease.putArray("sourceIds").add("two");
+        assertThat(RuntimeDurableGoalHost.effectiveSources(pins, lease)).isEqualTo(mapper.createObjectNode().put("two", "hash-two"));
+        lease.putArray("sourceIds");
+        assertThat(RuntimeDurableGoalHost.effectiveSources(pins, lease).isEmpty()).isTrue();
+        lease.putArray("sourceIds").add("foreign");
+        assertThatThrownBy(() -> RuntimeDurableGoalHost.effectiveSources(pins, lease)).isInstanceOf(ResponseStatusException.class);
+        assertThat(pins.size()).isEqualTo(2);
+    }
+
+    @Test void diagnosticReadbackNeverCrossesTheInternalAuthoringIdentityBoundary() throws Exception {
+        var fixture = new Fixture();
+        for (var auth : List.of(fixture.auth.toBuilder().subjectId("authoring:foreign").sessionId("authoring:foreign").build(),
+            fixture.auth.toBuilder().authMode(RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED).callerType(RuntimeAuthCallerType.PUBLIC_BROWSER).build(),
+            fixture.auth.toBuilder().tenantId("foreign-tenant").build(), fixture.auth.toBuilder().grantedScopes(List.of("chat:messages")).build())) {
+            var identity = RuntimeResolvedIdentity.builder().authContext(auth).warnings(List.of()).build();
+            assertThatThrownBy(() -> fixture.host.find(identity, fixture.conversation, fixture.id))
+                .isInstanceOfSatisfying(ResponseStatusException.class, failure -> assertThat(failure.getStatusCode().value()).isEqualTo(404));
+        }
+        verify(fixture.gateway, never()).find(anyString(), any());
+    }
+
+    @Test void rejectedSdkAdmissionDoesNotLeaveAnActiveUnaddressableCanonicalGoal() throws Exception {
+        var fixture = new Fixture();
+        var profile = fixture.bundle.select("ACTIONS", null);
+        when(fixture.dispatcher.validate(any(), any(), any())).thenReturn(profile);
+        var policy = new ai.fabric.intent.orchestration.workflow.WorkflowPolicy(true, 8, 3, 16, 2, Duration.ofSeconds(120),
+            new ai.fabric.intent.orchestration.workflow.WorkflowGoalPolicy(true, Duration.ofHours(1), Duration.ZERO, 8, 4, List.of()));
+        when(fixture.registry.require(profile.specialist()).executionProfile().workflowPolicy()).thenReturn(policy);
+        when(fixture.platform.renew(any(), nullable(String.class))).thenReturn(fixture.lease());
+        when(fixture.gateway.submitGoal(any())).thenReturn(new ExecutionHandle("exec-rejected", ExecutionDurability.DURABLE,
+            ExecutionHandleStatus.REJECTED, fixture.freshGrant, fixture.freshGrant, "EXECUTION_STATE_UNAVAILABLE"));
+        var scope = new ConversationScope("tenant", "deployment", fixture.conversation, "authoring:" + fixture.work.sessionId());
+        var identity = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+        when(fixture.conversations.messages(eq(scope), eq(0L), eq(500))).thenReturn(List.of(new ConversationMessage("user-one", scope,
+            1, ConversationParticipantRole.USER, identity.ownerId(), "Original immutable query", fixture.work.turnId(), Map.of(), fixture.now)));
+        var metadata = new LinkedHashMap<>(fixture.metadata.get());
+        metadata.put("authoringGoal", Map.of("goalId", fixture.goal, "workId", "", "state", "QUEUED", "requestRevision", 1L, "cancellationEpoch", 0L));
+        fixture.metadata.set(metadata);
+        var body = new ChatQueryRequest(); body.setConversationId(fixture.conversation); body.setQuery("Original immutable query"); body.setConfigurationWork(fixture.work);
+        var turn = new RuntimeConversationTurn(scope, new ConversationTurnLease(scope, "root-lease", 0, fixture.now, fixture.freshGrant),
+            mock(OrchestrationTurnGuard.class), null);
+        assertThatThrownBy(() -> fixture.host.submit(body, identity, turn, new ChatReceipt(UUID.randomUUID(), 1, true)))
+            .isInstanceOfSatisfying(ResponseStatusException.class, failure -> assertThat(failure.getReason()).isEqualTo("AUTHORING_GOAL_EXECUTION_STATE_UNAVAILABLE"));
+        assertThat(fixture.mapper.valueToTree(fixture.metadata.get()).path("authoringGoal").path("state").asText()).isEqualTo("BLOCKED");
+        verify(fixture.conversations, never()).appendMessage(any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> ObjectProvider<T> provider(T bean) {
+        ObjectProvider<T> provider = mock(ObjectProvider.class);
+        when(provider.getObject()).thenReturn(bean); when(provider.getIfAvailable()).thenReturn(bean); return provider;
+    }
+
+    private static final class Fixture {
+        final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        final Instant now = Instant.now();
+        final Instant freshGrant = now.plusSeconds(3600);
+        final String id = "exec-host-fixture", goal = "cag-host-fixture", conversation = "authoring-host-fixture";
+        final RuntimeAuthContext auth;
+        final ConfigurationWork work;
+        final AIExecutionRequest<?> request;
+        final DurableExecutionRecord record;
+        final GoalExecutionClaim claim;
+        final RuntimeDurableGoalHost host;
+        final WorkflowAssistanceBundle bundle;
+        final ai.fabric.execution.specialist.SpecialistRegistry registry = mock(ai.fabric.execution.specialist.SpecialistRegistry.class, RETURNS_DEEP_STUBS);
+        final ConversationControlGateway conversations = mock(ConversationControlGateway.class);
+        final AtomicReference<Map<String, Object>> metadata = new AtomicReference<>();
+        final AuthoringPlatformClient platform = mock(AuthoringPlatformClient.class);
+        final RuntimePrivateAssertionService assertions = mock(RuntimePrivateAssertionService.class);
+        final RuntimeConfiguredWorkflowDispatcher dispatcher = mock(RuntimeConfiguredWorkflowDispatcher.class);
+        final RuntimeBudgetTurnScopes budgets = mock(RuntimeBudgetTurnScopes.class);
+        final RuntimeBudgetTurnScopes.Turn turn = mock(RuntimeBudgetTurnScopes.Turn.class);
+        final AIExecutionConversationSnapshotRegistry snapshots = mock(AIExecutionConversationSnapshotRegistry.class);
+        final AtomicReference<OrchestrationTurnGuard> guard = new AtomicReference<>();
+        final AtomicReference<ConfigurationWork> installed = new AtomicReference<>();
+        final RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        final AIExecutionGateway gateway = mock(AIExecutionGateway.class);
+        final DurableExecutionRepository repository = mock(DurableExecutionRepository.class);
+        final ObjectNode pins = mapper.createObjectNode().put("source-one", "sha256:" + "a".repeat(64));
+
+        Fixture() throws Exception {
+            ObjectNode compiled;
+            try (var input = new ClassPathResource("workflow-assistance-goal-compiler-fixture.json").getInputStream()) { compiled = (ObjectNode) mapper.readTree(input).path("compiled"); }
+            bundle = WorkflowAssistanceBundleTest.bundle(compiled); var profile = bundle.select("ACTIONS", null);
+            var scopes = new ArrayList<>(profile.requiredScopes()); scopes.addAll(List.of("chat:query", "chat:messages", "chat:conversations"));
+            auth = RuntimeAuthContext.builder().subjectId("authoring:cas-host-fixture").sessionId("authoring:cas-host-fixture")
+                .subjectType(RuntimeAuthSubjectType.END_USER).authMode(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED)
+                .callerType(RuntimeAuthCallerType.TRUSTED_BACKEND).tenantId("tenant").deploymentId("deployment").customerId("customer")
+                .issuer("issuer").audiences(List.of("deployment")).expiresAt(now.plusSeconds(180)).grantedScopes(scopes).build();
+            var identity = RuntimeResolvedIdentity.builder().authContext(auth).warnings(List.of()).build();
+            var trusted = RuntimeDurableGoalHost.trusted(identity, conversation);
+            work = new ConfigurationWork("cas-host-fixture", "cat-host-fixture", "ACTIONS", profile.id(), "release", bundle.contentHash(),
+                false, 2, true, goal, goal, now.minusSeconds(60), 1, 0, 1);
+            var receipt = new ChatReceipt(UUID.randomUUID(), 1, true);
+            var root = new RuntimeDurableGoalHost.Root(work, conversation, 1, work.turnId(), 0, receipt, pins, auth.getIssuer(), auth.getAudiences(), auth.getCustomerId());
+            var security = new DurableExecutionSecurity(mapper, "host-test-encryption-at-least-32-characters", "host-test-fingerprint-at-least-32-characters");
+            var payload = new LinkedHashMap<String, Object>();
+            payload.put("input", Map.of("query", "Original immutable query")); payload.put("principalId", identity.ownerId());
+            payload.put("subjectType", "conversation"); payload.put("subjectId", conversation); payload.put("tenantId", "tenant"); payload.put("deploymentId", "deployment");
+            record = DurableExecutionRecord.queued(id, profile.specialist(), "a".repeat(64), security.accessFingerprint(trusted),
+                security.idempotencyFingerprint(trusted, work.turnId()), "b".repeat(64), security.protect(payload, id + ":request"),
+                freshGrant, now, Duration.ofDays(7)).withGoalAuthority(goal).claimed("worker", now, now.plusSeconds(120));
+            claim = new GoalExecutionClaim(id, goal, "worker", freshGrant, 1, true);
+            request = new AIExecutionRequest<>(profile.specialist(), mapper.valueToTree(payload.get("input")), trusted, null, freshGrant, work.turnId());
+            when(repository.findById(id)).thenReturn(Optional.of(record));
+            var scope = new ConversationScope("tenant", "deployment", conversation, identity.ownerId());
+            when(conversations.status(scope)).thenReturn(new ConversationControlSnapshot(scope, ConversationControlState.AI_ACTIVE, 0, 0, null, null, now));
+            metadata.set(Map.of(
+                "authoringGoalRoots", Map.of(goal, security.protect(Map.of("root", mapper.valueToTree(root)), "canonical-goal-root:" + goal)),
+                "authoringGoal", Map.of("goalId", goal, "workId", id, "state", "QUEUED", "requestRevision", 1L, "cancellationEpoch", 0L)));
+            when(conversations.orchestrationState(eq(scope), eq(0L))).thenAnswer(call -> Optional.of(new ConversationOrchestrationState(scope, 0, metadata.get(), now)));
+            when(conversations.updateOrchestrationState(eq(scope), eq(0L), any())).thenAnswer(call -> {
+                UnaryOperator<Map<String, Object>> mutation = call.getArgument(2); metadata.set(mutation.apply(metadata.get()));
+                return new ConversationOrchestrationState(scope, 1, metadata.get(), now);
+            });
+            when(assertions.validateAssertionHeader(anyString())).thenReturn(auth);
+            var handovers = mock(RuntimeConversationHandoverService.class);
+            var canonical = new RuntimeConversationTurn(scope, new ConversationTurnLease(scope, "lease-fresh", 0, now, now.plusSeconds(120)),
+                mock(OrchestrationTurnGuard.class), new ApprovedConversationSnapshot(work.turnId(), identity.ownerId(), conversation,
+                    "runtime-conversation", "a".repeat(64), 0, List.of(), now));
+            when(handovers.beginAiTurn(any(), eq(conversation), eq(1L), eq(work.turnId()))).thenReturn(canonical);
+            when(snapshots.approve(any(), any())).thenAnswer(call -> call.getArgument(0));
+            when(budgets.openGoalSegment(any(), eq(receipt), any())).thenAnswer(call -> { guard.set(call.getArgument(2)); return turn; });
+            when(turn.providerDiagnostics()).thenReturn(new RuntimeBudgetTurnScopes.ProviderDiagnostics(List.of(), 0));
+            when(dispatcher.installSegment(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
+                installed.set(call.getArgument(0)); return (AutoCloseable) () -> { };
+            });
+            host = new RuntimeDurableGoalHost(bundle, platform, dispatcher, provider(gateway), provider(repository),
+                provider(security), provider(registry), provider(snapshots), provider(conversations),
+                provider(handovers), provider(budgets), assertions, properties, mapper, Clock.systemUTC());
+        }
+        ObjectNode lease() {
+            var result = mapper.createObjectNode().put("authorityId", goal).put("goalId", goal).put("sessionId", work.sessionId())
+                .put("turnId", work.turnId()).put("conversationId", conversation).put("profileId", work.profileId()).put("releaseId", work.releaseId())
+                .put("bundleHash", work.bundleHash()).put("previewOnly", false).put("validUntil", freshGrant.toString())
+                .put("requestRevision", 1).put("cancellationEpoch", 0).put("segment", 1).put("workId", id).put("operationNamespace", id);
+            result.set("sourceVersions", pins);
+            result.putObject("runtimeHeaders").put(properties.getIngress().getPrivateAssertions().getAuthorizationHeader(), "Bearer fresh-fixture");
+            return result;
+        }
+        AIExecutionResult<?> success() { return new AIExecutionResult<>(id, request.specialistId(), AIExecutionStatus.SUCCEEDED,
+            mapper.createObjectNode().put("answer", "Done"), List.of(), Map.of(), null, now, now); }
+    }
+}

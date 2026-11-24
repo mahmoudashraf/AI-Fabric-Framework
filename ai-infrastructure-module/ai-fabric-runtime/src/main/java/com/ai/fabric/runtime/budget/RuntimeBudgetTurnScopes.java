@@ -11,8 +11,10 @@ import com.ai.fabric.budget.ProviderBudgetLedger.ChatReceipt;
 import com.ai.fabric.budget.openai.OpenAiBudgetException;
 import com.ai.fabric.budget.openai.OpenAiBudgetInvocation;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,13 +23,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Synchronous host boundary only. The resolver must capture the observer before SDK dispatch, attach it
- * to that immutable operation and invoke it on failure. Pass this instance as the native Capture.
+ * to that immutable operation and invoke it on failure/completion. Pass this instance as the native Capture.
  * Ledger authorization never consults this context. Unpropagated async query paths are unsupported.
  */
 public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Capture {
     public static final String INTERRUPTION_KEY = "budgetInterruption";
     public static final String REPORTED_OUTCOME_KEY = "budgetInterruptedOutcome";
     public static final String INTERRUPTION_CODE = "PROVIDER_BUDGET_INTERRUPTED";
+    public static final int MAX_PROVIDER_OBSERVATIONS = 64;
     private static final String INTERRUPTION_MESSAGE = "Provider spending was interrupted; actions may already have completed.";
     private final RuntimeBudgetBindingService budgets;
     private final ThreadLocal<Turn> current = new ThreadLocal<>();
@@ -83,6 +86,28 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         }
     }
 
+    /** Restore an already-admitted durable root; every native exchange still reserves its own usage. */
+    public Turn openGoalSegment(RuntimeResolvedIdentity identity, ChatReceipt rootReceipt, OrchestrationTurnGuard guard) {
+        requireNoScope();
+        var auth = Objects.requireNonNull(identity).getAuthContext();
+        var scope = budgets.scope();
+        if (rootReceipt == null || guard == null || auth == null
+            || !scope.customerId().equals(auth.getCustomerId()) || !scope.deploymentId().equals(auth.getDeploymentId())
+            || !auth.getGrantedScopes().contains("configuration:author")
+            || !"TRUSTED_BACKEND".equals(String.valueOf(auth.getCallerType()))
+            || !"PRIVATE_RUNTIME_BACKEND_MEDIATED".equals(String.valueOf(auth.getAuthMode()))
+            || auth.getExpiresAt() == null || !java.time.Instant.now().isBefore(auth.getExpiresAt()))
+            throw new IllegalArgumentException("RUNTIME_BUDGET_GOAL_AUTHORITY_REQUIRED");
+        try {
+            budgets.requireActive();
+            Turn turn = new Turn(rootReceipt, guard, new AtomicReference<>(), new CompletionObservations(), true);
+            current.set(turn);
+            return turn;
+        }
+        catch (BudgetException denied) { throw control(denied); }
+        catch (RuntimeBudgetBindingException denied) { throw control(denied); }
+    }
+
     public Turn openDocumentEvaluation(RuntimeResolvedIdentity verifiedIdentity) {
         requireNoScope();
         try { return open(budgets.recordVerifiedDocumentEvaluationIngress(verifiedIdentity), null); }
@@ -97,12 +122,29 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
             throw new OpenAiBudgetException(OpenAiBudgetException.Code.UNSUPPORTED_REQUEST);
         }
         Turn turn = current.get();
-        if (turn != null) return new OpenAiBudgetInvocation(UUID.randomUUID(), turn::observeFailure);
+        if (turn != null) return new OpenAiBudgetInvocation(UUID.randomUUID(), turn::observeFailure, turn.observations::add);
         EmbeddingWork work = indexing.get();
         if (work != null && operation == OpenAiBudgetInvocation.Operation.EMBEDDING) {
             return new OpenAiBudgetInvocation(UUID.randomUUID(), work::observeFailure);
         }
         throw new OpenAiBudgetException(OpenAiBudgetException.Code.INVOCATION_CONTEXT_REQUIRED);
+    }
+
+    /** Internal readback on the current worker; never automatically added to conversational results. */
+    public Optional<ProviderDiagnostics> currentProviderDiagnostics() {
+        Turn turn = current.get();
+        return turn == null ? Optional.empty() : Optional.of(turn.providerDiagnostics());
+    }
+
+    /** A durable submission must not capture this request's process-local turn in an executor decorator. */
+    public AutoCloseable detachForDurableScheduling() {
+        Turn parent = current.get();
+        if (parent != null) parent.requireOwnerScope();
+        current.remove();
+        return () -> {
+            if (current.get() != null) throw new IllegalStateException("RUNTIME_BUDGET_DURABLE_SCHEDULING_SCOPE_LEAK");
+            if (parent != null) current.set(parent);
+        };
     }
 
     /** Parent must open this inside the actual indexing worker, not on its enqueueing thread. */
@@ -145,7 +187,7 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         if (parent == null) return task;
         return () -> {
             requireNoScope();
-            Turn child = new Turn(parent.receipt, parent.delegate, parent.interruption);
+            Turn child = new Turn(parent.receipt, parent.delegate, parent.interruption, parent.observations, parent.stopAfterDenial);
             current.set(child);
             try (child) {
                 try {
@@ -170,6 +212,27 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
     public record BudgetInterruption(String code, UUID operationId, UUID providerAttemptId, BudgetException.Code budgetCode,
                                      OpenAiBudgetException.Code guardCode) { }
     public record ReportedOutcome(OrchestrationResultType type, boolean success, String errorCode) { }
+
+    /** Bounded metadata snapshot. Null observation fields mean unavailable, not zero/false. */
+    public record ProviderDiagnostics(List<OpenAiBudgetInvocation.Completion> observations, long droppedObservations) {
+        public ProviderDiagnostics { observations = List.copyOf(observations); }
+    }
+
+    private static final class CompletionObservations {
+        private final ArrayDeque<OpenAiBudgetInvocation.Completion> values = new ArrayDeque<>();
+        private long dropped;
+
+        synchronized void add(OpenAiBudgetInvocation.Completion completion) {
+            Objects.requireNonNull(completion);
+            if (values.size() == MAX_PROVIDER_OBSERVATIONS) {
+                values.removeFirst();
+                if (dropped < Long.MAX_VALUE) dropped++;
+            }
+            values.addLast(completion);
+        }
+
+        synchronized ProviderDiagnostics snapshot() { return new ProviderDiagnostics(List.copyOf(values), dropped); }
+    }
 
     private static BudgetInterruption interruption(OpenAiBudgetInvocation.Denial failure) {
         Objects.requireNonNull(failure);
@@ -200,19 +263,25 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
         private final ChatReceipt receipt;
         private final OrchestrationTurnGuard delegate;
         private final AtomicReference<BudgetInterruption> interruption;
+        private final boolean stopAfterDenial;
+        private final CompletionObservations observations;
 
         private Turn(ChatReceipt receipt, OrchestrationTurnGuard delegate) {
-            this(receipt, delegate, new AtomicReference<>());
+            this(receipt, delegate, new AtomicReference<>(), new CompletionObservations(), false);
         }
 
-        private Turn(ChatReceipt receipt, OrchestrationTurnGuard delegate, AtomicReference<BudgetInterruption> interruption) {
+        private Turn(ChatReceipt receipt, OrchestrationTurnGuard delegate, AtomicReference<BudgetInterruption> interruption,
+                     CompletionObservations observations, boolean stopAfterDenial) {
             this.receipt = receipt;
             this.delegate = delegate;
             this.interruption = interruption;
+            this.observations = observations;
+            this.stopAfterDenial = stopAfterDenial;
         }
 
         public Optional<ChatReceipt> chatReceipt() { return Optional.ofNullable(receipt); }
         public Optional<BudgetInterruption> interruption() { return Optional.ofNullable(interruption.get()); }
+        public ProviderDiagnostics providerDiagnostics() { return observations.snapshot(); }
 
         private void observeFailure(OpenAiBudgetInvocation.Denial failure) {
             interruption.compareAndSet(null, RuntimeBudgetTurnScopes.interruption(failure));
@@ -224,6 +293,10 @@ public final class RuntimeBudgetTurnScopes implements OpenAiBudgetInvocation.Cap
             try { budgets.requireActive(); }
             catch (BudgetException denied) { throw control(denied); }
             catch (RuntimeBudgetBindingException denied) { throw control(denied); }
+            var denied = interruption.get();
+            if (stopAfterDenial && denied != null)
+                throw new OrchestrationControlException(denied.budgetCode() == null ? INTERRUPTION_CODE
+                    : "PROVIDER_BUDGET_" + denied.budgetCode().name(), "Provider spending must be restored before work continues.");
             if (delegate != null) delegate.verifyBeforeOrchestration();
         }
 

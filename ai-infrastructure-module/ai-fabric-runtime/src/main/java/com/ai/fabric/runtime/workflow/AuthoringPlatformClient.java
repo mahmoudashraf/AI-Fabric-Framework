@@ -42,6 +42,31 @@ public final class AuthoringPlatformClient {
     public boolean enabled() { return enabled; }
     public String releaseId() { return releaseId; }
 
+    /** Fixed service authentication renews stored work authority; no old JWT is sent or persisted. */
+    public JsonNode renew(com.ai.fabric.runtime.web.dto.ChatQueryRequest.ConfigurationWork work, String workId) {
+        if (!enabled || !releaseId.equals(work.releaseId()) || !work.goalMode()) throw new IllegalStateException("AUTHORING_GOAL_UNAVAILABLE");
+        String session = id(work.sessionId()); String turn = id(work.turnId());
+        try {
+            var body = mapper.createObjectNode().put("goalId", work.goalId()).put("requestRevision", work.requestRevision())
+                .put("cancellationEpoch", work.cancellationEpoch()).put("segment", work.segment());
+            if (workId != null) body.put("workId", workId);
+            var request = HttpRequest.newBuilder(base.resolve("/api/internal/configuration-authoring/" + session + "/" + turn + "/authority"))
+                .timeout(Duration.ofSeconds(15)).header("Content-Type", "application/json").header("Accept", "application/json")
+                .header("X-LOOMAI-AUTHORING-SERVICE-KEY", key).header("X-LOOMAI-AUTHORING-RELEASE-ID", releaseId)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(mapper.writeValueAsBytes(body))).build();
+            var pending = http.sendAsync(request, ignored -> new WorkflowHttpBody());
+            try {
+                var response = pending.get(15, java.util.concurrent.TimeUnit.SECONDS);
+                if (response.statusCode() != 200) throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.valueOf(response.statusCode()), "AUTHORING_GOAL_AUTHORITY_UNAVAILABLE");
+                return mapper.readerFor(JsonNode.class).with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .readValue(response.body());
+            } finally { if (!pending.isDone()) pending.cancel(true); }
+        } catch (org.springframework.web.server.ResponseStatusException denied) { throw denied; }
+        catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException("AUTHORING_GOAL_AUTHORITY_INTERRUPTED"); }
+        catch (Exception unavailable) { throw new IllegalStateException("AUTHORING_GOAL_AUTHORITY_UNAVAILABLE"); }
+    }
+
     public Reply call(String action, Map<String, Object> parameters, ActionContext context) {
         if (!enabled || !(READS.contains(action) || WRITES.contains(action))) throw new IllegalStateException("AUTHORING_TOOL_UNAVAILABLE");
         var metadata = context.metadata();
@@ -66,6 +91,12 @@ public final class AuthoringPlatformClient {
             headers.put("AUDIENCES", String.join(",", auth.getAudiences())); headers.put("SCOPES", String.join(",", auth.getGrantedScopes()));
             headers.put("EXPIRES-AT", auth.getExpiresAt());
             headers.forEach((name, value) -> { if (value == null || value.isBlank()) throw new IllegalStateException("AUTHORING_TOOL_IDENTITY_INCOMPLETE"); request.header("X-AIFABRIC-AUTH-" + name, value); });
+            if (metadata.containsKey("authoringGoalId")) {
+                request.header("X-LOOMAI-AUTHORING-GOAL-ID", id(metadata.get("authoringGoalId")))
+                    .header("X-LOOMAI-AUTHORING-REQUEST-REVISION", String.valueOf(metadata.get("authoringRequestRevision")))
+                    .header("X-LOOMAI-AUTHORING-CANCELLATION-EPOCH", String.valueOf(metadata.get("authoringCancellationEpoch")))
+                    .header("X-LOOMAI-AUTHORING-SEGMENT", String.valueOf(metadata.get("authoringSegment")));
+            }
             var pending = http.sendAsync(request.POST(HttpRequest.BodyPublishers.ofByteArray(mapper.writeValueAsBytes(parameters))).build(), ignored -> new WorkflowHttpBody());
             try {
                 var response = pending.get(remaining.toNanos(), java.util.concurrent.TimeUnit.NANOSECONDS);

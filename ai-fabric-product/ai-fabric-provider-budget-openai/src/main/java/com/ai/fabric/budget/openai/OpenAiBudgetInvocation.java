@@ -6,10 +6,17 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Correlation only. It neither carries nor selects a billing approval, scope or credential. */
-public record OpenAiBudgetInvocation(UUID operationId, DenialObserver observer) {
+public record OpenAiBudgetInvocation(UUID operationId, DenialObserver observer, CompletionObserver completionObserver) {
     public static final OpenAiBudgetInvocation NONE = new OpenAiBudgetInvocation(null, failure -> { });
 
-    public OpenAiBudgetInvocation { Objects.requireNonNull(observer); }
+    public OpenAiBudgetInvocation(UUID operationId, DenialObserver observer) {
+        this(operationId, observer, completion -> { });
+    }
+
+    public OpenAiBudgetInvocation {
+        Objects.requireNonNull(observer);
+        Objects.requireNonNull(completionObserver);
+    }
 
     public enum Operation { CHAT_COMPLETION, EMBEDDING, UNSUPPORTED }
 
@@ -20,8 +27,32 @@ public record OpenAiBudgetInvocation(UUID operationId, DenialObserver observer) 
 
     @FunctionalInterface public interface DenialObserver { void onDenied(Denial failure); }
 
+    @FunctionalInterface public interface CompletionObserver {
+        /** May run on the native SDK worker. Called only after native usage settles successfully. */
+        void onCompleted(Completion completion);
+    }
+
     public record Denial(UUID operationId, UUID attemptId, BudgetException.Code budgetCode,
                          OpenAiBudgetException.Code guardCode) { }
+
+    /**
+     * Native exchange evidence, not a claim that SDK parsing or generation succeeded. No bodies,
+     * headers, credentials, parameters or reasoning text. Optional/unrecognized metadata is null.
+     * Content length is Java string length; empty includes blank text and explicit null content.
+     * Chat-only fields are null for embeddings. Reasoning tokens are a subset of output tokens.
+     */
+    public record Completion(UUID operationId, UUID attemptId, String providerRequestId, Operation operation,
+                             String model, String responseModel, Long effectiveOutputCap, String finishReason,
+                             long inputTokens, Long outputTokens, Long reasoningTokens,
+                             Integer contentLength, Boolean contentEmpty) { }
+
+    void completed(Completion completion) {
+        try {
+            completionObserver.onCompleted(completion);
+        } catch (RuntimeException unavailable) {
+            // Optional diagnostics cannot turn a settled exchange into an ambiguous outcome or retry.
+        }
+    }
 
     void denied(OpenAiBudgetTransportException failure) {
         try {

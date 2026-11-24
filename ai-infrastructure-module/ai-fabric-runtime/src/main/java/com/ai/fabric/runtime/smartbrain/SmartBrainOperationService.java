@@ -525,7 +525,7 @@ public class SmartBrainOperationService {
     private String map(ExecutionHandleStatus status) {
         return switch (status) {
             case QUEUED -> "QUEUED";
-            case RUNNING, WAITING_FOR_INPUT -> "RUNNING";
+            case RUNNING, WAITING_FOR_INPUT, YIELDED, PAUSED -> "RUNNING";
             case SUCCEEDED -> "SUCCEEDED";
             case CANCELLED -> "CANCELLED";
             case EXPIRED -> "EXPIRED";
@@ -536,7 +536,9 @@ public class SmartBrainOperationService {
     private boolean isActive(ExecutionHandleStatus status) {
         return status == ExecutionHandleStatus.QUEUED
             || status == ExecutionHandleStatus.RUNNING
-            || status == ExecutionHandleStatus.WAITING_FOR_INPUT;
+            || status == ExecutionHandleStatus.WAITING_FOR_INPUT
+            || status == ExecutionHandleStatus.YIELDED
+            || status == ExecutionHandleStatus.PAUSED;
     }
 
     private boolean isTerminal(ExecutionHandleStatus status) {
