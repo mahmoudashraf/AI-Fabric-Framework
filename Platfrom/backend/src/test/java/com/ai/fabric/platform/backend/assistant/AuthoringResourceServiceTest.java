@@ -92,6 +92,18 @@ class AuthoringResourceServiceTest {
         verifyNoInteractions(brains, validation);
     }
 
+    @Test void wholeBrainSetupUsesExistingDraftSectionsWithoutExpandingToCredentialsOrOtherResources() throws Exception {
+        brainFixture();
+        var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "BRAIN_SETUP");
+        assertThat(snapshot.allowedPaths()).contains("/actionsConfig", "/routingConfig", "/promptConfig", "/providerConfig",
+            "/knowledgeSourceConfig", "/behaviorConfig/specialistAssistance");
+        assertThat(snapshot.allowedPaths()).doesNotContain("/securityConfig", "/shellConfig", "/behaviorConfig/workflowAssistance", "/manifest", "/configuration");
+        assertStatus(HttpStatus.BAD_REQUEST, () -> resources.load("ENGAGE_APP", APP, "BRAIN_SETUP"));
+        assertStatus(HttpStatus.BAD_REQUEST, () -> resources.load("PRIVATE_DATA_PLUGIN", PLUGIN, "BRAIN_SETUP"));
+        assertThat(resources.paths("DEPLOYMENT_DRAFT", "KIT")).isEmpty();
+        verifyNoInteractions(apps, plugins);
+    }
+
     @Test void documentUndoRestoresTheStoredHumanReviewWithoutAllowingNewAiAttestations() throws Exception {
         var documentAuthoring = mock(DocumentSourceAuthoring.class);
         resources.setDocumentAuthoring(documentAuthoring);
@@ -133,7 +145,7 @@ class AuthoringResourceServiceTest {
         assertThat(expected.at("/actions/1")).isEqualTo(draft.actionsConfig().at("/actions/1"));
         assertThat(saved.receipt().path("draftId").asText()).isEqualTo(DRAFT);
         assertThat(saved.receipt().path("published").asBoolean()).isFalse();
-        verify(access).requireDeploymentEditorAccess(any());
+        verify(access, times(2)).requireDeploymentEditorAccess(any());
     }
 
     @Test void routingOnlyEditDoesNotResubmitTheActionCatalogueOrAnyOtherDraftField() throws Exception {
@@ -179,7 +191,7 @@ class AuthoringResourceServiceTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) draft.behaviorConfig()).set("specialistAssistance", previous.candidate().at("/behaviorConfig/specialistAssistance"));
         var result = resources.undo("DEPLOYMENT_DRAFT", BRAIN, "SPECIALISTS", previous.diff());
         assertThat(result.configuration().at("/behaviorConfig/specialistAssistance/authority").isMissingNode()).isTrue();
-        verify(access).requireDeploymentEditorAccess(any());
+        verify(access, times(2)).requireDeploymentEditorAccess(any());
         verify(brains).updateDraft(eq(DRAFT), any());
     }
 
@@ -573,9 +585,11 @@ class AuthoringResourceServiceTest {
         var authority = mock(com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceAuthorityService.class);
         when(authority.resolve(anyString(), any(), any())).thenReturn(
             new com.ai.fabric.platform.backend.deployment.specialist.SpecialistAssistanceCompiler.Authority(java.util.Map.of(), java.util.Set.of()));
-        return new AuthoringResourceService(deployments, brains, access, validation, library, pluginRepository,
+        var service = new AuthoringResourceService(deployments, brains, access, validation, library, pluginRepository,
             apps, appRepository, behaviors, secrets, changes, mapper,
             authority);
+        service.setDraftLock(mock(AuthoringDraftLock.class));
+        return service;
     }
 
     private DeploymentDraftResponse brainFixture() throws Exception {

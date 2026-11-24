@@ -7,10 +7,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "platform.assistant")
 public class AuthoringProperties {
     private boolean enabled;
+    private boolean configuredBrainEnabled;
     private boolean documentFetchEnabled;
     private boolean validationFeedbackEnabled = true;
     private int validationFeedbackMaxCorrections = 2;
     private String runtimeUrl = "";
+    private String managedReleaseId = "";
     private String encryptionKey = "";
     private String apiKeySecretRef = "MANAGED_CONFIGURATION_ASSISTANT_API_KEY";
     private String signingKeySecretRef = "MANAGED_CONFIGURATION_ASSISTANT_SIGNING_KEY";
@@ -20,6 +22,8 @@ public class AuthoringProperties {
     private String issuer = "loomai-platform-authoring";
     private String audience = "loomai-configuration-authoring";
     public boolean isEnabled() { return enabled; }
+    public boolean isConfiguredBrainEnabled() { return configuredBrainEnabled; }
+    public void setConfiguredBrainEnabled(boolean value) { configuredBrainEnabled = value; }
     public void setEnabled(boolean value) { enabled = value; }
     public boolean isDocumentFetchEnabled() { return documentFetchEnabled; }
     public void setDocumentFetchEnabled(boolean value) { documentFetchEnabled = value; }
@@ -28,6 +32,8 @@ public class AuthoringProperties {
     public int getValidationFeedbackMaxCorrections() { return validationFeedbackMaxCorrections; }
     public void setValidationFeedbackMaxCorrections(int value) { validationFeedbackMaxCorrections = value; }
     public String getRuntimeUrl() { return runtimeUrl; }
+    public String getManagedReleaseId() { return managedReleaseId; }
+    public void setManagedReleaseId(String value) { managedReleaseId = value; }
     public void setRuntimeUrl(String value) { runtimeUrl = value; }
     public String getEncryptionKey() { return encryptionKey; }
     public void setEncryptionKey(String value) { encryptionKey = value; }

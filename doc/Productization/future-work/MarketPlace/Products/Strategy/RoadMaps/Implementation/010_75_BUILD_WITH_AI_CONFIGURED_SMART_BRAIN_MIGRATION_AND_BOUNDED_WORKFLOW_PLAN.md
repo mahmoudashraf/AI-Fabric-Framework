@@ -1,8 +1,17 @@
 # 010.75 Build with AI Smart Brain Migration and Bounded Workflow Plan
 
-Status: proposed for owner review, 24 November 2026. No migration or framework
-feature implementation is authorized by this document. The owner requested a
-full plan and review of required framework changes before implementation.
+Status: implementation approved by the owner, 24 November 2026. Approval covers
+the full migration and required framework changes FW1-FW3 below, with staging
+and production live verification. This supersedes the initial review-only
+status; implementation and qualification evidence must be recorded separately.
+Existing infrastructure, financial/token caps and authorization boundaries are
+unchanged. Approval is not evidence of implementation or deployment.
+
+Implementation is in progress. See
+`verification-support/configured-authoring-01075/README.md` for local test
+evidence and remaining migration/release gates. Cancellation uses a generic
+history-preserving `INTERRUPT_AI` epoch transition within FW2; erasure of
+authoring content retains closed owner tombstones and financial receipts.
 
 ## 1. Decision Summary
 
@@ -35,7 +44,7 @@ Recommended implementation:
    undo functionality. Explicitly review the incremental-write cancellation and
    accounting changes described below.
 
-Three framework work packages require review: FW1 read/write iterative planning,
+Three approved framework work packages: FW1 read/write iterative planning,
 FW2 checkpointed effects and safe recovery, FW3 a shared execution budget and
 consistent stop semantics. They are described in section 7. No existing release
 or immutable tag is to be overwritten for this work.

@@ -13,7 +13,7 @@ class AuthoringTaskIntentTest {
     void everyRegisteredPageHasAnExplicitDocumentFirstCommand(AuthoringTaskIntent.Section section) {
         var result = AuthoringTaskIntent.resolve(section.task, "", "PREPARE",
             new AuthoringTaskIntent.EditorContext(section.name(), List.of()));
-        assertThat(result.query()).startsWith(section.intent).contains("selected documentation", "essential missing facts");
+        assertThat(result.query()).isEqualTo(section.intent + " for this resource.");
         assertThat(result.query()).hasSizeLessThan(8_000);
         assertThat(result.editorContext().section()).isEqualTo(section.name());
     }
@@ -29,15 +29,13 @@ class AuthoringTaskIntentTest {
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", hint, "PREPARE", null).query()).endsWith(hint);
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", null, "PREPARE", null).query()).doesNotContain("Optional focus");
     }
-    @Test void actionPreparationUsesSelectedDocumentationWithoutInventingAnExtraScopeGate() {
+    @Test void actionPreparationIsAUserCommandNotASecondJavaSystemPrompt() {
         var result = AuthoringTaskIntent.resolve("ACTIONS", "Only the availability endpoint.", "PREPARE", null);
-        assertThat(result.query()).contains("selected documentation defines the operation scope",
-            "narrowed by explicit operation or editor selections", "only one fully documented operation",
-            "Prepare all its supported operations", "do not silently prepare only the first operation",
-            "do not ask whether additional undocumented operations exist", "authorization binding",
-            "Explicitly public/no-auth operations need no upstream credential",
-            "without asking for one or adding hypothetical authentication",
-            "essential missing information, not a descriptive assumption", "never its secret value");
+        assertThat(result.query()).startsWith(AuthoringTaskIntent.Section.ACTIONS.intent)
+            .doesNotContain("do not ask", "never its secret value", "Explicitly public/no-auth");
+        var template = new ConfigurationAssistantTemplate(new com.fasterxml.jackson.databind.ObjectMapper()).behavior();
+        assertThat(template.at("/workflowAssistance/profiles/0/instructions").asText())
+            .contains("Public/no-auth operations need no credential", "do not ask whether more undocumented operations exist");
         assertThat(result.query()).endsWith("Only the availability endpoint.");
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())
             .isEqualTo("Explain this route only.");

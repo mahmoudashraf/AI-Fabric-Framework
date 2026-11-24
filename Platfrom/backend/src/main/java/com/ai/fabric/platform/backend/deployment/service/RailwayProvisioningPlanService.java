@@ -379,6 +379,7 @@ public class RailwayProvisioningPlanService {
         }
         boolean specialistAssistanceEnabled = SpecialistAssistanceCompiler.enabled(behaviorConfig);
         boolean managedTasksEnabled = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
+        boolean workflowsEnabled = com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(behaviorConfig);
         boolean structuredBehavior = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
             || "SMART_BRAIN".equals(deploymentBehaviorType) || specialistAssistanceEnabled;
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -423,7 +424,20 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_BASE64", ""));
             runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_MANAGED_TASKS_BUNDLE_HASH", ""));
         }
-        if (specialistAssistanceEnabled || managedTasksEnabled) {
+        if (workflowsEnabled) {
+            var configuration = behaviorConfig.path("workflowAssistance");
+            var compiler = new com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler(objectMapper);
+            compiler.verifyCompiled(configuration.path("compiled"), configuration.path("contentHash").asText());
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_URL", artifactService.workflowAssistanceArtifactUrl(version)));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", configuration.path("contentHash").asText()));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_MANIFESTS_ENABLED", "true"));
+        } else {
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_URL", ""));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", ""));
+        }
+        if (specialistAssistanceEnabled || managedTasksEnabled || workflowsEnabled) {
             LinkedHashSet<String> spaces = new LinkedHashSet<>(List.of("document"));
             LinkedHashSet<String> allowedActions = new LinkedHashSet<>();
             for (JsonNode area : behaviorConfig.path("specialistAssistance").path("areas")) {
@@ -440,6 +454,10 @@ public class RailwayProvisioningPlanService {
                 task.path("vectorSpaces").forEach(value -> spaces.add(value.asText()));
                 task.path("readActions").forEach(value -> allowedActions.add(value.asText()));
                 task.path("writeActions").forEach(value -> allowedActions.add(value.asText()));
+            }
+            if (workflowsEnabled) for (var profile : behaviorConfig.at("/workflowAssistance/profiles")) {
+                profile.path("readActions").forEach(value -> allowedActions.add(value.asText()));
+                profile.path("writeActions").forEach(value -> allowedActions.add(value.asText()));
             }
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_REGISTERED_VECTOR_SPACES", String.join(",", spaces)));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_CAPABILITIES_ALLOWED_ACTIONS", String.join(",", allowedActions)));

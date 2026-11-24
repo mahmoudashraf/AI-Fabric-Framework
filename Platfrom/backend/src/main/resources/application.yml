@@ -42,6 +42,8 @@ management:
 platform:
   assistant:
     enabled: ${PLATFORM_ASSISTANT_ENABLED:false}
+    configured-brain-enabled: ${PLATFORM_ASSISTANT_CONFIGURED_BRAIN_ENABLED:false}
+    managed-release-id: ${PLATFORM_ASSISTANT_MANAGED_RELEASE_ID:}
     document-fetch-enabled: ${PLATFORM_ASSISTANT_DOCUMENT_FETCH_ENABLED:false}
     runtime-url: ${PLATFORM_ASSISTANT_RUNTIME_URL:}
     encryption-key: ${PLATFORM_ASSISTANT_ENCRYPTION_KEY:}
@@ -67,7 +69,7 @@ platform:
       reader-permissions-boundary-arn: ${LOOMAI_DOCUMENT_STORAGE_READER_PERMISSIONS_BOUNDARY_ARN:}
       max-object-bytes: 20971520
   ai-fabric:
-    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.67}
+    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.8.68}
     executor-rag-similarity-threshold: ${PLATFORM_EXECUTOR_RAG_SIMILARITY_THRESHOLD:0.5}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}

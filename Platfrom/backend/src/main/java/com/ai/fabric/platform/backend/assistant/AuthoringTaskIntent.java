@@ -9,6 +9,7 @@ final class AuthoringTaskIntent {
     private AuthoringTaskIntent() { }
 
     enum Section {
+        BRAIN_SETUP("BRAIN_SETUP", "Prepare the requested Smart Brain setup across its supported configuration areas"),
         ACTIONS("ACTIONS", "Prepare action definitions, parameters and endpoint routing"),
         CONNECTIONS("CONNECTIONS", "Prepare connection and endpoint routing settings"),
         KNOWLEDGE("KNOWLEDGE", "Prepare knowledge-source settings"),
@@ -21,7 +22,7 @@ final class AuthoringTaskIntent {
         INSTRUCTIONS("BEHAVIOUR", "Prepare the Smart Brain's response instructions"),
         MODELS("MODELS", "Prepare response-model settings"),
         HUMAN_SUPPORT("HUMAN_SUPPORT", "Prepare human-support and handover settings"),
-        ACTION_REVIEWS("HUMAN_SUPPORT", "Explain the current action-review setup and the next steps"),
+        ACTION_REVIEWS("KIT", "Explain the current action-review setup and the next steps"),
         SPECIALISTS("SPECIALISTS", "Prepare supported specialist-team settings"),
         KIT("KIT", "Explain the next setup steps for this Kit and its existing resource editors"),
         DATA_PLUGIN("DATA_PLUGIN", "Prepare supported data-source mappings and schema for this plugin"),
@@ -49,14 +50,7 @@ final class AuthoringTaskIntent {
         var ids = context == null || context.selectedDefinitionIds() == null ? List.<String>of() : context.selectedDefinitionIds();
         if (ids.size() > 16 || ids.stream().anyMatch(id -> id == null || id.isBlank() || id.length() > 256))
             throw bad("Select at most sixteen editor definitions with bounded identifiers.");
-        String resolved = prepare ? section.intent + " for this resource. Use the selected documentation, current configuration and available contracts. "
-            + "Preserve unrelated settings. Ask only for essential missing facts or genuinely ambiguous scope; do not ask the user to write configuration syntax."
-            + (section == Section.ACTIONS ? " The selected documentation defines the operation scope. Prepare all its supported operations, narrowed by explicit operation or editor selections and the user's focus hint; do not silently prepare only the first operation. "
-                + "When the selected scope contains only one fully documented operation, that operation is sufficient; do not ask whether additional undocumented operations exist or request another scope confirmation. "
-                + "Ask only when a material endpoint, input, authorization binding or business requirement is genuinely missing or conflicting. "
-                + "Provider authentication requirements come from the selected operation documentation and applicable upstream binding, not from Console, Brain or connector inbound access controls. "
-                + "Explicitly public/no-auth operations need no upstream credential; prepare them without asking for one or adding hypothetical authentication. "
-                + "A required upstream credential without an applicable existing authorized binding is essential missing information, not a descriptive assumption; ask for its reference, never its secret value." : "")
+        String resolved = prepare ? section.intent + " for this resource."
             + (query.isBlank() ? "" : "\n\nOptional focus from the user:\n" + query) : query;
         return new Resolved(resolved, command, new EditorContext(section.name(), List.copyOf(ids)));
     }

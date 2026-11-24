@@ -1,4 +1,4 @@
-export type AssistantTask = 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'SEARCH' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE' | 'DOCUMENT_PREPARATION'
+export type AssistantTask = 'BRAIN_SETUP' | 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'SEARCH' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE' | 'DOCUMENT_PREPARATION'
 export type AssistantSection = AssistantTask | 'DOCUMENTS' | 'LIVE_DATA' | 'STORAGE' | 'INSTRUCTIONS' | 'ACTION_REVIEWS'
 export type AssistantEditorContext = { section: AssistantSection; selectedDefinitionIds?: string[] }
 export type AssistantScope = {
@@ -27,10 +27,16 @@ export type AssistantTurn = {
     findings?: unknown; changes?: unknown; runtime?: unknown
   }[]
   feedbackStopReason?: string
+  operations?: { operationId: string; action: string; status: string; published: boolean; savedAt?: string; receipt?: unknown; diff?: unknown; findings?: unknown }[]
+  workflow?: { workId?: string; state?: string; stopCode?: string; deadline?: string
+    selection?: { profileId: string; name: string; specialistRef: string; releaseId: string; bundleHash: string }
+    limits?: { actions: number; writes: number; modelCalls: number; corrections: number }
+    usage?: { actions: number; writes: number; modelCalls: number; corrections: number }; steps?: { operationId: string; action: string; write: boolean; effect: string }[] }
 }
 export type AssistantSession = AssistantScope & {
   id: string; status: string; displayName: string; editable: boolean; readOnlyReason?: string
   activeTurnId?: string | null; expiresAt: string; sources: AssistantSource[]; turns: AssistantTurn[]
+  engine?: 'LEGACY' | 'CONFIGURED_BRAIN'
 }
 export type SourceInput = { title: string; mediaType: string; content?: string; base64?: string; url?: string }
 export type ReusableSource = { sessionId: string; sourceId: string; title: string; task: string; mediaType: string; resourceKind: AssistantScope['resourceKind']; resourceId: string }

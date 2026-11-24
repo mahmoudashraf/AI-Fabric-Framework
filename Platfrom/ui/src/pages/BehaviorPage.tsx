@@ -43,6 +43,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
+import { CustomerWorkflowAssistance } from '../components/customer/CustomerWorkflowAssistance'
 
 type BehaviorSelections = {
   activationSources: string[]
@@ -418,6 +419,8 @@ export function BehaviorPage() {
       <Alert severity={behavior.releaseRequiresCapabilityManifest ? 'warning' : 'success'}>
         {behavior.availabilityMessage}
       </Alert>
+
+      {draftQuery.data && <CustomerWorkflowAssistance draft={draftQuery.data} canEdit={canEdit} />}
 
       <Box component="section">
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>

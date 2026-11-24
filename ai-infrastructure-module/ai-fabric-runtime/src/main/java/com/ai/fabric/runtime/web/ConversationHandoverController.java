@@ -232,6 +232,15 @@ public class ConversationHandoverController {
             : ResponseEntity.accepted().body(admission);
     }
 
+    public record Interruption(String messageKey) { }
+    @PostMapping("/{conversationId}/interruptions")
+    public ConversationView interrupt(@PathVariable String conversationId, @RequestHeader("Idempotency-Key") String key,
+        @RequestBody Interruption body, HttpServletRequest request) {
+        var identity = authorize(request, RuntimeScopeCatalog.CHAT_MESSAGES, "/api/chat/me/conversations/{conversationId}/interruptions");
+        authResolver.requireScope(identity, "configuration:author", "/api/chat/me/conversations/{conversationId}/interruptions");
+        return handoverService.interruptAuthoringTurn(identity, conversationId, body.messageKey(), key);
+    }
+
     @PostMapping("/{conversationId}/handover-requests/{handoverId}/cancel")
     public ConversationView cancel(
         @PathVariable String conversationId,

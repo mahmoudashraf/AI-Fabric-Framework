@@ -311,25 +311,38 @@ export function AssistantPanel({ controller: c, inputs, scope, onClose, editorBu
 }
 
 function TurnView({ turn, controller: c, readOnly, editorBusy, reviewHref, onReview }: { turn: AssistantTurn; controller: AssistantController; readOnly: boolean; editorBusy?: boolean; reviewHref?: string; onReview: () => void }) {
-  const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status === 'SAVED')?.id
+  const hasSaved = turn.status === 'SAVED' || Boolean(turn.operations?.length && turn.status !== 'UNDONE')
+  const latestSaved = [...(c.session?.turns ?? [])].reverse().find(item => item.status === 'SAVED' || item.operations?.length && item.status !== 'UNDONE')?.id
   const disabled = c.busy || editorBusy
   const validation = validationSummary(turn)
   const progress = feedbackProgress(turn)
   return <>
     <Stack direction="row" gap={1} alignItems="center" sx={{ mb: .75 }}><AutoAwesomeOutlined sx={{ fontSize: 15, color: 'primary.main' }} /><Typography variant="caption" color="text.secondary">Assistant</Typography><Chip data-assistant-turn-status={turn.status} size="small" variant="outlined" color={turn.status === 'SAVED' ? validation.outcome === 'attention' ? 'warning' : 'default' : ['FAILED', 'INVALID'].includes(turn.status) ? 'error' : 'default'} label={turnStatusLabel(turn.status)} /></Stack>
     <ValidationOutcome turn={turn} />
+    {turn.workflow?.selection && <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: .75 }}>
+      {turn.workflow.selection.name}
+    </Typography>}
     {progress && <Typography role="status" variant="caption" sx={{ display: 'block', mb: .75 }}>{progress}</Typography>}
     {turn.message && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{turn.message}</Typography>}
-    {turn.status === 'SAVED' && <Stack direction="row" gap={.75} alignItems="center" sx={{ mt: 1 }}>
+    {hasSaved && <Stack direction="row" gap={.75} alignItems="center" sx={{ mt: 1 }}>
       <CheckCircleOutlineRounded fontSize="small" color={validation.outcome === 'attention' ? 'warning' : validation.outcome === 'passed' ? 'success' : 'action'} />
       <Typography variant="caption" fontWeight={600}>Saved to draft · Not published</Typography>
     </Stack>}
     {turn.notice && <Alert severity="info" sx={{ mt: 1 }}>{turn.notice}</Alert>}
+    {turn.operations?.length ? <Box component="section" aria-label="Saved operations" sx={{ mt: 1 }}>
+      {turn.operations.map((operation, index) => <Typography variant="caption" display="block" key={operation.operationId}>
+        {index + 1}. {operation.action === 'authoring_undo_request' ? 'Draft change undone' : 'Draft change saved'} · Not published
+      </Typography>)}
+    </Box> : null}
+    {turn.workflow?.usage && <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      {turn.workflow.usage.actions}{turn.workflow.limits ? ` / ${turn.workflow.limits.actions}` : ''} tool steps · {turn.workflow.usage.writes}{turn.workflow.limits ? ` / ${turn.workflow.limits.writes}` : ''} {turn.workflow.usage.writes === 1 ? 'write attempt' : 'write attempts'} · {turn.workflow.usage.modelCalls}{turn.workflow.limits ? ` / ${turn.workflow.limits.modelCalls}` : ''} model calls · {turn.workflow.usage.corrections}{turn.workflow.limits ? ` / ${turn.workflow.limits.corrections}` : ''} corrections
+    </Typography>}
+    {turn.workflow?.stopCode && <Alert severity="warning" sx={{ mt: 1 }}>Work stopped: {turn.workflow.stopCode}. Review any saved operations before continuing.</Alert>}
     {turn.questions?.map(question => <Alert severity="info" key={question.id} sx={{ mt: 1, whiteSpace: 'normal' }}>{question.question}{question.field && <Typography display="block" variant="caption">{question.field}</Typography>}</Alert>)}
     <ChangeSummary turn={turn} compact />
     {turn.feedbackStopReason && <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>{feedbackReason(turn.feedbackStopReason)}</Typography>}
     {(turn.validationFeedback || turn.attempts?.length || turn.feedbackStopReason) && <Box component="details" sx={{ mt: 1, minWidth: 0, fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
-      <summary>Validation feedback ({turn.attempts?.length ?? 0} attempts)</summary>
+      <summary>{turn.workflow ? 'Correction preference' : `Validation feedback (${turn.attempts?.length ?? 0} attempts)`}</summary>
       <JsonDetails label="Turn correction policy" value={turn.validationFeedback} />
       <Box component="ol" sx={{ pl: 2, m: 0 }}>{turn.attempts?.map((attempt, index) => <Box component="li" key={`${attempt.number}:${index}`} sx={{ py: 1, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
         <Typography variant="body2" fontWeight={600}>Attempt {attempt.number} / {attempt.status}</Typography>
@@ -353,11 +366,13 @@ function TurnView({ turn, controller: c, readOnly, editorBusy, reviewHref, onRev
     <JsonDetails label="Usage" value={turn.usage} />
     <JsonDetails label="Runtime, usage and accounting" value={turn.runtime} />
     <JsonDetails label="Diagnostics" value={turn.diagnostics} />
+    <JsonDetails label="Brain workflow" value={turn.workflow} />
+    <JsonDetails label="Operation receipts" value={turn.operations} />
     </Box>
     <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
-      {turn.status === 'SAVED' && turn.id === latestSaved && reviewHref && <Button size="small" variant="outlined" disabled={disabled} component={RouterLink} to={reviewHref} onClick={onReview} endIcon={<ArrowForwardRounded />}>Review draft</Button>}
+      {hasSaved && turn.id === latestSaved && reviewHref && <Button size="small" variant="outlined" disabled={disabled} component={RouterLink} to={reviewHref} onClick={onReview} endIcon={<ArrowForwardRounded />}>Review draft</Button>}
       {turn.status === 'PREVIEW' && <><Button size="small" disabled={disabled} onClick={() => void c.proposal(turn.id, 'check')}>Check preview</Button><Button size="small" disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'apply')}>Save preview to draft</Button></>}
-      {turn.status === 'SAVED' && turn.id === latestSaved && <Button size="small" startIcon={<UndoOutlined />} disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'undo')}>Undo saved change</Button>}
+      {hasSaved && turn.id === latestSaved && <Button size="small" startIcon={<UndoOutlined />} disabled={disabled || readOnly} onClick={() => void c.proposal(turn.id, 'undo')}>Undo saved changes</Button>}
     </Stack>
   </>
 }

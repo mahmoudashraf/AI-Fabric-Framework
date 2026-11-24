@@ -4,7 +4,7 @@ import { changedFields, validationSummary, type ChangedField } from './turnPrese
 import type { AssistantTurn } from './types'
 
 export function ValidationOutcome({ turn }: { turn: AssistantTurn }) {
-  if (turn.status !== 'SAVED' && turn.status !== 'PREVIEW') return null
+  if (turn.status !== 'SAVED' && turn.status !== 'PREVIEW' && !turn.operations?.length) return null
   const result = validationSummary(turn)
   const title = result.outcome === 'attention' ? 'Needs attention'
     : result.outcome === 'passed' ? 'Configuration validation passed' : 'Validation not reported'
@@ -36,7 +36,7 @@ function FieldChange({ change }: { change: ChangedField }) {
 export function ChangeSummary({ turn, compact = false }: { turn: AssistantTurn; compact?: boolean }) {
   if (!Array.isArray(turn.diff)) return null
   const fields = changedFields(turn.diff)
-  const title = turn.status === 'SAVED' ? 'Saved changes' : turn.status === 'UNDONE' ? 'Original saved changes' : 'Proposed changes'
+  const title = turn.status === 'UNDONE' ? 'Original saved changes' : turn.status === 'SAVED' || turn.operations?.length ? 'Saved changes' : 'Proposed changes'
   const changes = fields.length ? <>
       <Box component="ul" sx={{ p: 0, m: 0 }}>{fields.slice(0, 6).map((change, index) => <FieldChange key={index} change={change} />)}</Box>
       {fields.length > 6 && <Box component="details" sx={{ fontSize: 12, mt: .75 }}><summary>{fields.length - 6} more changed fields</summary><Box component="ul" sx={{ p: 0, m: 0 }}>{fields.slice(6).map((change, index) => <FieldChange key={index} change={change} />)}</Box></Box>}

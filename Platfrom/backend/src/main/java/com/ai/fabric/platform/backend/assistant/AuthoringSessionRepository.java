@@ -20,4 +20,5 @@ public interface AuthoringSessionRepository extends JpaRepository<AuthoringSessi
     long countByStatus(String status);
     long deleteByExpiresAtBefore(Instant now);
     List<AuthoringSessionEntity> findByStatusAndDeadlineBefore(String status, Instant deadline);
+    List<AuthoringSessionEntity> findTop100ByExpiresAtBeforeOrderByExpiresAtAsc(Instant expiry);
 }

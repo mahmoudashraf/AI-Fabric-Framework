@@ -857,7 +857,14 @@ public class RuntimeConversationHandoverService {
         ConversationScope scope = scope(identity, conversationId);
         String key = requireIdempotency(idempotencyKey);
         return repository.transactional(() -> {
-            requireCanonicalConversation(scope);
+            var auth = identity.getAuthContext();
+            boolean privateAuthoring = auth != null && scope.ownerId().startsWith("authoring:")
+                && auth.getGrantedScopes().contains("configuration:author")
+                && "TRUSTED_BACKEND".equals(String.valueOf(auth.getCallerType()))
+                && "PRIVATE_RUNTIME_BACKEND_MEDIATED".equals(String.valueOf(auth.getAuthMode()));
+            // An authoring DELETE can precede a delayed message's arrival. Keep
+            // a closed owner tombstone so that late delivery cannot recreate it.
+            if (!privateAuthoring) requireCanonicalConversation(scope);
             ConversationControlSnapshot current = controlGateway.status(scope);
             if (current.state() == ConversationControlState.CLOSED) {
                 return view(scope, 0);
@@ -893,6 +900,23 @@ public class RuntimeConversationHandoverService {
             appendEvent(scope, "CONVERSATION_CLOSED", Map.of(
                 "controlState", ConversationControlState.CLOSED.name()
             ));
+            return view(scope, 0);
+        });
+    }
+
+    public ConversationView interruptAuthoringTurn(RuntimeResolvedIdentity identity, String conversationId, String messageKey, String key) {
+        var auth = identity.getAuthContext();
+        if (auth == null || !identity.ownerId().startsWith("authoring:") || !auth.getGrantedScopes().contains("configuration:author")
+            || !"TRUSTED_BACKEND".equals(String.valueOf(auth.getCallerType()))
+            || !"PRIVATE_RUNTIME_BACKEND_MEDIATED".equals(String.valueOf(auth.getAuthMode())))
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN, "AUTHORING_INTERRUPTION_DENIED");
+        var scope = scope(identity, conversationId);
+        return repository.transactional(() -> {
+            repository.requireLatestInteraction(scope, requireIdempotency(messageKey));
+            var state = controlGateway.status(scope);
+            var result = controlGateway.transition(new ConversationControlCommand(scope, ConversationControlCommandType.INTERRUPT_AI,
+                state.version(), requireIdempotency(key), scope.ownerId(), "OWNER_INTERRUPTED", null, null));
+            requireApplied(result);
             return view(scope, 0);
         });
     }

@@ -36,6 +36,9 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class DeploymentConfigCompiler {
+    private com.ai.fabric.platform.backend.assistant.AuthoringProperties authoringProperties;
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAuthoringProperties(com.ai.fabric.platform.backend.assistant.AuthoringProperties properties) { authoringProperties = properties; }
 
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
@@ -96,6 +99,10 @@ public class DeploymentConfigCompiler {
             behaviorNode = new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).compileBehavior(behaviorNode,
                 com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorNode) && specialistAuthority != null
                     ? specialistAuthority.resolveTasks(deployment.getId(), actionsNode, knowledgeSourceNode) : null);
+            behaviorNode = new com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler(objectMapper).compileBehavior(behaviorNode,
+                com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(behaviorNode) && specialistAuthority != null
+                    ? com.ai.fabric.platform.backend.assistant.AuthoringNativeCapabilities.add(deployment, authoringProperties,
+                        specialistAuthority.resolveTasks(deployment.getId(), actionsNode, knowledgeSourceNode)) : null);
             JsonNode effectiveRoutingNode = compileRoutingConfig(
                 actionsNode,
                 routingNode,
@@ -706,6 +713,11 @@ public class DeploymentConfigCompiler {
             String expectedEntityHash = sha256(canonicalJson(expectedRuntimeConfig));
             requireManifestText(manifest, "entityConfigHash", expectedEntityHash, issues);
             JsonNode persistedBehavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(persistedBehavior)) {
+                var workflows = persistedBehavior.path("workflowAssistance");
+                new com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler(objectMapper).verifyCompiled(
+                    workflows.path("compiled"), workflows.path("contentHash").asText());
+            }
             if (com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(persistedBehavior)) {
                 var tasks = persistedBehavior.path("managedTasks");
                 new com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler(objectMapper).verifyCompiled(

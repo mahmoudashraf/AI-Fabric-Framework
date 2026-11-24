@@ -318,6 +318,15 @@ public class CoolifyApiClient {
         );
     }
 
+    /** Software-only update: does not alter placement, capacity, domains or persistent storage. */
+    public void updateApplicationImage(CoolifyConnection connection, String uuid, String repository, String immutableDigest) {
+        if (repository == null || repository.isBlank() || immutableDigest == null || !immutableDigest.matches("sha256:[a-f0-9]{64}"))
+            throw new IllegalArgumentException("An immutable image digest is required.");
+        var body = objectMapper.createObjectNode().put("docker_registry_image_name", repository)
+            .put("docker_registry_image_tag", "sha256-" + immutableDigest.substring("sha256:".length()));
+        requestJson(connection, "PATCH", "/applications/" + encodePath(uuid), body, true);
+    }
+
     public void updatePublicApplication(CoolifyConnection connection,
                                         String uuid,
                                         CoolifyCreatePublicApplicationRequest request) {

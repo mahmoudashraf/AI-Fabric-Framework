@@ -133,6 +133,14 @@ public class PlatformSecurityConfiguration {
             // These integrations validate single-use OAuth state or exact runtime-target authority themselves.
             authorize.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/mcp/oauth/callback", "/api/mcp/oauth/client-metadata").permitAll();
             authorize.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/mcp/runtime/*/*/actions/execute").permitAll();
+            // Each exact internal tool verifies dedicated service credentials and the frozen work scope.
+            authorize.requestMatchers(org.springframework.http.HttpMethod.POST,
+                "/api/internal/configuration-authoring/*/*/authoring_get_context",
+                "/api/internal/configuration-authoring/*/*/authoring_read_selected_sources",
+                "/api/internal/configuration-authoring/*/*/authoring_check_candidate",
+                "/api/internal/configuration-authoring/*/*/authoring_get_work_status",
+                "/api/internal/configuration-authoring/*/*/authoring_update_draft",
+                "/api/internal/configuration-authoring/*/*/authoring_undo_request").permitAll();
             authorize.requestMatchers("/internal/v1/deployment-lifecycle/**")
                 .hasAuthority(com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleMachineFilter.AUTHORITY);
             authorize.requestMatchers(
@@ -168,6 +176,7 @@ public class PlatformSecurityConfiguration {
                 "/api/deployments/*/versions/*/artifacts/ai-knowledge-source-config.json",
                 "/api/deployments/*/versions/*/artifacts/ai-shell-config.json",
                 "/api/deployments/*/versions/*/artifacts/specialist-assistance.json",
+                "/api/deployments/*/versions/*/artifacts/workflow-assistance.json",
                 "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
             ).permitAll();
             authorize.anyRequest().authenticated();

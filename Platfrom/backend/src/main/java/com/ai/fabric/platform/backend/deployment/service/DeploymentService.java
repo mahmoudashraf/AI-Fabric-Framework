@@ -175,6 +175,9 @@ public class DeploymentService {
     private VectorizationPlanRepository vectorizationPlanRepository;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
+        template("managed-configuration-assistant", "Configuration Assistant",
+            "Configured authoring specialists with scoped draft tools. Installed on the existing internal service through its reviewed adoption workflow.",
+            "openai", "openai", "memory"),
         template(
             "custom-start-from-scratch",
             "Custom / Start from scratch",
@@ -355,7 +358,7 @@ public class DeploymentService {
     }
 
     public List<DeploymentTemplateSummary> listTemplates() {
-        return templates;
+        return templates.stream().filter(template -> !"managed-configuration-assistant".equals(template.id())).toList();
     }
 
     public List<DeploymentBehaviorSummary> listDeploymentBehaviors() {
@@ -831,6 +834,47 @@ public class DeploymentService {
     }
 
     private DeploymentSummary createDeployment(CreateDeploymentRequest request, boolean seedVectorizationPlan) {
+        return createDeployment(request, seedVectorizationPlan, null);
+    }
+
+    @Transactional
+    public DeploymentSummary createManagedConfigurationAssistant(String environment,
+        com.ai.fabric.platform.backend.assistant.AuthoringProperties settings,
+        com.ai.fabric.platform.backend.assistant.ConfigurationAssistantTemplate assistantTemplate) {
+        var principal = com.ai.fabric.platform.backend.security.PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() != com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_ADMIN)
+            throw new ResponseStatusException(FORBIDDEN, "Managed assistant installation requires a Platform administrator.");
+        var existing = deploymentRepository.findById(settings.getDeploymentId());
+        if (existing.isPresent()) {
+            var deployment = deploymentAccessService.requireDeploymentAdminAccess(existing.get());
+            if (!settings.getCustomerId().equals(deployment.getCustomerId()) || !settings.getTenantId().equals(deployment.getTenantId())
+                || !environment.equals(deployment.getEnvironmentName())) throw new ResponseStatusException(CONFLICT, "Managed assistant ownership changed.");
+            return toSummary(deployment);
+        }
+        var created = createDeployment(new CreateDeploymentRequest("Build with AI", environment, "managed-configuration-assistant", null,
+            null, settings.getCustomerId(), settings.getTenantId(), "CONVERSATIONAL"), false, settings.getDeploymentId());
+        var draft = resolveActiveDraft(deploymentRepository.findById(created.id()).orElseThrow());
+        var provider = (ObjectNode) readJson(draft.getProviderConfigJson());
+        provider.put("openaiModel", "gpt-5.4-mini").put("generationLlmProvider", "openai")
+            .put("generationModel", "gpt-5.4-mini").put("generationMaxTokens", 4096).put("generationTimeout", 40)
+            .put("canonicalConversationsEnabled", true);
+        draft.setProviderConfigJson(writeJson(provider));
+        var security = (ObjectNode) readJson(draft.getSecurityConfigJson());
+        security.put("authzMode", "ALLOW_VERIFIED").put("publicRuntimeBootstrapEnabled", false);
+        draft.setSecurityConfigJson(writeJson(security));
+        var behavior = (ObjectNode) readJson(draft.getBehaviorConfigJson());
+        behavior.set("workflowAssistance", assistantTemplate.behavior().path("workflowAssistance"));
+        draft.setBehaviorConfigJson(writeJson(behavior));
+        draftRepository.save(draft);
+        var deployment = deploymentRepository.findById(created.id()).orElseThrow();
+        deployment.setTemplateDefaultsJson(writeJson(objectMapper.valueToTree(templateSettings(draft))));
+        deploymentRepository.save(deployment);
+        return created;
+    }
+
+    private DeploymentSummary createDeployment(CreateDeploymentRequest request, boolean seedVectorizationPlan, String managedIdentity) {
+        if (managedIdentity == null && "managed-configuration-assistant".equals(request.templateId()))
+            throw new ResponseStatusException(BAD_REQUEST, "Use the managed assistant installation workflow for this internal template.");
         requirePlatformAdminForExplicitBindingRequest(request.customerId(), request.tenantId());
         DeploymentBehaviorType behaviorType = DeploymentBehaviorType.require(request.behaviorType());
         DeploymentTemplateSummary template = templates.stream()
@@ -845,7 +889,7 @@ public class DeploymentService {
         Instant now = Instant.now();
 
         DeploymentEntity deployment = new DeploymentEntity();
-        deployment.setId(generateId("dep"));
+        deployment.setId(managedIdentity == null ? generateId("dep") : managedIdentity);
         deployment.setName(request.name().trim());
         deployment.setEnvironmentName(request.environment().trim());
         deployment.setTemplateId(template.id());
@@ -1264,6 +1308,7 @@ public class DeploymentService {
      * Updates a draft after an upstream platform workflow has already resolved and authorized the target draft/deployment.
      * Do not expose this as a direct controller path; external callers must use the checked updateDraft variants.
      */
+    @Transactional
     public DeploymentDraftResponse updateDraftForTrustedCaller(String draftId, UpdateDeploymentDraftRequest request) {
         return updateDraftInternal(draftId, request, true);
     }
@@ -1277,12 +1322,13 @@ public class DeploymentService {
     DeploymentDraftResponse updateDraftInternal(String draftId,
                                                 UpdateDeploymentDraftRequest request,
                                                 boolean skipAccessCheck) {
-        DeploymentDraftEntity draft = draftRepository.findById(draftId)
+        String deploymentId = draftRepository.findDeploymentIdById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = skipAccessCheck
-            ? deploymentRepository.findById(draft.getDeploymentId())
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
-            : getDeploymentForEditorAction(draft.getDeploymentId());
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (!skipAccessCheck) deployment = getDeploymentForEditorAction(deploymentId);
+        DeploymentDraftEntity draft = draftRepository.findByIdForUpdate(draftId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
         assertNotArchived(deployment, "update draft");
         assertActiveEditableDraft(deployment, draft, "be updated");
 

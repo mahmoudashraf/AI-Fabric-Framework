@@ -158,6 +158,21 @@ public class DeploymentArtifactService {
         return artifactUrl(version, "specialist-assistance.json");
     }
 
+    public String workflowAssistanceArtifactUrl(DeploymentVersionEntity version) { return artifactUrl(version, "workflow-assistance.json"); }
+
+    public String readWorkflowAssistanceArtifact(String deploymentId, String versionId, Long expires, String signature) {
+        var version = authorizeArtifactAccess(deploymentId, versionId, "workflow-assistance.json", expires, signature);
+        try {
+            var behavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (!com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(behavior))
+                throw new ResponseStatusException(NOT_FOUND, "Workflow assistance is not enabled in this version.");
+            var configuration = behavior.path("workflowAssistance");
+            var compiler = new com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler(objectMapper);
+            compiler.verifyCompiled(configuration.path("compiled"), configuration.path("contentHash").asText());
+            return compiler.serialized(configuration.path("compiled"));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) { throw new IllegalStateException("Stored workflow assistance is invalid.", invalid); }
+    }
+
     public String readSpecialistAssistanceArtifact(String deploymentId, String versionId,
                                                   Long expires, String signature) {
         DeploymentVersionEntity version = authorizeArtifactAccess(

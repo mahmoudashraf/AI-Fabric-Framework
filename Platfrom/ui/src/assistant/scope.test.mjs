@@ -8,13 +8,13 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const { brainAssistantScope, brainPageAssistantScope, operation, scopeIdentity } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 const root = '/smart-brains/brain-37'
 const expected = {
-  '': 'KIT', '/': 'KIT', '/capabilities': 'ACTIONS', '/capabilities/actions': 'ACTIONS',
+  '': 'BRAIN_SETUP', '/': 'BRAIN_SETUP', '/capabilities': 'ACTIONS', '/capabilities/actions': 'ACTIONS',
   '/capabilities/action%3Aread': 'ACTIONS', '/capabilities/install%3Aplugin%3Aaction%3Aread': 'ACTIONS',
   '/knowledge': 'KNOWLEDGE', '/knowledge/documents': 'KNOWLEDGE', '/knowledge/sources/source-1': 'KNOWLEDGE',
   '/knowledge/storage': 'KNOWLEDGE', '/knowledge/discover': 'KNOWLEDGE', '/knowledge/proof': 'KNOWLEDGE', '/knowledge/retention': 'KNOWLEDGE',
   '/knowledge/connections': 'KNOWLEDGE', '/knowledge/connections/source-1': 'KNOWLEDGE', '/knowledge/live-data': 'KNOWLEDGE', '/knowledge/search': 'SEARCH',
   '/responses': 'BEHAVIOUR', '/responses/instructions': 'BEHAVIOUR', '/responses/advanced': 'BEHAVIOUR',
-  '/models': 'MODELS', '/human-support': 'HUMAN_SUPPORT', '/action-reviews': 'HUMAN_SUPPORT',
+  '/models': 'MODELS', '/human-support': 'HUMAN_SUPPORT', '/action-reviews': 'KIT',
   '/human-support/specialists': 'SPECIALISTS', '/advanced/providers': 'MODELS', '/advanced/configuration': 'KIT',
 }
 const contexts = {

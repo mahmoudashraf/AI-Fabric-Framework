@@ -9,7 +9,7 @@ const { assistantPage, assistantPages, editorContext, sameResourceSources, userT
 const scope = { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'MODELS' }
 
 test('every registered section has product guidance and an explicit command', () => {
-  const sections = ['ACTIONS', 'CONNECTIONS', 'KNOWLEDGE', 'DOCUMENTS', 'DOCUMENT_PREPARATION', 'LIVE_DATA', 'STORAGE', 'SEARCH', 'BEHAVIOUR', 'INSTRUCTIONS', 'MODELS', 'HUMAN_SUPPORT', 'ACTION_REVIEWS', 'SPECIALISTS', 'KIT', 'DATA_PLUGIN', 'ENGAGE']
+  const sections = ['BRAIN_SETUP', 'ACTIONS', 'CONNECTIONS', 'KNOWLEDGE', 'DOCUMENTS', 'DOCUMENT_PREPARATION', 'LIVE_DATA', 'STORAGE', 'SEARCH', 'BEHAVIOUR', 'INSTRUCTIONS', 'MODELS', 'HUMAN_SUPPORT', 'ACTION_REVIEWS', 'SPECIALISTS', 'KIT', 'DATA_PLUGIN', 'ENGAGE']
   assert.deepEqual(Object.keys(assistantPages).sort(), sections.sort())
   for (const section of sections) {
     const page = assistantPage({ ...scope, editorContext: { section } })

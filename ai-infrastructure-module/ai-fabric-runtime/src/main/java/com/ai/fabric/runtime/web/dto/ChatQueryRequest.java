@@ -25,6 +25,10 @@ public class ChatQueryRequest {
     private List<OrchestrationAttachment> attachments;
     private ActionDraftSubmission actionDraftSubmission;
     private Map<String, String> promptPreview;
+    /** Optional backend authoring reference; accepted only with dedicated verified authoring scope. */
+    private ConfigurationWork configurationWork;
+    public record ConfigurationWork(String sessionId, String turnId, String task, String profileId,
+                                    String releaseId, String bundleHash, boolean previewOnly, int maxCorrections) { }
 
     @JsonIgnore
     @Schema(hidden = true)

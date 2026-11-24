@@ -6,17 +6,18 @@ RUNTIME_USER="${RUNTIME_USER:-runtime}"
 ENTITY_CONFIG_TARGET="/config/ai-entity-config.yml"
 
 prepare_specialist_bundle() {
-  bundle_url="${LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_URL:-}"
+  bundle_prefix="$1"
+  bundle_url="$(printenv "${bundle_prefix}_BUNDLE_URL" || true)"
   [ -n "$bundle_url" ] || return 0
   case "$bundle_url" in
     https://*) ;;
     *) echo "Specialist bundle requires HTTPS." >&2; exit 1 ;;
   esac
-  if [ -n "${LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64:-}" ]; then
+  if [ -n "$(printenv "${bundle_prefix}_BUNDLE_BASE64" || true)" ]; then
     echo "Specialist bundle must use exactly one transport." >&2
     exit 1
   fi
-  expected_hash="${LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_HASH:-}"
+  expected_hash="$(printenv "${bundle_prefix}_BUNDLE_HASH" || true)"
   digest="${expected_hash#sha256:}"
   case "$digest" in
     *[!a-f0-9]*) echo "Invalid specialist bundle digest." >&2; exit 1 ;;
@@ -43,8 +44,7 @@ prepare_specialist_bundle() {
     echo "Specialist bundle digest mismatch." >&2
     exit 1
   fi
-  LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64="$(base64 < "$bundle_file" | tr -d '\r\n')"
-  export LOOMAI_SPECIALIST_ASSISTANCE_BUNDLE_BASE64
+  export "${bundle_prefix}_BUNDLE_BASE64=$(base64 < "$bundle_file" | tr -d '\r\n')"
   rm -f "$bundle_file"
   trap - EXIT HUP INT TERM
 }
@@ -102,11 +102,13 @@ if [ "$(id -u)" = "0" ]; then
   mkdir -p /data /app/data /config
   chown -R "${RUNTIME_UID}:0" /data /app/data /config || true
   prepare_entity_config
-  prepare_specialist_bundle
+  prepare_specialist_bundle LOOMAI_SPECIALIST_ASSISTANCE
+  prepare_specialist_bundle LOOMAI_WORKFLOW_ASSISTANCE
   chown "${RUNTIME_UID}:0" "$ENTITY_CONFIG_TARGET" 2>/dev/null || true
   exec gosu "${RUNTIME_UID}:0" sh -c "exec java ${JAVA_OPTS:-} -jar /app/runtime.jar \"$@\"" -- "$@"
 fi
 
 prepare_entity_config
-prepare_specialist_bundle
+prepare_specialist_bundle LOOMAI_SPECIALIST_ASSISTANCE
+prepare_specialist_bundle LOOMAI_WORKFLOW_ASSISTANCE
 exec sh -c "exec java ${JAVA_OPTS:-} -jar /app/runtime.jar \"$@\"" -- "$@"

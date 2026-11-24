@@ -66,7 +66,9 @@ class RuntimeCapabilityManifestServiceTest {
         assertThat(strings(manifest.path("capabilities"))).doesNotContain("runtime-cold-maintenance-generation-adoption-v1");
         Map<String, Object> projection = service.manifestProjection();
         assertThat(projection).containsEntry("schemaVersion", "loomai-runtime-capabilities-v1");
-        assertThat(projection).containsEntry("aiFabricVersion", "0.8.67");
+        assertThat(projection).containsEntry("aiFabricVersion", "0.8.68");
+        assertThat(strings(manifest.path("capabilities"))).contains("configured-workflow-assistance");
+        assertThat(strings(manifest.path("migrationIds"))).contains("workflow-execution-checkpoint-v27", "protected-conversation-message-capacity-v28");
         assertThat(strings(manifest.path("capabilities"))).contains("managed-mcp-connections");
         assertThat(strings(manifest.path("capabilities"))).contains("internal-decision-recovery-v1");
         assertThat(projection.get("supportedBehaviorTypes")).isEqualTo(List.of(

@@ -20640,3 +20640,109 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Do not implement FW1-FW3/authoringmigration or new custom AIloop as part of this
   release.010.74staffmigrationalsoqueued. Guides/010.73verification updated with
   actual shipped slice and these limits, not a false full-plan green status.
+
+### 24 November 2026 - 010.75 Implementation Approval And Work In Progress
+
+- Latest owner request supersedes the earlier assistant deferral: implement
+  010.75 fully, including required framework changes, and verify live. The plan
+  header now records approval. No infrastructure or financial/token cap increase
+  follows from this approval. The 010.74 staff migration remains separate.
+- New isolated public-framework worktree:
+  `/private/tmp/loomai-framework-01075`, branch
+  `codex/configured-authoring-01075`, based on released `f933227e` / 0.8.67.
+  Do not overwrite the released tag/artifacts or the earlier 010.73 worktree.
+- In progress, not released: generic opt-in read/write workflow runner, normal
+  pipeline step, root model/action/write/correction allowance, protected durable
+  checkpoint on the existing execution record, and governed action dispatch.
+  Latest focused runner/checkpoint run: 21 + 4 tests pass. Earlier existing
+  governed invocation/repository/durable-gateway regression: 42 tests pass.
+  These are local deterministic tests, not live migration evidence.
+- Platform draft-operation adapters added, with original active-user/access
+  checks, short database transactions, encrypted atomic receipts, replay conflict
+  detection, preview/write ceilings and cancellation checks. Connector endpoints
+  are off by default behind `platform.assistant.configured-brain-enabled` and
+  require dedicated service authentication even if the caller is Console admin.
+  They are not yet connected to the real managed authoring Brain.
+- Fixed existing NEEDS_INPUT plus partial changes saving when feedback was off.
+  Parameterized test now covers feedback on/off. Latest existing assistant and
+  new draft-operation integration run: 44 tests pass, including atomic rollback
+  when receipt encryption fails. No paid calls in these tests.
+- Still required before claiming migration: finish framework/pipeline and SDK
+  specialist/root-budget integration qualification; verified managed Brain and
+  published task bindings; canonical conversation transport/history; adoption
+  preserving the existing wallet/usage; UI receipts/group undo/cancel parity;
+  staging/production acceptance and retirement of the custom generation path.
+  No 010.75 live changes, commits, immutable release or rollout yet.
+
+### 010.75 Native Assistant Candidate - 24 November 2026, 10:47 UTC
+
+- Framework source is now public main/tag ai-fabric-framework-v0.8.68 at
+  4f9673a5231189c06864a3e07ededb15705720ff. GitHub publication run45377408953
+  and main verification45377157484 are running. Do not resubmit a Central upload
+  or call publication available until its actual JARs are verified.
+- Local default38-module test reactor passed. The actual CI release-module
+  build/test/install gate passed. A wider Failsafe install failed on absent ONNX
+  assets and fixture-dependent RAG scenarios; that failed run is retained and is
+  not called green. Source guards now require/install ripgrep rather than silently
+  skipping their check on a runner without it. Bundled skill version is aligned.
+- Generic framework workflow now has native governed READ/WRITE dispatch, one
+  root allowance, protected existing-record checkpoints, stable step receipts,
+  typed correction, confirmation pause/reconciliation, cancellation and optional
+  encrypted canonical messages. New behavior remains opt-in/default-off.
+- Product migration is local/uncommitted: Platform uses only canonical native
+  chat transport; its inference/correction loop and private generation client,
+  Runtime private generation API and Java task instructions are removed. Eight
+  published, editable profiles and task bindings drive page-selected execution.
+  No task keyword routing or second model-calling engine was introduced.
+- Platform focused regression245passed. Additional real database concurrent-edit
+  tests prove fresh merging and rejection of switched drafts. Runtime full802
+  checks passed (5explicit skips), including ordinary Support/Tasks and database
+  migrations. UI71unit checks and production build passed; all50fixture browser
+  groups passed desktop/phone, including partial saves and group Undo.
+- Whole backend suite is still running; final package/memory and hosted release
+  qualification remain. The assistant workflow switch now preserves encrypted
+  history/maintenance while disabling new inference. Incomplete previews keep
+  NEEDS_INPUT rather than becoming manually applicable candidates.
+- Owner reply call_4197bbcbfc5348f29d4d8b892ea14dfc approved 185->210turns and
+  2M->4Mtokens per environment, keeping USD5 caps. Existing top-up APIs applied
+  and read back both increases. Original approval/store/fingerprint, expiry and
+  accumulated usage unchanged; own staff sessions logged out. No paid model
+  calls or service/capacity changes by010.75 at this checkpoint.
+- Managed first-party service adoption uses normal Brain/draft/version/release,
+  frozen authority and verification plus the existing service/database/ledger;
+  native adoption implementation has not yet been exercised live. Production
+  and staging still run the old0.8.67assistant and existing Support. Do not claim
+  migration or final live acceptance from these source and fixture checks.
+
+### 010.75 Final Local Candidate - 24 November 2026, 11:16 UTC
+
+- Published configuration now has9profiles/13task bindings, including explicit
+  whole-Brain setup. Kit, operational and Action reviews guidance uses the
+  genuinely READ-only guide. Human-support setup retains its separate writable
+  channel profile and original narrow configuration paths. Whole-Brain setup
+  cannot change security, credentials, its own workflow policy or other resources.
+- Latest complete Runtime802checksPASS/5skips. Clean isolated assistant123PASS;
+  final read-only-task/turn handling43PASS. UI71PASS/productionbuildPASS;
+  51browsergroupsPASS, plus final Action reviews task mapping and real workflow
+  form save/tool-reenable/unknown-field preservation at390px. All are local
+  provider fixtures, not live model-quality evidence. Native final package
+  startup is running; earlier packageRSS450MiB under existing640MiB passed.
+- Existing live preflightPASS both environments: original stores/fingerprints,
+  PostgreSQL datasources,640MiBcapacity,210turn/4Mtoken/USD5limits unchanged;
+  actual used turns166stage/159prod. Own staff sessions logged out. There is no
+  public assistant FQDN: it uses the existing private Docker alias. Adoption
+  was corrected and tested to preserve this route, not add a public domain.
+- Public framework verification45377157484PASS. Publication45377408953still
+  processing; official Central0.8.68not yet available. No duplicate upload.
+  Product changes remain uncommitted/unshipped; no model calls by010.75.
+- Broad backend run has three retained version-sensitive failures after source
+  manifest changed67->68during its older cached build. Recheck those against
+  current consistent resources after completion; do not call the full run green.
+  All other original dirty files and screenshots remain untouched/uncommitted.
+
+- 11:17UTC update: public publication45377408953completedSUCCESS. Nine official
+  Central0.8.68JARs downloaded/checksumsverified; proof/private/tmp/loomai-01075-central/proof.json.
+  Final packaged native startupPASS,9profiles,actualHTTPready/liveness,485MiBRSS
+  at384MiBheap/640MiBexistingservice limit,oldprivategenerationendpoint404,
+  fundingstillUNINITIALIZEDwithoutprovidercalls. Private image/release/live
+  verification remains to do; this is not a hosted migration claim.

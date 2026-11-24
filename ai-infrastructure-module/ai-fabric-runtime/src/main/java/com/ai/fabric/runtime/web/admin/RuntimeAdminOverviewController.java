@@ -46,6 +46,9 @@ public class RuntimeAdminOverviewController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ai.fabric.runtime.tasks.ManagedTaskService managedTasks;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ai.fabric.runtime.workflow.WorkflowAssistanceStatus workflowAssistance;
+
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
@@ -191,6 +194,8 @@ public class RuntimeAdminOverviewController {
         body.put("specialistChains", specialistChainDiagnostics(specialistChainStatusProvider.getIfAvailable()));
         body.put("specialistAssistance", specialistAssistanceStatus == null
             ? Map.of("enabled", false, "ready", true) : specialistAssistanceStatus.status());
+        body.put("workflowAssistance", workflowAssistance == null
+            ? Map.of("enabled", false, "ready", true) : workflowAssistance.status());
         body.put("managedTasks", managedTasks == null
             ? Map.of("contractVersion", "LOOMAI_MANAGED_TASKS_V1", "enabled", false, "ready", true, "tasks", List.of())
             : managedTasks.status());

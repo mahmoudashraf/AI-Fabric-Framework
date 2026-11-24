@@ -239,7 +239,7 @@ function SmartBrainFrame({ session, onSignOut, children }: Props) {
               { label: 'Add your documents', href: href('knowledge/documents') },
               { label: 'Connect your tools', href: href('capabilities') },
               { label: 'Shape its answers', href: href('responses') },
-            ] : undefined}
+            ] : [{ label: 'Whole Brain setup', href: href('') }]}
             reviewHref={href('updates')}
             readOnlyReason={workspace.workspace?.access.canEdit === false ? 'You do not have draft editing access.' : undefined}
             onSaved={() => refreshBrainEditors(queryClient, brainId,

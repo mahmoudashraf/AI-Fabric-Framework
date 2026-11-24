@@ -4990,6 +4990,10 @@ export function fetchDeploymentDraft(deploymentId: string) {
   return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`, undefined, 'default', parseExactJson)
 }
 
+export function fetchWorkflowActions(deploymentId: string) {
+  return request<{ deploymentId: string; readActions: string[]; writeActions: string[] }>(`/api/deployments/${encodeURIComponent(deploymentId)}/workflow-actions`)
+}
+
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
 }

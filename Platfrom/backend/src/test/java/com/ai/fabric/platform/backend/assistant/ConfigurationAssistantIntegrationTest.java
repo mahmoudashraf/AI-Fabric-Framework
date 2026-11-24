@@ -1,21 +1,21 @@
 package com.ai.fabric.platform.backend.assistant;
 
-import com.ai.fabric.platform.backend.security.PlatformPrincipal;
-import com.ai.fabric.platform.backend.security.PlatformRole;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import com.ai.fabric.platform.backend.security.*;
+import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
+import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import java.util.*;
+import java.util.concurrent.atomic.*;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -23,618 +23,249 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
-/** Real encrypted sessions/transactions and async lifecycle; inference/resource endpoints are explicit fixtures. */
+/** Real encrypted facade/receipts; canonical runtime and resource receivers are explicit test fixtures. */
 @SpringBootTest(properties = {"platform.bootstrap.sample-enabled=false", "platform.auth.bootstrap-admin-enabled=false",
-    "platform.assistant.enabled=true", "platform.assistant.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="})
+    "platform.assistant.enabled=true", "platform.assistant.configured-brain-enabled=true",
+    "platform.assistant.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="})
 @ActiveProfiles("test")
 class ConfigurationAssistantIntegrationTest {
     @Autowired ConfigurationAssistantService assistant;
+    @Autowired AuthoringDraftOperations operations;
     @Autowired AuthoringSessionRepository sessions;
     @Autowired PlatformCustomerRepository customers;
-    @Autowired ObjectMapper mapper;
+    @Autowired PlatformUserRepository users;
     @Autowired AuthoringChanges changes;
-    @MockBean AuthoringRuntimeClient runtime;
+    @Autowired ObjectMapper mapper;
+    @MockBean AuthoringBrainBindingService bindings;
+    @MockBean ConfiguredAuthoringRuntimeClient runtime;
     @MockBean AuthoringResourceService resources;
-    final AtomicReference<JsonNode> configuration = new AtomicReference<>();
-    String customerId;
-    String resourceId;
-    String actor;
-
+    @MockBean AuthoringDraftLock draftLock;
+    String customerId, resourceId, userId, actor, sessionId;
+    AtomicReference<ObjectNode> configuration = new AtomicReference<>();
     @BeforeEach void prepare() throws Exception {
-        customerId = "authoring-test-" + UUID.randomUUID(); resourceId = "dep-" + UUID.randomUUID(); actor = "actor-" + UUID.randomUUID();
-        var customer = new PlatformCustomerEntity(); customer.setId(customerId); customer.setSlug(customerId); customer.setName("Authoring test");
+        String suffix = UUID.randomUUID().toString(); customerId = "customer-" + suffix; resourceId = "dep-" + suffix;
+        userId = "user-" + suffix; actor = suffix + "@example.test";
+        var customer = new PlatformCustomerEntity(); customer.setId(customerId); customer.setSlug(customerId); customer.setName("Fixture");
         customer.setStatus("ACTIVE"); customer.setCreatedAt(Instant.now()); customer.setUpdatedAt(Instant.now()); customers.saveAndFlush(customer);
-        signIn(actor); configuration.set(mapper.readTree("{\"promptConfig\":{\"systemPrompt\":\"Manual\",\"other\":true}}"));
-        when(runtime.configured()).thenReturn(true);
-        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("BEHAVIOUR"))).thenAnswer(call -> snapshot());
-        when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode().put("publishReady", true));
-        when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("BEHAVIOUR"), any())).thenAnswer(call -> {
-            var result = changes.apply(configuration.get(), call.getArgument(3), List.of("/promptConfig"));
-            configuration.set(result.candidate());
-            return new AuthoringResourceService.Saved(result.diff(), mapper.createObjectNode().put("publishReady", true),
-                mapper.createObjectNode().put("draftId", "draft-test").put("published", false), result.candidate());
+        var user = new PlatformUserEntity(); user.setId(userId); user.setEmail(actor); user.setDisplayName("Fixture author");
+        user.setRole("PLATFORM_ADMIN"); user.setStatus("ACTIVE"); user.setPasswordHash("not-a-login-credential");
+        user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now()); users.saveAndFlush(user); signIn(actor);
+        configuration.set((ObjectNode) mapper.readTree("{\"promptConfig\":{\"systemPrompt\":\"Manual\",\"unrelated\":true},\"actionsConfig\":{\"actions\":[]}}"));
+        var scopes = new ArrayList<>(List.of("configuration:author"));
+        AuthoringNativeCapabilities.READS.forEach(action -> scopes.add("action:" + action));
+        AuthoringNativeCapabilities.WRITES.forEach(action -> scopes.add("action:" + action));
+        when(bindings.resolve(anyString())).thenReturn(new AuthoringBrainBindingService.Binding("assistant-brain", "release", "https://runtime.example.test", "responses",
+            "responses@1", "sha256:fixture", 3, 2, List.copyOf(scopes)));
+        when(bindings.conversationBinding()).thenAnswer(call -> bindings.resolve("CONFIGURATION"));
+        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString())).thenAnswer(call -> snapshot(call.getArgument(2)));
+        when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode().put("valid", true).put("publishReady", true));
+        when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString(), any())).thenAnswer(call -> {
+            var result = changes.apply(configuration.get(), call.getArgument(3), snapshot(call.getArgument(2)).allowedPaths());
+            configuration.set(result.candidate()); return saved(result);
         });
-        when(resources.undo(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("BEHAVIOUR"), any())).thenAnswer(call -> {
-            var result = changes.undo(configuration.get(), call.getArgument(3), List.of("/promptConfig"));
-            configuration.set(result.candidate());
-            return new AuthoringResourceService.Saved(result.diff(), mapper.createObjectNode(),
-                mapper.createObjectNode().put("draftId", "draft-test").put("published", false), result.candidate());
+        when(resources.undo(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString(), any())).thenAnswer(call -> {
+            var result = changes.undo(configuration.get(), call.getArgument(3), snapshot(call.getArgument(2)).allowedPaths());
+            configuration.set(result.candidate()); return saved(result);
         });
-        when(runtime.generate(any())).thenReturn(output("READY"));
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any()))
+            .thenAnswer(call -> {
+                if (call.getArgument(1, String.class) == null || call.getArgument(1, String.class).isBlank()) return null;
+                var caller = caller(call.getArgument(1), call.getArgument(3)); operations.context(caller);
+                if (call.getArgument(6, Boolean.class)) operations.check(caller, change("AI result"));
+                else operations.save(caller, call.getArgument(3) + ":step:2", change("AI result"));
+                return response("COMPLETE");
+            });
     }
-    @AfterEach void clear() { SecurityContextHolder.clearContext(); }
-    @Test void requestedAiEditSavesWithoutAcceptanceThenUndoUsesSameDraftPath() throws Exception {
-        String id = create();
-        assistant.turn(id, request(false), "save-one");
-        var state = await(id);
+    @AfterEach void cleanup() {
+        if (sessionId != null) { try { assistant.cancel(sessionId); } catch (Exception ignored) { } sessions.findById(sessionId).ifPresent(sessions::delete); }
+        SecurityContextHolder.clearContext(); users.deleteById(userId); customers.deleteById(customerId);
+    }
+    void signIn(String who) {
+        var principal = new PlatformPrincipal(who, PlatformRole.PLATFORM_ADMIN, "Fixture author", "SESSION", userId);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))));
+    }
+    AuthoringResourceService.Snapshot snapshot(String task) {
+        return new AuthoringResourceService.Snapshot(customerId, "Fixture", configuration.get(), mapper.createObjectNode(),
+            "BRAIN_SETUP".equals(task) ? List.of("/actionsConfig", "/promptConfig")
+                : List.of("ACTIONS".equals(task) ? "/actionsConfig" : "/promptConfig"), "draft", true, "");
+    }
+    AuthoringResourceService.Saved saved(AuthoringChanges.Result result) {
+        return new AuthoringResourceService.Saved(result.diff(), mapper.createObjectNode().put("valid", true),
+            mapper.createObjectNode().put("draftId", "draft").put("published", false), result.candidate());
+    }
+    AuthoringDraftOperations.Caller caller(String id, String turn) { return new AuthoringDraftOperations.Caller(id, turn, "assistant-brain", "release"); }
+    JsonNode change(String value) { return mapper.createArrayNode().add(mapper.createObjectNode().put("operation", "SET").put("path", "/promptConfig/systemPrompt").put("value", value)); }
+    JsonNode response(String state) {
+        var result = mapper.createObjectNode().put("success", true).put("answer", "Fixture model message");
+        result.putObject("metadata").putObject("workflow").put("state", state).putArray("questions").add("Which credential reference should be used?");
+        return result;
+    }
+    String create(String task) { return sessionId = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, task)).path("id").asText(); }
+    ConfigurationAssistantService.TurnRequest request(boolean preview, Boolean feedback) {
+        return new ConfigurationAssistantService.TurnRequest("Set a welcoming greeting.", preview, List.of(), List.of(),
+            new AuthoringFeedbackPolicy(Boolean.TRUE.equals(feedback), Boolean.TRUE.equals(feedback) ? 2 : 0), null, null);
+    }
+    JsonNode await() throws Exception {
+        for (int i = 0; i < 500; i++) { var state = assistant.get(sessionId); if (!"RUNNING".equals(state.path("status").asText())) return state; Thread.sleep(10); }
+        throw new AssertionError("Assistant fixture did not finish");
+    }
+    @Test void requestedEditUsesOneCanonicalTurnAndActualReceiptWithUndo() throws Exception {
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "save"); var state = await();
+        assertThat(state.at("/turns/0/status").asText()).isEqualTo("SAVED"); assertThat(state.at("/turns/0/operations")).hasSize(1);
+        assertThat(state.toString()).doesNotContain("brainWork", "principal", "passwordHash");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("AI result");
+        assertThat(configuration.get().at("/promptConfig/unrelated").asBoolean()).isTrue();
+        assistant.turn(sessionId, request(false, true), "save");
+        verify(runtime, times(1)).message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any());
+        assistant.proposal(sessionId, state.at("/turns/0/id").asText(), "undo");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+    }
+    @ParameterizedTest @ValueSource(booleans = {true, false})
+    void needsInputStopsForBothCorrectionPreferences(boolean feedback) throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenReturn(response("NEEDS_INPUT"));
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, feedback), "need-input"); var state = await();
+        assertThat(state.at("/turns/0/status").asText()).isEqualTo("NEEDS_INPUT");
+        assertThat(state.at("/turns/0/questions/0/question").asText()).contains("credential reference");
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+        verify(runtime, times(1)).message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any());
+    }
+    @Test void previewRemainsUnsavedUntilExplicitApplyAndThenCanBeUndone() throws Exception {
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(true, true), "preview"); var state = await();
+        assertThat(state.at("/turns/0/status").asText()).isEqualTo("PREVIEW"); verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+        String turn = state.at("/turns/0/id").asText(); assistant.proposal(sessionId, turn, "apply");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("AI result");
+        assistant.proposal(sessionId, turn, "undo"); assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+    }
+    @ParameterizedTest @ValueSource(booleans = {true, false})
+    void unfinishedPreviewDoesNotBecomeAnApplicableCandidate(boolean feedback) throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            operations.check(caller(call.getArgument(1), call.getArgument(3)), change("Incomplete preview"));
+            return response("NEEDS_INPUT");
+        });
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(true, feedback), "preview-needs-input"); var state = await();
+        assertThat(state.at("/turns/0/status").asText()).isEqualTo("NEEDS_INPUT");
+        assertThat(state.at("/turns/0/questions")).isNotEmpty();
+        assertThatThrownBy(() -> assistant.proposal(sessionId, state.at("/turns/0/id").asText(), "apply"))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
+    @Test void narrationFailureRetainsSavedEffectsAndNeverRetriesTransport() throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            operations.save(caller(call.getArgument(1), call.getArgument(3)), call.getArgument(3) + ":step:1", change("Saved before failure"));
+            throw new IllegalStateException("Fixture provider failure");
+        });
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "partial"); var state = await();
+        assertThat(state.at("/turns/0/status").asText()).isEqualTo("FAILED"); assertThat(state.at("/turns/0/operations")).hasSize(1);
+        assertThat(state.at("/turns/0/notice").asText()).contains("saved before");
+        assistant.proposal(sessionId, state.at("/turns/0/id").asText(), "undo"); assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+    }
+    @Test void twoGenuineWritesRemainIndividuallyVisibleAndGroupUndoReversesBoth() throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            var who = caller(call.getArgument(1), call.getArgument(3));
+            operations.save(who, call.getArgument(3) + ":step:1", change("First"));
+            operations.save(who, call.getArgument(3) + ":step:2", change("Corrected")); return response("COMPLETE");
+        });
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "two-writes"); var state = await();
+        assertThat(state.at("/turns/0/operations")).hasSize(2);
+        assistant.proposal(sessionId, state.at("/turns/0/id").asText(), "undo");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+    }
+    @Test void explicitlySelectedWholeBrainSetupCanCoordinateAreasWithoutChangingAnotherResource() throws Exception {
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            assertThat(call.getArgument(4, String.class)).isEqualTo("BRAIN_SETUP");
+            var who = caller(call.getArgument(1), call.getArgument(3));
+            operations.save(who, call.getArgument(3) + ":step:1", change("Consultative assistant"));
+            var action = mapper.createArrayNode().add(mapper.createObjectNode().put("operation", "UPSERT")
+                .put("path", "/actionsConfig/actions").put("key", "read_products")
+                .set("value", mapper.createObjectNode().put("name", "read_products").put("accessMode", "READ")));
+            operations.save(who, call.getArgument(3) + ":step:2", action); return response("COMPLETE");
+        });
+        create("BRAIN_SETUP"); assistant.turn(sessionId, request(false, true), "whole-brain"); var state = await();
         assertThat(state.at("/turns/0/status").asText()).isEqualTo("SAVED");
-        assertThat(state.at("/turns/0/receipt/published").asBoolean()).isFalse();
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("AI result");
-        assertThat(configuration.get().at("/promptConfig/other").asBoolean()).isTrue();
-        assistant.proposal(id, state.at("/turns/0/id").asText(), "undo");
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
+        assertThat(state.at("/turns/0/operations")).hasSize(2);
+        assertThat(configuration.get().at("/actionsConfig/actions/0/name").asText()).isEqualTo("read_products");
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Consultative assistant");
+        assertThat(configuration.get().at("/promptConfig/unrelated").asBoolean()).isTrue();
     }
-    @Test void explicitPreparationWithNoMessageUsesCurrentPageAndSelectedDocumentation() throws Exception {
-        String id = create();
-        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Brand guide", "text/plain",
-            "Use a welcoming, concise style. Avoid unnecessary jargon.", null, null));
-        verify(runtime, never()).generate(any());
-        String sourceId = imported.at("/sources/0/id").asText();
-        var request = new ConfigurationAssistantService.TurnRequest("", false, List.of(sourceId), List.of(), null, "PREPARE",
-            new AuthoringTaskIntent.EditorContext("INSTRUCTIONS", List.of("systemPrompt")));
-        assistant.turn(id, request, "document-first");
-        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
-        var input = captured.getValue();
-        assertThat(input.path("query").asText()).startsWith("Prepare the Smart Brain's response instructions");
-        assertThat(input.at("/catalogue/editorContext/section").asText()).isEqualTo("INSTRUCTIONS");
-        assertThat(input.at("/catalogue/editorContext/selectedDefinitionIds/0").asText()).isEqualTo("systemPrompt");
-        assertThat(input.at("/sources/0/content").asText()).contains("welcoming");
-        assertThat(assistant.get(id).at("/turns/0/command").asText()).isEqualTo("PREPARE");
-        assistant.turn(id, request, "document-first");
-        verify(runtime, times(1)).generate(any());
-        assertThat(configuration.get().at("/promptConfig/other").asBoolean()).isTrue();
-    }
-    @Test void invalidTaskFocusIsRejectedBeforeInferenceAndDoesNotClaimAWriter() {
-        String id = create();
-        assertThatThrownBy(() -> assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", false, List.of(), List.of(), null,
-            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "wrong-page"))
-            .hasMessageContaining("does not match");
-        verify(runtime, never()).generate(any());
-        assertThat(assistant.get(id).path("activeTurnId").isNull()).isTrue();
-    }
-    @Test void actionPreparationScopeIsExplicitAndDoesNotLeakIntoOrdinaryFollowups() throws Exception {
-        String id = actionSession();
-        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Single endpoint", "text/plain",
-            "Base URL https://catalog.example. GET /products, public READ, no authentication.", null, null));
-        String sourceId = imported.at("/sources/0/id").asText();
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(), null,
-            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of("products"))), "prepare-actions");
-        await(id);
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("Explain the selected route only.", true,
-            List.of(sourceId), List.of()), "explain-actions");
-        await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(captured.capture());
-        var first = captured.getAllValues().getFirst();
-        assertThat(first.at("/catalogue/preparationScope/operationSelection").asText()).isEqualTo("ALL_SELECTED_SOURCE_OPERATIONS");
-        assertThat(first.at("/catalogue/preparationScope/sourceIds/0").asText()).isEqualTo(sourceId);
-        assertThat(first.at("/catalogue/preparationScope/operationIds")).isEmpty();
-        assertThat(first.at("/catalogue/preparationScope/documentedOperationCount").asInt()).isZero();
-        assertThat(first.at("/catalogue/editorContext/selectedDefinitionIds/0").asText()).isEqualTo("products");
-        assertThat(first.at("/sources/0/content").asText()).contains("GET /products");
-        assertThat(captured.getAllValues().getLast().at("/catalogue/preparationScope").isMissingNode()).isTrue();
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void explicitOperationSubsetDoesNotSendOtherOperationsOrDeselectedSources() throws Exception {
-        String id = actionSession();
-        var imported = assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("API", "application/json", """
-            {"openapi":"3.0.3","info":{"title":"Catalog","version":"1"},"servers":[{"url":"https://catalog.example"}],
-             "paths":{"/products":{"get":{"operationId":"listProducts","responses":{"200":{"description":"Products"}}}},
-                      "/private-notes":{"get":{"operationId":"privateNotes","responses":{"200":{"description":"Notes"}}}}}}
-            """, null, null));
-        String sourceId = imported.at("/sources/0/id").asText();
-        var operations = imported.at("/sources/0/operations"); assertThat(operations).hasSize(2);
-        String operationId = null;
-        for (var operation : operations) if ("/products".equals(operation.path("path").asText())) operationId = operation.path("id").asText();
-        assertThat(operationId).isNotBlank();
-        assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Unselected", "text/plain", "Unselected source canary", null, null));
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(operationId), null,
-            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "selected-operation");
-        await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
-        var input = captured.getValue();
-        assertThat(input.at("/catalogue/preparationScope/operationSelection").asText()).isEqualTo("SELECTED_OPERATION_IDS");
-        assertThat(input.at("/catalogue/preparationScope/operationIds/0").asText()).isEqualTo(operationId);
-        assertThat(input.at("/catalogue/preparationScope/documentedOperationCount").asInt()).isEqualTo(1);
-        assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/id").asText()).isEqualTo(operationId);
-        assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/path").asText()).isEqualTo("/products");
-        assertThat(input.at("/catalogue/preparationScope/documentedOperations/0/servers/0/url").asText()).isEqualTo("https://catalog.example");
-        assertThat(input.path("sources")).hasSize(1);
-        assertThat(input.at("/sources/0/content").asText()).contains("listProducts").doesNotContain("privateNotes", "/private-notes");
-        assertThat(mapper.readTree(input.at("/sources/0/content").asText()).at("/0/servers/0/url").asText()).isEqualTo("https://catalog.example");
-        assertThat(input.toString()).doesNotContain("Unselected source canary");
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(sourceId), List.of(), null,
-            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "all-operations");
-        await(id);
-        var allInputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(allInputs.capture());
-        var all = allInputs.getAllValues().getLast();
-        assertThat(all.at("/catalogue/preparationScope/operationSelection").asText()).isEqualTo("ALL_SELECTED_SOURCE_OPERATIONS");
-        assertThat(all.at("/catalogue/preparationScope/documentedOperationCount").asInt()).isEqualTo(2);
-        assertThat(all.at("/catalogue/preparationScope/documentedOperations")).hasSize(2);
-        assertThat(all.at("/catalogue/preparationScope/documentedOperations").toString()).contains("listProducts", "privateNotes");
-        assertThat(all.toString()).doesNotContain("Unselected source canary");
-    }
-    private String actionSession() throws Exception {
-        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("ACTIONS"))).thenAnswer(call -> snapshot());
-        var result = output("EXPLAIN"); result.putArray("changes"); when(runtime.generate(any())).thenReturn(result);
-        return assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "ACTIONS")).path("id").asText();
-    }
-    @Test void sameTaskPageFocusIsCapturedPerTurnWithoutLeakingIntoLaterRequests() throws Exception {
-        String id = create();
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(), List.of(), null, "PREPARE",
-            new AuthoringTaskIntent.EditorContext("INSTRUCTIONS", List.of("old-editor"))), "instructions");
-        await(id);
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("", true, List.of(), List.of(), null, "PREPARE",
-            new AuthoringTaskIntent.EditorContext("BEHAVIOUR", List.of())), "behaviour");
-        await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(captured.capture());
-        assertThat(captured.getAllValues().get(0).at("/catalogue/editorContext/section").asText()).isEqualTo("INSTRUCTIONS");
-        assertThat(captured.getAllValues().get(1).at("/catalogue/editorContext/section").asText()).isEqualTo("BEHAVIOUR");
-        assertThat(captured.getAllValues().get(1).at("/catalogue/editorContext/selectedDefinitionIds")).isEmpty();
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void retryingTheSameTurnDoesNotBillOrSaveTwice() throws Exception {
-        String id = create(); assistant.turn(id, request(false), "same-command"); await(id);
-        assistant.turn(id, request(false), "same-command");
-        verify(runtime, times(1)).generate(any()); verify(resources, times(1)).save(anyString(), anyString(), anyString(), any());
-        assertThatThrownBy(() -> assistant.turn(id,
-            new ConfigurationAssistantService.TurnRequest("Different request", false, null, null), "same-command"))
-            .hasMessageContaining("different request");
-    }
-    @Test void inferenceReceivesActualCurrentFindingsWithoutLeakingDeclaredSecretValues() throws Exception {
-        ((ObjectNode) configuration.get()).putObject("routingConfig").putObject("upstream").putObject("auth")
-            .put("value", "private-current-secret");
-        when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode()
-            .put("valid", false).put("message", "The saved source mapping is incomplete; private-current-secret must remain private."));
-        String id = create(); assistant.turn(id, request(false), "current-findings"); await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
-        assertThat(captured.getValue().at("/catalogue/currentValidation/valid").asBoolean()).isFalse();
-        assertThat(captured.getValue().at("/catalogue/currentValidation/message").asText()).contains("saved source mapping", "[REDACTED]");
-        assertThat(captured.getValue().toString()).doesNotContain("private-current-secret");
-    }
-    @Test void aCheckAuthorizationFailureStopsBeforeInference() throws Exception {
-        when(resources.check(anyString(), anyString(), any(), any())).thenThrow(
-            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Access revoked"));
-        String id = create(); assistant.turn(id, request(false), "revoked-at-check");
-        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("FAILED");
-        verify(runtime, never()).generate(any());
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void previewRequiresExplicitApplyButNormalConfigurationDoesNot() throws Exception {
-        String id = create(); assistant.turn(id, request(true), "preview-one"); var preview = await(id);
-        assertThat(preview.at("/turns/0/status").asText()).isEqualTo("PREVIEW");
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-        assistant.proposal(id, preview.at("/turns/0/id").asText(), "apply");
-        assertThat(assistant.get(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
-    }
-    @Test void sourceAndQueryAreEncryptedAndDeclaredCredentialsAreRedacted() throws Exception {
-        String id = create();
-        assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("API notes", "text/plain",
-            "Private example\nAuthorization: Bearer actual-credential", null, null));
-        var stored = sessions.findById(id).orElseThrow();
-        assertThat(stored.encryptedContent).doesNotContain("Private example", "actual-credential");
-        assertThat(assistant.get(id).path("sources").get(0).has("content")).isFalse();
-        assistant.turn(id, new ConfigurationAssistantService.TurnRequest("Use the imported documentation", false, null, null), "with-document"); await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
-        assertThat(captured.getValue().toString()).doesNotContain("actual-credential").contains("[REDACTED]");
-    }
-    @Test void deselectingAllSourcesReallySendsNoDocuments() throws Exception {
-        String id = create();
-        assistant.addSource(id, new ConfigurationAssistantService.SourceRequest("Not selected", "text/plain", "Private unselected notes", null, null));
-        assistant.turn(id, request(false), "no-document"); await(id);
-        var captured = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime).generate(captured.capture());
-        assertThat(captured.getValue().path("sources")).isEmpty();
-        assertThat(captured.getValue().toString()).doesNotContain("Private unselected notes");
-    }
-    @Test void anotherActorCannotReadEditCancelOrDeleteTheSession() {
-        String id = create(); signIn("another-actor");
-        assertThatThrownBy(() -> assistant.get(id)).hasMessageContaining("404");
-        assertThatThrownBy(() -> assistant.cancel(id)).hasMessageContaining("404");
-        assertThatThrownBy(() -> assistant.delete(id)).hasMessageContaining("404");
-        assertThatThrownBy(() -> assistant.turn(id, request(false), "cross-actor")).hasMessageContaining("404");
-        verify(runtime, never()).generate(any());
-    }
-    @Test void cancelledLateInferenceCannotSaveTheDraft() throws Exception {
-        var started = new CountDownLatch(1); var finish = new CountDownLatch(1);
-        when(runtime.generate(any())).thenAnswer(call -> { started.countDown(); finish.await(3, TimeUnit.SECONDS); return output("READY"); });
-        String id = create(); assistant.turn(id, request(false), "cancel-one");
-        assertThat(started.await(3, TimeUnit.SECONDS)).isTrue();
-        assertThatThrownBy(() -> assistant.cancel(id, "older-turn")).hasMessageContaining("newer assistant turn");
-        assertThat(assistant.get(id).path("status").asText()).isEqualTo("RUNNING");
-        assistant.cancel(id, assistant.get(id).path("activeTurnId").asText()); finish.countDown(); Thread.sleep(80);
-        assertThat(assistant.get(id).at("/turns/0/status").asText()).isEqualTo("CANCELLED");
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void reusesOnlyAuthorizedSameWorkspaceSourcesWithoutSharingThemAutomatically() throws Exception {
-        String first = create();
-        assistant.addSource(first, new ConfigurationAssistantService.SourceRequest("Shared API", "text/plain", "Authorized API notes", null, null));
-        when(resources.load("DEPLOYMENT_DRAFT", "another-resource", "BEHAVIOUR")).thenAnswer(call -> snapshot());
-        String second = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", "another-resource", "BEHAVIOUR")).path("id").asText();
-        assertThat(assistant.reusableSources(second)).hasSize(1);
-        String sourceId = assistant.get(first).at("/sources/0/id").asText();
-        assistant.reuseSources(second, new ConfigurationAssistantService.ReuseSources(first, List.of(sourceId)));
-        assertThat(assistant.sourceContent(second, sourceId).path("content").asText()).contains("Authorized API notes");
-        assistant.delete(first);
-        assertThat(assistant.get(second).path("sources")).hasSize(1);
-        signIn("another-actor");
-        assertThatThrownBy(() -> assistant.sourceContent(second, sourceId)).hasMessageContaining("404");
-    }
-    @Test void malformedOrUnauthorizedOutputIsVisibleAndDoesNotSave() throws Exception {
-        var invalid = output("READY"); ((ObjectNode) invalid.at("/changes/0")).put("path", "/providerConfig/apiKey");
-        when(runtime.generate(any())).thenReturn(invalid);
-        String id = create(); assistant.turn(id, request(false), "invalid-one");
-        var result = await(id);
-        assertThat(result.at("/turns/0/status").asText()).isEqualTo("FAILED");
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void validationFailureRetainsGeneratedProposalAndChargedRuntimeWithoutChangingTheSavedDraft() throws Exception {
-        assertGeneratedFailureRetained(false);
-    }
-    @Test void saveFailureRetainsGeneratedProposalAndChargedRuntimeWithoutClaimingItWasSaved() throws Exception {
-        assertGeneratedFailureRetained(true);
-    }
-    private void assertGeneratedFailureRetained(boolean failSave) throws Exception {
-        var generated = output("READY");
-        generated.putArray("questions").add("Which profile should this use?");
-        generated.putArray("assumptions").add("Keep existing unrelated behaviour settings.");
-        generated.putArray("sourceReferences").addObject().put("sourceId", "source-fixture").put("operationId", "wording");
-        generated.putObject("diagnostics").put("providerResponse", "HTTP_200").put("apiKey", "must-not-be-disclosed");
-        var runtimeReceipt = generated.putObject("runtime").put("requestId", "paid-generation")
-            .put("modelCalls", 1).put("accountingPath", "RUNTIME_PROVIDER_BUDGET").put("providerStatus", "SUCCESS");
-        runtimeReceipt.putObject("usage").put("promptTokens", 123).put("completionTokens", 57);
-        runtimeReceipt.putObject("accountingReceipt").put("newlyCounted", true).put("eventId", "charged-event");
-        when(runtime.generate(any())).thenReturn(generated);
-        String error = failSave ? "The draft could not be saved." : "AI behaviour tone requires a presetId and instructions string.";
-        var failure = new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, error);
-        if (failSave) when(resources.save(anyString(), anyString(), anyString(), any())).thenThrow(failure);
-        else when(resources.check(anyString(), anyString(), any(), any())).thenThrow(failure);
-        var before = configuration.get().deepCopy();
-        String id = create();
-        String key = failSave ? "save-failure" : "check-failure";
-        assistant.turn(id, request(false), key);
-        var state = await(id);
-        var turn = state.at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("FAILED");
-        assertThat(turn.path("message").asText()).isEqualTo(error);
-        assertThat(turn.path("notice").asText()).contains("proposal was not saved", "unverified", "last saved draft is unchanged");
-        assertThat(turn.path("unverifiedModelMessage")).isEqualTo(generated.path("message"));
-        for (String field : List.of("changes", "questions", "assumptions", "sourceReferences", "runtime"))
-            assertThat(turn.path(field)).as(field).isEqualTo(generated.path(field));
-        assertThat(turn.at("/diagnostics/providerResponse").asText()).isEqualTo("HTTP_200");
-        assertThat(turn.at("/diagnostics/apiKey").asText()).isEqualTo("[REDACTED]");
-        assertThat(state.toString()).doesNotContain("must-not-be-disclosed");
-        assertThat(turn.has("receipt")).isFalse();
-        assertThat(turn.has("diff")).isFalse();
-        assertThat(configuration.get()).isEqualTo(before);
-        assertThat(state.path("status").asText()).isEqualTo("IDLE");
-        assertThat(assistant.get(id).at("/turns/0")).isEqualTo(turn);
-        verify(resources, times(failSave ? 1 : 0)).save(anyString(), anyString(), anyString(), any());
-        assistant.turn(id, request(false), key);
-        verify(runtime, times(1)).generate(any());
-        verify(resources, times(failSave ? 1 : 0)).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void deletingSessionErasesSourcesAndDoesNotUndoSavedConfiguration() throws Exception {
-        String id = create(); assistant.turn(id, request(false), "save-before-delete"); await(id); assistant.delete(id);
-        assertThat(sessions.findById(id)).isEmpty();
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("AI result");
-    }
-    @Test void explicitFeedbackUsesRealFindingsAndCandidateThenSavesOnceWithOneUndo() throws Exception {
-        validationFixture();
-        var first = feedbackOutput("Invalid draft", "attempt-one");
-        first.withArray("changes").addObject().put("path", "/promptConfig/newField").put("operation", "SET").put("value", "Keep this addition");
-        when(runtime.generate(any())).thenReturn(first, feedbackOutput("Corrected draft", "attempt-two"));
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "feedback-success");
-        var state = await(id); var turn = state.at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
-        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("VALIDATION_PASSED");
-        assertThat(turn.path("attempts")).hasSize(2);
-        assertThat(turn.at("/attempts/0/status").asText()).isEqualTo("VALIDATION_ERRORS");
-        assertThat(turn.at("/attempts/1/status").asText()).isEqualTo("CHECKED");
-        assertThat(turn.at("/attempts/0/runtime/requestId").asText()).isEqualTo("attempt-one");
-        assertThat(turn.at("/attempts/1/runtime/requestId").asText()).isEqualTo("attempt-two");
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Corrected draft");
-        assertThat(configuration.get().at("/promptConfig/newField").asText()).isEqualTo("Keep this addition");
-        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class);
-        verify(runtime, times(2)).generate(inputs.capture());
-        var next = inputs.getAllValues().get(1);
-        assertThat(next.at("/currentConfiguration/promptConfig/systemPrompt").asText()).isEqualTo("Invalid draft");
-        assertThat(next.at("/catalogue/validationFeedback/previousFindings/valid").asBoolean()).isFalse();
-        assertThat(next.path("query").asText()).isEqualTo("Make the requested wording change");
-        assertThat(next.path("turnId").asText()).endsWith("-attempt-2");
-        assertThat(next.at("/catalogue/validationFeedback/deadlineAt").asText()).isNotBlank();
-        verify(resources, times(1)).save(anyString(), anyString(), anyString(), any());
-        assistant.proposal(id, turn.path("id").asText(), "undo");
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
-        assertThat(configuration.get().at("/promptConfig/newField").isMissingNode()).isTrue();
-    }
-    @Test void warningsDoNotStartCorrectionAndMissingPolicyIsSingleAttempt() throws Exception {
-        when(resources.check(anyString(), anyString(), any(), any())).thenReturn(mapper.createObjectNode()
-            .put("publishReady", true).put("errorCount", 0).put("warningCount", 1));
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "warnings-only");
-        assertThat(await(id).at("/turns/0/attempts")).hasSize(1);
-        verify(runtime, times(1)).generate(any());
-        validationFixture(); when(runtime.generate(any())).thenReturn(feedbackOutput("Invalid draft", "single"));
-        assistant.turn(id, request(false), "no-policy");
-        var turn = await(id).at("/turns/1");
-        assertThat(turn.path("attempts")).hasSize(1);
-        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("DISABLED");
-        assertThat(turn.path("findings").path("valid").asBoolean()).isFalse();
-        verify(runtime, times(2)).generate(any());
-    }
-
-    @Test void managerEditSavesOnceWithUnchangedPublicationPrerequisitesStillVisible() throws Exception {
-        var blocker = specialistFixture(true);
-        when(runtime.generate(any())).thenReturn(managerOutput(false));
-        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
-        assistant.turn(id, feedbackRequest(false, 2), "manager-preexisting-prerequisite");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
-        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("UNCHANGED_PUBLICATION_PREREQUISITES");
-        assertThat(turn.path("attempts")).hasSize(1);
-        assertThat(turn.at("/attempts/0/status").asText()).isEqualTo("PUBLICATION_BLOCKERS_UNCHANGED");
-        assertThat(turn.path("findings")).isEqualTo(blocker);
-        assertThat(turn.at("/findings/publishReady").asBoolean()).isFalse();
-        assertThat(configuration.get().at("/behaviorConfig/specialistAssistance/resolutions/0/instructions").asText()).isEqualTo("Use approved observations.");
-        verify(runtime).generate(any());
-        verify(resources).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
-    }
-
-    @Test void unsupportedDisabledManagerMetadataIsRepairedBeforeOneSave() throws Exception {
-        specialistFixture(false);
-        var corrected = managerOutput(false);
-        corrected.withArray("changes").addObject().put("path", "/behaviorConfig/specialistAssistance/authority").put("operation", "REMOVE");
-        when(runtime.generate(any())).thenReturn(managerOutput(true), corrected);
-        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
-        assistant.turn(id, feedbackRequest(false, 2), "manager-contract-repair");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
-        assertThat(turn.path("attempts")).hasSize(2);
-        assertThat(configuration.get().at("/behaviorConfig/specialistAssistance/authority").isMissingNode()).isTrue();
-        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
-        assertThat(inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0/message").asText())
-            .contains("SPECIALIST_AUTHORING_FIELD_UNSUPPORTED");
-        verify(resources).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
-    }
-
-    @Test void exhaustedUnsupportedMetadataDoesNotSaveAnUnrecognizedSetting() throws Exception {
-        specialistFixture(false); var before = configuration.get().deepCopy();
-        when(runtime.generate(any())).thenReturn(managerOutput(true));
-        String id = assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "SPECIALISTS")).path("id").asText();
-        assistant.turn(id, feedbackRequest(false, 2), "manager-contract-exhausted");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("FAILED");
-        assertThat(turn.path("attempts")).hasSize(3);
-        assertThat(configuration.get()).isEqualTo(before);
-        verify(resources, never()).save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any());
-    }
-
-    private JsonNode specialistFixture(boolean publicationBlocked) throws Exception {
-        configuration.set(mapper.readTree("""
-            {"behaviorConfig":{"type":"CONVERSATIONAL","marketplaceRequirements":{"unresolvedRequiredPluginRefs":["documents@1"]},
-              "specialistAssistance":{"enabled":false,"areas":[],"resolutions":[{"id":"setup","instructions":"Original"}],"limits":{}}}}
-            """));
-        var findings = mapper.createObjectNode().put("publishReady", !publicationBlocked).put("errorCount", publicationBlocked ? 1 : 0);
-        if (publicationBlocked) findings.putArray("issues").addObject().put("severity", "ERROR")
-            .put("code", "MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED").put("path", "$.behaviorConfig.marketplaceRequirements")
-            .put("message", "Configure required documents before publication.");
-        var paths = List.of("/behaviorConfig/specialistAssistance", "/behaviorConfig/executionExtensions");
-        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"))).thenAnswer(call ->
-            new AuthoringResourceService.Snapshot(customerId, "Support", configuration.get(), mapper.createObjectNode(), paths, "draft-test", true, ""));
-        when(resources.check(anyString(), anyString(), any(), any())).thenAnswer(call -> {
-            SpecialistAuthoringPolicy.requireSupportedEdits(configuration.get(), call.getArgument(3)); return findings;
+    @Test void readOnlyResourceAutomaticallyUsesNonmutatingPreview() throws Exception {
+        when(resources.load(eq("DEPLOYMENT_DRAFT"), eq(resourceId), anyString())).thenAnswer(call -> {
+            var current = snapshot(call.getArgument(2));
+            return new AuthoringResourceService.Snapshot(current.customerId(), current.displayName(), current.configuration(), current.catalogue(),
+                current.allowedPaths(), current.version(), false, "This active resource is preview-only.");
         });
-        when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("SPECIALISTS"), any())).thenAnswer(call -> {
-            var result = changes.apply(configuration.get(), call.getArgument(3), paths);
-            SpecialistAuthoringPolicy.requireSupportedEdits(configuration.get(), result.candidate());
-            configuration.set(result.candidate());
-            return new AuthoringResourceService.Saved(result.diff(), findings, mapper.createObjectNode().put("published", false), result.candidate());
-        });
-        return findings;
-    }
-
-    private ObjectNode managerOutput(boolean extraMetadata) throws Exception {
-        var output = output("READY"); output.putArray("changes").addObject()
-            .put("path", "/behaviorConfig/specialistAssistance/resolutions/0/instructions").put("operation", "SET").put("value", "Use approved observations.");
-        if (extraMetadata) output.withArray("changes").addObject().put("path", "/behaviorConfig/specialistAssistance/authority")
-            .put("operation", "SET").putObject("value").put("automaticWritesAllowed", false);
-        return output;
-    }
-    @Test void correctionLimitStopsAndRetainsEveryInvalidCandidateFinding() throws Exception {
-        validationFixture(); when(runtime.generate(any())).thenReturn(feedbackOutput("Invalid draft", "paid-attempt"));
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "exhausted");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
-        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("CORRECTION_LIMIT_REACHED");
-        assertThat(turn.path("attempts")).hasSize(3);
-        assertThat(turn.at("/findings/valid").asBoolean()).isFalse();
-        for (var attempt : turn.path("attempts")) assertThat(attempt.path("findings").path("valid").asBoolean()).isFalse();
-        verify(runtime, times(3)).generate(any()); verify(resources, times(1)).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void needsInputDuringCorrectionStopsWithoutSavingEarlierCandidate() throws Exception {
-        validationFixture(); var needsInput = feedbackOutput("Ignored", "ask-user");
-        needsInput.put("status", "NEEDS_INPUT"); needsInput.putArray("changes");
-        needsInput.putArray("questions").addObject().put("id", "binding").put("question", "Which authorized connection should I use?");
-        when(runtime.generate(any())).thenReturn(feedbackOutput("Invalid draft", "first"), needsInput);
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "needs-information");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("NEEDS_INPUT");
-        assertThat(turn.path("feedbackStopReason").asText()).isEqualTo("NEEDS_INPUT");
-        assertThat(turn.path("attempts")).hasSize(2);
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void needsInputWithPartialChangesRetainsProposalWithoutSavingWhenFeedbackIsEnabled() throws Exception {
-        var needsInput = feedbackOutput("Proposed, not saved", "partial-needs-input");
-        needsInput.put("status", "NEEDS_INPUT");
-        needsInput.putArray("questions").addObject().put("id", "binding").put("question", "Which authorized connection should I use?");
-        when(runtime.generate(any())).thenReturn(needsInput);
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "partial-needs-information");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("NEEDS_INPUT");
-        assertThat(turn.path("attempts")).hasSize(1);
-        assertThat(turn.at("/attempts/0/changes")).hasSize(1);
-        assertThat(turn.path("notice").asText()).contains("no draft change was saved");
-        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Manual");
-        verify(runtime, times(1)).generate(any());
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void previewCorrectionAndRepeatedTurnKeyDoNotMutateOrChargeAgain() throws Exception {
-        validationFixture(); when(runtime.generate(any())).thenReturn(feedbackOutput("Invalid draft", "one"), feedbackOutput("Corrected draft", "two"));
-        String id = create(); var request = feedbackRequest(true, 2);
-        assistant.turn(id, request, "same-feedback"); var state = await(id);
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "readonly"); var state = await();
         assertThat(state.at("/turns/0/status").asText()).isEqualTo("PREVIEW");
         verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-        assistant.turn(id, request, "same-feedback"); verify(runtime, times(2)).generate(any());
-        assistant.proposal(id, state.at("/turns/0/id").asText(), "apply");
-        assertThat(assistant.get(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
-        verify(resources, times(1)).save(anyString(), anyString(), anyString(), any());
     }
-    @Test void onlyTheTypedInvalidOutputCategoryMayRegenerateNotProviderOrBudgetFailures() throws Exception {
-        var receipt = mapper.createObjectNode().put("requestId", "invalid-json-paid").put("modelCalls", 1);
-        receipt.putObject("outputContractFinding").put("code", "CHANGE_OPERATION").put("field", "/changes/0/operation");
-        when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("AUTHORING_INVALID_OUTPUT", receipt))
-            .thenReturn(feedbackOutput("Corrected draft", "valid-json-paid"));
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "invalid-json");
-        var turn = await(id).at("/turns/0");
-        assertThat(turn.path("status").asText()).isEqualTo("SAVED");
-        assertThat(turn.at("/attempts/0/status").asText()).isEqualTo("INVALID_OUTPUT");
-        assertThat(turn.at("/attempts/0/runtime/requestId").asText()).isEqualTo("invalid-json-paid");
-        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
-        assertThat(inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0/code").asText())
-            .isEqualTo("AUTHORING_INVALID_OUTPUT");
-        var issue = inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings/issues/0");
-        assertThat(issue.path("contractCode").asText()).isEqualTo("CHANGE_OPERATION");
-        assertThat(issue.path("path").asText()).isEqualTo("/changes/0/operation");
-        assertThat(issue.path("message").asText()).contains("SET, REMOVE, UPSERT or REMOVE_ITEM");
-        reset(runtime); when(runtime.configured()).thenReturn(true);
-        when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("PROVIDER_BUDGET_INTERRUPTED", receipt));
-        assistant.turn(id, feedbackRequest(false, 2), "budget-stops");
-        assertThat(await(id).at("/turns/1/status").asText()).isEqualTo("FAILED");
-        verify(runtime, times(1)).generate(any());
-    }
-
-    @Test void unrecognizedDiagnosticDataIsNotForwardedAsValidationFeedback() throws Exception {
-        var receipt = mapper.createObjectNode().put("modelCalls", 1);
-        receipt.putObject("outputContractFinding").put("code", "UNTRUSTED-secret-marker").put("field", "/private/secret-marker");
-        when(runtime.generate(any())).thenThrow(new AuthoringRuntimeClient.AuthoringRuntimeFailure("AUTHORING_INVALID_OUTPUT", receipt))
-            .thenReturn(feedbackOutput("Corrected draft", "valid"));
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "unknown-diagnostic");
-        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("SAVED");
-        var inputs = org.mockito.ArgumentCaptor.forClass(JsonNode.class); verify(runtime, times(2)).generate(inputs.capture());
-        var findings = inputs.getAllValues().get(1).at("/catalogue/validationFeedback/previousFindings");
-        assertThat(findings.toString()).doesNotContain("secret-marker");
-        assertThat(findings.at("/issues/0/contractCode").isMissingNode()).isTrue();
-    }
-    @Test void unauthorizedChangeStopsWithoutUsingCorrectionToExpandItsScope() throws Exception {
-        var invalid = feedbackOutput("Invalid draft", "unauthorized");
-        ((ObjectNode) invalid.at("/changes/0")).put("path", "/providerConfig/apiKey");
-        when(runtime.generate(any())).thenReturn(invalid);
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "outside-scope");
-        assertThat(await(id).at("/turns/0/status").asText()).isEqualTo("FAILED");
-        verify(runtime, times(1)).generate(any()); verify(resources, never()).save(anyString(), anyString(), anyString(), any());
-    }
-    @Test void cancelDuringSecondAttemptPreventsAnyDraftSave() throws Exception {
-        validationFixture(); var secondStarted = new CountDownLatch(1); var finish = new CountDownLatch(1);
-        var counter = new java.util.concurrent.atomic.AtomicInteger();
-        when(runtime.generate(any())).thenAnswer(call -> {
-            if (counter.incrementAndGet() == 1) return feedbackOutput("Invalid draft", "one");
-            secondStarted.countDown(); finish.await(3, TimeUnit.SECONDS); return feedbackOutput("Corrected draft", "two");
+    @Test void cancellationBlocksALateWriteAndInterruptsTheCanonicalTurn() throws Exception {
+        var entered = new java.util.concurrent.CountDownLatch(1); var finished = new java.util.concurrent.CountDownLatch(1);
+        var rejected = new AtomicBoolean();
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            entered.countDown();
+            try { Thread.sleep(10000); } catch (InterruptedException expectedCancellation) { }
+            try { operations.save(caller(call.getArgument(1), call.getArgument(3)), call.getArgument(3) + ":step:1", change("Too late")); }
+            catch (org.springframework.web.server.ResponseStatusException denied) { rejected.set(true); }
+            finally { finished.countDown(); }
+            return response("COMPLETE");
         });
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "cancel-correction");
-        assertThat(secondStarted.await(3, TimeUnit.SECONDS)).isTrue();
-        assistant.cancel(id); finish.countDown(); Thread.sleep(100);
-        assertThat(assistant.get(id).at("/turns/0/status").asText()).isEqualTo("CANCELLED");
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "cancel");
+        assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); assistant.cancel(sessionId);
+        assertThat(finished.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); assertThat(rejected).isTrue();
+        assertThat(assistant.get(sessionId).at("/turns/0/status").asText()).isEqualTo("CANCELLED");
+        verify(runtime).interrupt(any(), eq(sessionId), anyString(), anyString());
         verify(resources, never()).save(anyString(), anyString(), anyString(), any());
     }
-    @Test void cancelledInvalidOutputRetainsPaidReceiptWithoutRetryingOrSaving() throws Exception {
-        var started = new CountDownLatch(1); var finish = new CountDownLatch(1);
-        var receipt = mapper.createObjectNode().put("requestId", "cancelled-invalid-json-paid").put("modelCalls", 1);
-        when(runtime.generate(any())).thenAnswer(call -> {
-            started.countDown();
-            try { finish.await(3, TimeUnit.SECONDS); }
-            catch (InterruptedException cancelled) { /* The provider's paid receipt may arrive after cancellation. */ }
-            throw new AuthoringRuntimeClient.AuthoringRuntimeFailure("AUTHORING_INVALID_OUTPUT", receipt);
+    @Test void selectedOperationsAndPageIntentNeedNoDetailedUserPrompt() throws Exception {
+        create("ACTIONS"); var imported = assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("API", "application/json", """
+            {"openapi":"3.0.3","info":{"title":"Generic API","version":"1"},"servers":[{"url":"https://catalog.example"}],
+            "paths":{"/products":{"get":{"operationId":"listProducts","responses":{"200":{"description":"Products"}}}},
+            "/private-notes":{"get":{"operationId":"privateNotes","responses":{"200":{"description":"Notes"}}}}}}
+            """, null, null));
+        String source = imported.at("/sources/0/id").asText(); String selected = null;
+        for (var op : imported.at("/sources/0/operations")) if ("/products".equals(op.path("path").asText())) selected = op.path("id").asText();
+        assertThat(selected).isNotBlank(); var observed = new AtomicReference<JsonNode>();
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            var who = caller(call.getArgument(1), call.getArgument(3)); observed.set(operations.selectedSources(who));
+            assertThat(operations.context(who).at("/preparationScope/documentedOperationCount").asInt()).isEqualTo(1);
+            assertThat(call.getArgument(5, String.class)).startsWith("Prepare"); return response("COMPLETE");
         });
-        String id = create(); assistant.turn(id, feedbackRequest(false, 2), "cancel-invalid-output");
-        assertThat(started.await(3, TimeUnit.SECONDS)).isTrue();
-        assistant.cancel(id); finish.countDown();
-        JsonNode turn = null;
-        for (int i = 0; i < 160; i++) {
-            turn = assistant.get(id).at("/turns/0");
-            if (turn.at("/attempts/0/runtime/requestId").asText().equals("cancelled-invalid-json-paid")) break;
-            Thread.sleep(25);
-        }
-        assertThat(turn.path("status").asText()).isEqualTo("CANCELLED");
-        assertThat(turn.at("/attempts/0/status").asText()).isEqualTo("CANCELLED");
-        assertThat(turn.at("/attempts/0/runtime/requestId").asText()).isEqualTo("cancelled-invalid-json-paid");
-        verify(runtime, times(1)).generate(any());
-        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+        assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("", true, List.of(source), List.of(selected), new AuthoringFeedbackPolicy(true, 2),
+            "PREPARE", new AuthoringTaskIntent.EditorContext("ACTIONS", List.of())), "selected");
+        await(); assertThat(observed.get().toString()).contains("listProducts", "https://catalog.example").doesNotContain("privateNotes");
     }
-    @Test void excessiveCorrectionBudgetIsRejectedBeforeGeneration() {
-        String id = create();
-        assertThatThrownBy(() -> assistant.turn(id, feedbackRequest(false, 3), "too-many"))
-            .hasMessageContaining("between one and 2");
-        verify(runtime, never()).generate(any());
-        assertThat(assistant.get(id).path("turns")).isEmpty();
-    }
-    private ConfigurationAssistantService.TurnRequest feedbackRequest(boolean preview, int maximum) {
-        return new ConfigurationAssistantService.TurnRequest("Make the requested wording change", preview, List.of(), List.of(),
-            new AuthoringFeedbackPolicy(true, maximum));
-    }
-    private ObjectNode feedbackOutput(String value, String requestId) throws Exception {
-        var result = output("READY"); ((ObjectNode) result.at("/changes/0")).put("value", value);
-        result.putObject("runtime").put("requestId", requestId).put("modelCalls", 1);
-        return result;
-    }
-    private JsonNode checkCandidate(JsonNode candidate) {
-        boolean valid = !"Invalid draft".equals(candidate.at("/promptConfig/systemPrompt").asText());
-        var result = mapper.createObjectNode().put("valid", valid).put("errorCount", valid ? 0 : 1).put("warningCount", 0);
-        if (!valid) result.putArray("issues").addObject().put("severity", "ERROR").put("code", "PROFILE_CONTRACT_INVALID")
-            .put("path", "/promptConfig/systemPrompt").put("message", "This fixture requires the corrected profile contract.");
-        return result;
-    }
-    private void validationFixture() {
-        when(resources.check(anyString(), anyString(), any(), any())).thenAnswer(call -> checkCandidate(call.getArgument(3)));
-        when(resources.save(eq("DEPLOYMENT_DRAFT"), eq(resourceId), eq("BEHAVIOUR"), any())).thenAnswer(call -> {
-            var result = changes.apply(configuration.get(), call.getArgument(3), List.of("/promptConfig"));
-            configuration.set(result.candidate());
-            return new AuthoringResourceService.Saved(result.diff(), checkCandidate(result.candidate()),
-                mapper.createObjectNode().put("draftId", "draft-test").put("published", false), result.candidate());
+    @Test void saveRebasesOnFreshStateAndPreservesUnrelatedManualEdits() throws Exception {
+        var seen = new AtomicReference<JsonNode>();
+        when(runtime.message(any(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(), anyInt(), any())).thenAnswer(call -> {
+            ((ObjectNode) configuration.get().path("promptConfig")).put("manualNote", "Keep this");
+            var who = caller(call.getArgument(1), call.getArgument(3)); operations.save(who, call.getArgument(3) + ":step:1", change("Requested edit"));
+            seen.set(operations.context(who)); return response("COMPLETE");
         });
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "merge"); await();
+        assertThat(configuration.get().at("/promptConfig/manualNote").asText()).isEqualTo("Keep this");
+        assertThat(seen.get().at("/configuration/promptConfig/systemPrompt").asText()).isEqualTo("Requested edit");
     }
-    private String create() { return assistant.create(new ConfigurationAssistantService.CreateSession("DEPLOYMENT_DRAFT", resourceId, "BEHAVIOUR")).path("id").asText(); }
-    private ConfigurationAssistantService.TurnRequest request(boolean preview) { return new ConfigurationAssistantService.TurnRequest("Make the requested wording change", preview, List.of(), List.of()); }
-    private AuthoringResourceService.Snapshot snapshot() {
-        return new AuthoringResourceService.Snapshot(customerId, "Test Brain", configuration.get(), mapper.createObjectNode(), List.of("/promptConfig"), "draft-test", true, "");
+    @Test void sourceRemovalErasesCanonicalHistoryWithoutUndoingSavedChanges() throws Exception {
+        create("BEHAVIOUR"); var imported = assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("Guide", "text/plain", "Welcoming prose", null, null));
+        assistant.turn(sessionId, request(false, true), "save"); await(); assistant.removeSource(sessionId, imported.at("/sources/0/id").asText());
+        verify(runtime).close(any(), eq(sessionId), anyString()); assertThat(assistant.get(sessionId).path("turns")).isEmpty();
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("AI result");
     }
-    private ObjectNode output(String status) throws Exception {
-        return (ObjectNode) mapper.readTree("""
-            {"contractVersion":"LOOMAI_CONFIGURATION_AUTHORING_V1","status":"%s","message":"Updated the requested draft wording.",
-             "changes":[{"path":"/promptConfig/systemPrompt","operation":"SET","value":"AI result"}],"questions":[],"assumptions":[],"sourceReferences":[]}
-            """.formatted(status));
+    @Test void failedErasureRetainsEncryptedReferenceForRetry() throws Exception {
+        create("BEHAVIOUR"); assistant.turn(sessionId, request(false, true), "save"); await();
+        doThrow(new IllegalStateException("erasure unavailable")).when(runtime).close(any(), eq(sessionId), anyString());
+        assertThatThrownBy(() -> assistant.delete(sessionId)).hasMessageContaining("erasure unavailable"); assertThat(sessions.findById(sessionId)).isPresent();
+        doNothing().when(runtime).close(any(), eq(sessionId), anyString()); assistant.delete(sessionId);
+        assertThat(sessions.findById(sessionId)).isEmpty(); sessionId = null;
     }
-    private JsonNode await(String id) throws Exception {
-        for (int i = 0; i < 160; i++) { var state = assistant.get(id); if (!"RUNNING".equals(state.path("status").asText())) return state; Thread.sleep(25); }
-        throw new AssertionError("Assistant turn did not finish");
+    @Test void anotherActorCannotReadOrContinueTheConversation() {
+        create("BEHAVIOUR"); signIn("other@example.test");
+        try { assertThatThrownBy(() -> assistant.get(sessionId)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class); }
+        finally { signIn(actor); }
     }
-    private void signIn(String id) {
-        var auth = new UsernamePasswordAuthenticationToken(new PlatformPrincipal(id, PlatformRole.PLATFORM_ADMIN, "Fixture", "SESSION"), null,
-            List.of(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")));
-        var context = SecurityContextHolder.createEmptyContext(); context.setAuthentication(auth); SecurityContextHolder.setContext(context);
+    @Test void importIsEncryptedAndDoesNotInvokeTheBrain() {
+        create("BEHAVIOUR"); assistant.addSource(sessionId, new ConfigurationAssistantService.SourceRequest("Guide", "text/plain", "Use a helpful greeting.", null, null));
+        assertThat(sessions.findById(sessionId).orElseThrow().encryptedContent).doesNotContain("helpful greeting"); verifyNoInteractions(runtime);
     }
 }

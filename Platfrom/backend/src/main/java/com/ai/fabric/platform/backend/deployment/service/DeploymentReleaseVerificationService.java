@@ -56,6 +56,8 @@ import java.util.UUID;
 
 @Service
 public class DeploymentReleaseVerificationService {
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.assistant.ManagedAssistantRuntime> managedAssistant;
 
     @Autowired
     private DeploymentDocumentBindingResolver documentBindingResolver;
@@ -238,6 +240,8 @@ public class DeploymentReleaseVerificationService {
                                                   DeploymentVersionEntity version,
                                                   DeploymentReleaseEntity release,
                                                   String verificationType) {
+        var assistant = managedAssistant == null ? null : managedAssistant.getIfAvailable();
+        if (assistant != null && assistant.matches(deployment)) return assistant.verify(deployment, version, release, verificationType);
         Instant now = Instant.now();
         ArrayNode checks = objectMapper.createArrayNode();
         DeploymentArtifactBundleSummary artifacts = deploymentArtifactService.toBundleSummary(version);

@@ -16,15 +16,17 @@ import org.springframework.context.annotation.Configuration;
 public class SpecialistAssistanceConfiguration {
     @Bean
     SpecialistManifestLoader publishedSpecialistManifestLoader(ObjectMapper mapper, SpecialistAssistanceBundle bundle,
-        ManagedTasksBundle tasks) {
+        ManagedTasksBundle tasks, com.ai.fabric.runtime.workflow.WorkflowAssistanceBundle workflows) {
         var official = new DefaultSpecialistManifestLoader(mapper);
-        if (!bundle.enabled() && !tasks.enabled()) return official;
+        if (!bundle.enabled() && !tasks.enabled() && !workflows.enabled()) return official;
         return properties -> {
             try {
                 var locations = new ArrayList<>(properties.getLocations());
                 if (bundle.enabled()) materialize(mapper, "loomai-specialist-assistance", bundle.contentHash(),
                     bundle.content().path("resources"), locations);
                 if (tasks.enabled()) materialize(mapper, "loomai-managed-tasks", tasks.contentHash(), tasks.resources(), locations);
+                if (workflows.enabled()) materialize(mapper, "loomai-workflow-assistance", workflows.contentHash(),
+                    workflows.content().path("resources"), locations);
                 var effective = new AIExecutionProperties.Manifests();
                 effective.setEnabled(true);
                 effective.setFailFast(true);

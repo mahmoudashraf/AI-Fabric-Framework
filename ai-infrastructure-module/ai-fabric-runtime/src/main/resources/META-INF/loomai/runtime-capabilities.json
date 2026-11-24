@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.67",
+  "aiFabricVersion": "0.8.68",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -26,6 +26,7 @@
     "SPECIALIST_ASSISTANCE"
   ],
   "capabilities": [
+    "configured-workflow-assistance",
     "internal-decision-recovery-v1",
     "automatic-action-evidence-v1",
     "managed-mcp-connections",
@@ -138,6 +139,8 @@
     ,"provider-budget-top-ups-v1"
     ,"reranking-budget-binding-v1"
     ,"runtime-release-scoped-retirement-v24"
+    ,"workflow-execution-checkpoint-v27"
+    ,"protected-conversation-message-capacity-v28"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",

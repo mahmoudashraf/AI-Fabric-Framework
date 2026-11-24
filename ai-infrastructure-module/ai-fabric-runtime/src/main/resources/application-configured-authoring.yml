@@ -1,0 +1,62 @@
+# A normal conversational Brain, reusing the original assistant's durable database and budget.
+spring:
+  application:
+    name: ai-fabric-configuration-assistant
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./data/configuration-authoring-state;DB_CLOSE_ON_EXIT=FALSE}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+ai:
+  service:
+    features:
+      enable-generation: true
+      enable-embeddings: false
+      enable-search: true
+      enable-rag: true
+  providers:
+    enable-fallback: false
+    generation-fallback-providers: []
+    embedding-fallback-providers: []
+    openai:
+      model: ${OPENAI_MODEL:gpt-5.4-mini}
+      max-tokens: ${LOOMAI_AUTHORING_MAX_OUTPUT_TOKENS:4096}
+      timeout: ${LOOMAI_AUTHORING_PROVIDER_TIMEOUT_SECONDS:40}
+  vector-db:
+    type: memory
+  data-sync:
+    enabled: false
+  indexing:
+    enabled: false
+    documents:
+      enabled: false
+  chat:
+    enabled: true
+    control:
+      enabled: true
+  execution:
+    enabled: true
+    manifests:
+      enabled: true
+    async:
+      repository: JDBC
+      initialize-schema: false
+loomai:
+  authoring:
+    enabled: false
+  configuration-assistant:
+    enabled: true
+    protect-history: true
+    platform-base-url: ${LOOMAI_CONFIGURATION_ASSISTANT_PLATFORM_BASE_URL:}
+  conversation-control:
+    enabled: true
+  conversation-handover:
+    enabled: false
+  documents:
+    enabled: false
+  smart-brain:
+    enabled: false
+  provider-budget:
+    enabled: true
+    rate-card-reference: ${LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE:openai-gpt4omini-gpt54mini-embedding3small-20261024-v2}
+    output-cap-mode: MAX_COMPLETION_TOKENS

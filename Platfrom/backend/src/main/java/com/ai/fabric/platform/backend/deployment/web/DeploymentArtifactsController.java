@@ -129,6 +129,13 @@ public class DeploymentArtifactsController {
             .body(deploymentArtifactService.readSpecialistAssistanceArtifact(deploymentId, versionId, expires, signature));
     }
 
+    @GetMapping("/workflow-assistance.json")
+    public ResponseEntity<String> getWorkflowAssistanceArtifact(@PathVariable String deploymentId, @PathVariable String versionId,
+        @RequestParam(name = "expires", required = false) Long expires, @RequestParam(name = "sig", required = false) String signature) {
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .body(deploymentArtifactService.readWorkflowAssistanceArtifact(deploymentId, versionId, expires, signature));
+    }
+
     private ResponseEntity<String> yamlResponse(String filename, String body) {
         return ResponseEntity.ok()
             .contentType(YAML_MEDIA_TYPE)

@@ -16,6 +16,8 @@ import static com.ai.fabric.platform.backend.deployment.budget.ProviderUsageRunt
 /** Provisioning-time coordination only; customer inference traffic never passes through this service. */
 @Service
 public class ProviderUsageReleaseCoordinator {
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.assistant.ManagedAssistantRuntime> managedAssistant;
     private final CustomerOfferDeploymentRepository offers;
     private final ProviderUsageAllowanceService allowances;
     private final ProviderUsageRuntimeClient runtime;
@@ -33,6 +35,7 @@ public class ProviderUsageReleaseCoordinator {
 
     public void prepare(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
+        if (existingAssistant(deployment) != null) { existingAssistant(deployment).requireInstalled(deployment, release); return; }
         if (funded(deployment, release)) {
             artifactGate.require(release);
             supported(allowances.prepareForAuthorizedRelease(release.getId()));
@@ -46,6 +49,7 @@ public class ProviderUsageReleaseCoordinator {
     /** Called last, after all customer-controlled/default environment merges. No environment-provided credits. */
     public Map<String, String> environment(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
+        if (existingAssistant(deployment) != null) { existingAssistant(deployment).requireInstalled(deployment, release); return Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "true"); }
         var pinned = modes.forRelease(deployment, release);
         var environment = new java.util.LinkedHashMap<String, String>();
         if (pinned.map(ProviderUsageModeResolver.Mode.FUNDED.name()::equals).orElseGet(() -> offers.existsById(deployment.getId()))) {
@@ -68,6 +72,7 @@ public class ProviderUsageReleaseCoordinator {
 
     public void initializeAndActivate(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
+        if (existingAssistant(deployment) != null) { existingAssistant(deployment).verifyRuntime(deployment, version, release); return; }
         if (!version.getId().equals(release.getDeploymentVersionId()) || !deployment.getId().equals(version.getDeploymentId())) fail();
         if (funded(deployment, release)) initializeAccount(deployment, version, release, ProviderUsagePurpose.GENERATION);
         if (allowances.rerankingEnabledForRelease(release.getId())) initializeAccount(deployment, version, release, ProviderUsagePurpose.RERANKING);
@@ -118,6 +123,7 @@ public class ProviderUsageReleaseCoordinator {
     /** Continuation may inspect the existing wallet, but must never initialize, activate or top it up. */
     public void verifyActive(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
+        if (existingAssistant(deployment) != null) { existingAssistant(deployment).verifyRuntime(deployment, version, release); return; }
         if (!version.getId().equals(release.getDeploymentVersionId())
             || !deployment.getId().equals(version.getDeploymentId())) fail();
         if (funded(deployment, release)) verifyAccount(deployment, release, ProviderUsagePurpose.GENERATION);
@@ -197,4 +203,8 @@ public class ProviderUsageReleaseCoordinator {
     }
 
     private static void fail() { throw new IllegalStateException("PROVIDER_USAGE_RUNTIME_IDENTITY_OR_STATE_CHANGED"); }
+    private com.ai.fabric.platform.backend.assistant.ManagedAssistantRuntime existingAssistant(DeploymentEntity deployment) {
+        var assistant = managedAssistant == null ? null : managedAssistant.getIfAvailable();
+        return assistant != null && assistant.matches(deployment) ? assistant : null;
+    }
 }

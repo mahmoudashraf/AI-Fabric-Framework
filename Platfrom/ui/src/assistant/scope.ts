@@ -2,7 +2,7 @@ import type { AssistantScope, AssistantSection, AssistantTask } from './types'
 
 // Formal route identities only. The user's prose never selects a resource or task.
 const sections: Record<string, AssistantSection> = {
-  '': 'KIT', capabilities: 'ACTIONS', 'capabilities/actions': 'ACTIONS',
+  '': 'BRAIN_SETUP', capabilities: 'ACTIONS', 'capabilities/actions': 'ACTIONS',
   'knowledge/connections': 'LIVE_DATA', knowledge: 'KNOWLEDGE',
   'knowledge/documents': 'DOCUMENTS', 'knowledge/live-data': 'LIVE_DATA',
   'knowledge/search': 'SEARCH', 'knowledge/storage': 'STORAGE',
@@ -14,11 +14,12 @@ const sections: Record<string, AssistantSection> = {
 }
 
 const sectionTasks: Record<AssistantSection, AssistantTask> = {
+  BRAIN_SETUP: 'BRAIN_SETUP',
   DOCUMENT_PREPARATION: 'DOCUMENT_PREPARATION',
   ACTIONS: 'ACTIONS', CONNECTIONS: 'CONNECTIONS', KNOWLEDGE: 'KNOWLEDGE', BEHAVIOUR: 'BEHAVIOUR',
   MODELS: 'MODELS', HUMAN_SUPPORT: 'HUMAN_SUPPORT', SPECIALISTS: 'SPECIALISTS', KIT: 'KIT', DATA_PLUGIN: 'DATA_PLUGIN', ENGAGE: 'ENGAGE',
   DOCUMENTS: 'KNOWLEDGE', LIVE_DATA: 'KNOWLEDGE', STORAGE: 'KNOWLEDGE', SEARCH: 'SEARCH',
-  INSTRUCTIONS: 'BEHAVIOUR', ACTION_REVIEWS: 'HUMAN_SUPPORT',
+  INSTRUCTIONS: 'BEHAVIOUR', ACTION_REVIEWS: 'KIT',
 }
 
 export function brainAssistantScope(pathname: string, search: string, brainId: string): AssistantScope | null {

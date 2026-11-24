@@ -49,6 +49,10 @@ public class AuthoringResourceService {
     private final AuthoringChanges changes;
     private final ObjectMapper mapper;
     private DocumentSourceAuthoring documentAuthoring;
+    private AuthoringDraftLock draftLock;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setDraftLock(AuthoringDraftLock value) { this.draftLock = value; }
 
     @org.springframework.beans.factory.annotation.Autowired
     public void setDocumentAuthoring(DocumentSourceAuthoring value) { documentAuthoring=value; }
@@ -88,7 +92,7 @@ public class AuthoringResourceService {
                 catalogue.set("aiBehaviourProfiles", mapper.valueToTree(DeploymentAiBehaviourProfiles.catalogue()));
                 catalogue.set("aiBehaviourConfigurationExample", DeploymentAiBehaviourProfiles.select(
                     mapper.createObjectNode(), mapper.createObjectNode()).path("aiBehaviour"));
-                if ("SEARCH".equals(task)) {
+                if ("SEARCH".equals(task) || "BRAIN_SETUP".equals(task)) {
                     catalogue.set("searchSettings", mapper.valueToTree(java.util.Map.of(
                         "profilePath", "/providerConfig/knowledgeRetrieval",
                         "modes", java.util.List.of("DENSE", "HYBRID", "KEYWORD"),
@@ -96,7 +100,7 @@ public class AuthoringResourceService {
                         "rerankingProviders", java.util.Map.of("cohere", java.util.List.of("rerank-v5.0-fast", "rerank-v5.0-pro")),
                         "externalProcessingApproved", config.at("/providerConfig/knowledgeRetrieval/reranking/externalProcessingApproved").asBoolean(false))));
                 }
-                if ("SPECIALISTS".equals(task)) {
+                if ("SPECIALISTS".equals(task) || "BRAIN_SETUP".equals(task)) {
                     var targets = catalogue.putArray("managerInstructionTargets");
                     var resolutions = config.at("/behaviorConfig/specialistAssistance/resolutions");
                     for (int index = 0; resolutions.isArray() && index < resolutions.size(); index++) {
@@ -193,6 +197,10 @@ public class AuthoringResourceService {
     @Transactional
     public Saved save(String kind, String id, String task, JsonNode requestedChanges) {
         Snapshot current = load(kind, id, task);
+        if ("DEPLOYMENT_DRAFT".equals(kind)) {
+            draftLock.lock(kind, id, current.version());
+            current = load(kind, id, task);
+        }
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
         var result = changes.apply(current.configuration(), requestedChanges, current.allowedPaths());
         if ("DEPLOYMENT_DRAFT".equals(kind)) McpAuthoringPolicy.requirePreserved(current.configuration(), result.candidate());
@@ -202,6 +210,10 @@ public class AuthoringResourceService {
     @Transactional
     public Saved undo(String kind, String id, String task, JsonNode diff) {
         Snapshot current = load(kind, id, task);
+        if ("DEPLOYMENT_DRAFT".equals(kind)) {
+            draftLock.lock(kind, id, current.version());
+            current = load(kind, id, task);
+        }
         if (!current.editable()) throw new ResponseStatusException(CONFLICT, current.readOnlyReason());
         return persist(kind, id, current, changes.inverse(diff), changes.undo(current.configuration(), diff, current.allowedPaths()), true);
     }
@@ -257,6 +269,10 @@ public class AuthoringResourceService {
         if ("ENGAGE_APP".equals(kind) && "ENGAGE".equals(task)) return List.of("/displayName", "/configuration", "/authConfiguration", "/allowedOrigins");
         if (!"DEPLOYMENT_DRAFT".equals(kind)) throw new ResponseStatusException(BAD_REQUEST, "The configuration task does not match this resource.");
         return switch (task) {
+            case "BRAIN_SETUP" -> List.of("/actionsConfig", "/routingConfig", "/entityConfig", "/knowledgeSourceConfig",
+                "/marketplaceDatasetConfig", "/promptConfig", "/providerConfig", "/behaviorConfig/conversationHandover",
+                "/behaviorConfig/humanReview", "/behaviorConfig/executionExtensions", "/behaviorConfig/specialistAssistance",
+                "/behaviorConfig/specialistBundles", "/behaviorConfig/triggers");
             case "ACTIONS" -> List.of("/actionsConfig", "/routingConfig");
             case "CONNECTIONS" -> List.of("/routingConfig");
             case "KNOWLEDGE" -> List.of("/entityConfig", "/knowledgeSourceConfig", "/marketplaceDatasetConfig");

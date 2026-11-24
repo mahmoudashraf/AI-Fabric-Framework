@@ -163,6 +163,8 @@ public class ChatRuntimeController {
 
     private RuntimeTargetRetirementService targetRetirementService;
     private RuntimeBudgetTurnScopes providerBudgetTurns;
+    private com.ai.fabric.runtime.workflow.RuntimeConfiguredWorkflowDispatcher configuredWorkflows;
+    private com.ai.fabric.runtime.workflow.RuntimeWorkflowPrivacy workflowPrivacy;
     private com.ai.fabric.runtime.lifecycle.admission.RuntimeAdmissionActivityService admissionActivity;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -179,6 +181,14 @@ public class ChatRuntimeController {
     public void setProviderBudgetTurns(RuntimeBudgetTurnScopes service) {
         this.providerBudgetTurns = service;
     }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setConfiguredWorkflows(com.ai.fabric.runtime.workflow.RuntimeConfiguredWorkflowDispatcher service) {
+        this.configuredWorkflows = service;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setWorkflowPrivacy(com.ai.fabric.runtime.workflow.RuntimeWorkflowPrivacy service) { this.workflowPrivacy = service; }
 
     @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
     private String transientFileUrlAllowedHosts;
@@ -252,6 +262,15 @@ public class ChatRuntimeController {
         long authStartTime = System.currentTimeMillis();
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
+        if (request.getConfigurationWork() != null) {
+            runtimeRequestAuthResolver.requireScope(identity, "configuration:author", requestPath);
+            if (controlledTurn == null || configuredWorkflows == null
+                || (request.getPromptPreview() != null && !request.getPromptPreview().isEmpty())) {
+                throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Configured authoring requires its canonical conversation and published instructions.");
+            }
+            configuredWorkflows.validate(request, identity, controlledTurn);
+        }
         long authDurationMs = System.currentTimeMillis() - authStartTime;
 
         long contextBuildStartTime = System.currentTimeMillis();
@@ -300,7 +319,10 @@ public class ChatRuntimeController {
             try (budgetTurn) {
                 if (budgetTurn != null) context.setOrchestrationTurnGuard(budgetTurn);
                 long orchestrationStartTime = System.currentTimeMillis();
-                OrchestrationResult result = controlledTurn == null
+                OrchestrationResult result = request.getConfigurationWork() != null
+                    ? configuredWorkflows.dispatch(request, context, identity, controlledTurn,
+                        trustedConversationContext(identity, controlledTurn))
+                    : controlledTurn == null
                     ? orchestrator.orchestrate(request.getQuery(), context)
                     : orchestrator.orchestrate(new OrchestrationRequest(
                         request.getQuery(),
@@ -1054,6 +1076,10 @@ public class ChatRuntimeController {
         }
         if (canonicalConversationsAvailable()) {
             requiredConversationHandoverService().closeConversation(identity, conversationId, idempotencyKey);
+            if (identity.getAuthContext().getGrantedScopes().contains("configuration:author")) {
+                if (workflowPrivacy == null) throw new IllegalStateException("Authoring content erasure is unavailable.");
+                workflowPrivacy.erase(identity, conversationId);
+            }
             return noContentWithAuthHeaders(identity, requestPath);
         }
         runtimeConversationGateway.deleteConversation(conversationId, resolvedOwnerId);

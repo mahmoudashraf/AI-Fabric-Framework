@@ -245,6 +245,11 @@ public class DeploymentBehaviorCatalogService {
         } catch (ResponseStatusException ex) {
             return Validation.invalid("MANAGED_TASKS_INVALID", ex.getReason());
         }
+        try {
+            new com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler(objectMapper).validateConfiguration(config);
+        } catch (ResponseStatusException ex) {
+            return Validation.invalid("WORKFLOW_ASSISTANCE_INVALID", ex.getReason());
+        }
         JsonNode authority = config.path("authority");
         if (!authority.path("trustedContextRequired").asBoolean(false)
             || authority.path("requestMaySelectIdentityOrAuthority").asBoolean(true)
@@ -612,6 +617,13 @@ public class DeploymentBehaviorCatalogService {
             capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.SpecialistBundleDelivery.CAPABILITY);
         }
         boolean managedTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(behaviorConfig);
+        if (com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(behaviorConfig)) {
+            capabilities.add(com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.CAPABILITY);
+            capabilities.add("ai-fabric-execution");
+            endpointClasses.add("chat-query");
+            migrationIds.add("workflow-execution-checkpoint-v27");
+            migrationIds.add("protected-conversation-message-capacity-v28");
+        }
         if (managedTasks) {
             capabilities.add(com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.CAPABILITY);
             capabilities.add("ai-fabric-execution");

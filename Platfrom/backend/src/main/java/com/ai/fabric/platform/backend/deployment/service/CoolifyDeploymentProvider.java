@@ -61,6 +61,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider, CoolifyRetirementOwnership {
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.ai.fabric.platform.backend.assistant.ManagedAssistantRuntime> managedAssistant;
     @org.springframework.beans.factory.annotation.Autowired
     private com.ai.fabric.platform.backend.deployment.budget.ProviderUsageReleaseCoordinator providerUsageReleaseCoordinator;
     @Autowired
@@ -272,6 +274,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                         DeploymentVersionEntity version,
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
+        var assistant = managedAssistant == null ? null : managedAssistant.getIfAvailable();
+        if (assistant != null && assistant.matches(deployment)) return tracked(progressTracker,
+            "apply_configured_authoring_brain", "Apply the published Brain to the existing assistant service.",
+            () -> assistant.provision(deployment, version, release));
         DeploymentTargetProfileEntity profile = requireActiveProfile(release.getTargetProfileId());
         DeploymentEnvironmentPolicyGuard.requireAllowed(deployment, profile);
         CoolifyRuntimeDatabaseBinding externalAiState = validateAiStateStorageBeforeEffects(deployment, version, release, profile);

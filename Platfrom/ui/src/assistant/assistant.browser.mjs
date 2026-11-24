@@ -21,9 +21,11 @@ import{SmartBrainShell}from'/src/brain/SmartBrainShell.tsx';import{BrainModelsPa
 import{BrainCapabilitiesPage}from'/src/brain/BrainCapabilitiesPage.tsx';
 import{BrainHumanSupportPage}from'/src/brain/BrainExperiencePages.tsx';import{BrainActionReviewsPage}from'/src/brain/BrainActionReviewsPage.tsx';
 import{ExperienceKitOverview}from'/src/components/kits/ExperienceKitOverview.tsx';import'/src/pages/ExperienceKits.css';
+import{CustomerWorkflowAssistance}from'/src/components/customer/CustomerWorkflowAssistance.tsx';
 import{setPlatformAccessTokenProvider,platformRequest}from'/src/api/platformApi.ts';setPlatformAccessTokenProvider(async()=> 'assistant-fixture-token');
 function Editor(){const[value,setValue]=useState('Saved manual value');const[other,setOther]=useState('Keep this manual value');const[real]=useState(()=>new URLSearchParams(window.location.search).has('real'));
  const location=useLocation();const{brainId}=useParams();const params=new URLSearchParams(location.search);const kind=params.get('kind');
+ if(params.has('workflowForm'))return <Box sx={{p:2}}><CustomerWorkflowAssistance draft={window.__workflowDraft} canEdit={true}/></Box>;
  if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:location.pathname.includes('/capabilities')?<BrainCapabilitiesPage/>:<BrainModelsPage/>}</SmartBrainShell>;
  const defaultOpen=params.has('defaultOpen');
  const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:(defaultOpen?brainPageAssistantScope:brainAssistantScope)(location.pathname,location.search,brainId??'brain-37');
@@ -70,8 +72,10 @@ async function run(name, work, options = {}) {
   const calls = [], errors = [], unexpected = []
   const sessions = new Map()
   let session, currentPlugin = plugin(), complete = false, cancelled = false, loseResponse = options.loseResponse, editorValue = 'AI saved value', sequence = 0, reloadError = options.reloadError, model = 'saved-model'
+  let workflowDraft = options.workflowDraft ? structuredClone(options.workflowDraft) : undefined
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(dark => localStorage.setItem('loomai-customer-console-color-scheme', dark ? 'dark' : 'light'), options.dark !== false)
+  if (workflowDraft) await page.addInitScript(draft => { window.__workflowDraft = draft }, workflowDraft)
   await page.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : (unexpected.push(route.request().url()), route.abort()))
   await page.route(`${base}/api/**`, async route => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method(), input = req.postDataJSON()
@@ -79,7 +83,10 @@ async function run(name, work, options = {}) {
     const send = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
     const requestedSession = path.match(/\/sessions\/(session-\d+)/)?.[1]
     if (requestedSession) session = sessions.get(requestedSession)
-    if (path === '/api/platform/auth/session') return send({ actorId: 'actor-37', customerId: 'customer-37', role: 'CUSTOMER_ADMIN', authenticated: true })
+    if (path === '/api/platform/auth/session') return send({ actorId: 'actor-37', customerId: 'customer-37', role: 'CUSTOMER_ADMIN', authenticationMode: 'SUPABASE', authenticated: true })
+    if (workflowDraft && path === '/api/deployments/brain-37/workflow-actions') return send({ deploymentId: 'brain-37', readActions: ['authoring_get_context'], writeActions: ['authoring_update_draft'] })
+    if (workflowDraft && path === '/api/deployments/brain-37/draft') return send(workflowDraft)
+    if (workflowDraft && path === '/api/deployment-drafts/draft-same' && method === 'PUT') { workflowDraft = { ...workflowDraft, ...input }; return send(workflowDraft) }
     if (path === '/api/configuration-assistant/status') return send({ enabled: !options.unavailable, ready: !options.unavailable, documentFetchEnabled: Boolean(options.url), unavailableReason: options.unavailable ? 'Authoring provider is not configured.' : '', validationFeedback: options.validationFeedback === null ? undefined : options.validationFeedback ?? { defaultEnabled: true, maxCorrections: 2 } })
     if (path === '/api/editor') return reloadError ? send({ message: 'Saved editor could not be read.' }, 503) : send({ value: editorValue })
     if (path === '/api/customer-self-service/deployments') return send([{ deploymentId: 'brain-37', name: 'Customer knowledge', status: 'DRAFT' }])
@@ -112,6 +119,10 @@ async function run(name, work, options = {}) {
         turn.attempts = structuredClone(options.finalAttempts ?? [{ number: 1, status: 'CHECKED', completedAt: '2026-11-10T12:01:00Z' }])
         turn.feedbackStopReason = options.feedbackStopReason
         turn.runtime = { requestId: 'runtime-request-37', modelCalls: 1, accountingReceipt: { recorded: true }, usage: { tokens: 123 } }
+        if (options.workflow) {
+          turn.workflow = structuredClone(options.workflow); turn.operations = structuredClone(options.operations ?? []);
+          turn.attempts = []; turn.questions = []; turn.receipt = null;
+        }
         session.status = 'IDLE'; session.activeTurnId = null
         model = 'ai-model'
         currentPlugin = { ...currentPlugin, manifest: { ...currentPlugin.manifest, displayName: 'AI private source' }, displayName: 'AI private source', revision: 2 }
@@ -357,21 +368,25 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 2)
     await page.screenshot({ path: join(evidence, 'page-aware-clarification-follow-up.png') })
   }, { path: '/smart-brains/brain-37/capabilities/actions', results: ['NEEDS_INPUT', 'SAVED'], findings: { valid: true } })
-  await run('page aware same-task models-search navigation refreshes per-turn context without inference or input reset', async ({ page, calls, finish }) => {
+  await run('page aware models-search navigation retains separate task sessions without automatic inference', async ({ page, calls, finish }) => {
     await open(page, false); const p = panel(page)
     await p.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this optional hint')
     await page.getByRole('link', { name: 'Search context', exact: true }).click()
+    await p.waitFor({ state: 'hidden' })
+    await open(page, false)
     await p.getByRole('button', { name: 'Prepare search settings', exact: true }).waitFor()
-    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Keep this optional hint')
-    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 1)
+    assert.equal(await p.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), '')
+    assert.deepEqual(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').map(call => call.input.task), ['MODELS', 'SEARCH'])
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
     await p.getByRole('textbox', { name: 'Message', exact: true }).fill('')
     await p.getByRole('button', { name: 'Prepare search settings', exact: true }).click(); finish(); await latestSaved(page)
     assert.deepEqual(calls.find(call => call.path.endsWith('/turns')).input.editorContext, { section: 'SEARCH' })
     await page.getByRole('link', { name: 'Models context', exact: true }).click()
+    await p.waitFor({ state: 'hidden' })
+    await open(page, false)
     await send(page, 'Use the response model I selected'); await latestSaved(page)
     assert.deepEqual(calls.filter(call => call.path.endsWith('/turns'))[1].input.editorContext, { section: 'MODELS' })
-    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 1)
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions') && call.method === 'POST').length, 2)
     await page.screenshot({ path: join(evidence, 'page-aware-models-search-context.png') })
   }, { path: '/smart-brains/brain-37/models?contextTest', findings: { valid: true } })
   await run('page aware registered subpages show refreshed guidance and exact definition hints', async ({ page, calls, finish }) => {
@@ -409,7 +424,7 @@ try {
     assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0)
     assert.equal(calls.filter(call => call.path.endsWith('/content')).length, 0)
   }, { existingReuse: true, path: '/smart-brains/brain-37/capabilities/actions' })
-  for (const [path, command, section] of [['/smart-brains/brain-37/action-reviews', 'Explain action reviews', 'ACTION_REVIEWS'], ['/smart-brains/brain-37/', 'Explain setup', 'KIT']]) {
+  for (const [path, command, section] of [['/smart-brains/brain-37/action-reviews', 'Explain action reviews', 'ACTION_REVIEWS'], ['/smart-brains/brain-37/advanced/configuration', 'Explain setup', 'KIT']]) {
     await run(`page aware ${section} command is guidance only without a hint`, async ({ page, calls, finish }) => {
       await open(page, false); const p = panel(page)
       await p.getByText('Guidance only. No draft changes.', { exact: true }).waitFor()
@@ -868,8 +883,42 @@ try {
     await panel(page).getByText('Guide only.', { exact: false }).waitFor()
     await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill('Explain review setup'); await panel(page).getByRole('button', { name: 'Explain', exact: true }).click()
     assert.equal(calls.find(call => call.path.endsWith('/turns')).input.previewOnly, true)
-    assert.equal(calls.find(call => call.path.endsWith('/turns')).path, '/api/configuration-assistant/sessions/session-1/turns', 'Reviews reuse the existing Human support session, not the Specialist session')
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions')).at(-1).input.task, 'KIT', 'Reviews use the published read-only guide, not a handover writer')
+    assert.equal(calls.find(call => call.path.endsWith('/turns')).path, '/api/configuration-assistant/sessions/session-3/turns')
   }, { path: '/smart-brains/brain-37/human-support?real&targetProfileId=target-stage' })
+  await run('whole Brain setup is explicit and page navigation restores narrower authoring scopes', async ({ page, calls }) => {
+    await open(page, false)
+    assert.equal(calls.find(call => call.path.endsWith('/sessions')).input.task, 'MODELS')
+    await panel(page).getByRole('link', { name: 'Whole Brain setup', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/smart-brains/brain-37')
+    await panel(page).getByText('Tell me what your app should do, or share its API documentation.', { exact: false }).waitFor()
+    await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+    assert.equal(calls.filter(call => call.path.endsWith('/sessions')).at(-1).input.task, 'BRAIN_SETUP')
+    await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill('Set up my app from its documentation')
+    await panel(page).getByRole('button', { name: 'Prepare my Brain', exact: true }).click()
+    assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1)
+    assert.equal(calls.filter(call => /publish|\/apply$/.test(call.path)).length, 0)
+  }, { path: '/smart-brains/brain-37/models?real&targetProfileId=target-stage' })
+  for (const status of ['FAILED', 'CANCELLED']) {
+    await run(`configured workflow preserves actual saves and undo after ${status.toLowerCase()} narration`, async ({ page, calls, finish }) => {
+      await open(page); await send(page, 'Update only the greeting'); finish();
+      const p = panel(page);
+      await p.locator(`[data-assistant-turn-status="${status}"]`).waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'AI saved value'));
+      assert.equal(await p.getByRole('region', { name: 'Saved operations' }).count(), 1);
+      await p.getByText('4 tool steps · 1 write attempt · 5 model calls · 0 corrections', { exact: true }).waitFor();
+      await p.getByText('Work stopped: WORKFLOW_MODEL_CALL_LIMIT. Review any saved operations before continuing.', { exact: true }).waitFor();
+      assert.equal(await p.getByText('Validation feedback (0 attempts)', { exact: true }).count(), 0);
+      await p.getByRole('button', { name: 'Undo saved changes', exact: true }).click();
+      await p.locator('[data-assistant-turn-status="UNDONE"]').waitFor();
+      assert.equal(calls.filter(call => call.path.endsWith('/undo')).length, 1);
+      assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 1);
+      await page.screenshot({ path: join(evidence, `configured-partial-${status.toLowerCase()}-390.png`) });
+    }, { result: status, viewport: { width: 390, height: 844 }, dark: status === 'FAILED',
+      workflow: { state: 'STOPPED', stopCode: 'WORKFLOW_MODEL_CALL_LIMIT', usage: { actions: 4, writes: 1, modelCalls: 5, corrections: 0 } },
+      operations: [{ operationId: 'turn-1:step:3', action: 'authoring_update_draft', status: 'EXECUTED', published: false,
+        receipt: { draftId: 'draft-same', published: false } }] })
+  }
   await run('real Kit details guide binds the saved Kit Brain and links to real resource editors', async ({ page, calls }) => {
     await page.getByRole('button', { name: 'Kit AI guide', exact: true }).click(); const p = panel(page)
     await p.getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
@@ -886,5 +935,31 @@ try {
     assert.equal(calls.filter(call => /\/apply$|publish|activate|disable/.test(call.path)).length, 0)
     await page.screenshot({ path: join(evidence, 'kit-guide-real-details.png') })
   }, { path: '/kits/kit-37' })
+  await run('workflow editor saves prompts, bounded limits and tool switches without dropping unknown configuration', async ({ page, calls }) => {
+    const section = page.getByRole('region', { name: 'Configuration workflows', exact: true })
+    await section.getByLabel('Instructions', { exact: true }).fill('Use the actual receipts and explain the saved draft changes.')
+    await section.getByLabel('Write attempts', { exact: true }).fill('2')
+    const writer = section.getByRole('checkbox', { name: /authoring_update_draft/ })
+    await writer.uncheck(); await writer.check()
+    await section.getByRole('button', { name: 'Save workflow draft', exact: true }).click()
+    await section.getByText('Workflow draft saved. Publish and apply to update the assistant.', { exact: true }).waitFor()
+    const saved = calls.find(call => call.path === '/api/deployment-drafts/draft-same' && call.method === 'PUT').input
+    assert.deepEqual(saved.behaviorConfig.futureBehavior, { keep: true })
+    const workflow = saved.behaviorConfig.workflowAssistance
+    assert.deepEqual(workflow.futureWorkflow, { keep: true })
+    assert.deepEqual(workflow.profiles[0].futureProfile, { keep: true })
+    assert.equal(workflow.policy.maxWriteSteps, 2)
+    assert.equal(workflow.profiles[0].instructions, 'Use the actual receipts and explain the saved draft changes.')
+    assert.deepEqual(workflow.profiles[0].writeActions, ['authoring_update_draft'])
+    assert.equal('compiled' in workflow, false); assert.equal('contentHash' in workflow, false)
+    assert.equal(calls.filter(call => /publish|\/apply$|\/turns$/.test(call.path)).length, 0)
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    await page.screenshot({ path: join(evidence, 'workflow-editor-390.png'), fullPage: true })
+  }, { path: '/smart-brains/brain-37/responses?workflowForm', viewport: { width: 390, height: 844 }, workflowDraft: {
+    id: 'draft-same', deploymentId: 'brain-37', behaviorConfig: { type: 'CONVERSATIONAL', futureBehavior: { keep: true }, workflowAssistance: {
+      enabled: true, defaultProfileId: 'api', profiles: [{ id: 'api', name: 'API capabilities', purpose: 'Prepare requested capabilities.', instructions: 'Read the selected API documentation.',
+        readActions: ['authoring_get_context'], writeActions: ['authoring_update_draft'], futureProfile: { keep: true } }],
+      taskBindings: [{ task: 'ACTIONS', profileId: 'api' }], policy: { maxActionSteps: 8, maxWriteSteps: 3, maxModelCalls: 16, maxCorrections: 2, deadlineSeconds: 120 },
+      futureWorkflow: { keep: true }, compiled: { generated: true }, contentHash: 'server-owned' } } } })
   console.log(`PASS ${count} browser groups. Fixture-only evidence: ${evidence}`)
 } finally { await browser?.close(); await server.close(); await rm(cacheDir, { recursive: true, force: true }) }

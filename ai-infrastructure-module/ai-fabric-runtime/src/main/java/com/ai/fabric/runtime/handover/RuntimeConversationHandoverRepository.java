@@ -268,6 +268,16 @@ final class RuntimeConversationHandoverRepository {
         return record;
     }
 
+    void requireLatestInteraction(ConversationScope scope, String key) {
+        var owners = jdbc.queryForList("SELECT owner_id FROM ai_conversation_control WHERE tenant_id=? AND deployment_id=? AND conversation_id=? FOR UPDATE",
+            String.class, scope.tenantId(), scope.deploymentId(), scope.conversationId());
+        if (owners.size() != 1 || !scope.ownerId().equals(owners.getFirst())) throw new SecurityException("Conversation ownership changed.");
+        var latest = jdbc.queryForList("SELECT idempotency_key FROM ai_conversation_ai_interaction WHERE tenant_id=? AND deployment_id=? AND conversation_id=? AND owner_id=? ORDER BY created_at DESC LIMIT 1",
+            String.class, scope.tenantId(), scope.deploymentId(), scope.conversationId(), scope.ownerId());
+        if (latest.size() != 1 || !key.equals(latest.getFirst()))
+            throw new ai.fabric.chat.control.ConversationControlViolationException("AI_TURN_SUPERSEDED", "A newer conversation turn must not be interrupted.");
+    }
+
     void failInteraction(ConversationScope scope, String idempotencyKey, String failureCode) {
         jdbc.update(
             """

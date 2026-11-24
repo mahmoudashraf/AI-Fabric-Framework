@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
 
-@RestControllerAdvice(assignableTypes = ConfigurationAssistantController.class)
+@RestControllerAdvice(assignableTypes = {ConfigurationAssistantController.class, AuthoringToolController.class})
 public final class AuthoringDocumentBodyLimitAdvice extends RequestBodyAdviceAdapter {
     public static final int MAX_BODY_BYTES = 3 * 1024 * 1024;
 

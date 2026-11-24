@@ -296,6 +296,7 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
             """);
         when(drafts.findByIdForUpdate(draft.getId())).thenReturn(Optional.of(draft));
         when(drafts.findById(draft.getId())).thenReturn(Optional.of(draft));
+        when(drafts.findDeploymentIdById(draft.getId())).thenReturn(Optional.of(deployment.getId()));
         when(deployments.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(access.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
 

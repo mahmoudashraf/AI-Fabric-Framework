@@ -36,7 +36,9 @@ export function useAssistant(scope: AssistantScope, enabled: boolean, onSaved: (
     latest.current = next
     setSession(next)
     try { sessionStorage.setItem(storageKey, next.id) } catch { /* Storage is optional. */ }
-    const receipts = next.turns.filter(turn => turn.status === 'SAVED').map(turn => `${turn.id}:${stringifyExactJson(turn.receipt ?? turn.diff ?? null)}`)
+    const receipts = next.turns.flatMap(turn => turn.operations?.length
+      ? turn.operations.filter(operation => operation.status === 'EXECUTED').map(operation => `${turn.id}:${operation.operationId}:${stringifyExactJson(operation.receipt ?? null)}`)
+      : turn.status === 'SAVED' ? [`${turn.id}:${stringifyExactJson(turn.receipt ?? turn.diff ?? null)}`] : [])
     const unseen = receipts.filter(id => !saved.current.has(id))
     if (unseen.length || forceRefresh) {
       setRefreshing(true)

@@ -22,6 +22,7 @@ import {
 import { usePlatformAuth } from '../../auth/PlatformAuthProvider'
 import { isCustomerAuthenticationMode, isCustomerSession } from '../../auth/customerSession'
 import { useCustomerEditorSection } from './CustomerDetailSections'
+import { CustomerWorkflowAssistance } from './CustomerWorkflowAssistance'
 import {
   compiledSpecialistAssistance, emptySpecialistAssistance, readSpecialistAssistance,
   specialistAssistanceError, specialistAuthority, specialistBehaviorUpdate,
@@ -71,8 +72,9 @@ function SpecialistAssistanceScope({ scope, session, deploymentId }: {
   let value: SpecialistAssistance
   try { value = readSpecialistAssistance(draft.data.behaviorConfig) ?? emptySpecialistAssistance() }
   catch (error) { return <Alert severity="error">{errorText(error)}</Alert> }
-  return <AssistanceForm key={draft.data.id} initialDraft={draft.data} initialValue={value}
-    scope={scope} session={session} resourceCustomerId={workspace.data.deployment.binding?.customerId ?? null} canEdit={workspace.data.access.canEdit} />
+  return <><CustomerWorkflowAssistance draft={draft.data} canEdit={workspace.data.access.canEdit} />
+    <AssistanceForm key={draft.data.id} initialDraft={draft.data} initialValue={value}
+      scope={scope} session={session} resourceCustomerId={workspace.data.deployment.binding?.customerId ?? null} canEdit={workspace.data.access.canEdit} /></>
 }
 
 function AssistanceForm({ initialDraft, initialValue, scope, session, resourceCustomerId, canEdit }: {
