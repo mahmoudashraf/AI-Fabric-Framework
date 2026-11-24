@@ -38,7 +38,7 @@ public class DocumentSourceAuthoring {
     public JsonNode check(String id, AuthoringResourceService.Snapshot snapshot, JsonNode candidate) {
         for(var question:candidate.path("questions")) {
             if (!snapshot.catalogue().path("relevanceJudgmentsSupported").asBoolean(false) && !question.path("relevanceJudgments").isEmpty())
-                throw new ResponseStatusException(BAD_REQUEST, "This runtime does not support expected evidence labels. Preserve the existing supported question fields.");
+                throw new AuthoringContractException("DOCUMENT_EVIDENCE_LABELS_UNSUPPORTED", "This runtime does not support expected evidence labels. Preserve the existing supported question fields.");
             for (var label : question.path("relevanceJudgments")) {
                 if (!label.path("reviewed").asBoolean()) continue;
                 boolean preserved = false;
@@ -46,14 +46,14 @@ public class DocumentSourceAuthoring {
                     if (!previous.path("id").equals(question.path("id")) || !previous.path("question").equals(question.path("question"))) continue;
                     for (var oldLabel : previous.path("relevanceJudgments")) if (oldLabel.equals(label)) preserved = true;
                 }
-                if (!preserved) throw new ResponseStatusException(BAD_REQUEST,
+                if (!preserved) throw new AuthoringContractException("DOCUMENT_EVIDENCE_REVIEW_NOT_PRESERVED",
                     "AI cannot mark expected evidence as reviewed. Preserve existing labels or propose reviewed:false.");
             }
             if(!question.path("reviewed").asBoolean()) continue;
             boolean preserved=false;
             for(var previous:snapshot.configuration().path("questions"))
                 if(previous.equals(question)) preserved=true;
-            if(!preserved) throw new ResponseStatusException(BAD_REQUEST,"AI-generated or changed test questions must use reviewed:false. Only a person can attest a new reference was reviewed.");
+            if(!preserved) throw new AuthoringContractException("DOCUMENT_QUESTION_REVIEW_NOT_PRESERVED","AI-generated or changed test questions must use reviewed:false. Only a person can attest a new reference was reviewed.");
         }
         return checkRestoration(id,snapshot,candidate);
     }

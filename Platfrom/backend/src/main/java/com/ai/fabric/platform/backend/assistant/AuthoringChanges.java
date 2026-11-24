@@ -267,6 +267,6 @@ public class AuthoringChanges {
         if (!node.path(field).isTextual()) throw invalid("Structured change requires " + field + ".");
         return node.get(field).textValue();
     }
-    private ResponseStatusException invalid(String reason) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason); }
+    private ResponseStatusException invalid(String reason) { return new AuthoringContractException("CANDIDATE_CHANGE_INVALID", reason); }
     public record Result(ObjectNode candidate, ArrayNode diff) { }
 }

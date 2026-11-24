@@ -196,6 +196,12 @@ public class AuthoringDraftOperations {
             result.set("diff", candidate.diff());
             result.put("fingerprint", fingerprint(work.snapshot().configuration()));
             result.put("status", "CHECKED_NOT_SAVED").put("saved", false);
+            result.put("hasChanges", !work.snapshot().configuration().equals(candidate.candidate()));
+            result.put("draftSaveRequested", "PREPARE".equals(work.turn().path("command").asText())
+                && !work.turn().path("previewOnly").asBoolean() && !work.work().at("/binding/previewOnly").asBoolean()
+                && work.snapshot().editable() && contains(work.work().at("/binding/allowedActions"), "authoring_update_draft"));
+            result.put("mutationFingerprint", fingerprint(mapper.createObjectNode()
+                .put("action", "authoring_update_draft").set("input", requestedChanges)));
             var checked = work.work().putObject("lastCheck");
             checked.set("changes", changes.project(requestedChanges));
             checked.set("diff", result.path("diff")); checked.set("findings", result.path("findings"));

@@ -281,7 +281,7 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.68"));
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.69"));
         assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.8.52");
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
@@ -303,7 +303,7 @@ class RuntimeAdminOverviewControllerTest {
             "schemaVersion",
             "loomai-runtime-capabilities-v1"
         );
-        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.68");
+        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.69");
         assertThat(runtimeCapabilityManifest.get("supportedBehaviorTypes")).isEqualTo(List.of(
             "AGENTIC_SPECIALIST_TEAM",
             "CONVERSATIONAL",

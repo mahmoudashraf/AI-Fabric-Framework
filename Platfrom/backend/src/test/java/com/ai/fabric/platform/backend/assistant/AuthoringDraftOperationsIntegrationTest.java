@@ -98,6 +98,30 @@ class AuthoringDraftOperationsIntegrationTest {
             .put("path", "/promptConfig/systemPrompt").put("value", text));
     }
     String operation(int step) { return turnId + ":step:" + step; }
+    @Test void explicitPreparationCarriesAMatchingSaveIdentityAndNoOpChecksNeedNoWrite() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow();
+        var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) content.at("/turns/0")).put("command", "PREPARE");
+        session.encryptedContent = crypto.encrypt(sessionId, content.toString()); sessions.saveAndFlush(session);
+        bind(false);
+        var checked = operations.check(caller, change("Requested result"));
+        assertThat(checked.path("draftSaveRequested").asBoolean()).isTrue();
+        assertThat(checked.path("hasChanges").asBoolean()).isTrue();
+        var saved = operations.save(caller, operation(1), change("Requested result"));
+        assertThat(saved.path("parameterFingerprint")).isEqualTo(checked.path("mutationFingerprint"));
+        var noOp = operations.check(caller, change("Requested result"));
+        assertThat(noOp.path("hasChanges").asBoolean()).isFalse();
+        assertThat(operations.status(caller)).hasSize(1);
+    }
+    @Test void previewChecksNeverDeclareASaveRequirement() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow();
+        var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) content.at("/turns/0")).put("command", "PREPARE");
+        session.encryptedContent = crypto.encrypt(sessionId, content.toString()); sessions.saveAndFlush(session);
+        bind(true);
+        assertThat(operations.check(caller, change("Preview")).path("draftSaveRequested").asBoolean()).isFalse();
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
     @Test void selectedProseRemainsAvailableWhenNoFormalOperationsWereParsed() throws Exception {
         var session = sessions.findById(sessionId).orElseThrow(); session.task = "ACTIONS";
         var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));

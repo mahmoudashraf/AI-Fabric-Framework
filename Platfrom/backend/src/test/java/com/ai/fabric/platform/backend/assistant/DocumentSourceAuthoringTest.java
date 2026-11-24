@@ -20,7 +20,7 @@ class DocumentSourceAuthoringTest {
         var handler=new DocumentSourceAuthoring(documents,mock(DeploymentTargetContextService.class),mapper);
         var snapshot=new AuthoringResourceService.Snapshot("owner","document",mapper.readTree("{\"questions\":[]}"),mapper.createObjectNode(),java.util.List.of("/questions"),"1",true,"");
         assertThatThrownBy(() -> handler.check("dep|stage|release|source",snapshot,mapper.readTree("{\"questions\":[{\"id\":\"q1\",\"question\":\"Q\",\"reviewed\":true}]}")))
-            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("reviewed:false");
+            .isInstanceOf(AuthoringContractException.class).hasMessageContaining("reviewed:false");
         verifyNoInteractions(documents);
     }
     @Test void richCatalogueRevisionRetainsAuthAndDoesNotMutateOriginal() throws Exception {

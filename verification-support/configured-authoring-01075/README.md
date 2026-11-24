@@ -315,3 +315,35 @@ these actual preserved limits, not create a second allocation.
   token/spending ceilings, rate card and expiry.97focused tests passed, including
   malformed/reduced turns, raised token/cost caps, wallet/counter-reset denials.
   It never creates a top-up or infers approval. Commit and CI still required.
+
+### Completion Feedback Qualification, 14:15 UTC
+
+- d6d14456b committed/pushed; core45405825421, storage45405909649 and
+  quota45405914623 passed. Staging backend uses digest66287fb7..., verified
+  healthy with environment, capacity and mounts unchanged. Runtime6471/FW68,
+  UI f54 and rel-b2b65d93/ver-828715ec remain current. Production unchanged.
+- Latest eight-case native API suite passed5/8. Three actual requests stopped
+  after a successful candidate check without saving; one falsely claimed the
+  save in narration. Explicit button wording alone is not a reliable fix.
+  All fixtures/sessions were deleted normally and both identities signed out.
+- Manager prompt edit passed on repeat with one actual narrow save and four
+  model calls. No cause is invented for its earlier repair-limit failure.
+  Real document preview failed after a rejected candidate and schema repair
+  exhaustion; subsequent readback proves configuration and revision unchanged.
+- Framework0.8.69 source9e1727663 adds optional trusted completion feedback and
+  safe decision-schema feedback. A checked nonempty explicit draft-save request
+  requires a matching later real receipt; no-op, preview and guidance do not.
+  The same configured correction allowance applies; no automatic write or
+  text-matching outcome gate. Full local38module test reactor passed.
+- Public45409086784 failed only its bundled skill version-reference guard;
+  reference alignment fixed and replacement45409684432 is still running.
+  Publication remains gated on that build. No0.8.69 Central/rollout claim yet.
+- Private integration: Runtime812total/807passed/5explicit opt-in skips,
+  zero failures/errors; new focused20checks passed. Safe backend feedback89
+  checks and final receipt/document/version regression68checks passed, no skips.
+  Local application-authored findings retain useful instructions; arbitrary
+  provider messages and credentials stay excluded. These are local tests only.
+- Native staging observation:222/230turns,357provider attempts. Original4Mtoken
+  and USD5 limits, ledger identity and accumulated usage retained. Production
+  stays210turns/4M/USD5. Remaining stage budget is eight turns; do not infer
+  authority for another increase. Production migration is not accepted yet.

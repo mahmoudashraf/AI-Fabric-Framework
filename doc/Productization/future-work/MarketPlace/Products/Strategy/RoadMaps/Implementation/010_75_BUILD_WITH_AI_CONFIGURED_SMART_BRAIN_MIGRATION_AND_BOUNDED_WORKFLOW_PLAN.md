@@ -510,6 +510,25 @@ Required tests: nested workers cannot reset limits; schema repair and planner
 repair count; cancellation before write and after write; NEEDS_INPUT with repairs
 both off/on; no hidden fallback inference; every provider charge remains accounted.
 
+Qualification addition within FW3, 24 November: repeated native runs can stop
+after a successful check without saving its candidate. Framework0.8.69 adds an
+optional trusted-host completion finding, not a second Platform inference loop.
+The first-party draft adapter marks an explicit PREPARE/save request, reports
+whether the candidate actually changes state, and supplies its canonical mutation
+fingerprint. The completion contract requires a matching real later save receipt;
+it also recognizes reconciled receipts. Preview, guidance and no-op checks do not
+require writes. This protects the declared execution outcome, not model wording
+or semantic confidence. It never dispatches a write automatically.
+
+The model receives the finding within the same configured correction/model/action
+limits and may choose another authorized action, NEEDS_INPUT or UNSUPPORTED.
+Structured decision repair also receives safe contract details instead of only
+a generic invalid-decision code. Platform preserves application-authored typed
+validation instructions, while withholding raw provider/credential-bearing error
+bodies. Required tests cover no forced writes, zero corrections, no-op/preview,
+different candidates and replay/reconciled receipts. Actual release and live
+qualification status remains in the verification record; source is not rollout.
+
 ### Changes not currently justified
 
 - No new top-level deployment behavior type, unrestricted agent platform, coding

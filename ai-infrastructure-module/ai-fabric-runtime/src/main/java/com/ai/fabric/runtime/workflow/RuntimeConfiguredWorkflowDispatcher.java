@@ -193,6 +193,9 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
                 context.getOrchestrationTurnGuard().verifyBeforeOrchestration();
             }
             public String fingerprint(Map<String, Object> parameters) { return security.canonicalHash(parameters); }
+            public BoundedWorkflowRunner.CompletionFinding validateCompletion(WorkflowCheckpoint checkpoint) {
+                return AuthoringCompletionContract.validate(checkpoint, mapper);
+            }
             public Map<String, Object> observation(AIActionMetaData metadata, ActionContext actionContext, GovernedActionInvocationOutcome outcome) {
                 var handler = required(actions).findHandler(metadata.getName()).orElseThrow();
                 return handler.buildPostActionLlmFacts(outcome.actionResult(), actionContext).orElse(Map.of());

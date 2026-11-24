@@ -45,7 +45,8 @@ public class AuthoringToolController {
         // expose raw provider exceptions or credential-bearing values as AI feedback.
         return org.springframework.http.ResponseEntity.badRequest().body(java.util.Map.of(
             "code", "AUTHORING_VALIDATION_REJECTED", "committed", false,
-            "findings", java.util.List.of(java.util.Map.of("code", "CANDIDATE_CONTRACT_INVALID",
-                "message", "Read the selected resource contracts and correct the proposed fields."))));
+            "findings", java.util.List.of(java.util.Map.of("code", failure instanceof AuthoringContractException contract
+                ? contract.code() : "CANDIDATE_CONTRACT_INVALID", "message", failure instanceof AuthoringContractException
+                ? failure.getReason() : "Read the selected resource contracts and correct the proposed fields."))));
     }
 }

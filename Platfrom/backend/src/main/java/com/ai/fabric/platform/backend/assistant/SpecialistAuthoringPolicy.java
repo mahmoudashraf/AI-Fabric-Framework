@@ -42,7 +42,7 @@ final class SpecialistAuthoringPolicy {
         for (String name : names) {
             if (!fields.contains(name) && !java.util.Objects.equals(before == null ? null : before.get(name), after.get(name))) {
                 // Unknown/server-owned fields cannot become invented writable settings, even while disabled.
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                throw new AuthoringContractException("SPECIALIST_AUTHORING_FIELD_UNSUPPORTED",
                     "SPECIALIST_AUTHORING_FIELD_UNSUPPORTED: Use only the documented specialist, area, resolution and limit fields. "
                         + "Preserve unknown or compiled metadata from the saved draft unchanged. Explicitly REMOVE unsupported additions from previous proposals; SET omission does not delete them. "
                         + "Manager instructions belong in the resolution's instructions field.");

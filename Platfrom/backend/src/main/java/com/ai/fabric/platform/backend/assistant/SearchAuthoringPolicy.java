@@ -13,7 +13,7 @@ final class SearchAuthoringPolicy {
     static void requireExistingConsent(JsonNode current, JsonNode candidate) {
         if (candidate.at(CONSENT).asBoolean(false)
             && !(current.at(CONSENT).isBoolean() && current.at(CONSENT).booleanValue())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            throw new AuthoringContractException("RERANKING_CONSENT_REQUIRED",
                 "Approve external processing in Search settings before asking AI to enable Cohere reranking.");
         }
     }
