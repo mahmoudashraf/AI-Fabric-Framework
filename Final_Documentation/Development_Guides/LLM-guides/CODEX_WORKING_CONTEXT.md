@@ -20808,3 +20808,43 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Focused106checksPASS. Commit/build/deploythisbindingcorrectionthennewnormal
   apply; keeptwofailedreleases. Nativeassistantsstill67; productionunchanged;
   stageentryfalse, originalledger/capsunchanged, zero010.75paidcalls.
+
+### 010.75 Native Staging Live Qualification - 24 November 2026, 12:26 UTC
+
+- Binding fix3b63f821f8a9cf47b960a9bb58feb57ede5bffc7 pushed; core45390058688
+  PASS on attempt2 (first failed Maven CentralHTTP429 before compilation),
+  storage45390117353/quota45390123688PASS. Stagebackend e7e238c85ae5f433cbd7a9bd21517010f13435602816b82d1516cf98e8ddf3ed
+  healthy, jobxam2ojw84p6qhtr325d5iu2x. Runtime/UI remainf54source.
+- Native assistant first release rel-6f33b144/ver-ff755b1a now genuinely
+  APPLIED_VERIFIED/PASSED. Nine0.8.68profiles ready; original ledger identity,
+  usage/caps, private route, PG/provider key and640MiBcapacity preserved.
+  Actual retired generation POST404. Stage entry enabled via normal operator
+  config and verified CONFIGURED_BRAIN/readytrue; jobmv8uijowwtmfrk5rz9rbfwvm.
+- First two actual model cases FAILED quality: prose preparation mistook empty
+  parsed-operation catalogue for absent documentation; OpenAPI checked a valid
+  candidate then falsely described it as already saved. Both made ZERO writes;
+  actual UI statusEXPLAIN and workflow receipts exposed this. Both test sessions
+  and resource-free Brains deleted; own staff/customer sessions logged out.
+  Native wallet168turns/171provider calls, unchanged210/4M/USD5caps.
+- Clarified shared instructions in template JSON, tested23checksPASS, then
+  changed ONLY published instructions through normal Brain draft/publish/apply:
+  ver-fb756de5/rel-a506e44d APPLIED_VERIFIED/PASSED. No new Runtime code/image,
+  permission or allowance. Plain-source selection vs parsed operations and
+  check-only vs actual draft save are explicit. Retesting prose/OpenAPI plus
+  follow-up/Undo is running; do not claim quality acceptance or production.
+- Added database-backed selected-prose regression, test log
+  /private/tmp/loomai-01075-source-selection-contract.log, still running at this
+  checkpoint. Template/test/context edits uncommitted. Production unchanged.
+
+- 12:31UTC: source-selection database regression12PASS, compiler/binding23PASS.
+  Published-guidance OpenAPI actualcasePASS: get_context/check_candidate/
+  update_draft, realEXECUTEDreceipt,2READcapabilities,4modelcalls. Prose UI
+  caseFAILED beforeinference(runtime186ms), SDKresultlackedworkflow/state and
+  failure code was dropped from metadata. Root cause not yet known; no retry
+  erases this finding. Both fixtures/sessions cleaned and users signed out.
+- Runtime now preserves safe SDK failure reason/status as STOPPED metadata
+  without raw exception text or invented usage.8focused startup/diagnostic
+  checksPASS, including secret canaries and retention of actual partial receipts.
+  Needs commit/CI/image and normal stage apply before rechecking the UI failure.
+  Existing stage Runtime/UI f54, backend3b63, framework68; production unchanged.
+  Four live selection/missing-input API cases are running in native-scopes.

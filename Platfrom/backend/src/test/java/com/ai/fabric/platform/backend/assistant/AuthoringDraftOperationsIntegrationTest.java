@@ -98,6 +98,29 @@ class AuthoringDraftOperationsIntegrationTest {
             .put("path", "/promptConfig/systemPrompt").put("value", text));
     }
     String operation(int step) { return turnId + ":step:" + step; }
+    @Test void selectedProseRemainsAvailableWhenNoFormalOperationsWereParsed() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow(); session.task = "ACTIONS";
+        var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));
+        var source = ((com.fasterxml.jackson.databind.node.ArrayNode) content.path("sources")).addObject();
+        source.put("sourceId", "src-prose").put("title", "API notes").put("mediaType", "text/plain")
+            .put("content", "GET https://example.test/products is public and returns named products.").putArray("operations");
+        var turn = (com.fasterxml.jackson.databind.node.ObjectNode) content.path("turns").get(0);
+        turn.put("command", "PREPARE"); turn.putArray("sourceIds").add("src-prose"); turn.putArray("operationIds");
+        session.encryptedContent = crypto.encrypt(sessionId, content.toString()); sessions.saveAndFlush(session);
+        when(resources.load("DEPLOYMENT_DRAFT", resourceId, "ACTIONS")).thenReturn(new AuthoringResourceService.Snapshot(
+            customerId, "Fixture", mapper.createObjectNode(), mapper.createObjectNode(),
+            List.of("/actionsConfig", "/routingConfig"), "draft", true, ""));
+        bind(false);
+        var context = operations.context(caller);
+        assertThat(context.path("sourceIds")).hasSize(1);
+        assertThat(context.at("/preparationScope/operationSelection").asText()).isEqualTo("ALL_SELECTED_SOURCE_OPERATIONS");
+        assertThat(context.at("/preparationScope/documentedOperationCount").asInt()).isZero();
+        var selected = operations.selectedSources(caller);
+        assertThat(selected).hasSize(1);
+        assertThat(selected.get(0).path("id").asText()).isEqualTo("src-prose");
+        assertThat(selected.get(0).path("content").asText()).contains("https://example.test/products");
+        verify(resources, never()).save(anyString(), anyString(), anyString(), any());
+    }
     @Test void committedWriteAndEncryptedReceiptReplayWithoutSecondSave() {
         bind(false); var first = operations.save(caller, operation(1), change("Helpful"));
         assertThat(first.path("status").asText()).isEqualTo("EXECUTED");

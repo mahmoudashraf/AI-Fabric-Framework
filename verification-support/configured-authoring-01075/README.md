@@ -1,8 +1,9 @@
 # Configured Build with AI Migration - Implementation Record
 
-Work in progress, 24 November 2026. This is not release or live qualification
-evidence. The owner approved the full 010.75 migration and required framework
-work. No infrastructure/capacity or funding changes are authorized or performed.
+Implementation and live qualification in progress, 24 November 2026. Staging
+has a verified native release, but production migration and full acceptance are
+not complete. The owner approved the full010.75migration and framework work.
+No infrastructure/capacity or spending-cap change has been performed.
 
 ## Worktrees and Baseline
 
@@ -13,11 +14,11 @@ work. No infrastructure/capacity or funding changes are authorized or performed.
   main/tag ai-fabric-framework-v0.8.68. Signed Central publication45377408953
   completed successfully. Nine official Central JARs downloaded and matched
   their repository checksums; SHA256proof in/private/tmp/loomai-01075-central/proof.json.
-  Product sources target0.8.68; no hosted adoption yet.
-- Live Support and the existing authoring service remain on 0.8.67.
+  Product sources target0.8.68; staging authoring now uses it natively.
+- Live Support and production authoring remain on0.8.67.
 - Unrelated pre-existing dirty files, screenshots and .gitignore changes are
-  preserved. Public framework commits are pushed; private product changes are
-  still uncommitted at this checkpoint.
+  preserved. Public framework and private feature/adoption commits are pushed;
+  subsequent qualification findings are recorded below.
 
 ## Implemented Locally
 
@@ -165,3 +166,25 @@ these actual preserved limits, not create a second allocation.
   which are disabled but must not resolve an unrelated global account. The
   existing paid key remains authoritative.106focused authority, lifecycle and
   accounting checks passed. No paid model calls or native service update yet.
+
+## Native Live Qualification In Progress
+
+- Staging rel-6f33b144/ver-ff755b1a is APPLIED_VERIFIED/PASSED, with nine native
+  profiles, original ledger/PG/provider credential and640MiBcapacity preserved.
+  The old generation POST returns404. Console reports CONFIGURED_BRAIN/ready.
+- First prose and OpenAPI cases exposed two model-planning mistakes without
+  writes: interpreting an empty parsed-operation list as absent prose sources,
+  and interpreting a successful candidate check as a saved draft. Both failed
+  cases and their complete cleanup remain recorded, not replaced by a retry.
+- Shared instructions now explicitly distinguish selected documents from
+  parsed operations, and validation from an actual draft-write receipt. This
+  was published/applied as ordinary Brain configuration, ver-fb756de5/
+  rel-a506e44d, without a new Runtime build or permission/budget change.
+- The next OpenAPI case passed: get_context -> check_candidate -> update_draft,
+  one actual write and four model calls, two READ capabilities and exact routes.
+  The prose UI case stopped before inference with missing SDK failure details;
+  it is not counted as a quality pass or ignored. Safe failure reason/status
+  preservation is now covered by8focused Runtime startup/diagnostic checks.
+- Database-backed selected-prose regression12passed; compiler/binding checks23
+  passed. Further live operation-selection/missing-input tests are running.
+  Production remains unchanged. Full acceptance is still pending.

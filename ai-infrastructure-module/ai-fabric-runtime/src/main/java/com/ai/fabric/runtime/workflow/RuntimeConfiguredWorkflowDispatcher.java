@@ -75,8 +75,7 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
             var input = mapper.createObjectNode().put("query", body.getQuery());
             AIExecutionResult<JsonNode> result = required(gateways).execute(new AIExecutionRequest<>(profile.specialist(), input,
                 trusted, binding, deadline, work.turnId()));
-            Object raw = result.output() == null ? result.diagnostics().get("workflow") : result.output().path("work");
-            var workflow = raw == null ? mapper.createObjectNode() : (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(raw);
+            var workflow = workflowResult(result, mapper);
             var published = definition.executionProfile().workflowPolicy();
             workflow.put("deadline", deadline.toString());
             workflow.putObject("limits").put("actions", published.maxActions())
@@ -101,6 +100,22 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
             finish(invocation, result);
             return response;
         } finally { snapshotRegistry.release(binding); current.remove(); }
+    }
+
+    static com.fasterxml.jackson.databind.node.ObjectNode workflowResult(AIExecutionResult<JsonNode> result, ObjectMapper mapper) {
+        Object raw = result.output() == null ? result.diagnostics().get("workflow") : result.output().path("work");
+        JsonNode converted = raw == null ? null : mapper.valueToTree(raw);
+        var workflow = converted != null && converted.isObject()
+            ? (com.fasterxml.jackson.databind.node.ObjectNode) converted : mapper.createObjectNode();
+        if (result.failure() != null) {
+            if (!workflow.path("state").isTextual()) workflow.put("state", "STOPPED");
+            if (!workflow.path("stopCode").isTextual()) {
+                String reason = result.failure().reason();
+                workflow.put("stopCode", reason.matches("[A-Z][A-Z0-9_]{0,127}") ? reason : "NATIVE_EXECUTION_FAILED");
+            }
+            workflow.put("executionStatus", result.status().name());
+        }
+        return workflow;
     }
 
     /** Check immutable selection before financial admission or any model call. */
