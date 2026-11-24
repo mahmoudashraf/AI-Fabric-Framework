@@ -12,6 +12,8 @@ import com.ai.fabric.runtime.AIFabricRuntimeApplication;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
@@ -92,7 +94,9 @@ class ConfiguredAuthoringStartupTest {
             assertThat(metadata.getParameterSchemas().get("operationId").getVisibility()).isEqualTo("INTERNAL");
         }
     }
-    @Test void canonicalTurnUsesConfiguredPlanningAndRealGovernedWritesWithoutDuplicateHistoryOrReplay() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void canonicalTurnUsesConfiguredPlanningAndRealGovernedWritesWithoutDuplicateHistoryOrReplay(boolean completionFeedback) throws Exception {
         String suffix = UUID.randomUUID().toString(); String session = "cas-" + suffix; String turn = "cat-" + suffix;
         String conversation = "authoring-" + suffix;
         var profile = bundle.select("BEHAVIOUR", null);
@@ -103,16 +107,26 @@ class ConfiguredAuthoringStartupTest {
             .issuer("backend-test").audiences(List.of("dep-test")).expiresAt(Instant.now().plusSeconds(180)).grantedScopes(scopes).build();
         var request = new org.springframework.mock.web.MockHttpServletRequest();
         addPrivateRuntimeHeaders(request, authProperties, auth);
-        var replies = new ArrayDeque<>(List.of(
-            "{\"type\":\"ACTION\",\"action\":\"authoring_get_context\",\"parameters\":{}}",
+        var decisions = new ArrayList<String>();
+        decisions.add("{\"type\":\"ACTION\",\"action\":\"authoring_get_context\",\"parameters\":{}}");
+        if (completionFeedback) decisions.addAll(List.of(
+            "{\"type\":\"ACTION\",\"action\":\"authoring_check_candidate\",\"parameters\":{\"changes\":[{\"path\":\"/promptConfig/systemPrompt\",\"operation\":\"SET\",\"value\":\"Welcome\"}]}}",
+            "{\"type\":\"COMPLETE\",\"message\":\"The draft is saved.\"}"));
+        decisions.addAll(List.of(
             "{\"type\":\"ACTION\",\"action\":\"authoring_update_draft\",\"parameters\":{\"operationId\":\"forged\",\"changes\":[{\"path\":\"/promptConfig/systemPrompt\",\"operation\":\"SET\",\"value\":\"Welcome\"}]}}",
             "{\"type\":\"COMPLETE\",\"message\":\"The requested greeting is saved in the draft.\"}"));
+        var replies = new ArrayDeque<>(decisions);
+        var feedbackObserved = new java.util.concurrent.atomic.AtomicBoolean();
         doAnswer(call -> {
             ai.fabric.dto.AIGenerationRequest generated = call.getArgument(0);
             assertThat(generated.getSystemPrompt()).contains("APPLICATION-OWNED SPECIALIST CONTRACT",
                 specialists.require(profile.specialist()).instructions().render().trim());
             var modelContext = WorkflowAssistanceBundleTest.MAPPER.readTree(generated.getPrompt());
             assertThat(modelContext.path("actions").toString()).contains("authoring_update_draft", "authoring_get_context");
+            if ("WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED".equals(modelContext.path("previousFinding").asText())) {
+                assertThat(modelContext.path("previousFindingDetail").asText()).contains("no matching EXECUTED save receipt");
+                feedbackObserved.set(true);
+            }
             WorkflowModelCallScope.beforeModelCall();
             return AIGenerationResponse.builder().content(replies.remove()).build();
         }).when(core).generateContent(any(), any());
@@ -121,11 +135,14 @@ class ConfiguredAuthoringStartupTest {
             String action = call.getArgument(0); Map<String, Object> params = call.getArgument(1);
             var value = WorkflowAssistanceBundleTest.MAPPER.createObjectNode();
             if ("authoring_get_context".equals(action)) value.putObject("configuration").putObject("promptConfig").put("systemPrompt", "Manual");
+            else if ("authoring_check_candidate".equals(action))
+                value.put("draftSaveRequested", true).put("hasChanges", true).put("mutationFingerprint", "checked-candidate");
             else {
                 assertThat(action).isEqualTo("authoring_update_draft");
-                assertThat(params.get("operationId")).isEqualTo(turn + ":step:2");
+                assertThat(params.get("operationId")).isEqualTo(turn + ":step:" + (completionFeedback ? 3 : 2));
                 actualOperations.add(params.get("operationId").toString());
-                value.put("operationId", params.get("operationId").toString()).put("status", "EXECUTED").put("published", false);
+                value.put("operationId", params.get("operationId").toString()).put("status", "EXECUTED").put("published", false)
+                    .put("parameterFingerprint", "checked-candidate");
             }
             return new AuthoringPlatformClient.Reply(200, value);
         }).when(platform).call(anyString(), anyMap(), any());
@@ -142,7 +159,9 @@ class ConfiguredAuthoringStartupTest {
         assertThat(publicWork.at("/selection/name").asText()).isEqualTo(profile.name());
         assertThat(publicWork.at("/limits/modelCalls").asInt()).isEqualTo(16);
         assertThat(publicWork.at("/limits/corrections").asInt()).isEqualTo(1);
-        assertThat(actualOperations).containsExactly(turn + ":step:2");
+        assertThat(actualOperations).containsExactly(turn + ":step:" + (completionFeedback ? 3 : 2));
+        assertThat(feedbackObserved.get()).isEqualTo(completionFeedback);
+        assertThat(publicWork.at("/usage/corrections").asInt()).isEqualTo(completionFeedback ? 1 : 0);
         assertThat(repository.findById(turn).orElseThrow().protectedWorkflowCheckpoint()).isNotBlank().doesNotContain("Welcome");
         var replay = conversations.message(conversation, turn, body, request);
         assertThat(replay.getBody().getAnswer()).isEqualTo(result.getBody().getAnswer());

@@ -347,3 +347,26 @@ these actual preserved limits, not create a second allocation.
   and USD5 limits, ledger identity and accumulated usage retained. Production
   stays210turns/4M/USD5. Remaining stage budget is eight turns; do not infer
   authority for another increase. Production migration is not accepted yet.
+
+### Native Wiring And Publication Gate
+
+- Public Framework Build45409684432 passed all jobs, including vector container
+  contracts and real-app smoke checks. Immutable tagai-fabric-framework-v0.8.69
+  points to9e1727663; one Central release run45413133017 was dispatched and is
+  still processing. No duplicate upload, Maven availability or live69claim.
+- Actual native pipeline with deterministic model/receiver fixtures passed three
+  startup/integration checks, including both ordinary and completion-feedback
+  variants. A premature COMPLETE receives WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED,
+  the model chooses the real save, one correction is charged, and replay causes
+  no second write. Canonical encrypted history and normal erasure also pass.
+  This is integration wiring proof, not a live-model quality score.
+- Staging known-real foreign resource/session check passed: create, read, turn
+  and delete all404; original customer binding differs from the signed-in
+  fixture. Zero inference, draft effects or allowance change. Temporary staff
+  session deleted and both normal identities logged out. Setup mistakes in the
+  harness (unsupported detail route, nested binding DTO, missing request header)
+  are retained separately and are not mislabeled security failures or successes.
+- Full fresh backend suite is still running against the consistent69manifest;
+  no whole-suite success is claimed before completion. Native stage remains68
+  and production67. The new private implementation is committed locally but its
+  image builds wait for official Central dependency availability.
