@@ -178,10 +178,10 @@ class CustomerStaffAccessPostgresTest {
 
     @Test void duplicateGrantRepeatedRevokeAndRegrantRetainOneImmutableBinding() throws Exception {
         var first = grant(ownerCookie, operator.getEmail()); var duplicate = grant(ownerCookie, operator.getEmail().toUpperCase());
-        String id = first.path("id").asText(); assertThat(duplicate).isEqualTo(first);
+        String id = first.path("id").asText(); assertSamePersistedGrant(duplicate, first);
         var revoked = body(mvc.perform(delete("/api/customer/staff-access/{id}", id).cookie(ownerCookie)).andExpect(status().isOk()).andReturn());
         var repeated = body(mvc.perform(delete("/api/customer/staff-access/{id}", id).cookie(ownerCookie)).andExpect(status().isOk()).andReturn());
-        assertThat(repeated).isEqualTo(revoked);
+        assertSamePersistedGrant(repeated, revoked);
         var again = grant(ownerCookie, operator.getEmail()); assertThat(again.path("id").asText()).isEqualTo(id);
         assertThat(again.path("status").asText()).isEqualTo("ACTIVE"); assertThat(again.path("revokedAt").isNull()).isTrue();
         assertThat(jdbc.queryForObject("select count(*) from platform_customer_staff_access where customer_id=? and user_id=?", Integer.class,
@@ -193,6 +193,19 @@ class CustomerStaffAccessPostgresTest {
         });
         assertThat(jdbc.queryForObject("select customer_id from platform_customer_staff_access where id=?", String.class, id)).isEqualTo(customer.getId());
         assertThat(jdbc.queryForObject("select user_id from platform_customer_staff_access where id=?", String.class, id)).isEqualTo(operator.getId());
+    }
+
+    private void assertSamePersistedGrant(JsonNode actual, JsonNode expected) {
+        var actualFields = (com.fasterxml.jackson.databind.node.ObjectNode) actual.deepCopy();
+        var expectedFields = (com.fasterxml.jackson.databind.node.ObjectNode) expected.deepCopy();
+        for (String field : List.of("grantedAt", "revokedAt")) {
+            if (!expected.path(field).isNull()) {
+                assertThat(Instant.parse(actual.path(field).asText())).isCloseTo(
+                    Instant.parse(expected.path(field).asText()), within(1, java.time.temporal.ChronoUnit.MICROS));
+            } else assertThat(actual.path(field)).isEqualTo(expected.path(field));
+            actualFields.remove(field); expectedFields.remove(field);
+        }
+        assertThat(actualFields).isEqualTo(expectedFields);
     }
 
     @Test void customerCanOnlyListOrRevokeOwnEntriesEvenWhenForeignIdIsReal() throws Exception {

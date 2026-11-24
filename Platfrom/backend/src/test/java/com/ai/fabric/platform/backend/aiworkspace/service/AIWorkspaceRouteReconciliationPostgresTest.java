@@ -702,7 +702,8 @@ class AIWorkspaceRouteReconciliationPostgresTest {
             HttpResponse.BodyHandlers.ofString());
     }
     private static class MutableClock extends Clock {
-        private Instant now = Instant.now().plusSeconds(1);
+        // A frozen clock must use PostgreSQL precision so a rounded retry is not in its future.
+        private Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS).plusSeconds(1);
         void advance(Duration duration) { now = now.plus(duration); }
         @Override public ZoneId getZone() { return ZoneOffset.UTC; }
         @Override public Clock withZone(ZoneId zone) { return this; }
