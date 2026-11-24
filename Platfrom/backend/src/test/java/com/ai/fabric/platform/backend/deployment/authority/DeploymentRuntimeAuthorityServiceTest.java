@@ -217,6 +217,30 @@ class DeploymentRuntimeAuthorityServiceTest {
             "system", "session", List.of("documents:read"), Duration.ofMinutes(1))).hasMessageContaining("explicit deployment and target");
     }
 
+    @Test void partnerPreviewUsesFrozenTargetAuthorityAndAnExplicitWidgetScope() throws Exception {
+        var frozen = release("staging", "release-partner");
+        var authorization = mock(com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization.class);
+        when(authorization.authorize(deployment)).thenReturn(
+            new com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization.Access("partner-member:one", "partner-session-one"));
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "partnerRuntimeAuthorization", authorization);
+        var release = releases.findById("release-partner").orElseThrow();
+        var version = versions.findById(frozen.binding().versionId()).orElseThrow();
+        var issued = service.issuePartnerPreviewHeaders(deployment, version, release, List.of("chat:query"));
+        String token = issued.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER).substring(7);
+        var claims = payload(token);
+        assertThat(claims.path("sub").asText()).isEqualTo("partner-member:one");
+        assertThat(claims.path("sessionId").asText()).isEqualTo("partner-session-one");
+        assertThat(claims.path("authMode").asText()).isEqualTo("PLATFORM_PROXY_SESSION");
+        assertThat(claims.path("scopes")).hasSize(1);
+        assertThat(validHmac(token, key(frozen, PRIVATE_ASSERTION_SIGNING_KEY))).isTrue();
+        assertThatThrownBy(() -> service.issuePartnerPreviewHeaders(deployment, version, release, List.of("documents:write")))
+            .isInstanceOf(ResponseStatusException.class);
+        doThrow(new com.ai.fabric.platform.backend.partner.security.PartnerForbiddenException("Revoked"))
+            .when(authorization).authorize(deployment);
+        assertThatThrownBy(() -> service.issuePartnerPreviewHeaders(deployment, version, release, List.of("chat:query")))
+            .isInstanceOf(com.ai.fabric.platform.backend.partner.security.PartnerForbiddenException.class);
+    }
+
     @Test void explicitProxySessionPreservesActualPrincipalAndExactScopesWithTargetSigning() throws Exception {
         var frozen = release("staging", "release-poc");
         principal(com.ai.fabric.platform.backend.security.PlatformRole.CUSTOMER_ADMIN);

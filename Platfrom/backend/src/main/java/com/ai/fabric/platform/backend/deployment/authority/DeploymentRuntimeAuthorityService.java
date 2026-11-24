@@ -75,6 +75,8 @@ public class DeploymentRuntimeAuthorityService {
     private JdbcTemplate workerReadback;
     @Autowired
     private com.ai.fabric.platform.backend.deployment.operations.lifecycle.LifecycleClaimGuard lifecycleClaims;
+    @Autowired(required = false)
+    private com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization partnerRuntimeAuthorization;
 
     public DeploymentRuntimeAuthorityService(DeploymentRepository deployments, DeploymentVersionRepository versions,
         DeploymentReleaseRepository releases, DeploymentTargetProfileRepository targets, DeploymentAccessService access,
@@ -387,6 +389,19 @@ public class DeploymentRuntimeAuthorityService {
         requireProvisioned(releases.findById(releaseId).orElseThrow());
         return headers(snapshot.binding(), requiredIdentity(principal.actorId()), "INTERNAL_PLATFORM_USER",
             requiredIdentity(sessionId), true, grantedScopes, ttl);
+    }
+
+    /** Existing partner store delegation authorizes only the bounded widget-preview surface. */
+    @Transactional
+    public Map<String, String> issuePartnerPreviewHeaders(DeploymentEntity deployment, DeploymentVersionEntity version,
+        DeploymentReleaseEntity release, List<String> grantedScopes) {
+        var allowed = Set.of("chat:query", "chat:messages", "chat:suggestions", "chat:conversations", "chat:auth-context");
+        if (partnerRuntimeAuthorization == null || grantedScopes == null || grantedScopes.isEmpty()
+            || !allowed.containsAll(grantedScopes)) throw new ResponseStatusException(FORBIDDEN, "Partner preview scope is not allowed.");
+        var access = partnerRuntimeAuthorization.authorize(deployment);
+        var checked = requireReleaseUnchangedForProvisioning(deployment, version, release);
+        requireProvisioned(workerRelease(release.getId()));
+        return headers(checked.binding(), access.subjectId(), "END_USER", access.sessionId(), true, grantedScopes, Duration.ofMinutes(2));
     }
 
     /** Identity and scopes must come from the caller's verified session, never browser claims. */

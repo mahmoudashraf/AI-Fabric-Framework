@@ -1,6 +1,14 @@
 package com.ai.fabric.platform.backend.partner;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.authority.DeploymentRuntimeAuthorityService;
+import com.ai.fabric.platform.backend.deployment.authority.RuntimeAuthorityPurpose;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.partner.entity.PartnerPackageTrialActivationEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerSupportReplyEntity;
@@ -83,6 +91,17 @@ class PartnerEnablementIntegrationTest {
     private static final ECKey EC_KEY = createEcKey();
     private static HttpServer jwksServer;
     private static String jwksUri;
+    private volatile String runtimeBackendKey;
+    private volatile String runtimeSigningKey;
+    private volatile String runtimeIssuer;
+    private volatile String runtimeAudience;
+
+    @Autowired private com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository drafts;
+    @Autowired private com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository versions;
+    @Autowired private com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository releases;
+    @Autowired private com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository targets;
+    @Autowired private com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository handles;
+    @Autowired private DeploymentRuntimeAuthorityService runtimeAuthority;
 
     @Autowired
     private MockMvc mockMvc;
@@ -788,6 +807,14 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
             .andExpect(jsonPath("$.status", is("REVOKED")));
 
+        mockMvc.perform(get("/api/partners/stores/{storeId}/max-widget/chat/me/auth-context", assignmentId)
+                .header("Authorization", "Bearer " + token).param("authPath", "PLATFORM_PRIVATE"))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/partners/stores/{storeId}/max-widget/chat/me/query", assignmentId)
+                .header("Authorization", "Bearer " + token).param("authPath", "PLATFORM_PRIVATE")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"Do not call after revocation\"}"))
+            .andExpect(status().isForbidden());
+
         mockMvc.perform(get("/api/partners/client-implementations")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
@@ -1384,8 +1411,60 @@ class PartnerEnablementIntegrationTest {
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
-        storeRuntimeSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY", "runtime-test-key");
-        storeRuntimeSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY", "runtime-private-test-signing-key");
+
+        var draft = new DeploymentDraftEntity();
+        draft.setId("draft-partner-runtime"); draft.setDeploymentId(deploymentId);
+        draft.setRevisionNumber(1); draft.setStatus("PUBLISHED");
+        draft.setActionsConfigJson("{}"); draft.setEntityConfigJson("{}"); draft.setRoutingConfigJson("{}");
+        draft.setProviderConfigJson("{}"); draft.setSecurityConfigJson("{}"); draft.setPromptConfigJson("{}");
+        draft.setCreatedAt(now); draft.setUpdatedAt(now); drafts.saveAndFlush(draft);
+        var version = new DeploymentVersionEntity();
+        version.setId("version-partner-runtime"); version.setDeploymentId(deploymentId);
+        version.setSourceDraftId(draft.getId()); version.setVersionLabel("1"); version.setStatus("PUBLISHED");
+        version.setConfigHash("partner-runtime-fixture"); version.setPublishedAt(now);
+        version.setActionsConfigJson("{}"); version.setEntityConfigJson("{}"); version.setRoutingConfigJson("{}");
+        version.setProviderConfigJson("{}"); version.setSecurityConfigJson("{}"); version.setPromptConfigJson("{}");
+        version.setActionsArtifactYaml("{}"); version.setEntityArtifactYaml("{}");
+        version.setRoutingArtifactYaml("{}"); version.setManifestJson("{}"); versions.saveAndFlush(version);
+        deployment.setActiveVersionId(version.getId()); deploymentRepository.saveAndFlush(deployment);
+        var target = new DeploymentTargetProfileEntity();
+        target.setId("target-partner-runtime"); target.setName("Partner runtime fixture");
+        target.setProviderType(DeploymentProviderType.COOLIFY); target.setEnvironmentName("test");
+        target.setActive(true); target.setSourceStrategy("IMAGE_SOURCE");
+        target.setProviderConfigJson("{\"serverUuid\":\"partner-server\"}");
+        target.setNetworkPolicyJson("{}"); target.setResourceDefaultsJson("{}");
+        target.setCreatedAt(now); target.setUpdatedAt(now); targets.saveAndFlush(target);
+        var release = new DeploymentReleaseEntity();
+        release.setId("release-partner-runtime"); release.setDeploymentId(deploymentId);
+        release.setDeploymentVersionId(version.getId()); release.setTargetProfileId(target.getId());
+        release.setProviderType(DeploymentProviderType.COOLIFY); release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED"); release.setProvisioningStatus("ACTIVE");
+        release.setProvisioningTarget("COOLIFY");
+        release.setProvisioningDetailsJson("{\"runtimeBaseUrl\":\"" + runtimeBaseUrl
+            + "\",\"runtimeApplicationUuid\":\"partner-runtime-app\"}");
+        release.setCreatedAt(now); release.setAppliedAt(now); release.setUpdatedAt(now); releases.saveAndFlush(release);
+        var handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("handle-partner-runtime"); handle.setDeploymentId(deploymentId); handle.setReleaseId(release.getId());
+        handle.setTargetProfileId(target.getId()); handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setResourceKind("APPLICATION"); handle.setProviderResourceUuid("partner-runtime-app");
+        handle.setProviderServerUuid("partner-server"); handle.setStatus("ACTIVE"); handle.setMetadataJson("{}");
+        handle.setCreatedAt(now); handle.setUpdatedAt(now); handles.saveAndFlush(handle);
+        release.setProviderResourceHandleId(handle.getId()); releases.saveAndFlush(release);
+        com.ai.fabric.platform.backend.security.PlatformTestSecurity.authenticateAsPlatformAdmin();
+        try {
+            var candidate = runtimeAuthority.freezeCandidate(deploymentId, target.getId(), version.getId(), List.of());
+            var frozen = runtimeAuthority.freezeRelease(deploymentId, target.getId(), release.getId(),
+                candidate.snapshotId(), candidate.fingerprint());
+            release.setRuntimeAuthoritySnapshotId(frozen.snapshotId());
+            release.setRuntimeAuthorityFingerprint(frozen.fingerprint()); releases.saveAndFlush(release);
+            runtimeBackendKey = platformSecretRepository.findById(frozen.binding().secrets()
+                .get(RuntimeAuthorityPurpose.TRUSTED_BACKEND_API_KEY).reference()).orElseThrow().getSecretValue();
+            runtimeSigningKey = platformSecretRepository.findById(frozen.binding().secrets()
+                .get(RuntimeAuthorityPurpose.PRIVATE_ASSERTION_SIGNING_KEY).reference()).orElseThrow().getSecretValue();
+            runtimeIssuer = frozen.binding().privateIssuer(); runtimeAudience = frozen.binding().privateAudience();
+        } finally {
+            com.ai.fabric.platform.backend.security.PlatformTestSecurity.clearAuthentication();
+        }
     }
 
     private void storeRuntimeSecret(String name, String value) {
@@ -1552,8 +1631,26 @@ class PartnerEnablementIntegrationTest {
     }
 
     private boolean runtimeRequestAuthorized(HttpExchange exchange) {
-        return "runtime-test-key".equals(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"))
-            && exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION") != null;
+        String authorization = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION");
+        if (runtimeBackendKey == null || !runtimeBackendKey.equals(exchange.getRequestHeaders()
+            .getFirst("X-AIFABRIC-RUNTIME-API-KEY")) || authorization == null || !authorization.startsWith("Bearer ")) return false;
+        try {
+            String[] parts = authorization.substring(7).split("\\.", -1);
+            if (parts.length != 3 || !"rpa1".equals(parts[0])) return false;
+            var decoder = java.util.Base64.getUrlDecoder();
+            var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(runtimeSigningKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            if (!java.security.MessageDigest.isEqual(mac.doFinal(parts[1].getBytes(StandardCharsets.UTF_8)),
+                decoder.decode(parts[2]))) return false;
+            var claims = new com.fasterxml.jackson.databind.ObjectMapper().readTree(decoder.decode(parts[1]));
+            return runtimeIssuer.equals(claims.path("iss").asText()) && runtimeAudience.equals(claims.path("aud").asText())
+                && Instant.parse(claims.path("exp").asText()).isAfter(Instant.now())
+                && "deployment-shopify-store-approved".equals(claims.path("deploymentId").asText())
+                && "customer-shopify-store-approved".equals(claims.path("customerId").asText())
+                && "tenant-shopify-store-approved".equals(claims.path("tenantId").asText());
+        } catch (Exception error) {
+            return false;
+        }
     }
 
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {

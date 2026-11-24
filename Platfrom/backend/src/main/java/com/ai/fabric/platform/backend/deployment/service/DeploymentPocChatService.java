@@ -107,6 +107,12 @@ public class DeploymentPocChatService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final Duration runtimeTimeout;
+    private com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization partnerRuntimeAuthorization;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setPartnerRuntimeAuthorization(com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization authorization) {
+        this.partnerRuntimeAuthorization = authorization;
+    }
 
     public DeploymentPocChatService(DeploymentRepository deploymentRepository,
                                     DeploymentVersionRepository deploymentVersionRepository,
@@ -590,6 +596,7 @@ public class DeploymentPocChatService {
     private DeploymentEntity getDeploymentForTrustedPartner(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        requirePartnerRuntimeAccess(deployment);
         if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
@@ -1314,6 +1321,9 @@ public class DeploymentPocChatService {
     }
 
     private String privatePocSessionId(DeploymentEntity deployment) {
+        if (com.ai.fabric.platform.backend.partner.security.PartnerSecurityContext.currentPrincipal() != null) {
+            return requirePartnerRuntimeAccess(deployment).sessionId();
+        }
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || !StringUtils.hasText(principal.actorId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An authenticated Platform principal is required for POC chat.");
@@ -1369,6 +1379,8 @@ public class DeploymentPocChatService {
     }
 
     private RuntimeRequestAccess runtimePrivateAccess(DeploymentEntity deployment, List<String> grantedScopes) {
+        boolean partner = com.ai.fabric.platform.backend.partner.security.PartnerSecurityContext.currentPrincipal() != null;
+        if (partner) requirePartnerRuntimeAccess(deployment);
         // Discover only the serving target, then let the shared resolver validate its resource and endpoint.
         Map<String, DeploymentReleaseEntity> currentByTarget = new LinkedHashMap<>();
         for (DeploymentReleaseEntity release : deploymentReleaseRepository
@@ -1391,18 +1403,26 @@ public class DeploymentPocChatService {
             || !StringUtils.hasText(release.getRuntimeAuthorityFingerprint())) {
             throw new ResponseStatusException(CONFLICT, "POC runtime release lacks frozen target authority.");
         }
-        DeploymentTargetContextService.Context context = deploymentTargetContextService.resolve(
-            deployment.getId(), release.getTargetProfileId(), release.getId(), true);
+        DeploymentTargetContextService.Context context = partner
+            ? deploymentTargetContextService.resolveOwnedRead(deployment.getId(), release.getTargetProfileId(), release.getId(),
+                deployment.getCustomerId(), deployment.getTenantId())
+            : deploymentTargetContextService.resolve(deployment.getId(), release.getTargetProfileId(), release.getId(), true);
         if (!Objects.equals(deployment.getActiveVersionId(), context.version().getId())
             || !sameRuntimeEndpoint(deployment.getRuntimeBaseUrl(), context.runtimeBaseUrl())) {
             throw new ResponseStatusException(CONFLICT, "POC runtime target changed; reload the deployment before retrying.");
         }
         return new RuntimeRequestAccess(
             context.runtimeBaseUrl(),
-            runtimeAuthority.issuePlatformProxyHeaders(deployment.getId(), context.target().getId(),
+            partner ? runtimeAuthority.issuePartnerPreviewHeaders(context.deployment(), context.version(), context.release(), normalizeScopes(grantedScopes))
+                : runtimeAuthority.issuePlatformProxyHeaders(deployment.getId(), context.target().getId(),
                 context.release().getId(), context.release().getRuntimeAuthorityFingerprint(),
                 privatePocSessionId(deployment), normalizeScopes(grantedScopes), Duration.ofMinutes(5))
         );
+    }
+
+    private com.ai.fabric.platform.backend.partner.service.PartnerRuntimeAuthorization.Access requirePartnerRuntimeAccess(DeploymentEntity deployment) {
+        if (partnerRuntimeAuthorization == null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Partner preview authorization is unavailable.");
+        return partnerRuntimeAuthorization.authorize(deployment);
     }
 
     private boolean sameRuntimeEndpoint(String left, String right) {
