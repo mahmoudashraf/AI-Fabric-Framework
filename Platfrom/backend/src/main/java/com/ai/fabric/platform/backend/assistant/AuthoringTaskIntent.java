@@ -16,7 +16,7 @@ final class AuthoringTaskIntent {
         DOCUMENT_PREPARATION("DOCUMENT_PREPARATION", "Analyze the selected document excerpts and any actual evaluation results. Configure suitable extraction, chunking and evaluation settings and prepare useful test questions"),
         LIVE_DATA("KNOWLEDGE", "Prepare live-data knowledge-source settings"),
         STORAGE("KNOWLEDGE", "Prepare document-storage source settings"),
-        SEARCH("MODELS", "Prepare embedding, vector-service and search settings"),
+        SEARCH("SEARCH", "Prepare supported embedding, vector-service and search settings using the current source capabilities and evaluation evidence"),
         BEHAVIOUR("BEHAVIOUR", "Prepare response style and behaviour settings"),
         INSTRUCTIONS("BEHAVIOUR", "Prepare the Smart Brain's response instructions"),
         MODELS("MODELS", "Prepare response-model settings"),

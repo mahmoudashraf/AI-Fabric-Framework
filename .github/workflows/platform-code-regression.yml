@@ -101,6 +101,11 @@ jobs:
           npm ci
           npm run build
 
+      - name: Verify configuration assistance and search comparisons
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        run: npm run test:search-quality
+
       - name: Validate hosted verification shell scripts
         if: ${{ inputs.shell_syntax_checks }}
         run: |

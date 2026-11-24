@@ -9,7 +9,7 @@ export const assistantPages: Record<AssistantSection, Page> = {
   DOCUMENTS: { title: 'Documents', command: 'Prepare document sources', welcome: 'Share document-source requirements to prepare source settings. Imported references do not become indexed knowledge.' },
   LIVE_DATA: { title: 'Live data', command: 'Prepare live data', welcome: 'Share API or source documentation to prepare live-data settings and mappings. No external API is called.' },
   STORAGE: { title: 'Storage', command: 'Prepare storage', welcome: 'Share storage requirements to prepare supported document-storage settings. Uploads and provisioning stay separate.' },
-  SEARCH: { title: 'Search settings', command: 'Prepare search settings', welcome: 'Prepare embedding, vector-service and search settings for this Brain. Existing connections and reindexing stay separate.' },
+  SEARCH: { title: 'Search settings', command: 'Prepare search settings', welcome: 'I can prepare meaning, keyword and result-prioritization settings using your current services and shared evaluation results. External-processing approval, funding and indexing stay under your control.' },
   BEHAVIOUR: { title: 'AI responses', command: 'Prepare responses', welcome: 'Share tone or response examples to prepare supported behaviour profiles for this Brain.' },
   INSTRUCTIONS: { title: 'Instructions', command: 'Prepare instructions', welcome: 'Share response guidelines to prepare this Brain\'s instructions. Add an optional focus hint.' },
   MODELS: { title: 'AI models', command: 'Prepare model settings', welcome: 'Prepare supported response-model settings using the current configuration and your optional requirements. Funding stays separate.' },

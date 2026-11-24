@@ -22,7 +22,7 @@ public record ConfigurationAuthoringRequest(
 ) {
     public static final String CONTRACT_VERSION = "LOOMAI_CONFIGURATION_AUTHORING_V1";
     public enum ResourceKind { DEPLOYMENT_DRAFT, PRIVATE_DATA_PLUGIN, ENGAGE_APP, DOCUMENT_SOURCE }
-    public enum Task { ACTIONS, CONNECTIONS, DATA_PLUGIN, KNOWLEDGE, BEHAVIOUR, MODELS, ENGAGE, HUMAN_SUPPORT, SPECIALISTS, KIT, DOCUMENT_PREPARATION }
+    public enum Task { ACTIONS, CONNECTIONS, DATA_PLUGIN, KNOWLEDGE, SEARCH, BEHAVIOUR, MODELS, ENGAGE, HUMAN_SUPPORT, SPECIALISTS, KIT, DOCUMENT_PREPARATION }
     public enum Role { USER, ASSISTANT }
     public record Source(@NotBlank @Size(max = 128) String id,
                          @NotBlank @Size(max = 512) String title,

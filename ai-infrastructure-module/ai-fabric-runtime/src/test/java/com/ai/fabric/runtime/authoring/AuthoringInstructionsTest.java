@@ -23,6 +23,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class AuthoringInstructionsTest {
+    @Test void searchPreparationUsesRealSettingsWithoutManufacturingConsentOrQualityClaims() {
+        String instructions = AuthoringInstructions.system(feedbackRequest(ConfigurationAuthoringRequest.Task.SEARCH, 1));
+        assertThat(instructions).contains("exact knowledgeRetrieval", "customer-owned", "never create or set",
+            "externalProcessingApproved:true", "separately funded active allowance", "preserve unrelated configuration",
+            "No retrieval experiment", "held-out questions");
+    }
+
     @ParameterizedTest
     @EnumSource(ConfigurationAuthoringRequest.Task.class)
     void feedbackGuidanceRetainsIntentAuthoritySafetyAndPlatformOwnedLoop(ConfigurationAuthoringRequest.Task task) {

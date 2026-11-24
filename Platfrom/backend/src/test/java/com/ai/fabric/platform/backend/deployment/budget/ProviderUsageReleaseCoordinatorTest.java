@@ -188,7 +188,9 @@ class ProviderUsageReleaseCoordinatorTest {
         coordinator.prepare(deployment, release);
         coordinator.initializeAndActivate(deployment, version, release);
         assertThat(coordinator.environment(deployment, release)).isEmpty();
-        verifyNoInteractions(allowances, runtime, authority);
+        verify(allowances, times(3)).rerankingEnabledForRelease("rel-1");
+        verifyNoMoreInteractions(allowances);
+        verifyNoInteractions(runtime, authority);
         release.setDeploymentId("foreign");
         assertThatThrownBy(() -> coordinator.prepare(deployment, release)).isInstanceOf(IllegalStateException.class);
     }
@@ -199,7 +201,9 @@ class ProviderUsageReleaseCoordinatorTest {
         assertThat(coordinator.environment(deployment, release)).containsExactlyEntriesOf(Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "false"));
         coordinator.initializeAndActivate(deployment, version, release);
         coordinator.verifyActive(deployment, version, release);
-        verifyNoInteractions(offers, allowances, runtime, authority, artifacts);
+        verify(allowances, times(4)).rerankingEnabledForRelease("rel-1");
+        verifyNoMoreInteractions(allowances);
+        verifyNoInteractions(offers, runtime, authority, artifacts);
     }
 
     @Test void coreAuthorizedFundedReleaseRequiresTheRealGuardEvenWithoutAnOffer() {
@@ -226,6 +230,82 @@ class ProviderUsageReleaseCoordinatorTest {
         assertThatThrownBy(() -> coordinator.initializeAndActivate(deployment, version, release)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> coordinator.verifyActive(deployment, version, release)).isInstanceOf(IllegalStateException.class);
         verifyNoInteractions(offers, allowances, runtime, authority, artifacts);
+    }
+
+    @Test void teamAuthorizedGenerationStillRequiresAnIndependentPreparedRerankingAllowance() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("TEAM_AUTHORIZED"));
+        when(allowances.rerankingEnabledForRelease("rel-1")).thenReturn(true);
+        var ranking = rerankingAllocation(InitializationState.UNINITIALIZED, null);
+        when(allowances.prepareForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING)).thenReturn(ranking);
+        when(allowances.findForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING)).thenReturn(Optional.of(ranking));
+
+        coordinator.prepare(deployment, release);
+        assertThat(coordinator.environment(deployment, release)).containsExactlyInAnyOrderEntriesOf(Map.of(
+            "LOOMAI_PROVIDER_BUDGET_ENABLED", "false", "LOOMAI_RERANKING_BUDGET_ENVIRONMENT", "staging",
+            "LOOMAI_RERANKING_BUDGET_CREDENTIAL_IDENTITY", "sha256:" + "d".repeat(64)));
+
+        verify(allowances).prepareForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING);
+        verify(allowances, never()).prepareForAuthorizedRelease("rel-1");
+        verify(artifacts, times(2)).requireReranking(release);
+        verify(artifacts, never()).require(release);
+        verifyNoInteractions(runtime, authority);
+    }
+
+    @Test void rerankingActivationCommitsItsStoreWithoutTouchingGenerationOrIssuingCredits() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("TEAM_AUTHORIZED"));
+        when(allowances.rerankingEnabledForRelease("rel-1")).thenReturn(true);
+        var initial = rerankingAllocation(InitializationState.UNINITIALIZED, null);
+        var initialized = rerankingAllocation(InitializationState.INITIALIZED, store);
+        when(allowances.findForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING)).thenReturn(Optional.of(initial));
+        when(runtime.read(deployment.getRuntimeBaseUrl(), headers, ProviderUsagePurpose.RERANKING))
+            .thenReturn(rerankingReadback("UNINITIALIZED", null), rerankingReadback("ACTIVE", store));
+        when(runtime.initialize(deployment.getRuntimeBaseUrl(), initial, headers, ProviderUsagePurpose.RERANKING))
+            .thenReturn(rerankingReceipt("INITIALIZED", store));
+        when(allowances.markInitializedForAuthorizedRelease("rel-1", store, "e".repeat(64), ProviderUsagePurpose.RERANKING))
+            .thenReturn(initialized);
+        when(runtime.activate(eq(deployment.getRuntimeBaseUrl()), any(), eq(headers), eq(ProviderUsagePurpose.RERANKING)))
+            .thenReturn(rerankingReceipt("ACTIVE", store));
+
+        coordinator.initializeAndActivate(deployment, version, release);
+
+        var order = inOrder(runtime, allowances);
+        order.verify(allowances).findForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING);
+        order.verify(runtime).read(deployment.getRuntimeBaseUrl(), headers, ProviderUsagePurpose.RERANKING);
+        order.verify(runtime).initialize(deployment.getRuntimeBaseUrl(), initial, headers, ProviderUsagePurpose.RERANKING);
+        order.verify(allowances).markInitializedForAuthorizedRelease("rel-1", store, "e".repeat(64), ProviderUsagePurpose.RERANKING);
+        order.verify(runtime).activate(eq(deployment.getRuntimeBaseUrl()), any(), eq(headers), eq(ProviderUsagePurpose.RERANKING));
+        order.verify(allowances).markActiveForAuthorizedRelease("rel-1", store, "e".repeat(64), ProviderUsagePurpose.RERANKING);
+        verify(runtime, never()).read(any(), any());
+        verify(runtime, never()).initialize(any(), any(), any());
+        verify(allowances, never()).markInitializedForAuthorizedRelease(any(), any(), any());
+    }
+
+    @Test void missingRerankingFundingCannotBecomeAnUnmeteredConnection() {
+        when(modes.forRelease(deployment, release)).thenReturn(Optional.of("TEAM_AUTHORIZED"));
+        when(allowances.rerankingEnabledForRelease("rel-1")).thenReturn(true);
+        when(allowances.findForAuthorizedRelease("rel-1", ProviderUsagePurpose.RERANKING)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> coordinator.environment(deployment, release))
+            .hasMessage("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED");
+        verifyNoInteractions(runtime, authority);
+    }
+
+    private SafeAllowanceProjection rerankingAllocation(InitializationState state, UUID storeUuid) {
+        return new SafeAllowanceProjection("reranking-approval", new AllocationScope("reranking-approval", "customer-1", "dep-1", "target-1", "staging"),
+            new Limits(0, 100_000, 1_000_000_000), expires, ProviderUsageRuntimeProfile.RERANKING_RATE_CARD,
+            new ProviderBinding("cohere", List.of("rerank-v5.0-fast"), "RERANKING_API_KEY", null),
+            "d".repeat(64), "f".repeat(64), "e".repeat(64), state, storeUuid, storeUuid == null ? null : "e".repeat(64));
+    }
+
+    private StoreReceipt rerankingReceipt(String state, UUID id) {
+        return new StoreReceipt(state, id, "reranking-approval", "e".repeat(64));
+    }
+
+    private Readback rerankingReadback(String state, UUID id) {
+        boolean empty = "UNINITIALIZED".equals(state);
+        return new Readback(state, id, empty ? null : "reranking-approval", empty ? null : "e".repeat(64),
+            "customer-1", "dep-1", "target-1", "staging", ProviderUsageRuntimeProfile.RERANKING_RATE_CARD,
+            empty ? null : rerankingAllocation(InitializationState.ACTIVE, store).caps(), empty ? null : expires,
+            empty ? null : 0L, empty ? null : 0L, empty ? null : new Usage(0, 0, 0), empty ? null : false);
     }
 
     private SafeAllowanceProjection allocation(InitializationState state, UUID storeUuid) {

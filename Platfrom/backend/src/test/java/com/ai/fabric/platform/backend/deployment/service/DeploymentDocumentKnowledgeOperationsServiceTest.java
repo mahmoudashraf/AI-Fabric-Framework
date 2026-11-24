@@ -59,6 +59,26 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         assertThat(request.getValue().headers().firstValue("Idempotency-Key")).contains("evaluation-once");
     }
 
+    @Test
+    @SuppressWarnings({"rawtypes","unchecked"})
+    void oldRuntimeCannotSilentlyAcceptAnUnsupportedEvaluationExperiment() throws Exception {
+        configureDocumentDeployment();
+        doReturn(runtimeResponse(200,"{}")).when(httpClient).send(any(),any());
+        assertThatThrownBy(() -> service().startEvaluation(target,"source-1",
+            objectMapper.readTree("{\"expectedRevision\":3,\"retrievalVariant\":\"DENSE_BASELINE\"}"),"baseline-once"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("Upgrade this environment");
+        var request=ArgumentCaptor.forClass(HttpRequest.class);verify(httpClient).send(request.capture(),any());
+        assertThat(request.getValue().method()).isEqualTo("GET");
+        assertThat(request.getValue().uri().getPath()).endsWith("/preparation");
+        org.mockito.Mockito.clearInvocations(httpClient);
+        doReturn(runtimeResponse(200,"{\"evaluationVariants\":[\"CONFIGURED\",\"DENSE_BASELINE\"]}"))
+            .when(httpClient).send(any(),any());
+        service().startEvaluation(target,"source-1",
+            objectMapper.readTree("{\"expectedRevision\":3,\"retrievalVariant\":\"DENSE_BASELINE\"}"),"baseline-once");
+        verify(httpClient, org.mockito.Mockito.times(2)).send(request.capture(),any());
+        assertThat(request.getValue().method()).isEqualTo("POST");
+    }
+
     private final DeploymentTargetContextService targetContextService = mock(DeploymentTargetContextService.class);
     private final DeploymentTargetReference target = new DeploymentTargetReference("dep-1", "target-1", "rel-1");
     private final DeploymentRuntimeAuthorityService runtimeAuthority = mock(DeploymentRuntimeAuthorityService.class);

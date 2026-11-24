@@ -172,7 +172,7 @@ public class DeploymentDraftValidationService {
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
             validateEntities(entityNode, providerNode, issues);
             validateRouting(routingNode, marketplaceDatasetNode, actionValidation, issues);
-            validateProviders(providerNode, issues);
+            validateProviders(providerNode, promptNode, issues);
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
@@ -1758,7 +1758,7 @@ public class DeploymentDraftValidationService {
         });
     }
 
-    private void validateProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
+    private void validateProviders(JsonNode providerNode, JsonNode promptNode, List<DraftValidationIssue> issues) {
         validateRequiredString(providerNode, "llmProvider", "providers", issues);
         validateRequiredString(providerNode, "embeddingProvider", "providers", issues);
         validateRequiredString(providerNode, "vectorStrategy", "providers", issues);
@@ -1915,6 +1915,11 @@ public class DeploymentDraftValidationService {
         validatePurposeSpecificLlmProviders(providerNode, issues);
         validateOrchestrationModeOverrides(providerNode, issues);
         validateDecisionRecovery(providerNode, issues);
+        try {
+            KnowledgeRetrievalSettings.runtimeEnvironment(providerNode, promptNode);
+        } catch (IllegalArgumentException invalid) {
+            issues.add(error("providers", "KNOWLEDGE_RETRIEVAL_INVALID", "$.knowledgeRetrieval", invalid.getMessage()));
+        }
         validateProviderTuning(providerNode, issues);
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);

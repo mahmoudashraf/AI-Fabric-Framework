@@ -38,6 +38,11 @@ public class ProviderUsageRuntimeClient {
         return exchange(baseUrl, PATH, null, headers, Readback.class);
     }
 
+    Readback read(String baseUrl, Map<String, String> headers, ProviderUsagePurpose purpose) {
+        return purpose == ProviderUsagePurpose.GENERATION ? read(baseUrl, headers)
+            : exchange(baseUrl, path(purpose), null, headers, Readback.class);
+    }
+
     public com.fasterxml.jackson.databind.JsonNode overview(String baseUrl, Map<String, String> headers) {
         return exchange(baseUrl, "/api/admin/overview", null, headers, com.fasterxml.jackson.databind.JsonNode.class, 262_144);
     }
@@ -47,19 +52,33 @@ public class ProviderUsageRuntimeClient {
     }
 
     public StoreReceipt initialize(String baseUrl, SafeAllowanceProjection allowance, Map<String, String> headers) {
+        return initialize(baseUrl, allowance, headers, ProviderUsagePurpose.GENERATION);
+    }
+
+    StoreReceipt initialize(String baseUrl, SafeAllowanceProjection allowance, Map<String, String> headers, ProviderUsagePurpose purpose) {
         var scope = allowance.scope();
         var approval = Map.of("id", allowance.approvalId(), "scope", Map.of(
             "customerId", scope.customerId(), "deploymentId", scope.deploymentId(),
             "targetProfileId", scope.targetProfileId(), "environment", scope.environment(),
             "credentialIdentity", "sha256:" + allowance.credentialSha256(), "rateCardReference", allowance.pricingReference()),
             "limits", allowance.caps(), "expiresAt", allowance.expiresAt());
-        return exchange(baseUrl, PATH + "/initialize", Map.of("approval", approval,
+        return exchange(baseUrl, path(purpose) + "/initialize", Map.of("approval", approval,
             "runtimeFingerprint", allowance.runtimeAllocationFingerprint()), headers, StoreReceipt.class);
     }
 
     public StoreReceipt activate(String baseUrl, StoreReceipt receipt, Map<String, String> headers) {
         return exchange(baseUrl, PATH + "/activate", Map.of("approvalId", receipt.approvalId(),
             "storeUuid", receipt.storeUuid(), "runtimeFingerprint", receipt.runtimeFingerprint()), headers, StoreReceipt.class);
+    }
+
+    StoreReceipt activate(String baseUrl, StoreReceipt receipt, Map<String, String> headers, ProviderUsagePurpose purpose) {
+        return purpose == ProviderUsagePurpose.GENERATION ? activate(baseUrl, receipt, headers)
+            : exchange(baseUrl, path(purpose) + "/activate", Map.of("approvalId", receipt.approvalId(),
+                "storeUuid", receipt.storeUuid(), "runtimeFingerprint", receipt.runtimeFingerprint()), headers, StoreReceipt.class);
+    }
+
+    private static String path(ProviderUsagePurpose purpose) {
+        return purpose == ProviderUsagePurpose.GENERATION ? PATH : "/api/admin/reranking-budget";
     }
 
     public ProviderUsageValidityExtensionContracts.RuntimeReceipt extendValidity(String baseUrl,

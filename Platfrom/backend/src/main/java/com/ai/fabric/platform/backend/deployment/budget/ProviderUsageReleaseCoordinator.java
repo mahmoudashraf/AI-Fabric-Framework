@@ -37,41 +37,62 @@ public class ProviderUsageReleaseCoordinator {
             artifactGate.require(release);
             supported(allowances.prepareForAuthorizedRelease(release.getId()));
         }
+        if (allowances.rerankingEnabledForRelease(release.getId())) {
+            artifactGate.requireReranking(release);
+            supported(allowances.prepareForAuthorizedRelease(release.getId(), ProviderUsagePurpose.RERANKING), ProviderUsagePurpose.RERANKING);
+        }
     }
 
     /** Called last, after all customer-controlled/default environment merges. No environment-provided credits. */
     public Map<String, String> environment(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
         var pinned = modes.forRelease(deployment, release);
-        if (!pinned.map(ProviderUsageModeResolver.Mode.FUNDED.name()::equals).orElseGet(() -> offers.existsById(deployment.getId())))
-            return pinned.isPresent() ? Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "false") : Map.of();
-        artifactGate.require(release);
-        var allocation = required(release);
-        return Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "true",
-            "LOOMAI_PROVIDER_BUDGET_ENVIRONMENT", allocation.scope().environment(),
-            "LOOMAI_PROVIDER_BUDGET_CREDENTIAL_IDENTITY", "sha256:" + allocation.credentialSha256(),
-            "LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE", allocation.pricingReference(),
-            "LOOMAI_PROVIDER_BUDGET_OUTPUT_CAP_MODE", "MAX_COMPLETION_TOKENS");
+        var environment = new java.util.LinkedHashMap<String, String>();
+        if (pinned.map(ProviderUsageModeResolver.Mode.FUNDED.name()::equals).orElseGet(() -> offers.existsById(deployment.getId()))) {
+            artifactGate.require(release);
+            var allocation = required(release);
+            environment.putAll(Map.of("LOOMAI_PROVIDER_BUDGET_ENABLED", "true",
+                "LOOMAI_PROVIDER_BUDGET_ENVIRONMENT", allocation.scope().environment(),
+                "LOOMAI_PROVIDER_BUDGET_CREDENTIAL_IDENTITY", "sha256:" + allocation.credentialSha256(),
+                "LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE", allocation.pricingReference(),
+                "LOOMAI_PROVIDER_BUDGET_OUTPUT_CAP_MODE", "MAX_COMPLETION_TOKENS"));
+        } else if (pinned.isPresent()) environment.put("LOOMAI_PROVIDER_BUDGET_ENABLED", "false");
+        if (allowances.rerankingEnabledForRelease(release.getId())) {
+            artifactGate.requireReranking(release);
+            var allocation = required(release, ProviderUsagePurpose.RERANKING);
+            environment.put("LOOMAI_RERANKING_BUDGET_ENVIRONMENT", allocation.scope().environment());
+            environment.put("LOOMAI_RERANKING_BUDGET_CREDENTIAL_IDENTITY", "sha256:" + allocation.credentialSha256());
+        }
+        return Map.copyOf(environment);
     }
 
     public void initializeAndActivate(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         exactRelease(deployment, release);
         if (!version.getId().equals(release.getDeploymentVersionId()) || !deployment.getId().equals(version.getDeploymentId())) fail();
-        if (!funded(deployment, release)) return;
-        artifactGate.require(release);
-        var allocation = required(release);
+        if (funded(deployment, release)) initializeAccount(deployment, version, release, ProviderUsagePurpose.GENERATION);
+        if (allowances.rerankingEnabledForRelease(release.getId())) initializeAccount(deployment, version, release, ProviderUsagePurpose.RERANKING);
+    }
+
+    private void initializeAccount(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release,
+                                   ProviderUsagePurpose purpose) {
+        requireArtifact(release, purpose);
+        var allocation = required(release, purpose);
         var headers = authority.issueProviderBudgetProvisioningHeaders(deployment, version, release);
-        Readback observed = runtime.read(deployment.getRuntimeBaseUrl(), headers);
+        Readback observed = read(deployment.getRuntimeBaseUrl(), headers, purpose);
         verifyScope(observed, allocation);
         if (allocation.state() == InitializationState.UNINITIALIZED) {
             if (!"UNINITIALIZED".equals(observed.state()) && !"INITIALIZING".equals(observed.state())
                 && !"INITIALIZED".equals(observed.state())) fail();
             if (!"UNINITIALIZED".equals(observed.state())) verifyReceipt(observed.receipt(), allocation, null);
-            StoreReceipt initialized = runtime.initialize(deployment.getRuntimeBaseUrl(), allocation, headers);
+            StoreReceipt initialized = purpose == ProviderUsagePurpose.GENERATION
+                ? runtime.initialize(deployment.getRuntimeBaseUrl(), allocation, headers)
+                : runtime.initialize(deployment.getRuntimeBaseUrl(), allocation, headers, purpose);
             if (!"INITIALIZED".equals(initialized.state())) fail();
             verifyReceipt(initialized, allocation, null);
             // This independent control-plane commit MUST precede the activation call.
-            allocation = allowances.markInitializedForAuthorizedRelease(release.getId(), initialized.storeUuid(), initialized.runtimeFingerprint());
+            allocation = purpose == ProviderUsagePurpose.GENERATION
+                ? allowances.markInitializedForAuthorizedRelease(release.getId(), initialized.storeUuid(), initialized.runtimeFingerprint())
+                : allowances.markInitializedForAuthorizedRelease(release.getId(), initialized.storeUuid(), initialized.runtimeFingerprint(), purpose);
         } else {
             verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
             if (allocation.state() == InitializationState.ACTIVE && !"ACTIVE".equals(observed.state())) fail();
@@ -80,11 +101,14 @@ public class ProviderUsageReleaseCoordinator {
         }
         StoreReceipt receipt = new StoreReceipt("INITIALIZED", allocation.storeUuid(), allocation.approvalId(),
             allocation.runtimeAllocationFingerprint());
-        StoreReceipt active = runtime.activate(deployment.getRuntimeBaseUrl(), receipt, headers);
+        StoreReceipt active = purpose == ProviderUsagePurpose.GENERATION
+            ? runtime.activate(deployment.getRuntimeBaseUrl(), receipt, headers)
+            : runtime.activate(deployment.getRuntimeBaseUrl(), receipt, headers, purpose);
         if (!"ACTIVE".equals(active.state())) fail();
         verifyReceipt(active, allocation, allocation.storeUuid());
-        allowances.markActiveForAuthorizedRelease(release.getId(), active.storeUuid(), active.runtimeFingerprint());
-        observed = runtime.read(deployment.getRuntimeBaseUrl(), headers);
+        if (purpose == ProviderUsagePurpose.GENERATION) allowances.markActiveForAuthorizedRelease(release.getId(), active.storeUuid(), active.runtimeFingerprint());
+        else allowances.markActiveForAuthorizedRelease(release.getId(), active.storeUuid(), active.runtimeFingerprint(), purpose);
+        observed = read(deployment.getRuntimeBaseUrl(), headers, purpose);
         verifyScope(observed, allocation); verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
         if (!"ACTIVE".equals(observed.state()) || !Boolean.FALSE.equals(observed.stopped())
             || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())
@@ -96,12 +120,16 @@ public class ProviderUsageReleaseCoordinator {
         exactRelease(deployment, release);
         if (!version.getId().equals(release.getDeploymentVersionId())
             || !deployment.getId().equals(version.getDeploymentId())) fail();
-        if (!funded(deployment, release)) return;
-        artifactGate.require(release);
-        var allocation = required(release);
+        if (funded(deployment, release)) verifyAccount(deployment, release, ProviderUsagePurpose.GENERATION);
+        if (allowances.rerankingEnabledForRelease(release.getId())) verifyAccount(deployment, release, ProviderUsagePurpose.RERANKING);
+    }
+
+    private void verifyAccount(DeploymentEntity deployment, DeploymentReleaseEntity release, ProviderUsagePurpose purpose) {
+        requireArtifact(release, purpose);
+        var allocation = required(release, purpose);
         if (allocation.state() != InitializationState.ACTIVE || allocation.storeUuid() == null
             || !allocation.effectiveExpiresAt().isAfter(java.time.Instant.now())) fail();
-        var observed = runtime.read(deployment.getRuntimeBaseUrl(), authority.issueReleaseVerificationHeaders(deployment, release, false));
+        var observed = read(deployment.getRuntimeBaseUrl(), authority.issueReleaseVerificationHeaders(deployment, release, false), purpose);
         verifyScope(observed, allocation); verifyReceipt(observed.receipt(), allocation, allocation.storeUuid());
         if (!"ACTIVE".equals(observed.state()) || !Boolean.FALSE.equals(observed.stopped())
             || !allocation.caps().equals(observed.limits()) || !allocation.expiresAt().equals(observed.expiresAt())
@@ -114,8 +142,22 @@ public class ProviderUsageReleaseCoordinator {
     }
 
     private SafeAllowanceProjection required(DeploymentReleaseEntity release) {
-        return supported(allowances.findForAuthorizedRelease(release.getId())
-            .orElseThrow(() -> new IllegalStateException("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED")));
+        return required(release, ProviderUsagePurpose.GENERATION);
+    }
+
+    private SafeAllowanceProjection required(DeploymentReleaseEntity release, ProviderUsagePurpose purpose) {
+        var allocation = purpose == ProviderUsagePurpose.GENERATION ? allowances.findForAuthorizedRelease(release.getId())
+            : allowances.findForAuthorizedRelease(release.getId(), purpose);
+        return supported(allocation.orElseThrow(() -> new IllegalStateException("PROVIDER_USAGE_PREPARED_ALLOCATION_REQUIRED")), purpose);
+    }
+
+    private Readback read(String baseUrl, Map<String, String> headers, ProviderUsagePurpose purpose) {
+        return purpose == ProviderUsagePurpose.GENERATION ? runtime.read(baseUrl, headers) : runtime.read(baseUrl, headers, purpose);
+    }
+
+    private void requireArtifact(DeploymentReleaseEntity release, ProviderUsagePurpose purpose) {
+        if (purpose == ProviderUsagePurpose.GENERATION) artifactGate.require(release);
+        else artifactGate.requireReranking(release);
     }
 
     private boolean funded(DeploymentEntity deployment, DeploymentReleaseEntity release) {
@@ -124,11 +166,16 @@ public class ProviderUsageReleaseCoordinator {
     }
 
     private static SafeAllowanceProjection supported(SafeAllowanceProjection allowance) {
+        return supported(allowance, ProviderUsagePurpose.GENERATION);
+    }
+
+    private static SafeAllowanceProjection supported(SafeAllowanceProjection allowance, ProviderUsagePurpose purpose) {
         // Exact capability authorization, not a provider/model choice or a fallback.
         if (allowance == null) {
             throw new IllegalStateException("PROVIDER_USAGE_RUNTIME_PROFILE_NOT_REVIEWED");
         }
-        ProviderUsageRuntimeProfile.require(allowance.binding(), allowance.pricingReference());
+        if (purpose == ProviderUsagePurpose.GENERATION) ProviderUsageRuntimeProfile.require(allowance.binding(), allowance.pricingReference());
+        else ProviderUsageRuntimeProfile.requireReranking(allowance.binding(), allowance.pricingReference());
         return allowance;
     }
 

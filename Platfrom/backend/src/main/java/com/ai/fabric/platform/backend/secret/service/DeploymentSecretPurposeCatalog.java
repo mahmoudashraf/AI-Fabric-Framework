@@ -68,6 +68,7 @@ public class DeploymentSecretPurposeCatalog {
         definitions.put("AZURE_OPENAI_API_KEY", new SecretPurposeDefinition("AZURE_OPENAI_API_KEY", "Azure OpenAI API key", false, "AZURE_OPENAI_API_KEY", null));
         definitions.put("ANTHROPIC_API_KEY", new SecretPurposeDefinition("ANTHROPIC_API_KEY", "Anthropic API key", false, "ANTHROPIC_API_KEY", null));
         definitions.put("COHERE_API_KEY", new SecretPurposeDefinition("COHERE_API_KEY", "Cohere API key", false, "COHERE_API_KEY", null));
+        definitions.put("RERANKING_API_KEY", new SecretPurposeDefinition("RERANKING_API_KEY", "Cohere reranking key", false, "LOOMAI_RERANKING_API_KEY", null));
         definitions.put("GEMINI_API_KEY", new SecretPurposeDefinition("GEMINI_API_KEY", "Gemini API key", false, "GEMINI_API_KEY", null));
         definitions.put("PINECONE_API_KEY", new SecretPurposeDefinition("PINECONE_API_KEY", "Pinecone API key", false, "PINECONE_API_KEY", null));
         definitions.put("WEAVIATE_API_KEY", new SecretPurposeDefinition("WEAVIATE_API_KEY", "Weaviate API key", false, "WEAVIATE_API_KEY", null));

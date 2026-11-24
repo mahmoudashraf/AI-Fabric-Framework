@@ -50,7 +50,8 @@ class DealershipMeasurementCandidateMigrationPostgresTest {
         JsonNode config = candidate.path("contributions").path("template").path("providerConfig");
         assertThat(config.path("openaiMaxTokens").isIntegralNumber()).isTrue();
         assertThat(ManagedDeploymentProfileCatalog.openAiMaxTokens(config)).isEqualTo(2048);
-        assertThat(ManagedDeploymentProfileCatalog.openAiModel(config)).isEqualTo("gpt-4o-mini");
+        assertThat(ManagedDeploymentProfileCatalog.openAiModel(config)).isEqualTo(
+            ManagedDeploymentProfileCatalog.openAiModel(oldManifest.path("contributions").path("template").path("providerConfig")));
         assertThat(ManagedDeploymentProfileCatalog.openAiEmbeddingModel(config)).isEqualTo("text-embedding-3-small");
         assertThat(ManagedDeploymentProfileCatalog.providerEnableFallback(config)).isFalse();
         assertCompiledCap(candidate);

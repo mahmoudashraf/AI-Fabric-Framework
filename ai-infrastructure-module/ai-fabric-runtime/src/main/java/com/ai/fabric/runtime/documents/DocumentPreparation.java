@@ -35,12 +35,28 @@ public record DocumentPreparation(Processing processing, EvaluationOptions evalu
         }
         public static EvaluationOptions defaults() { return new EvaluationOptions(5, 5, 8000, 0.0, 700); }
     }
-    public record Question(String id, String question, String referenceAnswer, boolean reviewed) {
+    public record Question(String id, String question, String referenceAnswer, boolean reviewed, List<RelevanceJudgment> relevanceJudgments) {
+        public Question(String id, String question, String referenceAnswer, boolean reviewed) {
+            this(id, question, referenceAnswer, reviewed, List.of());
+        }
         public Question {
             if (id == null || !id.matches("[a-zA-Z0-9_-]{1,64}") || question == null || question.isBlank() || question.length() > 1000
                 || referenceAnswer != null && referenceAnswer.length() > 4000)
                 throw new IllegalArgumentException("Each test needs an ID, a question up to 1000 characters and an optional reference up to 4000 characters.");
             referenceAnswer = referenceAnswer == null ? "" : referenceAnswer;
+            relevanceJudgments = relevanceJudgments == null ? List.of() : List.copyOf(relevanceJudgments);
+            if (relevanceJudgments.size() > 50 || new HashSet<>(relevanceJudgments.stream()
+                .map(label -> List.of(label.sourceId(), label.sourceVersion(), label.evidenceId())).toList()).size() != relevanceJudgments.size())
+                throw new IllegalArgumentException("Use at most 50 unique expected evidence identities per question.");
+        }
+    }
+    public record RelevanceJudgment(String sourceId, long sourceVersion, String evidenceId, int grade, boolean reviewed) {
+        public RelevanceJudgment {
+            if (sourceId == null || !sourceId.matches("[A-Za-z0-9_.:-]{1,64}") || sourceVersion < 1
+                || evidenceId == null || evidenceId.isBlank() || evidenceId.length() > 256
+                || !evidenceId.equals(evidenceId.trim()) || evidenceId.chars().anyMatch(Character::isISOControl)
+                || grade < 0 || grade > 3)
+                throw new IllegalArgumentException("Expected evidence needs an exact source/version/excerpt identity and a relevance grade from 0 to 3.");
         }
     }
 }

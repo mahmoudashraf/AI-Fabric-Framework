@@ -1,5 +1,6 @@
 import { deploymentEnumLabel, deploymentTerm } from '../deploymentTerminology'
 import { BrainSetupChecks } from '../brain/BrainSetupChecks'
+import { KnowledgeRetrievalSettings } from '../components/KnowledgeRetrievalSettings'
 import { useBrainSetupChecks } from '../brain/setupChecks'
 import { ConfigurationDetails, ConfigurationSurface } from '../components/ConfigurationSurface'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
@@ -125,6 +126,7 @@ function retrievalInputError(key: RetrievalFormKey, value: string): string | nul
 }
 
 type ProviderFormState = Record<RetrievalFormKey, string> & {
+  knowledgeRetrieval: string
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
@@ -273,6 +275,7 @@ type SharedVectorHandlePreview = {
 }
 
 const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
+  knowledgeRetrieval: '',
   ...readRetrievalForm({}),
   llmProvider: 'openai',
   embeddingProvider: 'openai',
@@ -391,6 +394,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
 }
 
 const providerFormKeys: Array<keyof ProviderFormState> = [
+  'knowledgeRetrieval',
   ...retrievalFormKeys,
   'llmProvider',
   'embeddingProvider',
@@ -1301,6 +1305,7 @@ function readProviderForm(config: unknown): ProviderFormState {
   )
   return {
     ...readRetrievalForm(config),
+    knowledgeRetrieval: isRecord(config) && config.knowledgeRetrieval != null ? JSON.stringify(config.knowledgeRetrieval) : '',
     llmProvider: readString(record, 'llmProvider', DEFAULT_PROVIDER_FORM_STATE.llmProvider),
     embeddingProvider: readString(record, 'embeddingProvider', DEFAULT_PROVIDER_FORM_STATE.embeddingProvider),
     vectorStrategy,
@@ -1682,6 +1687,8 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     advancedNoEvidence: form.semanticRecoveryAdvancedNoEvidence,
   }
   applyRetrievalForm(executorOverrides, form)
+  if (form.knowledgeRetrieval.trim()) nextConfig.knowledgeRetrieval = JSON.parse(form.knowledgeRetrieval)
+  else delete nextConfig.knowledgeRetrieval
   orchestrationModeOverrides.executor = executorOverrides
   nextConfig.orchestrationModeOverrides = orchestrationModeOverrides
   nextConfig.vectorStoragePosture = normalizeVectorStoragePosture(
@@ -2184,6 +2191,13 @@ function ProvidersEditor({ selectedDeploymentId, selectedDeploymentSummary, work
       </Alert>}
       {showRetrievalSettings && loadedDraft && <Box component="section" aria-label="Answers and knowledge sources">
         <Stack spacing={2.5}>
+          <KnowledgeRetrievalSettings value={formState.knowledgeRetrieval} vectorStrategy={formState.vectorStrategy}
+            brainId={selectedDeploymentId}
+            targetProfileId={brainWorkspace?.targetProfileId}
+            inheritedMaxResults={isRecord(loadedDraft.promptConfig) && typeof loadedDraft.promptConfig.ragMaxDocumentsUsedForContext === 'number' ? loadedDraft.promptConfig.ragMaxDocumentsUsedForContext : undefined}
+            inheritedMaxContextCharacters={isRecord(loadedDraft.promptConfig) && typeof loadedDraft.promptConfig.ragMaxContextChars === 'number' ? loadedDraft.promptConfig.ragMaxContextChars : undefined}
+            disabled={!canEdit || saveMutation.isPending} onChange={value => handleFieldChange('knowledgeRetrieval', value)} />
+          <Divider />
           {retrievalControl('ragCooperationMode')}
           <Typography variant="body2" color="text.secondary">
             {formState.ragCooperationMode === 'PARALLEL_ACTIONS_AND_RAG'

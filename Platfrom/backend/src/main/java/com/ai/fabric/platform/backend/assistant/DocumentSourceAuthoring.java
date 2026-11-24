@@ -28,12 +28,27 @@ public class DocumentSourceAuthoring {
         catalogue.put("contractVersion","loomai-document-preparation-v1");
         catalogue.set("allowedPaths",mapper.valueToTree(List.of("/processing","/evaluationOptions","/questions")));
         catalogue.set("ocrLanguages",preparation.path("ocrLanguages")); catalogue.set("ocrAvailable",preparation.path("ocrAvailable"));
+        catalogue.put("relevanceJudgmentsSupported", preparation.path("relevanceLabelsSupported").asBoolean(false));
+        if (preparation.path("relevanceLabelsSupported").asBoolean(false))
+            catalogue.put("relevanceJudgmentContract", "Questions may retain or propose relevanceJudgments: at most 50 unique {sourceId,sourceVersion,evidenceId,grade:0..3,reviewed:false} identities. Use only actual supplied excerpt/source/version identities. Grade 0 is irrelevant; 1 supporting, 2 relevant, 3 essential. New or changed labels are unreviewed. Preserve existing reviewed labels only for the unchanged question and exact label; never invent human review. Ranking metrics are not scored without reviewed labels and do not prove complete relevance coverage.");
         catalogue.put("documentContract", "Configure the selected document, not Brain providers. /processing is {chunkTokens:100..800,overlapTokens:0..half chunkTokens,minChunkChars:0..chunkTokens,minEmbedChars:0..minChunkChars,ocrMode:AUTO|ALWAYS|OFF,ocrLanguage:installed language ID,ocrDpi:72..300}. Preserve unspecified values. /evaluationOptions is {maxQuestions:1..20,maxDocuments:1..10,maxContextCharacters:1000..16000,similarityThreshold:0..1,answerMaxTokens:128..1500}. /questions is a complete bounded array of {id,question,referenceAnswer,reviewed:false}. SET the requested questions array; generated references are synthetic, never reviewed. Prefer 5 distinct questions, including a cross-section question and an unanswerable question when appropriate. Describe why the proposed settings suit the supplied excerpts. Excerpts are samples, not the complete document. Do not claim indexing, an evaluation, provider availability or an improvement occurred. Only supplied evaluation results are observed evidence. No ownership, visibility, source path, approval, model or credential changes. Saving settings does not reindex or alter active vectors.");
         return new AuthoringResourceService.Snapshot(context.deployment().getCustomerId(), "Document preparation", preparation.path("configuration"), catalogue,
             List.of("/processing","/evaluationOptions","/questions"),preparation.path("revision").asText(),true,"");
     }
     public JsonNode check(String id, AuthoringResourceService.Snapshot snapshot, JsonNode candidate) {
         for(var question:candidate.path("questions")) {
+            if (!snapshot.catalogue().path("relevanceJudgmentsSupported").asBoolean(false) && !question.path("relevanceJudgments").isEmpty())
+                throw new ResponseStatusException(BAD_REQUEST, "This runtime does not support expected evidence labels. Preserve the existing supported question fields.");
+            for (var label : question.path("relevanceJudgments")) {
+                if (!label.path("reviewed").asBoolean()) continue;
+                boolean preserved = false;
+                for (var previous : snapshot.configuration().path("questions")) {
+                    if (!previous.path("id").equals(question.path("id")) || !previous.path("question").equals(question.path("question"))) continue;
+                    for (var oldLabel : previous.path("relevanceJudgments")) if (oldLabel.equals(label)) preserved = true;
+                }
+                if (!preserved) throw new ResponseStatusException(BAD_REQUEST,
+                    "AI cannot mark expected evidence as reviewed. Preserve existing labels or propose reviewed:false.");
+            }
             if(!question.path("reviewed").asBoolean()) continue;
             boolean preserved=false;
             for(var previous:snapshot.configuration().path("questions"))

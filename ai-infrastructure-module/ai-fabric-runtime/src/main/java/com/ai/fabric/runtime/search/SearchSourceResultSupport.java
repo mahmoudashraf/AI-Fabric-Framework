@@ -2,6 +2,8 @@ package com.ai.fabric.runtime.search;
 
 import ai.fabric.dto.AISearchRequest;
 import ai.fabric.dto.AISearchResponse;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.indexing.document.model.DocumentMetadataKeys;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +33,16 @@ final class SearchSourceResultSupport {
     static final String METADATA_KEY_QUERIED_VECTOR_SPACE = "queriedVectorSpace";
 
     private SearchSourceResultSupport() {
+    }
+
+    static boolean matchesRequestedDocumentSelection(ResolvedKnowledgeSource source, RAGRequest request) {
+        if (request == null || request.getRetrievalProfile() == null || request.getMetadata() == null || source.getFilters() == null) return true;
+        for (String key : List.of(DocumentMetadataKeys.SOURCE_ID, DocumentMetadataKeys.SOURCE_VERSION)) {
+            Object requested = request.getMetadata().get(key);
+            Object configured = source.getFilters().get(key);
+            if (requested != null && configured != null && !sameMetadataValue(requested, configured)) return false;
+        }
+        return true;
     }
 
     static AISearchRequest scopedRequest(AISearchRequest baseRequest,
@@ -196,11 +208,23 @@ final class SearchSourceResultSupport {
         }
         for (Map.Entry<String, Object> entry : requiredMetadata.entrySet()) {
             Object actual = metadata.get(entry.getKey());
-            if (!Objects.equals(actual, entry.getValue())) {
+            if (!sameMetadataValue(actual, entry.getValue())) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean sameMetadataValue(Object left, Object right) {
+        if (Objects.equals(left, right)) return true;
+        // JSON decoding may use Integer where the trusted runtime version is Long; do not coerce strings or fractional values.
+        return integral(left) && integral(right)
+            && new java.math.BigInteger(left.toString()).equals(new java.math.BigInteger(right.toString()));
+    }
+
+    private static boolean integral(Object value) {
+        return value instanceof Byte || value instanceof Short || value instanceof Integer
+            || value instanceof Long || value instanceof java.math.BigInteger;
     }
 
     private static String normalizeEntityType(Object value) {

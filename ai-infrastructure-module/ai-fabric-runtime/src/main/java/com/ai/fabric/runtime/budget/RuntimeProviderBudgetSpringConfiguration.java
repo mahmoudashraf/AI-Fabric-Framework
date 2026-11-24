@@ -6,7 +6,6 @@ import ai.fabric.indexing.api.AIIndexAnalysisHandler;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.service.VectorManagementService;
 import ai.fabric.embedding.EmbeddingProvider;
-import com.ai.fabric.budget.JdbcProviderBudgetLedger;
 import com.ai.fabric.budget.ProviderBudgetLedger;
 import com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver;
 import com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver.OutputCapMode;
@@ -19,15 +18,14 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties;
-import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.context.annotation.Import;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "loomai.provider-budget", name = "enabled", havingValue = "true")
+@Import(RuntimeProviderBudgetLedgerConfiguration.class)
 public class RuntimeProviderBudgetSpringConfiguration {
     @Bean
     RuntimeProviderBudgetProperties runtimeProviderBudgetProperties(
@@ -51,29 +49,8 @@ public class RuntimeProviderBudgetSpringConfiguration {
             properties.environment(), properties.credentialIdentity(), properties.rateCardReference()), tenantId);
     }
 
-    @Bean("runtimeProviderBudgetClock")
-    Clock runtimeProviderBudgetClock() { return Clock.systemUTC(); }
-
     @Bean
-    @DependsOnDatabaseInitialization
-    RuntimeBudgetStorage runtimeBudgetStorage(DataSourceProperties properties) {
-        if (properties.getUrl() == null || properties.getUrl().isBlank()) {
-            throw new IllegalStateException("Independent budget accounting requires the explicit runtime JDBC URL.");
-        }
-        var independent = new DriverManagerDataSource(properties.getUrl(), properties.determineUsername(), properties.determinePassword());
-        if (properties.getDriverClassName() != null && !properties.getDriverClassName().isBlank()) {
-            independent.setDriverClassName(properties.getDriverClassName());
-        }
-        return new RuntimeBudgetStorage(independent);
-    }
-
-    @Bean
-    ProviderBudgetLedger runtimeProviderBudgetLedger(RuntimeBudgetStorage storage,
-        @Qualifier("runtimeProviderBudgetClock") Clock clock) {
-        return new JdbcProviderBudgetLedger(storage.independentDataSource(), clock);
-    }
-
-    @Bean
+    @Primary
     RuntimeBudgetBindingService runtimeBudgetBindingService(RuntimeBudgetConfiguration configuration,
         ProviderBudgetLedger ledger, RuntimeBudgetStorage storage, @Qualifier("runtimeProviderBudgetClock") Clock clock) {
         return new RuntimeBudgetBindingService(configuration, ledger, storage.independentDataSource(), clock);

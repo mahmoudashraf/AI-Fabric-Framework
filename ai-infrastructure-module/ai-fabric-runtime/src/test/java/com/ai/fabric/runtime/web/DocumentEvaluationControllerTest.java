@@ -13,6 +13,22 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class DocumentEvaluationControllerTest {
+    @Test void variantIsPartOfTheIdempotentOperationAndCannotAddAuthority() {
+        var auth=mock(RuntimeRequestAuthResolver.class);var service=mock(DocumentEvaluationService.class);var mutations=mock(RuntimeAdminMutationService.class);
+        var request=mock(HttpServletRequest.class);var identity=mock(RuntimeResolvedIdentity.class);
+        when(auth.resolveVerifiedPrivateContext(request,"document evaluation")).thenReturn(identity);
+        var result=new ObjectMapper().createObjectNode().put("id","baseline");
+        var variant=com.ai.fabric.runtime.documents.EvaluationRetrievalVariant.DENSE_BASELINE;
+        when(service.start(identity,"source",4,variant)).thenReturn(result);
+        when(mutations.execute(eq(identity),eq("DOCUMENT_EVALUATION"),eq("source:4:DENSE_BASELINE"),eq("operation"),eq(ObjectNode.class),any()))
+            .thenAnswer(call -> call.<Supplier<ObjectNode>>getArgument(5).get());
+        var controller=new DocumentEvaluationController(service,auth,mutations,new ObjectMapper());
+        assertThat(controller.start("source",new DocumentEvaluationController.Start(4,variant),"operation",request)).containsEntry("id","baseline");
+        verify(service).requireSourceAccess(identity,"source");
+        verify(auth).requireScope(identity,"documents:evaluate","document evaluation");
+        verify(auth,never()).requireScope(eq(identity),eq("chat:query"),anyString());
+    }
+
     @Test void checksBothScopeAndCurrentSourceAccessBeforeDurableReplay() {
         var auth=mock(RuntimeRequestAuthResolver.class);var service=mock(DocumentEvaluationService.class);var mutations=mock(RuntimeAdminMutationService.class);
         var request=mock(HttpServletRequest.class);var identity=mock(RuntimeResolvedIdentity.class);

@@ -12,8 +12,10 @@ COPY support that source boundary in clean builds.
 - Smart Brain: `capabilities` / action identities -> ACTIONS; formal action
   connection view -> CONNECTIONS. `knowledge/connections` is the live-data
   source view and uses KNOWLEDGE, not outbound action routing.
-- `knowledge` documents/source/storage tasks -> KNOWLEDGE; `knowledge/search`,
-  `models` and `advanced/providers` -> MODELS.
+- `knowledge` documents/source/storage tasks -> KNOWLEDGE; `knowledge/search`
+  -> SEARCH; `models` and `advanced/providers` -> MODELS. SEARCH uses the same
+  existing provider draft service with a retrieval-specific supported catalogue.
+  AI cannot create external-processing consent, provider secrets or allowances.
 - `responses`, `responses/instructions`, `responses/advanced` -> BEHAVIOUR.
 - `human-support` -> HUMAN_SUPPORT. `action-reviews` uses that same task in
   guide-only mode and cannot make live review decisions.

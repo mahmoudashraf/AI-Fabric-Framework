@@ -275,9 +275,105 @@ class DocumentKnowledgeServiceLifecycleTest {
         var profile=new DocumentPreparation(null,null,List.of(new DocumentPreparation.Question("q1","What is approved?","Customer-owned knowledge",false)));
         var saved=service.savePreparation(tenantA(),source.sourceId(),new DocumentKnowledgeService.PreparationUpdate(before.revision(),profile));
         assertThat(saved.sourceVersion()).isEqualTo(before.sourceVersion());
+        var labeled = new DocumentPreparation(null, null, List.of(new DocumentPreparation.Question("q1", "What is approved?", "", false,
+            List.of(new DocumentPreparation.RelevanceJudgment("foreign", 1, "chunk", 1, true)))));
+        assertThatThrownBy(() -> service.savePreparation(tenantA(), source.sourceId(),
+            new DocumentKnowledgeService.PreparationUpdate(saved.revision(), labeled)))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("must belong to this document");
         var foreign=newService(new DocumentRuntimeIdentity("tenant-a","other-customer","deployment-a","staging","release-a"));
         assertThatThrownBy(() -> foreign.preparation(tenantA(),source.sourceId())).isInstanceOf(DocumentKnowledgeException.class);
         verifyNoInteractions(queueService);
+    }
+
+    @Test
+    void evaluationUsesTheSharedProfileWithExactOwnerSourceAndActiveVersion() throws Exception {
+        writeSource("shared-evaluation.txt", "Returns are accepted within thirty days.", 1);
+        var source = register("shared-evaluation.txt", "shared-evaluation-register");
+        assertThat(service.preparation(tenantA(), source.sourceId()).getEvaluationVariants()).containsExactly(EvaluationRetrievalVariant.CONFIGURED);
+        var indexed = service.index(tenantA(), source.sourceId(), "shared-evaluation-index");
+        complete(indexWorkIds(indexed)); service.reconcile(tenantA(), source.sourceId(), "shared-evaluation-reconcile");
+        assertThatThrownBy(() -> service.retrieveSource(tenantA(), source.sourceId(), "Returns?",
+            DocumentPreparation.EvaluationOptions.defaults(), EvaluationRetrievalVariant.CONFIGURED_WITHOUT_RERANKING))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("unavailable");
+        var provider = mock(ai.fabric.spi.RAGProvider.class);
+        when(provider.sharedRetrievalProfile()).thenReturn(new ai.fabric.rag.RetrievalProfile(ai.fabric.rag.RetrievalProfile.Mode.HYBRID,
+            20, 20, 40, 6, 60, ai.fabric.rag.RetrievalProfile.FailurePolicy.FAIL));
+        var document = queuedDocuments.getFirst();
+        var evidence = ai.fabric.dto.RAGResponse.RAGDocument.builder().id(document.entityId()).content(document.semanticSearchText())
+            .score(.032).metadata(document.vectorMetadata()).build();
+        var wrongOwner = new LinkedHashMap<>(document.vectorMetadata()); wrongOwner.put("customerId", "foreign");
+        var wrongVersion = new LinkedHashMap<>(document.vectorMetadata()); wrongVersion.put(DocumentMetadataKeys.SOURCE_VERSION, 99L);
+        when(provider.performRAGQuery(any())).thenReturn(ai.fabric.dto.RAGResponse.builder().success(true)
+            .documents(List.of(evidence, ai.fabric.dto.RAGResponse.RAGDocument.builder().id("foreign").content("Foreign policy").metadata(wrongOwner).build(),
+                ai.fabric.dto.RAGResponse.RAGDocument.builder().id("retired").content("Retired policy").metadata(wrongVersion).build()))
+            .metadata(Map.of("retrievalDiagnostics", Map.of("effectiveMode", "HYBRID"))).build());
+        service.setRagProvider(provider);
+        assertThat(new ObjectMapper().valueToTree(service.preparation(tenantA(), source.sourceId())).path("evaluationVariants").size()).isEqualTo(3);
+        var proof = service.retrieveSource(tenantA(), source.sourceId(), "Returns?", DocumentPreparation.EvaluationOptions.defaults());
+        assertThat(proof.evidence()).singleElement().satisfies(item -> assertThat(item.entityId()).isEqualTo(document.entityId()));
+        assertThat(proof.diagnostics()).containsKey("retrievalDiagnostics");
+        var request = ArgumentCaptor.forClass(ai.fabric.dto.RAGRequest.class);
+        verify(provider).performRAGQuery(request.capture());
+        assertThat(request.getValue().getMetadata()).containsEntry(DocumentMetadataKeys.SOURCE_ID, source.sourceId())
+            .containsEntry(DocumentMetadataKeys.SOURCE_VERSION, 1L).containsEntry("customerId", "customer-a");
+        assertThat(request.getValue().getAuthContext().getCustomerId()).isEqualTo("customer-a");
+        assertThat(request.getValue().getRetrievalProfile()).isEqualTo(provider.sharedRetrievalProfile());
+        verify(coreService, never()).performSearch(any());
+
+        var allSourcesProof = service.retrievalProof(tenantA(), "Returns?", 5);
+        assertThat(allSourcesProof.evidence()).singleElement().satisfies(item -> assertThat(item.entityId()).isEqualTo(document.entityId()));
+        assertThat(allSourcesProof.diagnostics()).containsKey("retrievalDiagnostics");
+        verify(provider, org.mockito.Mockito.times(2)).performRAGQuery(request.capture());
+        assertThat(request.getValue().getMetadata()).containsEntry("customerId", "customer-a")
+            .doesNotContainKey(DocumentMetadataKeys.SOURCE_ID);
+        assertThat(request.getValue().getAuthContext().getCustomerId()).isEqualTo("customer-a");
+
+        org.mockito.Mockito.clearInvocations(provider);
+        for (var variant : List.of(EvaluationRetrievalVariant.DENSE_BASELINE, EvaluationRetrievalVariant.CONFIGURED_WITHOUT_RERANKING)) {
+            var comparisonProof = service.retrieveSource(tenantA(), source.sourceId(), "Returns?", DocumentPreparation.EvaluationOptions.defaults(), variant);
+            assertThat(comparisonProof.evidence()).singleElement().satisfies(item -> assertThat(item.entityId()).isEqualTo(document.entityId()));
+        }
+        verify(provider, org.mockito.Mockito.times(2)).performRAGQuery(request.capture());
+        var experiments = request.getAllValues().subList(request.getAllValues().size() - 2, request.getAllValues().size());
+        assertThat(experiments.getFirst().getRetrievalProfile().mode()).isEqualTo(ai.fabric.rag.RetrievalProfile.Mode.DENSE);
+        assertThat(experiments.getLast().getRetrievalProfile()).isEqualTo(provider.sharedRetrievalProfile());
+        experiments.forEach(experiment -> {
+            assertThat(experiment.getRerankingEnabled()).isFalse();
+            assertThat(experiment.getMetadata()).containsEntry("customerId", "customer-a")
+                .containsEntry(DocumentMetadataKeys.SOURCE_ID, source.sourceId()).containsEntry(DocumentMetadataKeys.SOURCE_VERSION, 1L);
+            assertThat(experiment.getAuthContext().getCustomerId()).isEqualTo("customer-a");
+        });
+
+        when(provider.performRAGQuery(any())).thenReturn(ai.fabric.dto.RAGResponse.builder().success(false).build());
+        assertThatThrownBy(() -> service.retrieveSource(tenantA(), source.sourceId(), "Returns?", DocumentPreparation.EvaluationOptions.defaults()))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("could not be completed");
+        assertThatThrownBy(() -> service.retrievalProof(tenantA(), "Returns?", 5))
+            .isInstanceOf(DocumentKnowledgeException.class).hasMessageContaining("could not be completed");
+        verify(coreService, never()).performSearch(any());
+    }
+
+    @Test
+    void searchInheritanceReportsCorpusReadinessAfterOwnershipWithoutUsingModels() throws Exception {
+        writeSource("readiness.txt", "An approved source.", 1);
+        var source = register("readiness.txt", "readiness-register");
+        var vector = mock(ai.fabric.rag.VectorDatabaseService.class);
+        service.setVectorDatabaseService(vector);
+        var capability = new ai.fabric.rag.RetrievalCapabilities(true, true, "BM25F", "Document", "");
+        when(vector.retrievalCapabilities("document")).thenReturn(capability);
+        var snapshot = service.preparation(tenantA(), source.sourceId());
+        assertThat(snapshot.searchConfiguration().owner()).isEqualTo("BRAIN");
+        assertThat(snapshot.searchConfiguration().readinessStatus()).isEqualTo("REPORTED");
+        assertThat(snapshot.searchConfiguration().capabilities()).isEqualTo(capability);
+        assertThat(snapshot.searchConfiguration().sharedRetrievalAvailable()).isFalse();
+        org.mockito.Mockito.clearInvocations(vector);
+        assertThatThrownBy(() -> service.preparation(tenantB(), source.sourceId())).isInstanceOf(DocumentKnowledgeException.class);
+        verifyNoInteractions(vector);
+        when(vector.retrievalCapabilities("document")).thenThrow(new IllegalStateException("DO_NOT_EXPOSE_PROVIDER_SECRET"));
+        var unavailable = service.preparation(tenantA(), source.sourceId());
+        assertThat(unavailable.searchConfiguration().readinessStatus()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.searchConfiguration().capabilities()).isNull();
+        assertThat(new ObjectMapper().writeValueAsString(unavailable)).doesNotContain("DO_NOT_EXPOSE_PROVIDER_SECRET");
+        verifyNoInteractions(coreService);
     }
 
     @Test

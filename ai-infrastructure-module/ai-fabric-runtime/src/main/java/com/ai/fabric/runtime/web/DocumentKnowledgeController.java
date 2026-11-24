@@ -154,7 +154,7 @@ public class DocumentKnowledgeController {
     @PostMapping("/sources/{sourceId}/preparation/check")
     public Object checkPreparation(@PathVariable String sourceId, @RequestBody DocumentKnowledgeService.PreparationUpdate update, HttpServletRequest request) {
         service.preparation(authorize(request, RuntimeScopeCatalog.DOCUMENTS_READ, "document preparation check"), sourceId);
-        service.validatePreparation(update.configuration());
+        service.validatePreparation(sourceId, update.configuration());
         return Map.of("valid", true);
     }
 

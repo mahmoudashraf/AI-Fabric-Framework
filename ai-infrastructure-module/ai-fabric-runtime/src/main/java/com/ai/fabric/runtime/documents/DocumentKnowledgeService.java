@@ -3,6 +3,9 @@ package com.ai.fabric.runtime.documents;
 import ai.fabric.core.AICoreService;
 import ai.fabric.dto.AISearchRequest;
 import ai.fabric.dto.AISearchResponse;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.spi.RAGProvider;
+import com.ai.fabric.runtime.auth.RuntimeAccessSubjects;
 import ai.fabric.entity.IndexingQueueEntry;
 import ai.fabric.indexing.api.AIProcessOperation;
 import ai.fabric.indexing.api.IndexingStrategy;
@@ -95,6 +98,8 @@ public class DocumentKnowledgeService {
     private final DocumentIndexingQueueAdapter queueAdapter;
     private final IndexingWorkQuery workQuery;
     private final AICoreService coreService;
+    private RAGProvider ragProvider;
+    private ai.fabric.rag.VectorDatabaseService vectorDatabaseService;
     private final DocumentActiveVersionFilter activeVersionFilter;
     private final DocumentRuntimeIdentity runtimeIdentity;
     private final ObjectMapper objectMapper;
@@ -105,6 +110,11 @@ public class DocumentKnowledgeService {
     @Autowired(required = false)
     public void setIndexingLimits(ai.fabric.config.AIIndexingProperties indexing) {
         maxReaderDocuments = Math.min(50, indexing.getDocuments().getMaxDocumentsPerPlan());
+    }
+
+    @Autowired(required = false)
+    public void setVectorDatabaseService(ai.fabric.rag.VectorDatabaseService vectorDatabaseService) {
+        this.vectorDatabaseService = vectorDatabaseService;
     }
 
     public DocumentKnowledgeService(
@@ -143,6 +153,9 @@ public class DocumentKnowledgeService {
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
+
+    @Autowired(required = false)
+    public void setRagProvider(RAGProvider provider) { this.ragProvider = provider; }
 
     public DocumentSourceConnector.ConnectorStatus connectorStatus(RuntimeResolvedIdentity identity) {
         requireBoundary(identity);
@@ -318,7 +331,7 @@ public class DocumentKnowledgeService {
         DocumentSourceEntity source = requireSource(requireBoundary(identity), sourceId);
         requireMutable(source);
         if (update == null || update.expectedRevision() != source.getRowVersion()) throw conflict("Document settings changed. Reload before saving.");
-        DocumentPreparation candidate = validatePreparation(update.configuration());
+        DocumentPreparation candidate = validatePreparation(sourceId, update.configuration());
         DocumentPreparation previous = preparation(source);
         if (!candidate.processing().equals(previous.processing())) {
             source.setSourceVersion(Math.max(source.getSourceVersion(), source.getActiveSourceVersion() == null ? 0 : source.getActiveSourceVersion()) + 1);
@@ -336,6 +349,14 @@ public class DocumentKnowledgeService {
         return value;
     }
 
+    public DocumentPreparation validatePreparation(String sourceId, DocumentPreparation value) {
+        var candidate = validatePreparation(value);
+        if (candidate.questions().stream().flatMap(question -> question.relevanceJudgments().stream())
+            .anyMatch(label -> !sourceId.equals(label.sourceId())))
+            throw badRequest("Expected evidence must belong to this document source.");
+        return candidate;
+    }
+
     private DocumentPreparation preparation(DocumentSourceEntity source) {
         try { return objectMapper.readValue(source.getPreparationJson() == null ? "{}" : source.getPreparationJson(), DocumentPreparation.class); }
         catch (Exception failure) { throw new IllegalStateException("Stored document preparation is invalid.", failure); }
@@ -344,12 +365,39 @@ public class DocumentKnowledgeService {
     private PreparationSnapshot preparationSnapshot(DocumentSourceEntity source) {
         return new PreparationSnapshot(source.getId(), source.getRowVersion(), source.getSourceVersion(), source.getActiveSourceVersion(),
             preparation(source), properties.getOcrLanguages(), java.nio.file.Files.isExecutable(java.nio.file.Path.of(properties.getOcrExecutable())),
-            source.getActiveSourceVersion() != null && source.getActiveSourceVersion() != source.getSourceVersion());
+            source.getActiveSourceVersion() != null && source.getActiveSourceVersion() != source.getSourceVersion(), searchConfiguration());
     }
+
+    private SearchConfiguration searchConfiguration() {
+        ai.fabric.rag.RetrievalCapabilities capability = null;
+        String status = "NOT_CHECKED";
+        if (vectorDatabaseService != null) {
+            try {
+                capability = vectorDatabaseService.retrievalCapabilities(properties.getEntityType());
+                status = capability == null ? "UNAVAILABLE" : "REPORTED";
+            } catch (RuntimeException unavailable) { status = "UNAVAILABLE"; }
+        }
+        return new SearchConfiguration("BRAIN", ragProvider != null,
+            ragProvider == null ? null : ragProvider.sharedRetrievalProfile(), status, capability);
+    }
+
+    public record SearchConfiguration(String owner, boolean sharedRetrievalAvailable,
+        ai.fabric.rag.RetrievalProfile profile, String readinessStatus, ai.fabric.rag.RetrievalCapabilities capabilities) { }
 
     public record PreparationUpdate(long expectedRevision, DocumentPreparation configuration) { }
     public record PreparationSnapshot(String sourceId, long revision, long sourceVersion, Long activeSourceVersion,
-        DocumentPreparation configuration, List<String> ocrLanguages, boolean ocrAvailable, boolean reindexRequired) { }
+        DocumentPreparation configuration, List<String> ocrLanguages, boolean ocrAvailable, boolean reindexRequired,
+        SearchConfiguration searchConfiguration) {
+        public PreparationSnapshot(String sourceId, long revision, long sourceVersion, Long activeSourceVersion,
+            DocumentPreparation configuration, List<String> ocrLanguages, boolean ocrAvailable, boolean reindexRequired) {
+            this(sourceId, revision, sourceVersion, activeSourceVersion, configuration, ocrLanguages, ocrAvailable, reindexRequired, null);
+        }
+        public List<EvaluationRetrievalVariant> getEvaluationVariants() {
+            return searchConfiguration != null && searchConfiguration.sharedRetrievalAvailable()
+                ? List.of(EvaluationRetrievalVariant.values()) : List.of(EvaluationRetrievalVariant.CONFIGURED);
+        }
+        public boolean getRelevanceLabelsSupported() { return true; }
+    }
 
     public synchronized PreviewResult preview(RuntimeResolvedIdentity identity, String sourceId) {
         Boundary boundary = requireBoundary(identity);
@@ -549,15 +597,8 @@ public class DocumentKnowledgeService {
         Boundary boundary = requireBoundary(identity);
         String safeQuery = required(query, "query", 1_000);
         int limit = Math.max(1, Math.min(requestedLimit > 0 ? requestedLimit : 5, 20));
-        AISearchResponse response = coreService.performSearch(
-            AISearchRequest.builder()
-                .query(safeQuery)
-                .entityType(properties.getEntityType())
-                .limit(Math.min(100, limit * 5))
-                .threshold(0.0d)
-                .metadata(boundary.ownerMetadata())
-                .build()
-        );
+        var search = searchForProof(identity, safeQuery, limit, 0.0d, boundary.ownerMetadata());
+        AISearchResponse response = search.response();
         List<RetrievalEvidence> evidence = response == null || response.getResults() == null
             ? List.of()
             : response.getResults().stream()
@@ -572,26 +613,77 @@ public class DocumentKnowledgeService {
             safeQuery,
             evidence.size(),
             evidence,
-            response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L
+            response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L,
+            search.diagnostics()
         );
     }
 
     public RetrievalProof retrieveSource(RuntimeResolvedIdentity identity, String sourceId, String query, DocumentPreparation.EvaluationOptions options) {
+        return retrieveSource(identity, sourceId, query, options, EvaluationRetrievalVariant.CONFIGURED);
+    }
+
+    public RetrievalProof retrieveSource(RuntimeResolvedIdentity identity, String sourceId, String query,
+                                         DocumentPreparation.EvaluationOptions options, EvaluationRetrievalVariant variant) {
         Boundary boundary = requireBoundary(identity);
         DocumentSourceEntity source = requireSource(boundary, sourceId);
         if (source.getActiveSourceVersion() == null) throw conflict("Index this document before evaluating its retrieval.");
         Map<String, Object> filters = new LinkedHashMap<>(boundary.ownerMetadata());
         filters.put(DocumentMetadataKeys.SOURCE_ID, sourceId);
         filters.put(DocumentMetadataKeys.SOURCE_VERSION, source.getActiveSourceVersion());
-        AISearchResponse response = coreService.performSearch(AISearchRequest.builder().query(required(query, "query", 1000))
-            .entityType(properties.getEntityType()).limit(options.maxDocuments() * 5).threshold(options.similarityThreshold()).metadata(filters).build());
+        var search = searchForProof(identity, required(query, "query", 1000), options.maxDocuments(), options.similarityThreshold(), filters,
+            EvaluationRetrievalVariant.effective(variant));
+        AISearchResponse response = search.response();
         List<RetrievalEvidence> evidence = response == null || response.getResults() == null ? List.of() : response.getResults().stream()
-            .map(this::toRetrievalEvidence).filter(Objects::nonNull).filter(item -> sourceId.equals(item.sourceId()))
+            .map(row -> toRetrievalEvidence(row, options.maxContextCharacters())).filter(Objects::nonNull).filter(item -> sourceId.equals(item.sourceId()))
             .filter(item -> Objects.equals(source.getActiveSourceVersion(), item.sourceVersion()))
             .filter(item -> activeVersionFilter.accepts(properties.getEntityType(), item.metadata()))
             .filter(item -> boundary.matchesOwner(item.metadata())).limit(options.maxDocuments()).toList();
-        return new RetrievalProof(query, evidence.size(), evidence, response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L);
+        return new RetrievalProof(query, evidence.size(), evidence, response != null && response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L, search.diagnostics());
     }
+
+    private ProofSearch searchForProof(RuntimeResolvedIdentity identity, String query, int limit, double threshold,
+                                       Map<String, Object> filters) {
+        return searchForProof(identity, query, limit, threshold, filters, EvaluationRetrievalVariant.CONFIGURED);
+    }
+
+    private ProofSearch searchForProof(RuntimeResolvedIdentity identity, String query, int limit, double threshold,
+                                       Map<String, Object> filters, EvaluationRetrievalVariant variant) {
+        if (variant != EvaluationRetrievalVariant.CONFIGURED && ragProvider == null)
+            throw conflict("Shared retrieval is unavailable for this evaluation variant.");
+        AISearchResponse response;
+        Map<String, Object> diagnostics = Map.of("retrievalPath", "existing-dense-search");
+        var profile = ragProvider == null ? null : ragProvider.sharedRetrievalProfile();
+        if (variant == EvaluationRetrievalVariant.DENSE_BASELINE) {
+            if (ragProvider == null) throw conflict("Shared retrieval is unavailable for a baseline evaluation.");
+            var bounds = profile == null ? ai.fabric.rag.RetrievalProfile.dense() : profile;
+            profile = new ai.fabric.rag.RetrievalProfile(ai.fabric.rag.RetrievalProfile.Mode.DENSE,
+                bounds.vectorCandidates(), bounds.lexicalCandidates(), bounds.maxCandidates(), bounds.maxResults(),
+                bounds.maxContextCharacters(), bounds.rankConstant(), bounds.failurePolicy());
+        }
+        if (ragProvider != null && profile != null) {
+            var retrieved = ragProvider.performRAGQuery(RAGRequest.builder().query(query)
+                .entityType(properties.getEntityType()).limit(limit).threshold(threshold)
+                .metadata(filters).authContext(RuntimeAccessSubjects.from(identity)).retrievalProfile(profile)
+                .rerankingEnabled(variant == EvaluationRetrievalVariant.CONFIGURED ? null : false).build());
+            if (retrieved == null || !Boolean.TRUE.equals(retrieved.getSuccess())) {
+                throw conflict("The configured evaluation search could not be completed.");
+            }
+            var rows = retrieved.getDocuments() == null ? List.<Map<String, Object>>of() : retrieved.getDocuments().stream().map(document -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", document.getId()); row.put("content", document.getContent()); row.put("score", document.getScore());
+                row.put("metadata", document.getMetadata());
+                return row;
+            }).toList();
+            response = AISearchResponse.builder().results(rows).processingTimeMs(retrieved.getProcessingTimeMs()).build();
+            diagnostics = retrieved.getMetadata() == null ? Map.of("retrievalPath", "shared-profile") : retrieved.getMetadata();
+        } else {
+            response = coreService.performSearch(AISearchRequest.builder().query(query)
+                .entityType(properties.getEntityType()).limit(Math.min(100, limit * 5)).threshold(threshold).metadata(filters).build());
+        }
+        return new ProofSearch(response, diagnostics);
+    }
+
+    private record ProofSearch(AISearchResponse response, Map<String, Object> diagnostics) { }
 
     public RetentionStatus retentionStatus(RuntimeResolvedIdentity identity) {
         requireBoundary(identity);
@@ -1610,6 +1702,10 @@ public class DocumentKnowledgeService {
     }
 
     private RetrievalEvidence toRetrievalEvidence(Map<String, Object> row) {
+        return toRetrievalEvidence(row, 4_000);
+    }
+
+    private RetrievalEvidence toRetrievalEvidence(Map<String, Object> row, int maxCharacters) {
         if (row == null || row.isEmpty()) {
             return null;
         }
@@ -1625,7 +1721,7 @@ public class DocumentKnowledgeService {
             text(metadata.get(DocumentMetadataKeys.SOURCE_NAME)),
             text(metadata.get(DocumentMetadataKeys.CHUNK_ID)),
             intValue(metadata.get(DocumentMetadataKeys.CHUNK_INDEX)),
-            bounded(text(row.get("content")), 4_000),
+            bounded(text(row.get("content")), maxCharacters),
             doubleValue(row.get("score")),
             Map.copyOf(metadata)
         );
@@ -1946,8 +2042,13 @@ public class DocumentKnowledgeService {
         String query,
         int evidenceCount,
         List<RetrievalEvidence> evidence,
-        long processingTimeMs
-    ) { }
+        long processingTimeMs,
+        Map<String, Object> diagnostics
+    ) {
+        public RetrievalProof(String query, int count, List<RetrievalEvidence> evidence, long milliseconds) {
+            this(query, count, evidence, milliseconds, Map.of());
+        }
+    }
 
     public record RetrievalEvidence(
         String entityId,

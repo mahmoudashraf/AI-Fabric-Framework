@@ -23,7 +23,7 @@ class ProviderUsageModeResolverTest {
 
     @BeforeEach void setup() {
         jdbc = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:provider_modes_" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", "sa", ""));
-        jdbc.execute("CREATE TABLE provider_usage_allocations(approval_id VARCHAR(96),deployment_id VARCHAR(64),target_profile_id VARCHAR(64))");
+        jdbc.execute("CREATE TABLE provider_usage_allocations(approval_id VARCHAR(96),deployment_id VARCHAR(64),target_profile_id VARCHAR(64),payload_json TEXT DEFAULT '{}')");
         ProviderUsageCoreReleaseTestSchema.create(jdbc);
         resolver = new ProviderUsageModeResolver(properties, jdbc,
             new CoreReleaseAuthorizationStore(jdbc, new ObjectMapper().findAndRegisterModules()));
@@ -48,7 +48,7 @@ class ProviderUsageModeResolverTest {
 
     @Test void historicalAllocationsDoNotOverrideTheServerAuthorizedModeForANewRelease() {
         properties.setProviderUsageMode("TEAM_AUTHORIZED"); properties.setTeamAuthorizedTargets(Set.of("target", "other"));
-        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
+        jdbc.update("INSERT INTO provider_usage_allocations(approval_id,deployment_id,target_profile_id) VALUES ('approval','deployment','target')");
         assertThat(resolver.resolve(deployment, "target")).isEqualTo("TEAM_AUTHORIZED");
         assertThat(resolver.resolve(deployment, "other")).isEqualTo("TEAM_AUTHORIZED");
         properties.setProviderUsageMode("CUSTOMER_KEY");
@@ -83,13 +83,13 @@ class ProviderUsageModeResolverTest {
 
     @Test void anAuthorizedTeamReleaseCanCoexistWithUnchangedHistoricalFunding() {
         ProviderUsageCoreReleaseTestSchema.authorize(jdbc, "deployment", "TEAM_AUTHORIZED");
-        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
+        jdbc.update("INSERT INTO provider_usage_allocations(approval_id,deployment_id,target_profile_id) VALUES ('approval','deployment','target')");
         assertThat(resolver.forRelease(deployment, release)).contains("TEAM_AUTHORIZED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM provider_usage_allocations", Integer.class)).isEqualTo(1);
     }
 
     @Test void priorFundingDoesNotBypassTheTeamTargetAllowlist() {
-        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('approval','deployment','target')");
+        jdbc.update("INSERT INTO provider_usage_allocations(approval_id,deployment_id,target_profile_id) VALUES ('approval','deployment','target')");
         properties.setProviderUsageMode("TEAM_AUTHORIZED");
         properties.setTeamAuthorizedTargets(Set.of("another-target"));
         assertThatThrownBy(() -> resolver.resolve(deployment, "target")).hasMessageContaining("TEAM_TARGET_NOT_AUTHORIZED");
@@ -103,7 +103,7 @@ class ProviderUsageModeResolverTest {
 
     @Test void historicalAllocationCannotLoseEnforcementWhenCoreAuthorizationIsAbsent() {
         properties.setProviderUsageMode("TEAM_AUTHORIZED"); properties.setTeamAuthorizedTargets(Set.of("target"));
-        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('historical','deployment','target')");
+        jdbc.update("INSERT INTO provider_usage_allocations(approval_id,deployment_id,target_profile_id) VALUES ('historical','deployment','target')");
         assertThat(resolver.forRelease(deployment, release)).contains("FUNDED");
         release.setTargetProfileId("other");
         assertThat(resolver.forRelease(deployment, release)).isEmpty();
@@ -116,5 +116,11 @@ class ProviderUsageModeResolverTest {
         release.setTargetProfileId("target");
         ProviderUsageCoreReleaseTestSchema.decision(jdbc, "DENY", "a".repeat(64));
         assertThatThrownBy(() -> resolver.forRelease(deployment, release)).hasMessageContaining("CORE_AUTHORIZATION_DENIED");
+    }
+
+    @Test void rerankingAllowanceCannotRelabelUnrelatedGenerationAsFunded() {
+        jdbc.update("INSERT INTO provider_usage_allocations VALUES ('reranking','deployment','target',?)",
+            "{\"binding\":{\"secretPurpose\":\"RERANKING_API_KEY\"}}");
+        assertThat(resolver.forRelease(deployment, release)).isEmpty();
     }
 }

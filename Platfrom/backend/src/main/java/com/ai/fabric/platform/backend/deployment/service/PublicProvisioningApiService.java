@@ -193,8 +193,12 @@ public class PublicProvisioningApiService {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(clientId, deploymentId);
 
         DeploymentVersionSummary version = resolveVersionToApply(binding.getDeploymentId(), request);
+        String targetProfileId = blankToNull(request == null ? null : request.targetProfileId());
+        String sourceArtifactId = blankToNull(request == null ? null : request.sourceArtifactId());
         DeploymentReleaseSummary latestForVersion = deploymentService.listReleases(binding.getDeploymentId()).stream()
             .filter(release -> version.id().equals(release.deploymentVersionId()))
+            .filter(release -> targetProfileId == null || targetProfileId.equals(release.targetProfileId()))
+            .filter(release -> sourceArtifactId == null || sourceArtifactId.equals(release.sourceArtifactId()))
             .findFirst()
             .orElse(null);
 
@@ -222,7 +226,9 @@ public class PublicProvisioningApiService {
 
         DeploymentReleaseSummary release = deploymentService.applyVersionForVerifiedPublicApiBinding(
             binding.getDeploymentId(),
-            version.id()
+            version.id(),
+            targetProfileId,
+            sourceArtifactId
         );
         platformAuditService.record(
             "PUBLIC_API_APPLY_REQUESTED",

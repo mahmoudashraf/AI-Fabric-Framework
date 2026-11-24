@@ -42,6 +42,7 @@ final class RuntimeBudgetFixture {
         TestScope.sessions.get().add(connection);
         ScriptUtils.executeSqlScript(connection, new ClassPathResource("com/ai/fabric/budget/provider-budget-schema.sql"));
         ScriptUtils.executeSqlScript(connection, new ClassPathResource("com/ai/fabric/runtime/budget/runtime-provider-budget-binding.sql"));
+        ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/runtime-migration/V26__reranking_budget_binding.sql"));
         ledger = new JdbcProviderBudgetLedger(dataSource, CLOCK);
     }
 

@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web;
 import com.ai.fabric.runtime.auth.*;
 import com.ai.fabric.runtime.documents.DocumentEvaluationService;
+import com.ai.fabric.runtime.documents.EvaluationRetrievalVariant;
 import com.ai.fabric.runtime.admin.RuntimeAdminMutationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,8 +24,12 @@ public class DocumentEvaluationController {
     @PostMapping public Map<String,Object> start(@PathVariable String sourceId,@RequestBody Start body,@RequestHeader("Idempotency-Key") String key,HttpServletRequest request) {
         var identity=identity(request,RuntimeScopeCatalog.DOCUMENTS_EVALUATE);
         service.requireSourceAccess(identity,sourceId);
-        return response(mutations.execute(identity,"DOCUMENT_EVALUATION",sourceId+":"+body.expectedRevision(),key,com.fasterxml.jackson.databind.node.ObjectNode.class,
-            () -> service.start(identity,sourceId,body.expectedRevision())));
+        var variant = EvaluationRetrievalVariant.effective(body.retrievalVariant());
+        var operationTarget = sourceId+":"+body.expectedRevision()
+            + (variant == EvaluationRetrievalVariant.CONFIGURED ? "" : ":"+variant);
+        return response(mutations.execute(identity,"DOCUMENT_EVALUATION",operationTarget,key,com.fasterxml.jackson.databind.node.ObjectNode.class,
+            () -> variant == EvaluationRetrievalVariant.CONFIGURED ? service.start(identity,sourceId,body.expectedRevision())
+                : service.start(identity,sourceId,body.expectedRevision(),variant)));
     }
     @GetMapping public List<Map<String,Object>> list(@PathVariable String sourceId,HttpServletRequest request) { return service.list(identity(request,RuntimeScopeCatalog.DOCUMENTS_READ),sourceId).stream().map(this::response).toList(); }
     @GetMapping("/{id}") public Map<String,Object> get(@PathVariable String sourceId,@PathVariable String id,HttpServletRequest request) { return response(service.get(identity(request,RuntimeScopeCatalog.DOCUMENTS_READ),sourceId,id)); }
@@ -36,5 +41,7 @@ public class DocumentEvaluationController {
     private RuntimeResolvedIdentity identity(HttpServletRequest request,String scope) {
         var identity=auth.resolveVerifiedPrivateContext(request,"document evaluation"); auth.requireScope(identity,scope,"document evaluation"); return identity;
     }
-    public record Start(long expectedRevision) { }
+    public record Start(long expectedRevision, EvaluationRetrievalVariant retrievalVariant) {
+        public Start(long expectedRevision) { this(expectedRevision, null); }
+    }
 }

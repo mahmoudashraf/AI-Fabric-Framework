@@ -1095,26 +1095,6 @@ class MarketplaceIntegrationTest {
         assertThat(integrationInstallId).isNotBlank();
 
         mockMvc.perform(asAdmin(
-                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, integrationInstallId)
-                    .contentType(APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "status", "ENABLED",
-                        "config", java.util.Map.of(
-                            "providerBaseUrl", "https://inbox.example",
-                            "operatorConsoleUrl", "https://inbox.example"
-                        ),
-                        "secretRefs", java.util.Map.of(
-                            "providerApiKeySecretRef", "INBOX_PROVIDER_API_KEY",
-                            "runtimeCallbackSigningSecretRef", "INBOX_RUNTIME_CALLBACK_SIGNING_SECRET",
-                            "providerWebhookSigningSecretRef", "INBOX_PROVIDER_WEBHOOK_SIGNING_SECRET"
-                        )
-                    )))
-            ))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status", is("ENABLED")))
-            .andExpect(jsonPath("$.readinessStatus", is("READY")));
-
-        mockMvc.perform(asAdmin(
                 put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, templateInstallId)
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of("pluginVersion", "1.0.1")))
@@ -1130,6 +1110,10 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.securityConfig.publicRuntimeTokenIssuer", is("runtime-public-bootstrap")))
             .andExpect(jsonPath("$.securityConfig.publicRuntimeAcceptedAudiences", is("loomai-ai-workspace")))
             .andExpect(jsonPath("$.securityConfig.publicRuntimeDefaultAudience", is("loomai-ai-workspace")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id=='" + integrationInstallId + "')].status", is(List.of("DISABLED"))));
 
         mockMvc.perform(asAdmin(
                 put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deploymentId, templateInstallId)
@@ -1407,6 +1391,7 @@ class MarketplaceIntegrationTest {
         DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Marketplace Live Removal Guard", "dev", "dev-openai-lucene")
         ));
+        configureConnectorUpstream(deployment.id());
 
         String actionInstallResponse = mockMvc.perform(asAdmin(
                 post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
@@ -1655,6 +1640,17 @@ class MarketplaceIntegrationTest {
                 null
             )
         );
+        configureConnectorUpstream(deploymentId);
+    }
+
+    private void configureConnectorUpstream(String deploymentId) {
+        runAsAdmin(() -> {
+            var draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+            ObjectNode routing = ((ObjectNode) draft.routingConfig()).deepCopy();
+            routing.withObject("/connector/upstream").put("base-url", "https://provider.example.com");
+            return deploymentService.updateDraft(draft.id(), new UpdateDeploymentDraftRequest(
+                null, null, routing, null, null, null));
+        });
     }
 
     private void activateManagedInferenceService(String serviceRef,

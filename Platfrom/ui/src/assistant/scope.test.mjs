@@ -12,7 +12,7 @@ const expected = {
   '/capabilities/action%3Aread': 'ACTIONS', '/capabilities/install%3Aplugin%3Aaction%3Aread': 'ACTIONS',
   '/knowledge': 'KNOWLEDGE', '/knowledge/documents': 'KNOWLEDGE', '/knowledge/sources/source-1': 'KNOWLEDGE',
   '/knowledge/storage': 'KNOWLEDGE', '/knowledge/discover': 'KNOWLEDGE', '/knowledge/proof': 'KNOWLEDGE', '/knowledge/retention': 'KNOWLEDGE',
-  '/knowledge/connections': 'KNOWLEDGE', '/knowledge/connections/source-1': 'KNOWLEDGE', '/knowledge/live-data': 'KNOWLEDGE', '/knowledge/search': 'MODELS',
+  '/knowledge/connections': 'KNOWLEDGE', '/knowledge/connections/source-1': 'KNOWLEDGE', '/knowledge/live-data': 'KNOWLEDGE', '/knowledge/search': 'SEARCH',
   '/responses': 'BEHAVIOUR', '/responses/instructions': 'BEHAVIOUR', '/responses/advanced': 'BEHAVIOUR',
   '/models': 'MODELS', '/human-support': 'HUMAN_SUPPORT', '/action-reviews': 'HUMAN_SUPPORT',
   '/human-support/specialists': 'SPECIALISTS', '/advanced/providers': 'MODELS', '/advanced/configuration': 'KIT',
@@ -30,11 +30,16 @@ for (const [path, task] of Object.entries(expected)) test(`route ${path || '/'} 
   assert.deepEqual(brainAssistantScope(root + path, '?targetProfileId=production&query=change+models', 'brain-37'), { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task, editorContext: contexts[path] ?? { section: task } })
 })
 test('same-task subpages refresh context without changing formal session identity', () => {
-  for (const [from, to] of [['/models', '/knowledge/search'], ['/responses', '/responses/instructions'], ['/knowledge/documents', '/knowledge/storage'], ['/knowledge/documents', '/knowledge/connections']]) {
+  for (const [from, to] of [['/responses', '/responses/instructions'], ['/knowledge/documents', '/knowledge/storage'], ['/knowledge/documents', '/knowledge/connections']]) {
     const before = brainAssistantScope(root + from, '', 'brain-37'), after = brainAssistantScope(root + to, '', 'brain-37')
     assert.equal(scopeIdentity(before), scopeIdentity(after))
     assert.notEqual(before.editorContext.section, after.editorContext.section)
   }
+})
+test('search preparation has its own task identity, without changing response-model sessions', () => {
+  assert.equal(brainAssistantScope(root + '/knowledge/search', '', 'brain-37').task, 'SEARCH')
+  assert.notEqual(scopeIdentity(brainAssistantScope(root + '/knowledge/search', '', 'brain-37')),
+    scopeIdentity(brainAssistantScope(root + '/models', '', 'brain-37')))
 })
 test('live source pages use Knowledge authority, endpoint connection editors retain Connections authority', () => {
   assert.equal(brainAssistantScope(root + '/knowledge/connections/source-1', '', 'brain-37').task, 'KNOWLEDGE')

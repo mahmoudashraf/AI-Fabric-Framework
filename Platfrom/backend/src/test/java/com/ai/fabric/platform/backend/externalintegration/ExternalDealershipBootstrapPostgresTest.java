@@ -338,10 +338,10 @@ class ExternalDealershipBootstrapPostgresTest {
                 permission.intent(), permission.profileFingerprint(), staging ? "external-test-stage" : "external-test-prod",
                 staging ? "192.0.2.10" : "192.0.2.20", "destination", now.minusSeconds(1), now.plusSeconds(300)));
         }
-        var template = versions.findById("mkv-template-dealership-external-systems-managed-inbox-v1-0").orElseThrow();
+        var template = versions.findByPluginIdAndVersion("mkp-template-dealership-external-systems-managed-inbox-v1", "1.1.0").orElseThrow();
         var pins = List.of("mkv-data-dealership-external-stock-v1-0", "mkv-action-dealership-external-discovery-v1-0",
             "mkv-action-dealership-external-engagement-v1-0", "mkv-data-dealership-knowledge-v1-0",
-            "mkv-action-conversation-handover-v1-1", "mkv-integration-basic-loomai-inbox-v1-3").stream()
+            "mkv-action-conversation-handover-v1-1").stream()
             .map(id -> versions.findById(id).orElseThrow())
             .map(version -> new PluginPin(version.getPluginId(), version.getId(), codec.hash(codec.tree(version.getManifestJson())))).toList();
         var stock = pins.getFirst(); var action = pins.get(2); var targetIds = Set.of(stage.getId(), production.getId());
@@ -362,7 +362,8 @@ class ExternalDealershipBootstrapPostgresTest {
             List.of(new ArtifactPin(artifact.getId(), reviewed.artifactFingerprint(artifact))),
             List.of(new TargetPermission(stage.getId(), TargetIntent.CUSTOMER_STAGING, reviewed.profileFingerprint(stage)),
                 new TargetPermission(production.getId(), TargetIntent.CUSTOMER_PRODUCTION, reviewed.profileFingerprint(production))),
-            EnumSet.allOf(Operation.class), List.of(new SettingRule(Setting.DEPLOYMENT_NAME, ValueType.TEXT, 100, Set.of()),
+            java.util.Arrays.stream(Operation.values()).filter(CustomerPermissionMatrix::supported)
+                .collect(java.util.stream.Collectors.toSet()), List.of(new SettingRule(Setting.DEPLOYMENT_NAME, ValueType.TEXT, 100, Set.of()),
                 new SettingRule(Setting.AI_STATE_STORAGE_MODE, ValueType.CHOICE, 100, Set.of("MANAGED_POSTGRES", "CUSTOMER_POSTGRES"))),
             List.of(new BindingSlot("vehicle-stock", BindingKind.EXTERNAL_SERVICE, Set.of("external-stock"), stock.pluginId(), null),
                 new BindingSlot("business-actions", BindingKind.EXTERNAL_SERVICE, Set.of("external-actions"), action.pluginId(), null),
@@ -393,7 +394,7 @@ class ExternalDealershipBootstrapPostgresTest {
         assertThat(draft.providerConfig().path("aiStateStorageMode").asText()).isEqualTo(mode.name());
         assertThat(draft.marketplaceDatasetConfig().toString()).contains("dealership-external-stock-source", "MANAGED_EXTERNAL_INTEGRATION_");
         assertThat(composition.evidence(deployment)).hasSize(2);
-        assertThat(installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).hasSize(7);
+        assertThat(installs.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).hasSize(pins.size() + 1);
         assertThat(count("deployment_provider_resource_handles")).isEqualTo(handlesBefore);
         assertThat(count("deployment_managed_dependency_graphs")).isEqualTo(graphsBefore);
         assertThat(jdbc.queryForObject("select count(*) from platform_deployment_releases where deployment_id = ?", Long.class, deployment.getId())).isZero();
@@ -497,7 +498,7 @@ class ExternalDealershipBootstrapPostgresTest {
         long bindingsBefore = count("deployment_external_integration_bindings");
         long releasesBefore = count("platform_deployment_releases");
         var created = templates.bootstrapConfiguration("mkp-template-dealership-external-systems-v1",
-            new CreateMarketplaceTemplateBootstrapRequest("1.0.0", "External bootstrap verification", "staging",
+            new CreateMarketplaceTemplateBootstrapRequest("1.1.0", "External bootstrap verification", "staging",
                 "dev-openai-milvus", null, null, null));
         var deployment = deployments.findById(created.id()).orElseThrow();
         var initial = installs.findByDeploymentIdOrderByUpdatedAtDesc(created.id());
@@ -524,7 +525,8 @@ class ExternalDealershipBootstrapPostgresTest {
             codec.hash(codec.tree(actionVersion.getManifestJson())), targetIds, Set.of("receiverActionUrl"), Set.of("receiverApiKey"),
             Set.of("receiverActionUrl"), Set.of(), Set.of("receiver.example.com"));
         var definition = new Definition("1", "Symbolic compiler verification only", "dev-openai-milvus",
-            new PluginPin("mkp-template-dealership-external-systems-v1", "mkv-template-dealership-external-systems-v1-0", "unused-test-pin"),
+            new PluginPin("mkp-template-dealership-external-systems-v1",
+                initial.stream().filter(value -> "mkp-template-dealership-external-systems-v1".equals(value.getPluginId())).findFirst().orElseThrow().getPluginVersionId(), "unused-test-pin"),
             List.of(new PluginPin(stock.getPluginId(), stockVersion.getId(), stockProfile.manifestSha256()),
                 new PluginPin(actions.getPluginId(), actionVersion.getId(), actionProfile.manifestSha256())),
             List.of(), targets, Set.of(Operation.READ), List.of(), List.of(

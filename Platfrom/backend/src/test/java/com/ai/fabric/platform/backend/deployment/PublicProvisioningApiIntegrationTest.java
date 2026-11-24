@@ -57,6 +57,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "platform.public-api.consumer-runtime-assignment.api-key=produs-assignment-secret",
     "platform.bootstrap.sample-enabled=false",
     "platform.provisioning.mode=COOLIFY",
+    "platform.deployment-operations.provider-usage-mode=TEAM_AUTHORIZED",
+    "platform.deployment-operations.team-authorized-targets=public-reviewed-staging",
     "platform.verification.live-pre-apply-gate-enabled=false",
     "platform.verification.timeout=100ms",
     "platform.verification.runtime-indexing-overview-timeout=100ms",
@@ -81,6 +83,15 @@ class PublicProvisioningApiIntegrationTest {
 
     @Autowired
     private PlatformSecretService platformSecretService;
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository targetProfiles;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository sourceArtifacts;
 
     @TestConfiguration
     static class DeterministicCoolifyProvisioningConfig {
@@ -233,13 +244,26 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.trustedBackend.platformDefaultIssuerPolicy", is(false)))
             .andExpect(jsonPath("$.access.trustedBackend.externalIntegrationReady", is(false)));
 
-        var applyResult = mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
+        var reviewed = ReviewedRuntimeApplyFixture.create(objectMapper, targetProfiles, sourceArtifacts,
+            "public-reviewed-staging");
+        String applyBody = objectMapper.writeValueAsString(new com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentRequest(
+            null, reviewed.targetProfileId(), reviewed.sourceArtifactId()));
+        mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"versionId\":null}"))
+            .andExpect(status().isConflict());
+
+        var applyResult = mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
+                .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(applyBody))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.idempotentReplay", is(false)))
+            .andExpect(jsonPath("$.release.targetProfileId", is(reviewed.targetProfileId())))
+            .andExpect(jsonPath("$.release.sourceArtifactId", is(reviewed.sourceArtifactId())))
             .andExpect(jsonPath("$.release.id", notNullValue()))
             .andReturn();
 
@@ -250,7 +274,7 @@ class PublicProvisioningApiIntegrationTest {
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"versionId\":null}"))
+                .content(applyBody))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.idempotentReplay", is(true)))
             .andExpect(jsonPath("$.release.id", is(releaseId)));

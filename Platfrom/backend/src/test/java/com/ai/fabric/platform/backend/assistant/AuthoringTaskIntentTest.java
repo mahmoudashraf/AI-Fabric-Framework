@@ -67,9 +67,9 @@ class AuthoringTaskIntentTest {
     }
     @Test void sameTaskSubpagesRetainTheirDistinctFocusAndSelectedIdsAreOnlyCopiedData() {
         var ids = new ArrayList<>(List.of("embedding-service"));
-        var context = AuthoringTaskIntent.resolve("MODELS", "", "PREPARE", new AuthoringTaskIntent.EditorContext("SEARCH", ids));
+        var context = AuthoringTaskIntent.resolve("SEARCH", "", "PREPARE", new AuthoringTaskIntent.EditorContext("SEARCH", ids));
         ids.clear();
-        assertThat(context.query()).startsWith("Prepare embedding");
+        assertThat(context.query()).startsWith("Prepare supported embedding");
         assertThat(context.editorContext().selectedDefinitionIds()).containsExactly("embedding-service");
         assertThat(AuthoringTaskIntent.resolve("MODELS", "", "PREPARE", null).query()).startsWith("Prepare response-model");
     }

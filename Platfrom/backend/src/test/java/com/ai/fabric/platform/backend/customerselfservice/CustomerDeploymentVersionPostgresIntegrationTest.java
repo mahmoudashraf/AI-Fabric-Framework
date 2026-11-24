@@ -143,12 +143,14 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
         tenant.setSlug(tenantId); tenant.setStatus("ACTIVE"); tenant.setCreatedAt(now); tenant.setUpdatedAt(now);
         tenants.saveAndFlush(tenant);
         var created = templateBootstrap.bootstrapConfiguration("mkp-template-simulated-dealership-experience-v1",
-            new CreateMarketplaceTemplateBootstrapRequest("1.2.0", "Reviewed publish rollback fixture",
-                "staging", "custom-start-from-scratch", null, customerId, tenantId));
+            new CreateMarketplaceTemplateBootstrapRequest("1.10.0", "Reviewed publish rollback fixture",
+                "staging", null, null, customerId, tenantId));
         String deploymentId = created.id();
         var setupDraft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode provider = setupDraft.providerConfig().deepCopy();
         provider.put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")
+            .put("milvusExternalBindingRequired", false)
+            .put("milvusAuthenticationType", "USERNAME_PASSWORD")
             .put("vectorStoragePosture", "DEDICATED").put("milvusHost", "vector.fixture.example")
             .put("milvusPort", 443).put("milvusSecure", true);
         deploymentService.updateDraft(setupDraft.id(), new UpdateDeploymentDraftRequest(
@@ -405,12 +407,14 @@ class CustomerDeploymentVersionPostgresIntegrationTest {
         tenant.setSlug(tenantId); tenant.setStatus("ACTIVE"); tenant.setCreatedAt(now); tenant.setUpdatedAt(now);
         tenants.saveAndFlush(tenant);
         var created = templateBootstrap.bootstrapConfiguration("mkp-template-simulated-dealership-experience-v1",
-            new CreateMarketplaceTemplateBootstrapRequest("1.2.0", "Projection publication lock fixture",
-                "staging", "custom-start-from-scratch", null, customerId, tenantId));
+            new CreateMarketplaceTemplateBootstrapRequest("1.10.0", "Projection publication lock fixture",
+                "staging", null, null, customerId, tenantId));
         String deploymentId = created.id();
         var setupDraft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode provider = setupDraft.providerConfig().deepCopy();
         provider.put("vectorStrategy", "milvus").put("vectorProvisioningMode", "EXTERNAL_EXISTING")
+            .put("milvusExternalBindingRequired", false)
+            .put("milvusAuthenticationType", "USERNAME_PASSWORD")
             .put("vectorStoragePosture", "DEDICATED").put("milvusHost", "vector.fixture.example")
             .put("milvusPort", 443).put("milvusSecure", true);
         deploymentService.updateDraft(setupDraft.id(), new UpdateDeploymentDraftRequest(

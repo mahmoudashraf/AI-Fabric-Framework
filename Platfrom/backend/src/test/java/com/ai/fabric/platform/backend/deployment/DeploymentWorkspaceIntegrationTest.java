@@ -224,11 +224,11 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.services.length()", is(5)))
             .andExpect(jsonPath("$.services[?(@.key=='runtime')].status", is(java.util.List.of("BLOCKED"))))
             .andExpect(jsonPath("$.services[?(@.key=='runtime')].surfaceType", is(java.util.List.of("PROVISIONED_SERVICE"))))
-            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(6))))
+            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(5))))
             .andExpect(jsonPath("$.services[?(@.key=='restConnector')].platformManaged", is(java.util.List.of(true))))
             .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].label", is(java.util.List.of("UI and browser surface"))))
             .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].surfaceType", is(java.util.List.of("CLIENT_SURFACE"))))
-            .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].status", is(java.util.List.of("WARNING"))))
+            .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].status", is(java.util.List.of("BLOCKED"))))
             .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].platformManaged", is(java.util.List.of(false))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }

@@ -15,7 +15,7 @@ const fixture = `
 const copy = value => structuredClone(value);
 const readonly = new URLSearchParams(location.search).has('readonly');
 const providerConfig = {llmProvider:'openai',embeddingProvider:'openai',vectorStrategy:'qdrant',vectorProvisioningMode:'EXTERNAL_EXISTING',openaiModel:'saved-model',qdrantHost:'https://vector.example.test',customExtension:{keep:true}};
-export const state = window.fixture = {calls:[],draft:{id:'draft',revisionNumber:4,providerConfig,entityConfig:{},promptConfig:{},actionsConfig:{actions:[{name:'read',displayName:'Read account',anonymousAllowed:false}]}},brain:{id:'brain',name:'Customer knowledge',binding:{customerId:'customer',tenantId:'tenant'}}};
+export const state = window.fixture = {calls:[],draft:{id:'draft',revisionNumber:4,providerConfig,entityConfig:{},promptConfig:{ragMaxDocumentsUsedForContext:8,ragMaxContextChars:32000},actionsConfig:{actions:[{name:'read',displayName:'Read account',anonymousAllowed:false}]}},brain:{id:'brain',name:'Customer knowledge',binding:{customerId:'customer',tenantId:'tenant'}}};
 export function useDeploymentWorkspace() {return {selectedDeploymentId:'brain',selectedDeploymentSummary:state.brain,workspace:{access:{canEdit:!readonly},lifecycle:{savedDraftMatchesLatestPublished:true},draft:state.draft}}}
 export async function fetchDeploymentWorkspace() {return {deployment:copy(state.brain),access:{canEdit:!readonly},template:{}}}
 export async function fetchDeploymentDraft() {return copy(state.draft)}
@@ -33,6 +33,7 @@ export async function fetchDocumentSources() {return []}
 export async function fetchDeploymentIntegrations() {return {sources:[]}}
 export async function fetchDeploymentMarketplaceInstalls() {return []}
 export async function fetchMarketplacePlugins() {return []}
+export async function platformRequest(path) {if(path==='/api/deployments/brain/reranking-usage?targetProfileId=exact-target')return {deploymentId:'brain',targetProfileId:'exact-target',releaseId:'exact-release',status:'OFF',limits:null,accountedUsage:null,providerAttempts:null};throw Error('Unexpected fixture request: '+path)}
 `
 const harness = `
 import React from 'react';import {createRoot} from 'react-dom/client';
@@ -42,6 +43,7 @@ const router=createBrowserRouter([{path:'*',element:<SmartBrainShell session={{r
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false,staleTime:Infinity},mutations:{retry:false}}})}><RouterProvider router={router}/></QueryClientProvider>);
 `
 const stubs = {
+  '../auth/PlatformAuthProvider': 'export const usePlatformAuth=()=>({session:{authenticated:true,actorId:"actor",customerId:"customer",role:"CUSTOMER_ADMIN"}});',
   '../components/customer/CustomerSupportContext': 'export const CustomerSupportProvider=({children})=>children;',
   '../components/customer/CustomerSupportAssistant': 'export const CustomerSupportAssistant=()=>null;',
   '../components/customer/SupportResourceDialog': 'export const SupportResourceDialog=()=>null;',
@@ -51,6 +53,8 @@ const stubs = {
   '../pages/DocumentKnowledgePage': 'export const DocumentKnowledgePage=()=> <section aria-label="Document controller">Document operations</section>;',
   '../pages/IntegrationsPage': 'export const IntegrationsPage=()=>null;',
   '../pages/MarketplacePage': 'export const MarketplacePage=()=>null;',
+  '../mcp/McpConnections': 'export const McpConnections=()=>{throw Error("Unrelated MCP editor mounted")};',
+  './BrainTasksPage': 'export const BrainTasksPage=()=>{throw Error("Unrelated task editor mounted")};',
   '../pages/ActionsPage': 'export const ActionsPage=({initialTechnicalView})=> <p>Action panel: {initialTechnicalView}</p>;',
   './BrainOverviewPage': 'export const BrainOverviewPage=()=> <h1>Overview</h1>;',
   './BrainResponsesPage': 'export const BrainResponsesPage=()=> <h1>Responses</h1>;',
@@ -78,17 +82,24 @@ const server = await createServer({ root, configFile: false, cacheDir: cache,
     configureServer(vite) {vite.middlewares.use((req,res,next)=>{
       if(!req.url?.startsWith('/smart-brains/'))return next()
       res.setHeader('Content-Type','text/html')
-      res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}</style></head><body><div id="root"></div><script type="module" src="/@id/__x00__virtual:settings-harness"></script></body></html>')
+      res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}</style></head><body><div id="root"></div><script>window.__PLATFORM_RUNTIME_CONFIG__={apiBaseUrl:location.origin}</script><script type="module" src="/@id/__x00__virtual:settings-harness"></script></body></html>')
     })},
   }], server: {host:'127.0.0.1',port:0,hmr:false}, logLevel:'error' })
 let browser
+const errors=[]
 try {
   await mkdir(output,{recursive:true});await server.listen();browser=await chromium.launch({headless:true})
   const page=await browser.newPage({viewport:{width:1280,height:720}});page.setDefaultTimeout(20000)
-  const errors=[];page.on('pageerror',error=>errors.push(error.message))
+  page.on('pageerror',error=>{errors.push(error.message);console.error('Browser error:',error.message)})
   await page.route('**/api/**',route=>{
-    if (!new URL(route.request().url()).pathname.startsWith('/api/')) return route.continue()
-    throw Error('Real API request forbidden: '+route.request().url())
+    const pathname=new URL(route.request().url()).pathname
+    if (!pathname.startsWith('/api/')) return route.continue()
+    const send=value=>route.fulfill({contentType:'application/json',body:JSON.stringify(value)})
+    if(pathname==='/api/configuration-assistant/status')return send({enabled:false,ready:false})
+    if(pathname==='/api/platform/auth/session')return send({authenticated:true,actorId:'actor',customerId:'customer',role:'CUSTOMER_ADMIN'})
+    if(pathname==='/api/deployments/brain/setup-checks')return send({deploymentId:'brain',draftId:'draft',revisionNumber:4,checkedAt:null,services:[],verifiedCount:0,failedCount:0,notTestedCount:0})
+    errors.push('Unexpected API request: '+route.request().url())
+    return route.abort()
   })
   const origin=server.resolvedUrls.local[0].replace(/\/$/,'')
   const url=section=>origin+'/smart-brains/brain/'+section+'?targetProfileId=exact-target&releaseId=exact-release'
@@ -180,22 +191,49 @@ try {
   await page.screenshot({path:path.join(output,'advanced-light-1280.png')})
   assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight+2),false)
   await page.goto(url('knowledge/search'));await page.getByLabel('Search engine',{exact:true}).waitFor()
-  for(const section of ['Search service','Embedding model','Service connection','Customer separation']) {
+  for(const section of ['Search service','Embedding model','Service connection','Answers & sources','Customer separation']) {
     await page.getByRole('button',{name:section,exact:true}).click()
     assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight+2),false,'Search setup stays inside the workspace')
     await page.screenshot({path:path.join(output,`search-${section.replaceAll(' ','-').toLowerCase()}-light-1280.png`)})
   }
   await page.setViewportSize({width:390,height:844})
+  const searchAssistantClose=page.getByRole('button',{name:'Close assistant',exact:true})
+  if(await searchAssistantClose.isVisible())await searchAssistantClose.click()
   await page.getByRole('button',{name:'Embedding model',exact:true}).click();await page.getByLabel('Embedding provider',{exact:true}).waitFor()
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   await page.screenshot({path:path.join(output,'search-embedding-light-390.png'),fullPage:true})
   await page.goto(url('advanced/runtime'));await page.getByLabel('Runtime profile',{exact:true}).waitFor()
-  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Open Smart Brain navigation'}).click()
+  await page.setViewportSize({width:390,height:844})
+  const mobileAssistantClose=page.getByRole('button',{name:'Close assistant',exact:true})
+  if(await mobileAssistantClose.isVisible())await mobileAssistantClose.click()
+  await page.getByRole('button',{name:'Open Smart Brain navigation'}).click()
   await advanced().waitFor();await nav().getByRole('link',{name:'Provider parameters',exact:true}).click()
   await page.getByLabel('OpenAI base URL',{exact:true}).waitFor()
   assert.equal(await page.getByRole('navigation',{name:'Smart Brain navigation'}).count(),0,'Mobile drawer closes after navigation')
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   await page.screenshot({path:path.join(output,'providers-light-390.png'),fullPage:true})
+  await page.setViewportSize({width:1280,height:900})
+  await page.goto(url('knowledge/search'));await page.getByLabel('Search engine',{exact:true}).waitFor()
+  await page.getByRole('button',{name:'Answers & sources',exact:true}).click()
+  await page.getByRole('button',{name:'Meaning',exact:true}).click()
+  assert.equal(await page.getByLabel('Evidence items for AI',{exact:true}).inputValue(),'8','New profile retains inherited evidence count')
+  assert.equal(await page.getByRole('button',{name:'Words and meaning',exact:true}).isDisabled(),true,'Unsupported lexical search is not advertised for Qdrant')
+  await page.getByLabel('Maximum candidate results',{exact:true}).fill('30')
+  await page.getByRole('button',{name:'Advanced retrieval allowances',exact:true}).click()
+  assert.equal(await page.getByLabel('Evidence context limit (characters)',{exact:true}).inputValue(),'32000','New profile retains inherited context budget')
+  await page.getByRole('checkbox',{name:'Prioritize relevant results',exact:true}).check()
+  const consent=page.getByRole('checkbox',{name:'Allow Cohere to process the question and selected, authorized search excerpts.',exact:true})
+  assert.equal(await consent.isChecked(),false,'External processing consent is never preselected')
+  await consent.check()
+  await page.getByText('Applied environment: Reranking off',{exact:true}).waitFor()
+  await page.screenshot({path:path.join(output,'retrieval-owned-consent-light-1280.png'),fullPage:true})
+  await page.getByRole('button',{name:'Save draft',exact:true}).click()
+  await page.waitForFunction(()=>window.fixture.calls.some(call=>call.type==='save'))
+  const searchSave=await page.evaluate(()=>window.fixture.calls.find(call=>call.type==='save').payload.providerConfig)
+  assert.equal(searchSave.knowledgeRetrieval.mode,'DENSE');assert.equal(searchSave.knowledgeRetrieval.maxCandidates,30)
+  assert.equal(searchSave.knowledgeRetrieval.maxContextCharacters,32000);assert.equal(searchSave.knowledgeRetrieval.reranking.externalProcessingApproved,true)
+  assert.equal(searchSave.knowledgeRetrieval.maxResults,8)
+  assert.deepEqual(searchSave.customExtension,{keep:true},'Unrelated provider configuration survives form edits')
   await page.goto(url('models')+'&readonly=1');await page.getByLabel('OpenAI LLM model',{exact:true}).waitFor()
   assert.equal(await page.getByLabel('OpenAI LLM model',{exact:true}).isDisabled(),true)
   assert.deepEqual(await page.evaluate(()=>window.fixture.calls),[])
@@ -203,6 +241,7 @@ try {
   console.log('PASS: canonical routes/legacy redirects, every advanced child, exact target/release, raw-JSON navigation guard, save preservation, storage/search separation, single vector editor, action panels, pinned short-desktop navigation, light/dark/mobile and read-only access. Screenshots: '+output)
 } catch (error) {
   console.error('FAIL: evidence=' + output)
+  console.error('Page errors:', errors)
   for (const context of browser?.contexts() ?? []) for (const page of context.pages()) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{})
   throw error
 } finally {await browser?.close();await server.close();await rm(cache,{recursive:true,force:true})}

@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentDraftValidati
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAiBehaviourProfiles;
+import com.ai.fabric.platform.backend.deployment.service.KnowledgeRetrievalSettings;
 import com.ai.fabric.platform.backend.marketplace.model.CustomerPluginLibraryContracts;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.service.CustomerPluginLibraryService;
@@ -87,6 +88,14 @@ public class AuthoringResourceService {
                 catalogue.set("aiBehaviourProfiles", mapper.valueToTree(DeploymentAiBehaviourProfiles.catalogue()));
                 catalogue.set("aiBehaviourConfigurationExample", DeploymentAiBehaviourProfiles.select(
                     mapper.createObjectNode(), mapper.createObjectNode()).path("aiBehaviour"));
+                if ("SEARCH".equals(task)) {
+                    catalogue.set("searchSettings", mapper.valueToTree(java.util.Map.of(
+                        "profilePath", "/providerConfig/knowledgeRetrieval",
+                        "modes", java.util.List.of("DENSE", "HYBRID", "KEYWORD"),
+                        "lexicalProviders", java.util.List.of("weaviate"),
+                        "rerankingProviders", java.util.Map.of("cohere", java.util.List.of("rerank-v5.0-fast", "rerank-v5.0-pro")),
+                        "externalProcessingApproved", config.at("/providerConfig/knowledgeRetrieval/reranking/externalProcessingApproved").asBoolean(false))));
+                }
                 if ("SPECIALISTS".equals(task)) {
                     var targets = catalogue.putArray("managerInstructionTargets");
                     var resolutions = config.at("/behaviorConfig/specialistAssistance/resolutions");
@@ -151,6 +160,9 @@ public class AuthoringResourceService {
     private JsonNode check(String kind, String id, Snapshot snapshot, JsonNode candidate, boolean authoringContract) {
         if ("DOCUMENT_SOURCE".equals(kind)) return documentAuthoring.check(id,snapshot,candidate);
         if ("DEPLOYMENT_DRAFT".equals(kind)) {
+            if (authoringContract) SearchAuthoringPolicy.requireExistingConsent(snapshot.configuration(), candidate);
+            if (snapshot.allowedPaths().contains("/providerConfig"))
+                KnowledgeRetrievalSettings.runtimeEnvironment(candidate.path("providerConfig"), candidate.path("promptConfig"));
             if (authoringContract && snapshot.allowedPaths().contains("/behaviorConfig/specialistAssistance"))
                 SpecialistAuthoringPolicy.requireSupportedEdits(snapshot.configuration(), candidate);
             var brain = deployments.findById(id).orElseThrow(() -> missing());
@@ -249,7 +261,7 @@ public class AuthoringResourceService {
             case "CONNECTIONS" -> List.of("/routingConfig");
             case "KNOWLEDGE" -> List.of("/entityConfig", "/knowledgeSourceConfig", "/marketplaceDatasetConfig");
             case "BEHAVIOUR" -> List.of("/promptConfig");
-            case "MODELS" -> List.of("/providerConfig");
+            case "MODELS", "SEARCH" -> List.of("/providerConfig");
             case "HUMAN_SUPPORT" -> List.of("/behaviorConfig/conversationHandover", "/behaviorConfig/humanReview", "/behaviorConfig/executionExtensions");
             case "SPECIALISTS" -> List.of("/behaviorConfig/specialistAssistance", "/behaviorConfig/specialistBundles", "/behaviorConfig/triggers", "/behaviorConfig/executionExtensions");
             case "KIT" -> List.of();

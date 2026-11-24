@@ -27,6 +27,11 @@ import org.springframework.web.server.ResponseStatusException;
 /** Private CP initialization is separate from read-only boot. Use a non-enlisted runtime DataSource. */
 @DependsOnDatabaseInitialization
 public final class RuntimeBudgetBindingService {
+    public enum Account {
+        GENERATION("runtime_provider_budget_binding"), RERANKING("runtime_reranking_budget_binding");
+        private final String table;
+        Account(String table) { this.table = table; }
+    }
     public enum State { UNINITIALIZED, INITIALIZING, INITIALIZED, ACTIVE }
     public record StoreReceipt(State state, UUID storeUuid, String approvalId, String runtimeFingerprint) { }
     public record Activation(String approvalId, UUID storeUuid, String runtimeFingerprint) {
@@ -41,13 +46,20 @@ public final class RuntimeBudgetBindingService {
     private final ProviderBudgetLedger ledger;
     private final DataSource dataSource;
     private final Clock clock;
+    private final Account account;
 
     public RuntimeBudgetBindingService(RuntimeBudgetConfiguration configuration, ProviderBudgetLedger ledger,
                                       DataSource dataSource, Clock clock) {
+        this(configuration, ledger, dataSource, clock, Account.GENERATION);
+    }
+
+    public RuntimeBudgetBindingService(RuntimeBudgetConfiguration configuration, ProviderBudgetLedger ledger,
+                                      DataSource dataSource, Clock clock, Account account) {
         this.configuration = Objects.requireNonNull(configuration);
         this.ledger = configuration.enabled() ? Objects.requireNonNull(ledger) : ledger;
         this.dataSource = configuration.enabled() ? Objects.requireNonNull(dataSource) : dataSource;
         this.clock = Objects.requireNonNull(clock);
+        this.account = Objects.requireNonNull(account);
     }
 
     /** Accounting readiness only; host must also prove provider/path coverage. No probes or writes. */
@@ -253,9 +265,9 @@ public final class RuntimeBudgetBindingService {
             || !stored.runtimeFingerprint().equals(fingerprint)) throw failure(BINDING_CONFLICT);
     }
 
-    private static StoreReceipt binding(Connection connection, boolean lock) throws SQLException {
+    private StoreReceipt binding(Connection connection, boolean lock) throws SQLException {
         try (var query = connection.prepareStatement("SELECT binding_state, store_uuid, approval_id, allocation_fingerprint"
-            + " FROM runtime_provider_budget_binding WHERE singleton_id = 1" + (lock ? " FOR UPDATE" : ""));
+            + " FROM " + account.table + " WHERE singleton_id = 1" + (lock ? " FOR UPDATE" : ""));
              var rows = query.executeQuery()) {
             if (!rows.next()) throw failure(STORAGE_UNAVAILABLE);
             String uuid = rows.getString("store_uuid");
@@ -266,8 +278,8 @@ public final class RuntimeBudgetBindingService {
         }
     }
 
-    private static void write(Connection connection, StoreReceipt receipt) throws SQLException {
-        try (var update = connection.prepareStatement("UPDATE runtime_provider_budget_binding SET binding_state = ?, store_uuid = ?,"
+    private void write(Connection connection, StoreReceipt receipt) throws SQLException {
+        try (var update = connection.prepareStatement("UPDATE " + account.table + " SET binding_state = ?, store_uuid = ?,"
             + " approval_id = ?, allocation_fingerprint = ? WHERE singleton_id = 1")) {
             update.setString(1, receipt.state().name()); update.setString(2, receipt.storeUuid().toString());
             update.setString(3, receipt.approvalId()); update.setString(4, receipt.runtimeFingerprint());

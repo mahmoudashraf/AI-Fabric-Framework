@@ -101,6 +101,11 @@
         <!-- RAG + vector DB (dev default) -->
         <dependency>
             <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-reranker-cohere</artifactId>
+            <version>${ai-fabric.framework.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.loom-ai-labs</groupId>
             <artifactId>ai-fabric-rag</artifactId>
         </dependency>
         <dependency>

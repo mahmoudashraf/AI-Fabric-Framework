@@ -81,6 +81,12 @@ class DeploymentOperationApprovalIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository targetProfiles;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository sourceArtifacts;
+
     @Test
     void authorizedOperatorAppliesDirectlyWithoutManualApproval() throws Exception {
         authenticateAdmin();
@@ -106,6 +112,7 @@ class DeploymentOperationApprovalIntegrationTest {
 
         Cookie adminSession = login("admin@example.com", "AdminPass123!");
         Cookie operatorSession = login("approval-operator@example.com", "OperatorPass123!");
+        var reviewed = ReviewedRuntimeApplyFixture.create(objectMapper, targetProfiles, sourceArtifacts);
 
         mockMvc.perform(put("/api/deployments/{deploymentId}/guardrails", deployment.id())
                 .cookie(adminSession)
@@ -121,6 +128,8 @@ class DeploymentOperationApprovalIntegrationTest {
             .andExpect(jsonPath("$.approvalRequiredForDelete", is(false)));
 
         mockMvc.perform(post("/api/deployments/{deploymentId}/apply/{versionId}", deployment.id(), version.id())
+                .param("targetProfileId", reviewed.targetProfileId())
+                .param("sourceArtifactId", reviewed.sourceArtifactId())
                 .cookie(operatorSession))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status", is("APPLY_REQUESTED")));

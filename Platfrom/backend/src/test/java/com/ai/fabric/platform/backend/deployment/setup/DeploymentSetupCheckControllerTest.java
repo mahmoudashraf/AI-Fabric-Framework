@@ -21,6 +21,8 @@ class DeploymentSetupCheckControllerTest {
     @Test void methodSecurityAdmitsConsoleRolesAndRejectsMachineRoles() {
         try (var context = new AnnotationConfigApplicationContext()) {
             var service = mock(DeploymentSetupCheckService.class);
+            context.registerBean(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.class,
+                () -> mock(com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.class));
             context.register(Security.class); context.registerBean(DeploymentSetupCheckService.class, () -> service);
             context.register(DeploymentSetupCheckController.class); context.refresh();
             var controller = context.getBean(DeploymentSetupCheckController.class);

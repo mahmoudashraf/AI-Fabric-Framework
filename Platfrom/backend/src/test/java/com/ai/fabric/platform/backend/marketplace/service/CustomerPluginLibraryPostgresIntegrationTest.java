@@ -40,6 +40,6 @@ class CustomerPluginLibraryPostgresIntegrationTest extends CustomerPluginLibrary
             assertThat(jdbc.queryForObject("select catalogue_audience from platform_marketplace_plugins where id = ?", String.class, id)).isEqualTo("CUSTOMER");
             assertThat(jdbc.queryForObject("select adapter_contract from platform_marketplace_plugins where id = ?", String.class, id)).isEqualTo("HTTP_JSON");
         }
-        assertThat(jdbc.queryForObject("select max(version::numeric) from flyway_schema_history where success = true and version ~ '^[0-9]+$'", Integer.class)).isEqualTo(237);
+        assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history where success = true and version = '237'", Integer.class)).isEqualTo(1);
     }
 }

@@ -22,6 +22,18 @@ public class ProviderUsageRuntimeArtifactGate {
         requireArtifact(release);
     }
 
+    public void requireReranking(DeploymentReleaseEntity release) {
+        var artifact = requireArtifact(release);
+        var manifest = manifests.normalize(manifests.read(artifact.getCapabilityManifestJson())).manifest();
+        if (!contains(manifest.path("capabilities"), "deployment-local-reranking-budget-v1")
+            || !contains(manifest.path("capabilities"), "shared-profiled-retrieval-v1")
+            || !contains(manifest.path("endpointClasses"), "reranking-budget-administration")
+            || !contains(manifest.path("migrationIds"), "reranking-budget-binding-v1")
+            || !contains(manifest.path("verificationPackIds"), "reranking-hard-limit-v1")) {
+            throw new IllegalStateException("RERANKING_GUARDED_RUNTIME_ARTIFACT_REQUIRED");
+        }
+    }
+
     public DeploymentSourceArtifactEntity requireArtifact(DeploymentReleaseEntity release) {
         if (release == null || release.getSourceArtifactId() == null || release.getSourceArtifactId().isBlank()) fail();
         var artifact = artifacts.resolve(release);

@@ -47,8 +47,34 @@ jobs:
       - name: Verify and install private provider accounting modules
         run: mvn -B -ntp -f ai-fabric-product/pom.xml -pl ai-fabric-provider-budget-openai -am install
 
+      - name: Set up pinned worker Python line
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install hash-locked evaluation worker dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libseccomp2
+          python -m venv "${RUNNER_TEMP}/loomai-ragas"
+          "${RUNNER_TEMP}/loomai-ragas/bin/pip" install --require-hashes --no-deps --only-binary=:all: \
+            -r ai-infrastructure-module/ai-fabric-runtime/ragas-worker/requirements.lock
+          "${RUNNER_TEMP}/loomai-ragas/bin/pip" check
+
+      - name: Verify real library metrics and worker isolation without provider calls
+        working-directory: ai-infrastructure-module/ai-fabric-runtime/ragas-worker
+        env:
+          RAGAS_DO_NOT_TRACK: 'true'
+          HF_HUB_OFFLINE: '1'
+          HF_DATASETS_OFFLINE: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          OMP_NUM_THREADS: '1'
+        run: '"${RUNNER_TEMP}/loomai-ragas/bin/python" -B -m unittest -v test_worker'
+
       - name: Verify runtime against released framework dependencies
-        run: mvn -B -ntp -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -am test
+        run: >-
+          mvn -B -ntp -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -am
+          -Dloomai.ragas.python="${RUNNER_TEMP}/loomai-ragas/bin/python" test
 
   publish:
     name: Build and publish immutable runtime image

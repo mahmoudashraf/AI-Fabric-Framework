@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
 
 import type { Document } from "@/types";
 import { formatFieldName } from "@/utils";
-import { sourceContentPreview } from "@/sourcePresentation";
+import { sourceContentPreview, sourceScoreLabel } from "@/sourcePresentation";
 import { getWidgetConfig } from "@/config";
 import { isEnhancedWorkspaceStyle } from "@/stylePresets";
 
@@ -187,7 +187,7 @@ export function DocumentsView({
                     </p>
                     <details className="mxw-source-technical" open={enhancedStyle ? undefined : true} onClick={enhancedStyle ? event => event.stopPropagation() : undefined}>
                     <summary hidden={!enhancedStyle}>Technical details</summary>
-                    {(doc.similarity || doc.score) && (
+                    {(doc.similarity != null || doc.score != null) && (
                       <div className="mt-3">
                         <div className="flex items-center gap-2">
                           <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
@@ -195,7 +195,7 @@ export function DocumentsView({
                             variant="outline"
                             className="text-[10px] bg-gradient-to-r from-yellow-100 to-orange-100 border-yellow-300 text-yellow-800 font-semibold"
                           >
-                            {((doc.similarity || doc.score) * 100).toFixed(1)}% Match
+                            {sourceScoreLabel(doc)}
                           </Badge>
                         </div>
                       </div>

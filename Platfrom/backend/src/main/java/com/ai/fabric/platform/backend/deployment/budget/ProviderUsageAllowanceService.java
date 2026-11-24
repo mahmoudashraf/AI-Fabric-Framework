@@ -290,15 +290,32 @@ public class ProviderUsageAllowanceService {
     }
 
     /** Worker-only boundary; no caller limits, identity, credential, grant ID or ambient principal. */
+    boolean rerankingEnabledForRelease(String releaseId) {
+        text(releaseId, 64);
+        var release = new ProviderUsageAuthorizedReleaseReader(jdbc).release(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.READ);
+        var version = versions.findById(release.versionId()).orElseThrow(() -> missing("PROVIDER_USAGE_VERSION_NOT_FOUND"));
+        if (!release.deploymentId().equals(version.getDeploymentId())) throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_SCOPE_CHANGED");
+        return RerankingUsageConfiguration.enabled(version.getProviderConfigJson(), codec);
+    }
+
     SafeAllowanceProjection prepareForAuthorizedRelease(String releaseId) {
+        return prepareForAuthorizedRelease(releaseId, ProviderUsagePurpose.GENERATION);
+    }
+
+    SafeAllowanceProjection prepareForAuthorizedRelease(String releaseId, ProviderUsagePurpose purpose) {
         text(releaseId, 64);
         return transaction(() -> {
-            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.PREPARE);
+            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.PREPARE, purpose);
             var version = versions.findById(authorized.versionId())
                 .orElseThrow(() -> missing("PROVIDER_USAGE_VERSION_NOT_FOUND"));
             var grant = grantForRelease(authorized);
-            ProviderUsageRuntimeProfile.require(grant.grant().binding(), grant.grant().rateCardReference());
-            ProviderUsageRuntimeConfiguration.require(version.getProviderConfigJson(), codec, grant.grant().rateCardReference());
+            if (purpose == ProviderUsagePurpose.GENERATION) {
+                ProviderUsageRuntimeProfile.require(grant.grant().binding(), grant.grant().rateCardReference());
+                ProviderUsageRuntimeConfiguration.require(version.getProviderConfigJson(), codec, grant.grant().rateCardReference());
+            } else {
+                ProviderUsageRuntimeProfile.requireReranking(grant.grant().binding(), grant.grant().rateCardReference());
+                RerankingUsageConfiguration.require(version.getProviderConfigJson(), codec, grant.grant().binding());
+            }
             var command = commandForRelease(authorized, grant);
             return allocateFinanciallyLocked(command, authorized.coreRelease(), grant,
                 authorized.deployment(), authorized.profile(), SYSTEM_ACTOR);
@@ -307,36 +324,50 @@ public class ProviderUsageAllowanceService {
 
     /** Planning/readback only. Missing allowance stays missing; this never debits or initializes. */
     Optional<SafeAllowanceProjection> findForAuthorizedRelease(String releaseId) {
+        return findForAuthorizedRelease(releaseId, ProviderUsagePurpose.GENERATION);
+    }
+
+    Optional<SafeAllowanceProjection> findForAuthorizedRelease(String releaseId, ProviderUsagePurpose purpose) {
         text(releaseId, 64);
         return transaction(() -> {
-            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.READ);
+            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.READ, purpose);
             return allocationForRelease(authorized).map(this::projection);
         });
     }
 
     SafeAllowanceProjection markInitializedForAuthorizedRelease(String releaseId, UUID storeUuid, String runtimeFingerprint) {
-        return transitionForRelease(releaseId, storeUuid, runtimeFingerprint, false);
+        return transitionForRelease(releaseId, storeUuid, runtimeFingerprint, false, ProviderUsagePurpose.GENERATION);
     }
 
     SafeAllowanceProjection markActiveForAuthorizedRelease(String releaseId, UUID storeUuid, String runtimeFingerprint) {
-        return transitionForRelease(releaseId, storeUuid, runtimeFingerprint, true);
+        return transitionForRelease(releaseId, storeUuid, runtimeFingerprint, true, ProviderUsagePurpose.GENERATION);
     }
 
-    private SafeAllowanceProjection transitionForRelease(String releaseId, UUID storeUuid, String runtimeFingerprint, boolean activate) {
+    SafeAllowanceProjection markInitializedForAuthorizedRelease(String releaseId, UUID storeUuid, String fingerprint, ProviderUsagePurpose purpose) {
+        return transitionForRelease(releaseId, storeUuid, fingerprint, false, purpose);
+    }
+
+    SafeAllowanceProjection markActiveForAuthorizedRelease(String releaseId, UUID storeUuid, String fingerprint, ProviderUsagePurpose purpose) {
+        return transitionForRelease(releaseId, storeUuid, fingerprint, true, purpose);
+    }
+
+    private SafeAllowanceProjection transitionForRelease(String releaseId, UUID storeUuid, String runtimeFingerprint, boolean activate,
+                                                         ProviderUsagePurpose purpose) {
         text(releaseId, 64); sha(runtimeFingerprint); if (storeUuid == null) throw invalid();
         return transaction(() -> {
-            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.INITIALIZE);
+            var authorized = authorizedRelease(releaseId, ProviderUsageAuthorizedReleaseReader.Phase.INITIALIZE, purpose);
             var allocation = allocationForRelease(authorized).orElseThrow(() -> missing("PROVIDER_USAGE_ALLOCATION_NOT_FOUND"));
             return transitionLocked(allocation.terms().scope(), storeUuid, runtimeFingerprint, activate, SYSTEM_ACTOR);
         });
     }
 
-    private AuthorizedRelease authorizedRelease(String releaseId, ProviderUsageAuthorizedReleaseReader.Phase phase) {
+    private AuthorizedRelease authorizedRelease(String releaseId, ProviderUsageAuthorizedReleaseReader.Phase phase, ProviderUsagePurpose purpose) {
         var reader = new ProviderUsageAuthorizedReleaseReader(jdbc);
         var release = reader.release(releaseId, phase);
         var authorization = ProviderUsageAuthorizedReleaseReader.coreAuthorization(coreAuthorizations, releaseId)
             .orElseThrow(() -> conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_REQUIRED"));
-        if (ProviderUsageModeResolver.mode(authorization.providerUsageMode()) != ProviderUsageModeResolver.Mode.FUNDED)
+        if (purpose == ProviderUsagePurpose.GENERATION
+            && ProviderUsageModeResolver.mode(authorization.providerUsageMode()) != ProviderUsageModeResolver.Mode.FUNDED)
             throw conflict("PROVIDER_USAGE_FUNDED_MODE_REQUIRED");
         var deployment = ownedDeployment(authorization.deploymentId(), authorization.customerId());
         var profile = targets.findById(authorization.targetProfileId())
@@ -349,7 +380,10 @@ public class ProviderUsageAllowanceService {
             throw conflict("PROVIDER_USAGE_CORE_AUTHORIZATION_SCOPE_CHANGED");
         }
         authorization.requireScope(deployment, release.entity());
-        return new AuthorizedRelease(authorization.context(), authorization.versionId(), deployment, profile);
+        if (purpose == ProviderUsagePurpose.RERANKING && !RerankingUsageConfiguration.enabled(version.getProviderConfigJson(), codec)) {
+            throw conflict("RERANKING_NOT_ENABLED_IN_AUTHORIZED_VERSION");
+        }
+        return new AuthorizedRelease(authorization.context(), authorization.versionId(), deployment, profile, purpose);
     }
 
     private GrantRow grantForRelease(AuthorizedRelease authorized) {
@@ -357,6 +391,7 @@ public class ProviderUsageAllowanceService {
         // An ACK extends only this already charged allocation, never the grant's unused credit.
         var existing = jdbc.query("SELECT approval_id FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=? ORDER BY approval_id",
             (rs, index) -> rs.getString(1), authorized.deployment().getId(), authorized.profile().getId());
+        existing = existing.stream().filter(id -> authorized.purpose().matches(allocation(id, false).terms().binding())).toList();
         if (existing.size() > 1) throw conflict("PROVIDER_USAGE_ALLOCATION_AMBIGUOUS");
         if (existing.size() == 1) {
             var allocation = allocation(existing.getFirst(), false);
@@ -371,7 +406,8 @@ public class ProviderUsageAllowanceService {
         }
         var grants = jdbc.query("SELECT id FROM provider_usage_grants WHERE customer_id=? AND target_profile_id=? AND environment_name=? AND lifecycle_status='ACTIVE' ORDER BY id",
             (rs, index) -> rs.getString(1), authorized.deployment().getCustomerId(), authorized.profile().getId(), authorized.profile().getEnvironmentName())
-            .stream().map(this::requireActiveGrant).filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
+            .stream().map(this::requireActiveGrant).filter(row -> authorized.purpose().matches(row.grant().binding()))
+            .filter(row -> clock.instant().isBefore(row.grant().expiresAt())).toList();
         if (grants.isEmpty()) throw conflict("PROVIDER_USAGE_REVIEWED_GRANT_REQUIRED");
         if (grants.size() != 1) {
             // Automatic allocation consumes a whole grant, not the residual balance of an earlier deployment.
@@ -430,12 +466,17 @@ public class ProviderUsageAllowanceService {
 
     /** Staff/internal lookup only. Never guess the latest grant if more than one allocation exists. */
     public Optional<SafeAllowanceProjection> findForDeployment(String deploymentId, String targetProfileId) {
+        return findForDeployment(deploymentId, targetProfileId, ProviderUsagePurpose.GENERATION);
+    }
+
+    Optional<SafeAllowanceProjection> findForDeployment(String deploymentId, String targetProfileId, ProviderUsagePurpose purpose) {
         staff(false); text(deploymentId, 64); text(targetProfileId, 64);
         return transaction(() -> {
             var deployment = deployments.findById(deploymentId).orElseThrow(() -> missing("PROVIDER_USAGE_DEPLOYMENT_NOT_FOUND"));
             deploymentAccess.requireDeploymentOperatorAccess(deployment);
             var ids = jdbc.query("SELECT approval_id FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=? ORDER BY approval_id",
                 (rs, index) -> rs.getString(1), deploymentId, targetProfileId);
+            ids = ids.stream().filter(id -> purpose.matches(allocation(id, false).terms().binding())).toList();
             if (ids.size() > 1) throw conflict("PROVIDER_USAGE_ALLOCATION_AMBIGUOUS");
             if (ids.isEmpty()) return Optional.empty();
             var row = allocation(ids.getFirst(), false);
@@ -474,6 +515,11 @@ public class ProviderUsageAllowanceService {
         var secret = secrets.resolve(deploymentId, binding.secretPurpose(), binding.managedSecretRef());
         if (secret == null || !secret.resolved() || secret.value() == null || secret.value().isBlank())
             throw conflict("PROVIDER_USAGE_CREDENTIAL_UNRESOLVED");
+        if ("RERANKING_API_KEY".equals(binding.secretPurpose())
+            && (!"REQUIRE_OVERRIDE".equals(secret.summary().bindingMode())
+                || !"DEPLOYMENT_OVERRIDE".equals(secret.summary().scopeType()) || secret.summary().fallbackUsed())) {
+            throw conflict("RERANKING_OWNED_CREDENTIAL_REQUIRED");
+        }
         return ProviderUsageAllowanceCodec.sha256(secret.value());
     }
 
@@ -595,5 +641,5 @@ public class ProviderUsageAllowanceService {
     private record AllocationRow(AllocationTerms terms, String fingerprint, InitializationState state, UUID storeUuid, String initializationFingerprint) { }
     private record AuditActor(String id, String role) { }
     private record AuthorizedRelease(CoreReleaseContext coreRelease, String versionId,
-                                     DeploymentEntity deployment, DeploymentTargetProfileEntity profile) { }
+                                     DeploymentEntity deployment, DeploymentTargetProfileEntity profile, ProviderUsagePurpose purpose) { }
 }

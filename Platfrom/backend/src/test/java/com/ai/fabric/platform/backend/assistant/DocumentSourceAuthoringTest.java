@@ -34,4 +34,27 @@ class DocumentSourceAuthoringTest {
         assertThat(updated.at("/contributions/datasets/0/documentPolicy/initialIndexRequiresConfirmation").asBoolean()).isTrue();
         assertThat(original.toString()).doesNotContain(".pdf");
     }
+    @Test void aiCannotInventOrChangeReviewedEvidenceLabelsButMayPreserveThem() throws Exception {
+        var documents = mock(DeploymentDocumentKnowledgeOperationsService.class);
+        var handler = new DocumentSourceAuthoring(documents, mock(DeploymentTargetContextService.class), mapper);
+        var configuration = mapper.readTree("""
+            {"questions":[{"id":"q1","question":"Policy?","reviewed":false,
+              "relevanceJudgments":[{"sourceId":"source","sourceVersion":1,"evidenceId":"chunk-a","grade":2,"reviewed":true}]}]}
+            """);
+        var snapshot = new AuthoringResourceService.Snapshot("owner", "document", configuration, mapper.createObjectNode().put("relevanceJudgmentsSupported", true), java.util.List.of("/questions"), "1", true, "");
+        var invented = configuration.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode)invented.at("/questions/0/relevanceJudgments/0")).put("evidenceId", "invented");
+        assertThatThrownBy(() -> handler.check("dep|stage|release|source", snapshot, invented)).hasMessageContaining("cannot mark expected evidence as reviewed");
+        var changed = configuration.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode)changed.at("/questions/0")).put("question", "A different question?");
+        assertThatThrownBy(() -> handler.check("dep|stage|release|source", snapshot, changed)).hasMessageContaining("cannot mark expected evidence as reviewed");
+        verifyNoInteractions(documents);
+        when(documents.savePreparation(any(), eq("source"), any(), eq(true)))
+            .thenReturn(new DeploymentDocumentKnowledgeOperationsService.RuntimeResponse(200, mapper.createObjectNode().put("valid", true)));
+        assertThat(handler.check("dep|stage|release|source", snapshot, configuration).path("valid").asBoolean()).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode)invented.at("/questions/0/relevanceJudgments/0")).put("reviewed", false);
+        assertThat(handler.check("dep|stage|release|source", snapshot, invented).path("valid").asBoolean()).isTrue();
+        var legacy = new AuthoringResourceService.Snapshot("owner", "document", configuration, mapper.createObjectNode(), java.util.List.of("/questions"), "1", true, "");
+        assertThatThrownBy(() -> handler.check("dep|stage|release|source", legacy, invented)).hasMessageContaining("does not support expected evidence");
+    }
 }

@@ -698,6 +698,17 @@ public class RailwayProvisioningPlanService {
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeOrchestrationModeOverrides(runtimeEnv, providerConfig);
+        KnowledgeRetrievalSettings.runtimeEnvironment(providerConfig, readJson(version.getPromptConfigJson())).forEach((name, value) ->
+            runtimeEnv.add(new RailwayEnvVarSummary(name, value)));
+        if (KnowledgeRetrievalSettings.rerankingEnabled(providerConfig)) {
+            var rerankingKey = deploymentProviderSecretResolutionService.resolve(deployment.getId(), "RERANKING_API_KEY", null);
+            if (rerankingKey == null || !rerankingKey.resolved() || rerankingKey.value() == null || rerankingKey.value().isBlank()
+                || !"REQUIRE_OVERRIDE".equals(rerankingKey.summary().bindingMode())
+                || !"DEPLOYMENT_OVERRIDE".equals(rerankingKey.summary().scopeType()) || rerankingKey.summary().fallbackUsed()) {
+                throw new IllegalStateException("Configure a deployment-owned Cohere reranking key in Keys & secrets before applying.");
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_RERANKING_API_KEY", "${secret:" + rerankingKey.primarySecretName() + "}"));
+        }
         addRuntimeDecisionRecovery(runtimeEnv, providerConfig);
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig, behaviorConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(

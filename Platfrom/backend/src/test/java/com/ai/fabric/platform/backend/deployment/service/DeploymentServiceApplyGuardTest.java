@@ -391,6 +391,56 @@ class DeploymentServiceApplyGuardTest {
         return artifact;
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"shared-profiled-retrieval-v1", "learned-reranking-v1", "deployment-local-reranking-budget-v1"})
+    void requestedSearchSupportIsCheckedBeforeAnApplyCanQueue(String missingCapability) throws Exception {
+        var artifact = prepareTokenApply();
+        version.setProviderConfigJson("""
+            {"knowledgeRetrieval":{"mode":"DENSE","reranking":{"enabled":true,
+              "provider":"cohere","model":"rerank-v5.0-fast","externalProcessingApproved":true}}}
+            """);
+        var manifest = (com.fasterxml.jackson.databind.node.ObjectNode)objectMapper.readTree(artifact.getCapabilityManifestJson());
+        var capabilities = (com.fasterxml.jackson.databind.node.ArrayNode)manifest.path("capabilities");
+        for (String capability : java.util.List.of("shared-profiled-retrieval-v1", "learned-reranking-v1", "deployment-local-reranking-budget-v1"))
+            if (!capability.equals(missingCapability)) capabilities.add(capability);
+        var normalized = capabilityManifestService.normalize(manifest);
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+
+        assertThatThrownBy(() -> service.applyVersion("dep-123", "ver-123", null, "target-staging", "runtime"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining(missingCapability);
+        verify(releaseRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(deploymentReleaseExecutionService, deploymentOperationApprovalService, platformAuditService);
+    }
+
+    @Test
+    void compatibleSearchArtifactPassesTheGateAndDisabledProfilesKeepTheirSavedSettings() throws Exception {
+        var artifact = prepareTokenApply();
+        version.setProviderConfigJson("""
+            {"knowledgeRetrieval":{"mode":"DENSE","reranking":{"enabled":true,
+              "provider":"cohere","model":"rerank-v5.0-fast","externalProcessingApproved":true}}}
+            """);
+        var manifest = (com.fasterxml.jackson.databind.node.ObjectNode)objectMapper.readTree(artifact.getCapabilityManifestJson());
+        var capabilities = (com.fasterxml.jackson.databind.node.ArrayNode)manifest.path("capabilities");
+        capabilities.add("shared-profiled-retrieval-v1").add("learned-reranking-v1").add("deployment-local-reranking-budget-v1");
+        var normalized = capabilityManifestService.normalize(manifest);
+        artifact.setCapabilityManifestJson(normalized.manifest().toString());
+        artifact.setCapabilityManifestHash(normalized.hash());
+
+        org.assertj.core.api.Assertions.assertThatCode(() -> ReflectionTestUtils.invokeMethod(service,
+            "requireBehaviorReleaseSupport", deployment, version, "runtime",
+            deploymentProvisioningService.selectedTargetProfile("target-staging"))).doesNotThrowAnyException();
+
+        String disabled = "{\"knowledgeRetrieval\":{\"enabled\":false,\"mode\":\"HYBRID\",\"savedFutureSetting\":42}}";
+        version.setProviderConfigJson(disabled);
+        org.assertj.core.api.Assertions.assertThatCode(() -> ReflectionTestUtils.invokeMethod(service,
+            "requireBehaviorReleaseSupport", deployment, version, null,
+            deploymentProvisioningService.selectedTargetProfile("target-staging"))).doesNotThrowAnyException();
+        assertThat(version.getProviderConfigJson()).isEqualTo(disabled);
+        verify(releaseRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(deploymentReleaseExecutionService, platformAuditService);
+    }
+
     @Test
     void newBrainRoutingDoesNotPresentAnExampleHostAsAnApprovedBusinessConnection() {
         var routing = (com.fasterxml.jackson.databind.JsonNode) ReflectionTestUtils.invokeMethod(service, "defaultRoutingConfig");

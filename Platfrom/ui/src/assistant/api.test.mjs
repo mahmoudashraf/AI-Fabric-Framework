@@ -9,8 +9,8 @@ const calls = [], exports = {}
 new Function('require', 'exports', code)(name => name === '../api/platformApi' ? { platformRequest: async (...args) => { calls.push(args); return {} } } : { parseExactJson: JSON.parse, stringifyExactJson: JSON.stringify }, exports)
 
 test('session creation projects formal identity only, never page context', async () => {
-  await exports.assistantApi.create({ resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'MODELS', editorContext: { section: 'SEARCH' } })
-  assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'MODELS' })
+  await exports.assistantApi.create({ resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'SEARCH', editorContext: { section: 'SEARCH' } })
+  assert.deepEqual(JSON.parse(calls.at(-1)[1].body), { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'brain-37', task: 'SEARCH' })
 })
 test('PREPARE sends empty or exact hint plus per-turn context with existing idempotency', async () => {
   for (const query of ['', '  Focus on read endpoints\n']) {

@@ -2218,6 +2218,7 @@ export type DocumentOperationResult = {
 
 export type DocumentRetrievalProof = {
   query: string
+  diagnostics?: Record<string, unknown>
   evidenceCount: number
   evidence: Array<{
     entityId: string
@@ -5840,32 +5841,41 @@ export function previewDocumentSource(target: DeploymentTargetReference, sourceI
   )
 }
 
+export type DocumentRelevanceJudgment = { sourceId: string; sourceVersion: number; evidenceId: string; grade: number; reviewed: boolean }
 export type DocumentPreparationConfig = {
   processing: { chunkTokens: number; overlapTokens: number; minChunkChars: number; minEmbedChars: number; ocrMode: 'AUTO' | 'ALWAYS' | 'OFF'; ocrLanguage: string; ocrDpi: number }
   evaluationOptions: { maxQuestions: number; maxDocuments: number; maxContextCharacters: number; similarityThreshold: number; answerMaxTokens: number }
-  questions: { id: string; question: string; referenceAnswer: string; reviewed: boolean }[]
+  questions: { id: string; question: string; referenceAnswer: string; reviewed: boolean; relevanceJudgments?: DocumentRelevanceJudgment[] }[]
 }
 export type DocumentPreparationSnapshot = {
   sourceId: string; revision: number; sourceVersion: number; activeSourceVersion: number | null
   configuration: DocumentPreparationConfig; ocrLanguages: string[]; ocrAvailable: boolean; reindexRequired: boolean
+  evaluationVariants?: DocumentEvaluationVariant[]
+  relevanceLabelsSupported?: boolean
+  searchConfiguration?: { owner: 'BRAIN'; sharedRetrievalAvailable: boolean; readinessStatus: string
+    profile?: { mode: string; maxResults: number; maxContextCharacters: number } | null
+    capabilities?: { denseReady: boolean; lexicalReady: boolean; lexicalAlgorithm: string; indexGeneration: string; reason: string } | null }
 }
+export type DocumentEvaluationVariant = 'CONFIGURED' | 'DENSE_BASELINE' | 'CONFIGURED_WITHOUT_RERANKING'
 export type DocumentEvaluationRun = {
   id: string; sourceId: string; status: string; createdAt: string; finishedAt?: string; releaseId: string
   sourceVersion: number; candidateSourceVersion: number; reindexRequired: boolean; providerId: string; rubricVersion: string
   modelCalls: number; maxModelCalls: number; syntheticReferences: boolean; configuration: DocumentPreparationConfig
   cases: { id: string; question: string; referenceAnswer: string; referenceReviewed: boolean; status: string; error?: string; answer?: string
+    rankingMetrics?: Record<string, { status: string; score: number | null; explanation: string }>
     retrieval?: DocumentRetrievalProof; evaluatedExcerpts?: { id: string; sourceId: string; content: string }[]
     evaluation?: { providerId: string; rubricVersion: string; metrics: Record<string, { status: string; score: number | null; explanation: string }> }
   }[]
-  usage: unknown[]
+  retrievalVariant?: DocumentEvaluationVariant; comparisonFingerprint?: string; modelBindings?: Record<string, string>
+  usage: { kind?: string; model?: string; provider?: string; [key: string]: unknown }[]
 }
 const preparationPath = (target: DeploymentTargetReference, sourceId: string) => `${documentOperationsPath(target)}/sources/${encodeURIComponent(sourceId)}`
 export const fetchDocumentPreparation = (target: DeploymentTargetReference, sourceId: string) => request<DocumentPreparationSnapshot>(`${preparationPath(target, sourceId)}/preparation`)
 export const saveDocumentPreparation = (target: DeploymentTargetReference, sourceId: string, expectedRevision: number, configuration: DocumentPreparationConfig) =>
   request<DocumentPreparationSnapshot>(`${preparationPath(target, sourceId)}/preparation`, { method: 'POST', body: JSON.stringify({ expectedRevision, configuration }) })
 export const fetchDocumentEvaluations = (target: DeploymentTargetReference, sourceId: string) => request<DocumentEvaluationRun[]>(`${preparationPath(target, sourceId)}/evaluations`)
-export const startDocumentEvaluation = (target: DeploymentTargetReference, sourceId: string, expectedRevision: number, operationKey: string) =>
-  request<DocumentEvaluationRun>(`${preparationPath(target, sourceId)}/evaluations`, { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: JSON.stringify({ expectedRevision }) })
+export const startDocumentEvaluation = (target: DeploymentTargetReference, sourceId: string, expectedRevision: number, operationKey: string, retrievalVariant: DocumentEvaluationVariant = 'CONFIGURED') =>
+  request<DocumentEvaluationRun>(`${preparationPath(target, sourceId)}/evaluations`, { method: 'POST', headers: { 'Idempotency-Key': operationKey }, body: JSON.stringify({ expectedRevision, ...(retrievalVariant === 'CONFIGURED' ? {} : { retrievalVariant }) }) })
 export const cancelDocumentEvaluation = (target: DeploymentTargetReference, sourceId: string, id: string) =>
   request<DocumentEvaluationRun>(`${preparationPath(target, sourceId)}/evaluations/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' })
 

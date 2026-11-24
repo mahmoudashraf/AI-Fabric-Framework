@@ -405,6 +405,58 @@ abstract class ProviderUsageAllowanceContract {
         ProviderUsageCoreReleaseTestSchema.authorize(jdbc, deployment, "FUNDED");
     }
 
+    @Test void generationAndRerankingKeepSeparateGrantsKeysAllocationsAndReadbacks() throws Exception {
+        configureReranking();
+        service.approveGrant(grant()); service.approveGrant(rerankingGrant()); authorizeRelease("deployment");
+        var generation = service.prepareForAuthorizedRelease("release-deployment");
+        var ranking = service.prepareForAuthorizedRelease("release-deployment", ProviderUsagePurpose.RERANKING);
+        assertThat(ranking.approvalId()).isNotEqualTo(generation.approvalId());
+        assertThat(ranking.credentialSha256()).isEqualTo(ProviderUsageAllowanceCodec.sha256("separate-cohere-test-key"));
+        assertThat(service.findForDeployment("deployment", "target")).contains(generation);
+        assertThat(service.findForDeployment("deployment", "target", ProviderUsagePurpose.RERANKING)).contains(ranking);
+        assertThat(service.findForAuthorizedRelease("release-deployment")).contains(generation);
+        assertThat(service.findForAuthorizedRelease("release-deployment", ProviderUsagePurpose.RERANKING)).contains(ranking);
+        assertThat(service.readQuota("grant").lifetimeAllocated()).isEqualTo(grant().credits());
+        assertThat(service.readQuota("ranking-grant").lifetimeAllocated()).isEqualTo(rerankingGrant().credits());
+        var initialized = service.markInitializedForAuthorizedRelease("release-deployment", UUID.randomUUID(),
+            ranking.runtimeAllocationFingerprint(), ProviderUsagePurpose.RERANKING);
+        service.markActiveForAuthorizedRelease("release-deployment", initialized.storeUuid(),
+            ranking.runtimeAllocationFingerprint(), ProviderUsagePurpose.RERANKING);
+        assertThat(service.findForAuthorizedRelease("release-deployment")).contains(generation);
+    }
+
+    @Test void rerankingHasNoGlobalKeyFallbackAndCannotReuseGenerationCredit() throws Exception {
+        configureReranking(); service.approveGrant(grant()); authorizeRelease("deployment");
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment", ProviderUsagePurpose.RERANKING))
+            .hasMessageContaining("REVIEWED_GRANT_REQUIRED");
+        service.approveGrant(rerankingGrant());
+        var fallback = new DeploymentSecretResolutionSummary("deployment", "RERANKING_API_KEY", "Reranking", false,
+            true, "MANAGED_DEFAULT", "GLOBAL", "PLATFORM", "shared-key", null, true, "RESOLVED", "");
+        when(secrets.resolve("deployment", "RERANKING_API_KEY", null)).thenReturn(
+            new DeploymentProviderSecretResolutionService.ResolvedSecretValue(fallback, "must-not-use", null));
+        assertThatThrownBy(() -> service.prepareForAuthorizedRelease("release-deployment", ProviderUsagePurpose.RERANKING))
+            .hasMessageContaining("RERANKING_OWNED_CREDENTIAL_REQUIRED");
+        assertThat(service.readQuota("ranking-grant").lifetimeAllocated()).isEqualTo(new Limits(0, 0, 0));
+    }
+
+    private ProviderUsageGrant rerankingGrant() {
+        return new ProviderUsageGrant("ranking-grant", "ranking-campaign", "customer", "target", "staging",
+            new Limits(0, 1_000_000, 100_000_000), NOW.plusSeconds(3600),
+            new ProviderBinding("cohere", List.of("rerank-v5.0-fast"), "RERANKING_API_KEY", null),
+            ProviderUsageRuntimeProfile.RERANKING_RATE_CARD, "explicit-ranking-approval", "fixture-payer");
+    }
+
+    private void configureReranking() throws Exception {
+        var config = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(DECLARED_PROVIDER_CONFIG);
+        config.putObject("knowledgeRetrieval").put("mode", "DENSE").putObject("reranking")
+            .put("enabled", true).put("provider", "cohere").put("model", "rerank-v5.0-fast").put("externalProcessingApproved", true);
+        versionRows.get("version-deployment").setProviderConfigJson(config.toString());
+        var summary = new DeploymentSecretResolutionSummary("deployment", "RERANKING_API_KEY", "Reranking", false,
+            true, "REQUIRE_OVERRIDE", "DEPLOYMENT_OVERRIDE", "CUSTOMER", "owned-cohere-key", null, false, "RESOLVED", "");
+        when(secrets.resolve("deployment", "RERANKING_API_KEY", null)).thenReturn(
+            new DeploymentProviderSecretResolutionService.ResolvedSecretValue(summary, "separate-cohere-test-key", null));
+    }
+
     // Immutable pre-extraction financial records are fixtures, not an alternate issuance API.
     SafeAllowanceProjection seedHistoricalAllocation(AllocationCommand command) {
         var grant = codec.read(jdbc.queryForObject("SELECT payload_json FROM provider_usage_grants WHERE id=?",

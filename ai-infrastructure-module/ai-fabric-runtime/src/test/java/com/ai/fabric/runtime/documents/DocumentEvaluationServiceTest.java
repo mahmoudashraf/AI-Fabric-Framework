@@ -31,11 +31,13 @@ class DocumentEvaluationServiceTest {
         when(repository.findById(anyString())).thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0))));
         when(turns.openDocumentEvaluation(identity)).thenReturn(turn);when(turn.chatReceipt()).thenReturn(Optional.empty());when(turn.interruption()).thenReturn(Optional.empty());
         var profile=new DocumentPreparation(null,null,List.of(new DocumentPreparation.Question("q1","What is the policy?","Thirty days",false)));
-        when(documents.preparation(identity,"source")).thenReturn(new DocumentKnowledgeService.PreparationSnapshot("source",3,2,1L,profile,List.of("eng"),true,true));
+        when(documents.preparation(identity,"source")).thenReturn(new DocumentKnowledgeService.PreparationSnapshot("source",3,2,1L,profile,List.of("eng"),true,true,
+            new DocumentKnowledgeService.SearchConfiguration("BRAIN",true,null,"NOT_CHECKED",null)));
         when(documents.activePreparation(identity,"source")).thenReturn(DocumentPreparation.defaults());
         when(documents.retrieveSource(eq(identity),eq("source"),anyString(),any())).thenReturn(new DocumentKnowledgeService.RetrievalProof("What is the policy?",1,List.of(
             new DocumentKnowledgeService.RetrievalEvidence("entity","source",1L,"Policy","chunk",0,"The policy allows thirty days.",.8,Map.of())),1));
         when(models.answer(eq(identity),anyString(),anyList(),anyInt(),any())).thenReturn("The policy allows thirty days [chunk].");
+        when(models.provenance()).thenReturn(Map.of("generationProvider", "fixture", "generationModel", "fixture-model"));
         RagEvaluationProvider judge=new RagEvaluationProvider(){public String id(){return "fixture";}public RagEvaluationResult evaluate(RagEvaluationSample sample){
             assertThat(sample.evidence()).singleElement().satisfies(e -> assertThat(e.content()).contains("thirty days"));
             return new RagEvaluationResult(id(),"fixture-v1",Map.of("faithfulness",new RagEvaluationResult.Metric(RagEvaluationResult.Metric.Status.SCORED,.9,"Supported by the excerpt.")));}};
@@ -50,6 +52,7 @@ class DocumentEvaluationServiceTest {
         assertThat(result.path("sourceVersion").asLong()).isEqualTo(1);assertThat(result.path("candidateSourceVersion").asLong()).isEqualTo(2);
         assertThat(result.path("indexedProcessing").path("chunkTokens").asInt()).isEqualTo(800);
         assertThat(result.path("cases").get(0).path("answer").asText()).contains("thirty days");
+        assertThat(result.at("/cases/0/evaluation/metrics/recallAtK/status").asText()).isEqualTo("NOT_SCORED");
         verify(turns).openDocumentEvaluation(identity);verify(turn).close();
     }
     @Test void startsWithoutTheOptionalLedgerAndUsesDeploymentProviderAccounting() throws Exception {
@@ -76,17 +79,54 @@ class DocumentEvaluationServiceTest {
         setup();when(turns.openDocumentEvaluation(identity)).thenThrow(new IllegalStateException("Budget denied"));
         var result=await(service.start(identity,"source",3).path("id").asText(),"FAILED");
         assertThat(result.path("accountingMode").asText()).isEqualTo("PROVIDER_BUDGET");
-        verifyNoInteractions(models);
+        verify(models, never()).answer(any(), anyString(), anyList(), anyInt(), any());
+    }
+
+    @Test void unavailableRagasCannotFallBackToTheHistoricalJudge() throws Exception {
+        setup(); service.close();
+        service = new DocumentEvaluationService(documents, boundaries, repository, models, mapper, List.of(), "ragas", java.time.Duration.ofDays(30));
+        service.setBudgetTurns(turns);
+        var started = service.start(identity, "source", 3);
+        var result = await(started.path("id").asText(), "FAILED");
+        assertThat(result.path("providerId").asText()).isEqualTo("ragas");
+        assertThat(result.path("rubricVersion").asText()).isEqualTo(com.ai.fabric.runtime.evaluation.RagasWorker.RUBRIC);
+        assertThat(result.path("modelCalls").asInt()).isZero();
+        assertThat(result.path("maxModelCalls").asInt()).isEqualTo(25);
+        verify(models, never()).answer(any(), anyString(), anyList(), anyInt(), any());
     }
     @Test void caseFailureRetainsTheAnswerAndNeverInventsAScore() throws Exception {
         setup();when(models.judge(eq(identity),any())).thenReturn(new RagEvaluationProvider(){public String id(){return "failing";}public RagEvaluationResult evaluate(RagEvaluationSample sample){throw new IllegalStateException("provider failed");}});
         var result=await(service.start(identity,"source",3).path("id").asText(),"PARTIAL");
         var item=result.path("cases").get(0);assertThat(item.path("answer").asText()).contains("thirty days");
         assertThat(item.has("evaluation")).isFalse();assertThat(item.path("phase").asText()).isEqualTo("EVALUATION");
+        assertThat(item.at("/rankingMetrics/recallAtK/status").asText()).isEqualTo("NOT_SCORED");
+    }
+    @Test void variantsShareAnExperimentFingerprintButNeverMultiplyOneRunOrMutateSavedSettings() throws Exception {
+        setup();
+        when(documents.retrieveSource(eq(identity), eq("source"), anyString(), any(), any())).thenAnswer(call ->
+            documents.retrieveSource(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3)));
+        var dense = await(service.start(identity, "source", 3, EvaluationRetrievalVariant.DENSE_BASELINE).path("id").asText(), "COMPLETED");
+        var configured = await(service.start(identity, "source", 3).path("id").asText(), "COMPLETED");
+        assertThat(dense.path("retrievalVariant").asText()).isEqualTo("DENSE_BASELINE");
+        assertThat(configured.path("retrievalVariant").asText()).isEqualTo("CONFIGURED");
+        assertThat(dense.path("comparisonFingerprint").asText()).isNotBlank()
+            .isEqualTo(configured.path("comparisonFingerprint").asText());
+        assertThat(dense.path("maxModelCalls").asInt()).isEqualTo(2);
+        assertThat(dense.path("cases").size()).isEqualTo(1);
+        verify(turns, times(2)).openDocumentEvaluation(identity);
+        verify(documents, never()).savePreparation(any(), anyString(), any());
     }
     @Test void staleSettingsRejectBeforeBudgetOrProviderCalls() {
         setup();assertThatThrownBy(() -> service.start(identity,"source",2)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         verifyNoInteractions(turns,models);
+    }
+    @Test void unsupportedVariantRejectsBeforeCreatingWorkOrSpendingAnAllowance() {
+        setup();var snapshot=documents.preparation(identity,"source");
+        when(documents.preparation(identity,"source")).thenReturn(new DocumentKnowledgeService.PreparationSnapshot("source",3,2,1L,
+            snapshot.configuration(),List.of("eng"),true,true));
+        assertThatThrownBy(() -> service.start(identity,"source",3,EvaluationRetrievalVariant.DENSE_BASELINE))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("cannot execute");
+        verifyNoInteractions(turns,models,repository);
     }
     @Test void stoppingAnOrphanUpdatesBothTheReceiptAndQueryableStatus() {
         setup();
@@ -100,13 +140,41 @@ class DocumentEvaluationServiceTest {
         assertThat(row.getStatus()).isEqualTo("INTERRUPTED");
         verifyNoInteractions(turns,models);
     }
+
+    @Test void historicalResultsKeepReleaseProvenanceButRemainOwnedByTheSameSourceAndTarget() {
+        setup();
+        var row = new DocumentEvaluationEntity(); row.setId("historical"); row.setSourceId("source");
+        row.setTenantId("tenant"); row.setCustomerId("customer"); row.setDeploymentId("brain"); row.setTargetProfileId("stage");
+        row.setReleaseId("previous-release"); row.setStatus("COMPLETED");
+        row.setResultJson("{\"status\":\"COMPLETED\",\"releaseId\":\"previous-release\"}"); rows.put(row.getId(), row);
+        assertThat(service.get(identity, "source", "historical").path("releaseId").asText()).isEqualTo("previous-release");
+        row.setTargetProfileId("production");
+        assertThatThrownBy(() -> service.get(identity, "source", "historical")).isInstanceOf(RuntimeException.class);
+        row.setTargetProfileId("stage"); row.setCustomerId("foreign");
+        assertThatThrownBy(() -> service.get(identity, "source", "historical")).isInstanceOf(RuntimeException.class);
+        verifyNoInteractions(turns, models);
+    }
     @Test void cancellationStopsBeforeAnotherModelStageAndCrossOwnerReadsAreDenied() throws Exception {
         setup();var entered=new CountDownLatch(1);var finish=new CountDownLatch(1);
         when(models.answer(eq(identity),anyString(),anyList(),anyInt(),any())).thenAnswer(call -> {entered.countDown();finish.await();return "Answer";});
         String id=service.start(identity,"source",3).path("id").asText();assertThat(entered.await(5,TimeUnit.SECONDS)).isTrue();
-        service.cancel(identity,"source",id);finish.countDown();await(id,"CANCELLED");
+        service.cancel(identity,"source",id);finish.countDown();var partial=await(id,"CANCELLED");
+        assertThat(partial.path("cases").size()).isEqualTo(1);
+        assertThat(partial.at("/cases/0/status").asText()).isEqualTo("CANCELLED");
+        assertThat(partial.at("/cases/0/phase").asText()).isEqualTo("ANSWER");
+        assertThat(partial.at("/cases/0/retrieval/evidenceCount").asInt()).isEqualTo(1);
+        assertThat(partial.at("/cases/0/answer").isMissingNode()).isTrue();
         var other=RuntimeResolvedIdentity.builder().authContext(identity.getAuthContext().toBuilder().customerId("other").build()).build();
         assertThatThrownBy(() -> service.get(other,"source",id)).isInstanceOf(RuntimeException.class);
+    }
+    @Test void answerFailureKeepsRetrievedEvidenceAndArithmeticButDoesNotInventAnAnswer() throws Exception {
+        setup();when(models.answer(eq(identity),anyString(),anyList(),anyInt(),any())).thenThrow(new IllegalStateException("failed"));
+        var result=await(service.start(identity,"source",3).path("id").asText(),"PARTIAL");
+        assertThat(result.at("/cases/0/phase").asText()).isEqualTo("ANSWER");
+        assertThat(result.at("/cases/0/retrieval/evidenceCount").asInt()).isEqualTo(1);
+        assertThat(result.at("/cases/0/rankingMetrics/recallAtK/status").asText()).isEqualTo("NOT_SCORED");
+        assertThat(result.at("/cases/0/answer").isMissingNode()).isTrue();
+        assertThat(result.path("cases").size()).isEqualTo(1);
     }
     private com.fasterxml.jackson.databind.JsonNode await(String id,String status) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);

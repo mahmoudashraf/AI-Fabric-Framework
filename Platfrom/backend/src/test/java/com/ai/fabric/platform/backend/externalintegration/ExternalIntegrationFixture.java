@@ -165,7 +165,7 @@ class ExternalIntegrationFixture {
         }).when(store).revokeBinding(anyString(), anyLong(), anyString());
         when(commands.findByEntitlementIdAndOperationKey(anyString(), anyString())).thenAnswer(call -> Optional.ofNullable(commandRows.get(call.getArgument(1))));
         when(commands.saveAndFlush(any())).thenAnswer(call -> { CustomerEntitlementCommandEntity value = call.getArgument(0); commandRows.put(value.getOperationKey(), value); return value; });
-        when(vault.upsertTargetManagedSecret(anyString(), anyString(), eq(deployment.getId()), anyString(), anyMap())).thenAnswer(call -> {
+        when(vault.upsertTargetManagedSecret(anyString(), anyString(), argThat(id -> deployment.getId().equals(id)), anyString(), anyMap())).thenAnswer(call -> {
             String name = call.getArgument(0); secretRows.put(name, new ExternalIntegrationStore.SecretEvidence(call.getArgument(2),
                 "DEPLOYMENT_MANAGED", "PLATFORM_MANAGED", true, true, "2026-10-19T01:00:00.123456Z")); return null;
         });

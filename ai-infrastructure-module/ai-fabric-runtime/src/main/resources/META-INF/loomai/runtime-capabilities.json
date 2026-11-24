@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.66",
+  "aiFabricVersion": "0.8.67",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -51,6 +51,9 @@
     "deployment-local-provider-budget-v1",
     "deployment-local-provider-budget-validity-extension-v1",
     "deployment-local-provider-budget-top-up-v1",
+    "deployment-local-reranking-budget-v1",
+    "shared-profiled-retrieval-v1",
+    "learned-reranking-v1",
     "runtime-release-scoped-drain-v1",
     "milvus-token-authentication-v1",
     "document-ingestion-core",
@@ -113,6 +116,7 @@
     ,"integration-operations"
     ,"provider-webhook-ingress"
     ,"provider-budget-administration"
+    ,"reranking-budget-administration"
     ,"runtime-release-scoped-drain"
   ],
   "migrationIds": [
@@ -132,6 +136,7 @@
     ,"provider-budget-accounting-v1"
     ,"provider-budget-validity-extensions-v1"
     ,"provider-budget-top-ups-v1"
+    ,"reranking-budget-binding-v1"
     ,"runtime-release-scoped-retirement-v24"
   ],
   "verificationPackIds": [
@@ -146,6 +151,7 @@
     ,"provider-budget-hard-limit-v1"
     ,"provider-budget-validity-extension-v1"
     ,"provider-budget-top-up-v1"
+    ,"reranking-hard-limit-v1"
   ],
   "specialistBundles": [
     {

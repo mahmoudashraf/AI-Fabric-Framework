@@ -33,6 +33,25 @@ class DocumentEvaluationModelsTest {
             .isInstanceOf(IllegalStateException.class).hasMessageContaining("structured metrics");
         verify(core,times(1)).generateContent(any(AIGenerationRequest.class),eq(LlmPurpose.GENERATION));
     }
+
+    @Test void ragasSubcallsUseTheSameVerifiedGenerationAndEmbeddingBoundaryAndRecordFailures() throws Exception {
+        var generations = new ArrayList<AIGenerationResponse>(); var embeddings = new ArrayList<AIEmbeddingResponse>();
+        when(core.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder().content("{\"statements\":[\"30 days.\"]}").build());
+        when(core.generateEmbedding(any())).thenReturn(AIEmbeddingResponse.builder().embedding(List.of(1d, 0d)).model("embedding-model").build());
+        var bridge = models.ragasInference(identity, generations::add, embeddings::add);
+        assertThat(bridge.generate("Approved metric prompt", new ObjectMapper().readTree("{\"type\":\"object\"}")).path("statements").size()).isEqualTo(1);
+        assertThat(bridge.embed("Return window?")).containsExactly(1d, 0d);
+        assertThat(generations).hasSize(1); assertThat(embeddings).hasSize(1);
+        var request = org.mockito.ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(core).generateContent(request.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(request.getValue().getSystemPrompt()).contains("untrusted data");
+        assertThat(request.getValue().getMaxTokens()).isEqualTo(1500);
+        assertThat(request.getValue().getPrompt()).contains("responseSchema");
+        when(core.generateEmbedding(any())).thenThrow(new IllegalStateException("provider unavailable"));
+        assertThatThrownBy(() -> bridge.embed("second query")).isInstanceOf(IllegalStateException.class);
+        assertThat(embeddings).hasSize(2).last().isNull();
+    }
     private static RuntimeResolvedIdentity identity() {
         RuntimeAuthContext auth=mock(RuntimeAuthContext.class);
         when(auth.getSubjectType()).thenReturn(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER);

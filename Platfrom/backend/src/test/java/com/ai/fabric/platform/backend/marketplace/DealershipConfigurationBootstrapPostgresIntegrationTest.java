@@ -58,23 +58,19 @@ class DealershipConfigurationBootstrapPostgresIntegrationTest {
     @Test
     void dealershipConfigurationBootstrapUsesDurableVectorBaselineAndEnablesDocumentKnowledge() {
         var created = templateBootstrap.bootstrapConfiguration("mkp-template-simulated-dealership-experience-v1",
-            new CreateMarketplaceTemplateBootstrapRequest("1.4.0", "Dealership customer configuration fixture",
+            new CreateMarketplaceTemplateBootstrapRequest("1.10.0", "Dealership customer configuration fixture",
                 "staging", null, null, null, null));
 
         var draft = deployments.getActiveDraftForDeployment(created.id());
         assertThat(draft.providerConfig().path("vectorStrategy").asText()).isEqualTo("milvus");
-        assertThat(draft.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
-        assertThat(draft.providerConfig().path("vectorStoragePosture").asText()).isEqualTo("DEDICATED");
-        assertThat(draft.providerConfig().path("zillizCloudProjectId").asText()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
-        assertThat(draft.providerConfig().path("zillizCloudRegionId").asText()).isEqualTo("aws-eu-central-1");
+        assertThat(draft.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(draft.providerConfig().path("vectorStoragePosture").asText()).isEqualTo("SHARED");
+        assertThat(draft.providerConfig().path("milvusExternalBindingRequired").asBoolean()).isTrue();
         assertThat(draft.providerConfig().path("milvusSecure").asBoolean()).isTrue();
-        var handover = draft.behaviorConfig().path("conversationHandover");
-        assertThat(handover.path("channelBindingId").asText()).isEqualTo("${MANAGED_INBOX_BINDING_ID}");
-        assertThat(handover.path("actionId").asText()).isEqualTo("request_conversation_handover");
-        assertThat(handover.path("actionBinding").path("implementation").asText())
-            .isEqualTo("SERVER_OWNED_RUNTIME_ACTION");
-        assertThat(handover.path("channel").path("bindingId").asText())
-            .isEqualTo("${MANAGED_INBOX_BINDING_ID}");
+        assertThat(draft.behaviorConfig().path("executionExtensions"))
+            .noneSatisfy(extension -> assertThat(extension.asText()).isEqualTo("CONVERSATION_HANDOVER"));
+        assertThat(installRepository.findByDeploymentIdAndPluginId(created.id(),
+            "mkp-integration-basic-loomai-inbox")).isEmpty();
 
         var deployment = deploymentRepository.findById(created.id()).orElseThrow();
         var knowledge = installRepository.findByDeploymentIdAndPluginId(

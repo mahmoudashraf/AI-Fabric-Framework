@@ -44,7 +44,7 @@ import type { ChatMessage, CustomerAccountConnectAction, Document } from "@/type
 import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
 import { SourceEvidenceContent } from "../SourceEvidenceContent";
-import { sourceContentPreview } from "@/sourcePresentation";
+import { sourceContentPreview, sourceScoreKind, sourceScoreLabel, sourceScoreValue } from "@/sourcePresentation";
 import { isConfirmationActionable } from "@/confirmationState";
 import { clarificationDisplayValue, clarificationParameters, clarificationValuePresent,
   type ClarificationEdits } from "@/clarificationForm";
@@ -430,7 +430,7 @@ export function MessageBubble({
                               </span>
                               {doc.score != null && (
                                 <span className="ml-auto text-[9px] font-bold text-purple-600 dark:text-purple-400">
-                                  {(doc.score * 100).toFixed(1)}% match
+                                  {sourceScoreLabel(doc)}
                                 </span>
                               )}
                             </div>
@@ -1006,15 +1006,15 @@ export function MessageBubble({
                         {selectedDocument.score != null && (
                           <div className="flex-1 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-700 text-center">
                             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                              {(selectedDocument.score * 100).toFixed(1)}%
+                              {sourceScoreValue(selectedDocument, selectedDocument.score)}
                             </div>
-                            <div className="text-[10px] text-purple-500 font-medium mt-0.5">Score</div>
+                            <div className="text-[10px] text-purple-500 font-medium mt-0.5">{sourceScoreKind(selectedDocument) ?? 'Relevance'} score</div>
                           </div>
                         )}
                         {selectedDocument.similarity != null && (
                           <div className="flex-1 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700 text-center">
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                              {(selectedDocument.similarity * 100).toFixed(1)}%
+                              {sourceScoreValue(selectedDocument, selectedDocument.similarity)}
                             </div>
                             <div className="text-[10px] text-blue-500 font-medium mt-0.5">Similarity</div>
                           </div>

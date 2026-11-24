@@ -49,8 +49,15 @@ public class ProviderUsageModeResolver {
     }
 
     private boolean hasAllocation(String deploymentId, String targetProfileId) {
-        return !jdbc.query("SELECT approval_id FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=?",
-            (rs, row) -> rs.getString(1), deploymentId, targetProfileId).isEmpty();
+        return jdbc.query("SELECT payload_json FROM provider_usage_allocations WHERE deployment_id=? AND target_profile_id=?",
+            (rs, row) -> {
+                try {
+                    var payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rs.getString(1));
+                    return !"RERANKING_API_KEY".equals(payload.path("binding").path("secretPurpose").asText());
+                } catch (Exception invalid) {
+                    throw conflict("PROVIDER_USAGE_ALLOCATION_RECORD_CHANGED");
+                }
+            }, deploymentId, targetProfileId).stream().anyMatch(Boolean.TRUE::equals);
     }
 
     static Mode mode(String value) {

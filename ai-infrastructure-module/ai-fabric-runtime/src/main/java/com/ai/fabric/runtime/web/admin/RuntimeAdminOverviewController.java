@@ -339,6 +339,7 @@ public class RuntimeAdminOverviewController {
             case "provider-budget-accounting" -> "provider-budget-accounting-v1";
             case "provider-budget-validity-extensions" -> "provider-budget-validity-extensions-v1";
             case "provider-budget-top-ups" -> "provider-budget-top-ups-v1";
+            case "reranking-budget-binding" -> "reranking-budget-binding-v1";
             default -> slug + "-v" + version.trim();
         };
     }

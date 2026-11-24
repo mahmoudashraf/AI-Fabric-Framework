@@ -1,5 +1,5 @@
-export type AssistantTask = 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE' | 'DOCUMENT_PREPARATION'
-export type AssistantSection = AssistantTask | 'DOCUMENTS' | 'LIVE_DATA' | 'STORAGE' | 'SEARCH' | 'INSTRUCTIONS' | 'ACTION_REVIEWS'
+export type AssistantTask = 'ACTIONS' | 'CONNECTIONS' | 'KNOWLEDGE' | 'SEARCH' | 'BEHAVIOUR' | 'MODELS' | 'HUMAN_SUPPORT' | 'SPECIALISTS' | 'KIT' | 'DATA_PLUGIN' | 'ENGAGE' | 'DOCUMENT_PREPARATION'
+export type AssistantSection = AssistantTask | 'DOCUMENTS' | 'LIVE_DATA' | 'STORAGE' | 'INSTRUCTIONS' | 'ACTION_REVIEWS'
 export type AssistantEditorContext = { section: AssistantSection; selectedDefinitionIds?: string[] }
 export type AssistantScope = {
   resourceKind: 'DEPLOYMENT_DRAFT' | 'PRIVATE_DATA_PLUGIN' | 'ENGAGE_APP' | 'DOCUMENT_SOURCE'

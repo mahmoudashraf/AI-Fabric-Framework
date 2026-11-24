@@ -301,6 +301,34 @@ class AuthoringResourceServiceTest {
             null, null, null, null, null, null, expected, null, null, null));
     }
 
+    @Test void searchTaskExposesRealContractsAndOnlyUpdatesExistingProviderDraft() throws Exception {
+        var draft = brainFixture();
+        var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "SEARCH");
+        assertThat(snapshot.allowedPaths()).containsExactly("/providerConfig");
+        assertThat(snapshot.catalogue().at("/searchSettings/lexicalProviders/0").asText()).isEqualTo("weaviate");
+        assertThat(snapshot.catalogue().path("searchConfigurationRules").asText()).contains("maxContextCharacters", "RRF");
+        assertThat(snapshot.catalogue().path("rerankingConfigurationRules").asText()).contains("never add or set it true", "separate active allowance");
+        resources.save("DEPLOYMENT_DRAFT", BRAIN, "SEARCH", json("""
+            [{"path":"/providerConfig/knowledgeRetrieval","operation":"SET","value":
+              {"enabled":true,"mode":"DENSE","maxResults":4,"reranking":{"enabled":false}}}]
+            """));
+        var expected = draft.providerConfig().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) expected).set("knowledgeRetrieval", json("""
+            {"enabled":true,"mode":"DENSE","maxResults":4,"reranking":{"enabled":false}}
+            """));
+        assertThat(capturedDraftUpdate()).isEqualTo(new UpdateDeploymentDraftRequest(
+            null, null, null, expected, null, null, null, null, null, null));
+    }
+
+    @Test void assistantCannotManufactureExternalProcessingConsentThroughAnyProviderTask() throws Exception {
+        brainFixture();
+        assertStatus(HttpStatus.BAD_REQUEST, () -> resources.save("DEPLOYMENT_DRAFT", BRAIN, "SEARCH", json("""
+            [{"path":"/providerConfig/knowledgeRetrieval/reranking","operation":"SET","value":
+              {"enabled":false,"externalProcessingApproved":true}}]
+            """)));
+        verify(brains, never()).updateDraft(anyString(), any());
+    }
+
     @Test void marketplaceDatasetUpsertUsesDatasetIdWithoutAddingAnInventedIdOrDroppingSiblings() throws Exception {
         var draft = brainFixture();
         resources.save("DEPLOYMENT_DRAFT", BRAIN, "KNOWLEDGE", json("""

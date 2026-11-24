@@ -4,6 +4,14 @@
 # Example:
 #   docker build -f ai-infrastructure-module/ai-fabric-runtime/Dockerfile -t ai-fabric-runtime:dev .
 
+FROM python:3.11-slim-bookworm@sha256:a83ba18aef0f865b1a4a611c2cf460fe446f2795673bbb9fe43be570439e3b39 AS ragas-worker
+WORKDIR /opt/loomai-ragas
+COPY ai-infrastructure-module/ai-fabric-runtime/ragas-worker/requirements.lock ./requirements.lock
+RUN python -m venv /opt/loomai-ragas/.venv \
+    && /opt/loomai-ragas/.venv/bin/pip install --no-cache-dir --require-hashes --no-deps --only-binary=:all: -r requirements.lock \
+    && /opt/loomai-ragas/.venv/bin/pip check
+COPY ai-infrastructure-module/ai-fabric-runtime/ragas-worker/worker.py ./worker.py
+
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
@@ -23,14 +31,21 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -U --no-transfer-progress -f ai-fabric-product/pom.xml \
     -pl ai-fabric-vectorization-runner -am -DskipTests package
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-noble@sha256:ac595159aa2209f07a2331efa8a8ce4278b77a7b76a9365a0f173786d5067a9e AS runtime-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu tesseract-ocr tesseract-ocr-eng \
+    libbz2-1.0 libffi8 libsqlite3-0 libreadline8t64 libncursesw6 libexpat1 libgdbm6t64 liblzma5 libseccomp2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=ragas-worker /usr/local /usr/local
+COPY --from=ragas-worker /opt/loomai-ragas /opt/loomai-ragas
+RUN ldconfig && /opt/loomai-ragas/.venv/bin/python -I -B -c "import ssl, sqlite3, bz2, lzma; import importlib.metadata; assert importlib.metadata.version('ragas') == '0.4.4'"
+
+FROM runtime-base AS runtime
 
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BUILD_TIME=unknown
 
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends curl gosu tesseract-ocr tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -u 10001 -g root runtime \
     && useradd -r -u 10002 -g root connector \

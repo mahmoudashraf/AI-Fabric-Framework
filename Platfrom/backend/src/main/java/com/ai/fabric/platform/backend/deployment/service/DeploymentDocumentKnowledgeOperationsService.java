@@ -125,8 +125,20 @@ public class DeploymentDocumentKnowledgeOperationsService {
     }
     public RuntimeResponse startEvaluation(DeploymentTargetReference target,String sourceId,JsonNode body,String operationKey) {
         String key=DeploymentOperationIdempotencyKey.require(operationKey);
-        JsonNode safe=boundedBody(body,Set.of("expectedRevision"));
+        JsonNode safe=boundedBody(body,Set.of("expectedRevision", "retrievalVariant"));
+        String variant = safe.path("retrievalVariant").asText("CONFIGURED");
+        if (!Set.of("CONFIGURED", "DENSE_BASELINE", "CONFIGURED_WITHOUT_RERANKING").contains(variant))
+            throw new ResponseStatusException(BAD_REQUEST, "Choose a supported evaluation search variant.");
         OperationAccess access=requireAccess(target,true,Operation.SOURCE_PREVIEW,key);
+        if (!"CONFIGURED".equals(variant)) {
+            var supported = send(access,"GET",sourcePath(sourceId)+"/preparation",null,null,READ_SCOPE);
+            if (supported.statusCode() != 200 || supported.body() == null
+                || !supported.body().path("evaluationVariants").isArray()
+                || java.util.stream.StreamSupport.stream(supported.body().path("evaluationVariants").spliterator(),false)
+                    .noneMatch(value -> value.isTextual() && variant.equals(value.textValue())))
+                throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Upgrade this environment before comparing evaluation search variants.");
+        }
         RuntimeResponse result=send(access,"POST",sourcePath(sourceId)+"/evaluations",safe,key,"documents:evaluate");
         auditSuccess("DOCUMENT_EVALUATION_STARTED",access,result,Map.of("sourceId",bounded(sourceId,64)));
         return result;
