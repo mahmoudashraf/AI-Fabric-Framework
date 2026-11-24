@@ -73,6 +73,18 @@ class ManagedAssistantRuntimeTest {
         assertThatThrownBy(() -> ManagedAssistantRuntime.installedRuntimeAddress("https://other.example.test", "https://assistant.example.test"))
             .hasMessageContaining("BINDING_CHANGED");
     }
+    @Test void adoptedServiceMetadataDescribesTheActualImageAndExistingPostgresWithoutCopyingGitBuildDefaults() throws Exception {
+        var original = mapper.readTree("{\"sourceStrategy\":\"GIT_SOURCE\",\"buildPack\":\"dockerfile\",\"dockerfilePath\":\"old/Dockerfile\",\"portsExposes\":\"8080\",\"futureCapacity\":{\"keep\":true}}");
+        var adopted = ManagedAssistantRuntime.adoptionDefaults(original, "jdbc:postgresql://database:5432/existing", "8097");
+        assertThat(adopted.path("sourceStrategy").asText()).isEqualTo("IMAGE_SOURCE");
+        assertThat(adopted.path("runtimeDatabaseMode").asText()).isEqualTo("COOLIFY_POSTGRES");
+        assertThat(adopted.path("portsExposes").asText()).isEqualTo("8097");
+        assertThat(adopted.path("futureCapacity")).isEqualTo(original.path("futureCapacity"));
+        assertThat(adopted.has("buildPack")).isFalse(); assertThat(adopted.has("dockerfilePath")).isFalse();
+        assertThat(original.path("sourceStrategy").asText()).isEqualTo("GIT_SOURCE");
+        assertThatThrownBy(() -> ManagedAssistantRuntime.adoptionDefaults(original, "jdbc:h2:mem:transient", "8097")).hasMessageContaining("BINDING_CHANGED");
+        assertThatThrownBy(() -> ManagedAssistantRuntime.adoptionDefaults(original, "jdbc:postgresql://database/existing", "8097,8080")).hasMessageContaining("BINDING_CHANGED");
+    }
     @Test void existingWalletMayAccrueUsageWithoutBeingReinitialized() {
         ((com.fasterxml.jackson.databind.node.ObjectNode) budget).put("chatAttempts", 167).put("providerAttempts", 172);
         doReturn(budget).when(service).read(eq("/api/admin/provider-budget"), anyMap());

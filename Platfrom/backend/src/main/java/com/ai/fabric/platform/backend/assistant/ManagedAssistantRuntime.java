@@ -87,6 +87,9 @@ public class ManagedAssistantRuntime {
         if (!sourceTarget.getEnvironmentName().equals(budget.path("environment").asText())) throw changed();
         if (!Objects.equals(request.expectedStoreUuid(), budget.path("storeUuid").asText())
             || !Objects.equals(request.expectedRuntimeFingerprint(), budget.path("runtimeFingerprint").asText())) throw changed();
+        var existingServiceDefaults = adoptionDefaults(parse(sourceTarget.getResourceDefaultsJson()),
+            coolify.requireRuntimeEnvironmentValue(connection, app.uuid(), "SPRING_DATASOURCE_URL"),
+            app.raw().path("ports_exposes").asText());
         var target = targetRows.findById(originalTarget).orElseGet(() -> {
             if (!originalTarget.equals("configuration-authoring-" + sourceTarget.getEnvironmentName())) throw changed();
             var adopted = new DeploymentTargetProfileEntity();
@@ -95,7 +98,7 @@ public class ManagedAssistantRuntime {
             adopted.setActive(true); adopted.setDefaultForRuntime(false); adopted.setDefaultForRestartableServices(false);
             adopted.setPlatformServicesAllowed(false); adopted.setRegion(sourceTarget.getRegion()); adopted.setSourceStrategy("IMAGE_SOURCE");
             adopted.setCredentialRefId(sourceTarget.getCredentialRefId()); adopted.setProviderConfigJson(sourceTarget.getProviderConfigJson());
-            adopted.setNetworkPolicyJson(sourceTarget.getNetworkPolicyJson()); adopted.setResourceDefaultsJson(sourceTarget.getResourceDefaultsJson());
+            adopted.setNetworkPolicyJson(sourceTarget.getNetworkPolicyJson()); adopted.setResourceDefaultsJson(existingServiceDefaults.toString());
             adopted.setCreatedAt(Instant.now()); adopted.setUpdatedAt(Instant.now()); return targetRows.saveAndFlush(adopted);
         });
         if (!target.getCredentialRefId().equals(sourceTarget.getCredentialRefId())
@@ -104,6 +107,11 @@ public class ManagedAssistantRuntime {
         if (!handles.findByProviderResourceUuidOrderByIdAsc(app.uuid()).stream().allMatch(h ->
             properties.getDeploymentId().equals(h.getDeploymentId()) && target.getId().equals(h.getTargetProfileId())
                 && PreservedExternalBindingKinds.MANAGED_ASSISTANT.equals(h.getResourceKind()))) throw changed();
+        if (!existingServiceDefaults.equals(parse(target.getResourceDefaultsJson()))) {
+            if (target.isDefaultForRuntime() || target.isDefaultForRestartableServices() || target.isPlatformServicesAllowed()) throw changed();
+            target.setResourceDefaultsJson(existingServiceDefaults.toString()); target.setSourceStrategy("IMAGE_SOURCE");
+            target.setUpdatedAt(Instant.now()); targetRows.saveAndFlush(target);
+        }
         transactions.executeWithoutResult(tx -> ensureInternalOwner());
         var created = deployments.getObject().createManagedConfigurationAssistant(target.getEnvironmentName(), properties, template);
         return transactions.execute(tx -> {
@@ -193,6 +201,15 @@ public class ManagedAssistantRuntime {
         // Purpose-specific clients must use the same paid account as the original ledger.
         for (String key : List.of("AI_PROVIDERS_OPENAI_API_KEY", "AI_PROVIDERS_ORCHESTRATION_API_KEY", "AI_PROVIDERS_GENERATION_API_KEY"))
             environment.put(key, originalKey);
+    }
+    static ObjectNode adoptionDefaults(JsonNode source, String datasource, String ports) {
+        if (!source.isObject() || datasource == null || !datasource.startsWith("jdbc:postgresql://")
+            || ports == null || !ports.matches("[1-9][0-9]{0,4}") || Integer.parseInt(ports) > 65535) throw changed();
+        var defaults = (ObjectNode) source.deepCopy();
+        defaults.remove(List.of("buildPack", "baseDirectory", "dockerfilePath", "gitRepository", "gitBranch"));
+        defaults.put("sourceStrategy", "IMAGE_SOURCE").put("runtimeDatabaseMode", "COOLIFY_POSTGRES")
+            .put("portsExposes", ports).put("healthCheckPort", ports);
+        return defaults;
     }
     public void verifyRuntime(DeploymentEntity deployment, DeploymentVersionEntity version, DeploymentReleaseEntity release) {
         requireInstalled(deployment, release);

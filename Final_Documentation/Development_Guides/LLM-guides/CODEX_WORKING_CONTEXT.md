@@ -20746,3 +20746,32 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   at384MiBheap/640MiBexistingservice limit,oldprivategenerationendpoint404,
   fundingstillUNINITIALIZEDwithoutprovidercalls. Private image/release/live
   verification remains to do; this is not a hosted migration claim.
+
+### 010.75 Staging Adoption - 24 November 2026, 11:31 UTC
+
+- Private feature commitf54e2b2a02fde9bbbefd578a6d17525e0455e9ce pushed.
+  Runtime image CI45382794910, core images45382794922, storage45382794947 and
+  quota/Desk45382795002allSUCCESS. Runtime verify includes normal tests and real
+  no-provider worker isolation. OfficialCentral9JARhashes match packaged image.
+- Stage core backend/UI f54deployed healthy, original env/capacity/mounts/domain
+  unchanged. Backend digest8fb46a747b58d62e2af07c6aed9a9ef4c02a1571cb561387b685b567faea4c18,
+  UI f8d8cf2a72b209df5d8c0ce1af404fdc82094fa7430103d1db3c29f29ce8afeb.
+  Stage Runtime artifactdsa-a2537ec2/sha256:ef8e847908ea40b7e49ebc142d149e90f4896d7b0e0a474607798ff6f957598a registered/promoted.
+- Stage normal managed install200: Brainloomai-configuration-assistant,
+  targetconfiguration-authoring-staging, preserved bindingasst-d9cac5bb-d557-4cbe-9d5b-47717d185ad3.
+  Published nativeversionver-ff755b1a. Apply409before creating any release:
+  inherited resourceDefaults.sourceStrategyGIT_SOURCE overrode target'sIMAGE_SOURCE.
+  No runtime software/env/budget was changed; original assistant remains67.
+- Scoped backend correction now validates actual existing PostgreSQL datasource
+  and port, records image/durable-state defaults and removes inherited Git build
+  settings. It preserves other defaults; no infrastructure allocation or guard
+  bypass.22focused lifecycle/compiler/provisioning checksPASS. Commit/build/deploy
+  correction, rerun install to normalize this owned adopted target, then retry
+  same publishedversion and stable operation key after reconciling releases[]0.
+- Full broad backend run6119tests/3version-consistencyfailures/1skip retained.
+  Fresh same-version rerun of all3affectedclasses10PASS. Final52browsergroups,
+  UI71unit/build, Runtime802/5skip and clean assistant123plus43checksPASS.
+- Staging assistant entry remains disabled pending actual native apply/verification;
+  no hidden legacy inference fallback. Production completely unchanged by010.75.
+  Approved210turn/4Mtoken/USD5caps preserved both; paid010.75calls0. All own staff
+  sessions logged out. Continue implementation; no full live acceptance claimed.

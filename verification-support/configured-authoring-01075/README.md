@@ -105,6 +105,15 @@ work. No infrastructure/capacity or funding changes are authorized or performed.
 
 ## Still Required Before Completion
 
+Staging adoption is in progress, not qualified. The core UI/backend feature
+commitf54e2b2a0 is healthy on staging; runtime artifactdsa-a2537ec2 is attested
+against nine official CentralJARs. The managed Brain is installed and version
+ver-ff755b1a published. Its first apply was rejected before creating a release:
+copied Git source defaults did not describe the actual existing image service.
+The backend-only metadata correction passed22checks; deploy it and repeat the
+authorized installation normalization before applying this same version.
+Production and both live authoring runtimes remain0.8.67. No paid calls yet.
+
 1. Finish full Runtime regressions, exact published tool-disable behavior,
    cancellation, source removal and session-erasure qualification.
 2. Establish ordinary managed Brain/draft/version/release records while reusing
