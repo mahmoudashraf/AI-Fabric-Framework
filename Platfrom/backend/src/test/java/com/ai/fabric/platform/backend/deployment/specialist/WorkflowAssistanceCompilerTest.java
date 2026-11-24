@@ -58,7 +58,9 @@ class WorkflowAssistanceCompilerTest {
         var api = java.util.stream.StreamSupport.stream(config.path("profiles").spliterator(), false)
             .filter(profile -> "api".equals(profile.path("id").asText())).findFirst().orElseThrow();
         assertThat(api.path("instructions").asText()).contains("not a stopping rule for multi-step requests",
-            "Do not put the second edit's value into the initial save");
+            "Do not put the second edit's value into the initial save",
+            "Preview-only preparation still requires building supported candidate changes",
+            "Never call authoring_update_draft in preview-only mode");
         assertThat(config.path("policy").path("maxWriteSteps").asInt()).isEqualTo(3);
     }
     @Test void installedAuthorityCannotBeManufacturedByTheManifest() {

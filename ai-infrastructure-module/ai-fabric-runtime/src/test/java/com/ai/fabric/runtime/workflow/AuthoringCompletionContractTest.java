@@ -24,10 +24,10 @@ class AuthoringCompletionContractTest {
         return new WorkflowCheckpoint("work", "request", "authority", "definition", Instant.now().plusSeconds(60), 0,
             WorkflowAllowance.Usage.empty(), List.of(steps), WorkflowCheckpoint.State.RUNNING, null, List.of(), null);
     }
-    @Test void requestedCheckedChangesNeedTheirRealMatchingReceipt() {
+    @Test void requestedCheckedChangesNeedAnActualSaveButMayBeRefinedBeforeSaving() {
         var checked = check(true, true, "candidate");
         assertThat(AuthoringCompletionContract.validate(checkpoint(checked), mapper).code()).isEqualTo("WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED");
-        assertThat(AuthoringCompletionContract.validate(checkpoint(checked, write("other")), mapper)).isNotNull();
+        assertThat(AuthoringCompletionContract.validate(checkpoint(checked, write("refined-candidate")), mapper)).isNull();
         assertThat(AuthoringCompletionContract.validate(checkpoint(checked, write("candidate")), mapper)).isNull();
     }
     @Test void previewGuidanceAndAlreadyDesiredStateAreNotForcedToWrite() {
@@ -43,5 +43,15 @@ class AuthoringCompletionContractTest {
         var reconciled = new WorkflowCheckpoint.Step("save", "authoring_update_draft", true, Map.of(), "parameters",
             WorkflowCheckpoint.Effect.EXECUTED, Map.of("status", "EXECUTED", "parameterFingerprint", "candidate"), null);
         assertThat(AuthoringCompletionContract.validate(checkpoint(check(true, true, "candidate"), reconciled), mapper)).isNull();
+    }
+    @Test void failedUncertainOrUnexecutedWritesDoNotSatisfyCompletion() {
+        for (var effect : List.of(WorkflowCheckpoint.Effect.REJECTED, WorkflowCheckpoint.Effect.OUTCOME_UNKNOWN,
+            WorkflowCheckpoint.Effect.DISPATCHING)) {
+            var incomplete = new WorkflowCheckpoint.Step("save", "authoring_update_draft", true, Map.of(), "parameters",
+                effect, Map.of("result", Map.of("status", "EXECUTED")), null);
+            assertThat(AuthoringCompletionContract.validate(checkpoint(check(true, true, "candidate"), incomplete), mapper)).isNotNull();
+        }
+        var failedReceipt = step("save", "authoring_update_draft", true, Map.of("status", "FAILED"));
+        assertThat(AuthoringCompletionContract.validate(checkpoint(check(true, true, "candidate"), failedReceipt), mapper)).isNotNull();
     }
 }

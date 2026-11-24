@@ -101,26 +101,29 @@ class ManagedAssistantRuntimeTest {
             assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
         }
     }
-    @Test void durableAdditionalTurnsRetainTheSameWalletAndTokenAndSpendingCeilings() {
+    @Test void durableAdditionalTurnsAndTokensRetainTheSameGrantWalletAndSpendingCeiling() {
         var toppedUp = budget.deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) toppedUp.path("effectiveLimits")).put("chatAttempts", 205);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) toppedUp.path("effectiveLimits"))
+            .put("chatAttempts", 205).put("totalTokens", 8000000);
         doReturn(toppedUp).when(service).read(eq("/api/admin/provider-budget"), anyMap());
         service.verifyRuntime(brain, version, release);
         verifyNoInteractions(coolify);
         assertThat(toppedUp.path("limits")).isEqualTo(budget.path("limits"));
-        for (String field : List.of("totalTokens", "costNanoUsd")) {
-            var changed = toppedUp.deepCopy();
-            ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put(field,
-                budget.path("effectiveLimits").path(field).asLong() + 1);
-            doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
-            assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
-        }
+        var changed = toppedUp.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put("costNanoUsd", 5000000001L);
+        doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+        assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
     }
-    @Test void reducedOrMalformedEffectiveTurnLimitsCannotPassVerification() {
-        for (boolean malformed : List.of(false, true)) {
+    @Test void reducedOrMalformedEffectiveTurnOrTokenLimitsCannotPassVerification() {
+        for (String field : List.of("chatAttempts", "totalTokens")) for (String invalid : List.of("reduced", "text", "fraction", "overflow")) {
             var changed = budget.deepCopy();
             var limits = (com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits");
-            if (malformed) limits.put("chatAttempts", "205"); else limits.put("chatAttempts", 184);
+            switch (invalid) {
+                case "reduced" -> limits.put(field, budget.path("effectiveLimits").path(field).asLong() - 1);
+                case "text" -> limits.put(field, "8000000");
+                case "fraction" -> limits.put(field, 1.5);
+                case "overflow" -> limits.put(field, new java.math.BigInteger("999999999999999999999999999999"));
+            }
             doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
             assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
         }

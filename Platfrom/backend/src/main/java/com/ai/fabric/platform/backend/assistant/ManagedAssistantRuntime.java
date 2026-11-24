@@ -302,13 +302,16 @@ public class ManagedAssistantRuntime {
         var originalLimits = expected.path("effectiveLimits");
         var currentLimits = actual.path("effectiveLimits");
         if (!originalLimits.isObject() || !currentLimits.isObject()) throw changed();
-        // Effective turns come from the authenticated ledger's durable top-ups,
-        // not release configuration. Retain the original token and cost ceilings.
-        var originalOtherLimits = (ObjectNode) originalLimits.deepCopy(); originalOtherLimits.remove("chatAttempts");
-        var currentOtherLimits = (ObjectNode) currentLimits.deepCopy(); currentOtherLimits.remove("chatAttempts");
-        if (!originalOtherLimits.equals(currentOtherLimits)
-            || !originalLimits.path("chatAttempts").isIntegralNumber() || !currentLimits.path("chatAttempts").isIntegralNumber()
-            || currentLimits.path("chatAttempts").asLong(-1) < originalLimits.path("chatAttempts").asLong()) throw changed();
+        // Authenticated ledger top-ups may add turns/tokens, not replace the
+        // original grant, reset usage or silently increase its spending ceiling.
+        var topUpFields = List.of("chatAttempts", "totalTokens");
+        var originalOtherLimits = (ObjectNode) originalLimits.deepCopy(); originalOtherLimits.remove(topUpFields);
+        var currentOtherLimits = (ObjectNode) currentLimits.deepCopy(); currentOtherLimits.remove(topUpFields);
+        if (!originalOtherLimits.equals(currentOtherLimits)) throw changed();
+        for (String field : topUpFields)
+            if (!originalLimits.path(field).isIntegralNumber() || !currentLimits.path(field).isIntegralNumber()
+                || !originalLimits.path(field).canConvertToLong() || !currentLimits.path(field).canConvertToLong()
+                || currentLimits.path(field).asLong() < originalLimits.path(field).asLong()) throw changed();
         for (String field : List.of("chatAttempts", "providerAttempts")) if (actual.path(field).asLong(-1) < expected.path(field).asLong()) throw changed();
         for (String field : List.of("inputTokens", "outputTokens", "costNanoUsd"))
             if (expected.path("accountedUsage").has(field)

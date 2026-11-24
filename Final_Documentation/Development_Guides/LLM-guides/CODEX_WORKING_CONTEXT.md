@@ -21158,3 +21158,45 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   activation, real legacy transition and full live checks. Do not stop at local
   implementation or claim overall completion.
 
+### 010.75 LOW Live Qualification - 24 November 2026, 16:50 UTC
+
+- Source004941892 Core45437391468/Runtime45437391169/storage45437395713/
+  quota45437402414 all PASS. Stage backend/UI/source image and Runtime are
+  healthy, with nine official69JARs attested. Runtime artifactdsa-bbf8d9e7.
+  Same prior ver-5ac6dd8f applied asrel-bf663a50, verifying actual LOW reasoning
+  without changing other configuration. Three fresh sequential-two-save
+  repetitions PASS, actual separate receipts/readback/correct final name.
+- Source-matched known-real foreign-resource test PASS: four404 denials,
+  no inference/accounting/draft effects, exact temp session deletion/logout.
+  Whole-Brain, Search6final/12candidates and guide-no-write PASS. Native limits
+  then blocked remaining checks; those failed records are retained.
+- Owner separately approved8M staging tokens in
+  call_be5ad93dc5244eeda69eb481b9ad3141. Durable top-up
+  configured-authoring-01075-20261124-staging-extra4m verified10000/8M/USD5,
+  original wallet/grant/expiry/usage unchanged. Production210/4M/USD5 unchanged;
+  combined USD50 ceiling remains. Backend now accepts authenticated additive
+  token top-ups like turn top-ups, retaining exact original grant/spending cap
+  and rejecting reduced/malformed/overflow limits.19focused backend checks PASS.
+- API preview initially explained rather than proposing a diff. A normal
+  prompt-only release rel-80cae029/ver-caba7e36 clarified preview preparation;
+  actual PREVIEW with diff/no save PASS. Models, manager prompt, source-injection
+  resistance, cancellation/source erasure then PASS; all test fixtures cleaned.
+- Current full UI live suite004-low-ui-final PASS6cases plus follow-up rename,
+  Undo and Warm/Brief. Blank Prepare, all/selected operations, narrowed focus,
+  genuine missing host/secret questions, actual enabled manual editor during AI,
+  desktop/mobile screenshots inspected. Private data-plugin and inactive Engage
+  edits PASS. Actual Support document preparation preview PASS3diffs, original
+  settings/revision unchanged. No real integration or document indexing started.
+- Extra sequential test exposed an over-strict private Runtime completion check:
+  both actual requested saves succeeded but refined final arguments differed
+  from the advisory-check hash, causing false CORRECTION_LIMIT. Correction now
+  requires an actual later EXECUTED receipt, not equality to an advisory check.
+  Actual per-operation idempotency hashes, authority, scopes and validation stay
+  in Platform. New tests retain rejection for uncertain/unexecuted/failed writes.
+  Full Runtime regression is running, not yet a passed or deployed correction.
+- Production remains old67authoring. Retained legacy fixturedep-f53267df/
+  cas-a6be7ba4-665a-406d-818a-e7658b283ba6 must be tested/cleaned after cutover.
+  Continue latest private source CI/attestation, Stage apply preserving8M/USD5,
+  sequential retest plus binding/security readback, genuine Stage acceptance,
+  then original-service production adoption/activation and full verification.
+

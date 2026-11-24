@@ -13,10 +13,13 @@ production acceptance record.
 - Framework 0.8.69 is officially published. Public build 45409684432 and Central
   publication 45413133017 passed; nine downloaded JARs match their repository
   checksums. Only one publication was submitted.
-- Private source 3eed832354d73192d35976ab837d1aff0cda0a91 is pushed. Core,
-  Runtime, storage and quota CI passed. Staging backend and the existing native
-  authoring service use that source and 0.8.69. The original database, service
-  identity, credentials, usage history and funding store remain intact.
+- Private source 004941892f115aedc1c045886e6f1768d3f83db5 is pushed. Core
+  45437391468, Runtime45437391169, storage45437395713 and quota45437402414
+  passed. Staging backend/UI and the existing native authoring service use that
+  source; Runtime contains the same nine official0.8.69 JARs. The original
+  database, service identity, credentials, usage history and funding store remain
+  intact. Current staged release rel-80cae029/ver-caba7e36 passed verification,
+  with guarded reasoning LOW and all nine profiles. Production is unchanged.
 - A fresh complete backend suite passed: 6,145 tests, zero failures/errors and
   one opt-in skip. Runtime regression passed: 812 tests, zero failures/errors,
   five opt-in skips. The native completion-feedback integration passed three
@@ -25,13 +28,29 @@ production acceptance record.
   and Warm/Brief presets. Temporary resources and normal test sessions were
   removed. Live cancellation/source erasure passed, as did real Support document
   preview (13 proposed differences; saved settings and revision unchanged).
-- Multi-step quality is still open. The first sequential-two-save test stopped
-  truthfully after one save. The prompt-only release rel-c1b3e390 applied and
-  verified, but its retest combined the edits into one actual save and falsely
-  described two receipts. The requested final values were saved; the required
-  two-save execution and truthful narration did not pass. Do not mark this as
-  accepted or add a forced-write/text-matching workaround.
-- Owner-directed UI lock removal is implemented locally: no AI-triggered inert
+- Multi-step LOW qualification passed three fresh repetitions, each with two
+  actual save receipts, the requested intermediate readback and correct final
+  display name. Evidence: /private/tmp/loomai-01075-live/tasks-staging-004-low-two-save.
+  Earlier NONE-reasoning failures remain recorded below; no forced-write or
+  prose-matching workaround was added. This is not universal model certainty.
+- Whole-Brain setup, read-only guide and the previously failing Search field
+  distinction passed. A preview initially returned only an explanation; the
+  clarified API profile now returns a checked, nonmutating candidate diff.
+  After the approved token top-up, models, manager instructions, source-injection
+  resistance and cancellation/source erasure passed. Earlier allowance-blocked
+  tests remain failed records, not retroactively relabelled passes.
+- One extra sequential test saved both correct edits but was falsely marked
+  failed: the completion callback required the exact earlier argument fingerprint
+  to an earlier advisory check. A later valid save may refine those arguments.
+  The correction accepts its actual later EXECUTED receipt, while Platform retains
+  exact per-operation replay hashes, validation and authorization. Runtime
+  regression and live retest are pending; do not call the full migration closed.
+- The current live UI qualification passed six cases, including blank preparation
+  without typing, all/selected API operations, narrowed focus and genuine missing
+  host/credential questions. Follow-up rename, Undo, Warm/Brief and enabled manual
+  editors during AI also passed. Desktop/mobile screenshots were inspected.
+  Evidence: /private/tmp/loomai-01075-live/authoring-regression-staging-004-low-ui-final.
+- Owner-directed UI lock removal is deployed on staging: no AI-triggered inert
   fieldset, overlay, footer lock or navigation lock in Brain/plugin/Engage
   editors. Requested AI values may replace manual values. Ordinary manual-save
   pending controls, unsaved-navigation confirmation and server authorization/
@@ -41,24 +60,29 @@ production acceptance record.
   groups passed. The latter use mocked API responses, including real Brain and
   plugin editor components at desktop/mobile sizes; they are not live UI proof.
   The complete UI production build also passed with the existing bundle-size
-  warning. Live deployment remains a separate gate.
+  warning. The live running-turn unlock check passed separately; final LOW
+  UI regression and production deployment remain separate gates.
 - Production remains on the previous 0.8.67 authoring path. The full migration,
   published-binding parity and final production qualification are not closed.
 - The owner authorized unlimited qualification turns and a USD 50 combined
   staging/production ceiling. Staging's finite ledger now permits 10,000 turns;
-  native limits remain 4 million tokens and USD 5 per environment, deliberately
-  below that ceiling. Original recorded usage and expiry were not reset.
+  staging now has the separately approved 8 million tokens, retaining USD5.
+  Production stays210 turns/4M tokens/USD5. All remain below the combined ceiling;
+  original recorded usage and expiry were not reset. The additive token receipt
+  is configured-authoring-01075-20261124-staging-extra4m, approved in
+  call_be5ad93dc5244eeda69eb481b9ad3141.
 
 ## Worktrees and Baseline
 
 ### Continuing Release Qualification
 
-Candidate host improvement, not yet deployed: the guarded model resolver had
+Staging host improvement, not yet adopted in production: the guarded resolver had
 forced `reasoning_effort:none`. It now supports trusted NONE/LOW/MEDIUM selection
 inside the same completion-token/accounting limit, with NONE retained for normal
-products and LOW proposed for configured authoring. All188 budget/transport
+products and LOW selected for configured authoring. All188 budget/transport
 checks and the complete815-test Runtime suite passed (zero failures/errors,
-five opt-in Runtime skips). Live quality must still determine adoption.
+five opt-in Runtime skips). Three staged sequential-write repetitions passed;
+preview, remaining regressions and production acceptance are not closed.
 The [model specification](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
 and [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
 were checked for supported levels and token accounting. This changes no spend
