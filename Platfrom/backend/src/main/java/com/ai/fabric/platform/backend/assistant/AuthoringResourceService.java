@@ -286,6 +286,10 @@ public class AuthoringResourceService {
     }
     private ResponseStatusException missing() { return new ResponseStatusException(NOT_FOUND, "Configuration resource not found."); }
     public record Snapshot(String customerId, String displayName, JsonNode configuration, ObjectNode catalogue,
-                           List<String> allowedPaths, String version, boolean editable, String readOnlyReason) { }
+                           List<String> allowedPaths, String version, boolean editable, String readOnlyReason) {
+        public Snapshot {
+            if (editable) readOnlyReason = "";
+        }
+    }
     public record Saved(JsonNode diff, JsonNode findings, JsonNode receipt, JsonNode configuration) { }
 }

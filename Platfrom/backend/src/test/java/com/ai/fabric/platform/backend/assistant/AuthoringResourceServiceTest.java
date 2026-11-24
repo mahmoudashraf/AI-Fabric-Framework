@@ -439,6 +439,29 @@ class AuthoringResourceServiceTest {
         assertThat(restored.receipt().path("published").asBoolean()).isFalse();
     }
 
+    @Test void editableEngageDoesNotAdvertiseAnInapplicableDisableRequirement() throws Exception {
+        for (String status : List.of("DRAFT", "DISABLED")) {
+            engageFixture(status);
+            var snapshot = resources.load("ENGAGE_APP", APP, "ENGAGE");
+            assertThat(snapshot.editable()).isTrue();
+            assertThat(snapshot.readOnlyReason()).isEmpty();
+        }
+        verify(apps, never()).disable(anyString(), anyString());
+    }
+
+    @Test void editableSnapshotClearsReadOnlyGuidanceWithoutChangingAuthorizationOrAllowedPaths() {
+        var paths = List.of("/manifest");
+        var snapshot = new AuthoringResourceService.Snapshot("customer", "Private plugin", mapper.createObjectNode(),
+            mapper.createObjectNode(), paths, "1", true, "Archived plugin drafts are read-only.");
+        assertThat(snapshot.editable()).isTrue();
+        assertThat(snapshot.allowedPaths()).isEqualTo(paths);
+        assertThat(snapshot.readOnlyReason()).isEmpty();
+        var archived = new AuthoringResourceService.Snapshot("customer", "Private plugin", mapper.createObjectNode(),
+            mapper.createObjectNode(), paths, "1", false, "Archived plugin drafts are read-only.");
+        assertThat(archived.editable()).isFalse();
+        assertThat(archived.readOnlyReason()).isEqualTo("Archived plugin drafts are read-only.");
+    }
+
     @Test void activeEngageCanBePreviewedButCannotBeImplicitlyDisabledOrSaved() throws Exception {
         var app = engageFixture("ACTIVE");
         var snapshot = resources.load("ENGAGE_APP", APP, "ENGAGE");
