@@ -370,3 +370,20 @@ these actual preserved limits, not create a second allocation.
   no whole-suite success is claimed before completion. Native stage remains68
   and production67. The new private implementation is committed locally but its
   image builds wait for official Central dependency availability.
+
+### Backend Version Alignment
+
+- Fresh complete backend run:6144tests,2failures,0errors,1opt-in skip. Both
+  failures correctly rejected applying a69artifact to a version labelled68.
+  Cause: application.yml's default publication version was not yet bumped with
+  the runtime declaration. This is a release-alignment defect, not permission
+  or model quality. The failed log remains retained.
+- Corrected only the default to69; explicit operator overrides remain supported.
+  New FrameworkVersionAlignmentTest loads YAML structurally and compares the
+  default with the runtime declaration. Both original failing journeys, this
+  guard and the PostgreSQL migration checks now pass11tests,0skips. No production
+  compatibility rule was relaxed. Neither live environment has an explicit
+  framework-version override.
+- Full aligned backend rerun is active in
+  /private/tmp/loomai-01075-final-backend-aligned-full.log. Do not report a green
+  complete backend suite until it finishes. Production remains unchanged.

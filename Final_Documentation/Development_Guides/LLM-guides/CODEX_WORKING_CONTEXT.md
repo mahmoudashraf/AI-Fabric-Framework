@@ -20997,3 +20997,24 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   harnesssetupfailuresretained(unsupportedroute/nestedDTO/missingheader),not
   productsecurityfindings. Fullbackendexec99335stillrunning,nofailuresyet.
 
+- Currentlocalhead8c12614929d32b4c77eca65261e384395be55693(notpushed),
+  childof0008188a5. Fullbackendreached6144tests/2fail/0error/1skip; both
+  applyfailuresareactualversionmismatch(defaultapplication.yml68,artifact69).
+  CorrectedsourceYMLdefault69,addedstructuredFrameworkVersionAlignmentTest;
+  focused11PASS/0skipincludingBOTHfailedjourneysandPGmigration. No live
+  AI_FABRIC_FRAMEWORK_VERSIONoverrideexistsineitherbackend. Native releases
+  remainstage68/prod67. No rollout from local69codeyet.
+- Freshalignedfullbackendexec14999running,log/private/tmp/loomai-01075-final-backend-aligned-full.log.
+  Earlierexec99335finishedFAILcorrectly;doNOTcallitgreen. Public69publication
+  45413133017stillprocessing;singleofficialJARobserver6546active(deadline30min
+  from14:21). Neverduplicateupload. Read-onlyCUAfoundnoopenpublishingtab;
+  CUAcompletion_summaryalreadyissued,notbrowserverificationofSonatype.
+- Helpersin/private/tmp/loomai-01075-*.mjspreparedfor69butcurrentfinal-source
+  constantsstill8c1261492:register-runtime/rollout-core/install-production/
+  apply-assistant/apply-completion-feedback/published-binding-proof. Update
+  exactsource/prefixafteralignmentcommit. Newcentral-069-proof.mjswrites
+  distinctframework-0869-official-jars-proofand/private/tmp/loomai-01075-central-069/proof.json.
+  DocumentpreviewnowrequiresLOOMAI_AUTHORING_ATTEMPTsuffixtopreserveoldfailure.
+  Newsecurity-readback.mjsstagingproofpre-069-valid-requestsPASS,normalidentities
+  loggedout. Still222/230staging,4M/USD5,noextrainference. Prod210/4M/USD5.
+
