@@ -108,7 +108,9 @@ jobs:
       - name: Verify configuration assistance and search comparisons
         if: ${{ inputs.ui_build }}
         working-directory: Platfrom/ui
-        run: npm run test:search-quality
+        run: |
+          npm run test:search-quality
+          node --test scripts/plugin-creator-document.test.mjs scripts/plugin-json-fidelity.test.mjs scripts/plugin-creator-requirements.test.mjs scripts/plugin-library-api.test.mjs
 
       - name: Validate hosted verification shell scripts
         if: ${{ inputs.shell_syntax_checks }}

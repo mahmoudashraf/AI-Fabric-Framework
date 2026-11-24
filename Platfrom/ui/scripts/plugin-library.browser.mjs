@@ -12,9 +12,13 @@ const shots = fileURLToPath(new URL('../../../output/plugin-library-implementati
 await mkdir(shots, { recursive: true })
 const server = await createServer({ root, cacheDir, configFile: false, envFile: false, resolve: { dedupe: ['react', 'react-dom'] }, server: { host: '127.0.0.1', port: 0, hmr: false }, plugins: [{
   name: 'plugin-library-fixture', enforce: 'pre',
-  resolveId(id) { if (id === '/__library.jsx') return '\0library.jsx' },
+  resolveId(id) {
+    if (id === '/__library.jsx') return '\0library.jsx'
+    if (id.endsWith('/auth/PlatformAuthProvider')) return '\0library-auth.js'
+  },
   transform(code, id) { if (id === '\0library.jsx') return transformWithEsbuild(code, 'library.jsx', { loader: 'jsx', jsx: 'automatic' }) },
   load(id) {
+    if (id === '\0library-auth.js') return `export const usePlatformAuth=()=>({session:{actorId:'fixture',customerId:'customer',role:'CUSTOMER_ADMIN'}})`
     if (id !== '\0library.jsx') return
     return `import React,{useState,useCallback} from 'react';import{createRoot}from'react-dom/client';import{createBrowserRouter,RouterProvider,useLocation}from'react-router-dom';
       import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{Button,Box}from'@mui/material';
@@ -72,6 +76,8 @@ async function run(name, callback, options = {}) {
     if (path.startsWith('/api/marketplace/plugins/')) return send({ plugin: { id: row.id, pluginType: 'DATA', displayName: row.displayName, publisherDisplayName: 'Private workspace' }, versions: [{ id: 'pv-a', version: '1.0.0', pricing: { requiresEntitlement: false }, installForm: [], manifest: source }] })
     if (path.endsWith('/workspace')) return send({ deployment: { name: 'Service AI', binding: { customerId: 'customer' } }, access: { canEdit: true } })
     if (path.endsWith('/draft')) return send({ actionsConfig: {} })
+    if (path.endsWith('/setup-checks')) return send({ deploymentId: 'brain', draftId: 'draft', revisionNumber: 0,
+      checkedAt: null, services: [], verifiedCount: 0, failedCount: 0, notTestedCount: 0 })
     if (path.endsWith('/marketplace-installs')) {
       if (method === 'GET') return send([])
       return send({ id: 'installed', pluginId: 'private-a', pluginVersion: '1.0.0', config: payload.config, secretRefs: payload.secretRefs, status: 'ENABLED', readinessStatus: 'READY', warnings: [], entitlement: {}, updatedAt: '2026-11-08T01:00:00Z' })
@@ -90,6 +96,36 @@ async function run(name, callback, options = {}) {
 }
 const step = (page, name) => page.getByRole('navigation', { name: 'Data plugin creation steps' }).getByRole('button', { name: new RegExp(name) }).click()
 try {
+  await run('Console testing is explicit and separate from visitor access', async ({ page, calls }) => {
+    await step(page, 'Freshness & access')
+    const preview = page.getByRole('checkbox', { name: 'Allow tests in Console', exact: true })
+    assert.equal(await preview.isChecked(), false)
+    assert.equal(await page.getByLabel('Who may use this knowledge?').inputValue(), 'staff')
+    await preview.check()
+    await page.getByLabel('Who may use this knowledge?').selectOption('signed')
+    assert.equal(await preview.isChecked(), true)
+    const firstSave = page.waitForResponse(response => response.request().method() === 'PUT' && new URL(response.url()).pathname === '/api/customer/plugin-library/private-a')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await firstSave
+    await page.getByText('Private draft saved. No Brain was changed.', { exact: true }).waitFor()
+    const saved = calls.findLast(call => call.method === 'PUT')
+    assert.deepEqual(saved.payload.manifest.contributions.knowledgeSources[0].authModes,
+      ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED', 'PLATFORM_PROXY_SESSION'])
+    await preview.uncheck()
+    const secondSave = page.waitForResponse(response => response.request().method() === 'PUT' && new URL(response.url()).pathname === '/api/customer/plugin-library/private-a')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await secondSave
+    await page.getByText('Private draft saved. No Brain was changed.', { exact: true }).waitFor()
+    const removed = calls.findLast(call => call.method === 'PUT')
+    assert.deepEqual(removed.payload.manifest.contributions.knowledgeSources[0].authModes,
+      ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED'])
+    assert.deepEqual(removed.payload.manifest.contributions.datasets, source.contributions.datasets)
+    assert.equal(calls.filter(call => call.path.includes('/versions') || call.path.includes('/marketplace-installs')).length, 0)
+    await page.screenshot({ path: join(shots, 'console-preview-desktop.png') })
+    await page.setViewportSize({ width: 390, height: 844 })
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
+    await page.screenshot({ path: join(shots, 'console-preview-mobile.png') })
+  }, { path: '/library/plugins/private-a/edit' })
   await run('required markers and review links guide completion without preventing unfinished draft saves', async ({ page, calls }) => {
     const name = page.getByLabel('Display name', { exact: true })
     await name.waitFor()
@@ -179,8 +215,8 @@ try {
     await page.getByRole('button', { name: 'Document storage', exact: true }).click()
     await page.getByRole('button', { name: 'Change source', exact: true }).click()
     await page.getByText(/not a bucket URL or access key/).waitFor()
-    assert.equal(await page.getByLabel('Maximum file bytes', { exact: true }).inputValue(), '1048576')
-    await page.getByText(/1048576 bytes = 1 MiB/).waitFor()
+    assert.equal(await page.getByLabel('Maximum file bytes', { exact: true }).inputValue(), '20971520')
+    await page.getByText(/20971520 bytes = 20 MiB/).waitFor()
     await step(page, 'Setup inputs')
     await page.getByText(/identifiers must match the setup field names/).waitFor()
     assert.match(await page.getByLabel('Help text', { exact: true }).inputValue(), /existing hosted or BYO S3-compatible/)

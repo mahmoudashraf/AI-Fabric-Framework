@@ -1,7 +1,7 @@
 import { createContext, useContext, useId, type ReactNode } from 'react'
 import AddOutlined from '@mui/icons-material/AddOutlined'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
-import { at, audience, audienceModes, datasetList, datasetPath, knowledgeIndex, numericValue, objectValue, sourceKind, sourceNames, textAt, type DocumentPath, type ExactObject, type SourceKind } from './creatorDocument'
+import { at, audience, audienceModes, CONSOLE_PREVIEW_AUTH_MODE, datasetList, datasetPath, knowledgeIndex, numericValue, objectValue, sourceKind, sourceNames, textAt, type DocumentPath, type ExactObject, type SourceKind } from './creatorDocument'
 import type { PluginIssue } from './types'
 import { pointerPath, requirementAt } from './creatorRequirements'
 
@@ -73,6 +73,7 @@ function PointerMap({ document, path, label, edit, disabled, hint, placeholder }
 
 type Props = { document: ExactObject; step: number; dataset: number; edit: EditDocument; disabled: boolean; immutableId: boolean; issues: PluginIssue[]; onSourceChange: (kind: SourceKind) => void }
 export function CreatorFields({ document, step, dataset, edit, disabled, immutableId, issues, onSourceChange }: Props) {
+  const consolePreviewId = useId()
   const d = datasetPath(dataset), c = [...d, 'syncConnector'], h = [...c, 'httpSource'], p = [...c, 'connectionProfile'], auth = [...p, 'auth']
   const kind = sourceKind(document, dataset), documents = kind === 'S3_COMPATIBLE_OBJECT_STORAGE', sql = kind === 'SQL_QUERY', http = kind === 'HTTP_JSON'
   const sourceIndex = knowledgeIndex(document, dataset)
@@ -144,10 +145,20 @@ export function CreatorFields({ document, step, dataset, edit, disabled, immutab
     </> : sql ? <>{fields([...c, 'query'], 'Read query', { multiline: true })}<div className="pl-notice pl-warning">SQL source configuration is retained, but a qualified customer adapter is required before creating a reusable private version.</div></> : <div className="pl-notice pl-warning">This imported source contract is retained in Source. No qualified customer adapter is available here.</div>
   } else if (step === 3) {
     const selectedAudience = sourceIndex >= 0 ? audience(document, sourceIndex) : 'custom'
+    const accessPath: DocumentPath = ['contributions', 'knowledgeSources', sourceIndex, 'authModes']
+    const declaredModes = at(document, accessPath)
+    const modes = Array.isArray(declaredModes) ? declaredModes : []
+    const allowConsolePreview = modes.includes(CONSOLE_PREVIEW_AUTH_MODE)
     content = <>
-      {sourceIndex >= 0 && <label className="pl-field"><span>Who may use this knowledge?</span><select value={selectedAudience} disabled={disabled} onChange={event => edit([{ path: ['contributions', 'knowledgeSources', sourceIndex, 'authModes'], value: audienceModes(event.target.value) }])}>
+      {sourceIndex >= 0 && <><label className="pl-field"><span>Who may use this knowledge?</span><select value={selectedAudience} disabled={disabled} onChange={event => edit([{ path: accessPath, value: audienceModes(event.target.value, allowConsolePreview) }])}>
         {selectedAudience === 'custom' && <option value="custom">Custom access modes</option>}<option value="staff">Internal staff</option><option value="signed">Signed-in customers</option><option value="public">Public visitors / approved content</option>
-      </select><small>The plugin definition stays private to your workspace. This setting controls the knowledge access modes; Public visitors allows anonymous use of approved content.</small></label>}
+      </select><small>The plugin definition stays private to your workspace. This setting controls the knowledge access modes; Public visitors allows anonymous use of approved content.</small></label>
+      <div><label className="pl-checkbox"><input type="checkbox" aria-labelledby={`${consolePreviewId}-label`} aria-describedby={`${consolePreviewId}-help`}
+        checked={allowConsolePreview} disabled={disabled || !Array.isArray(declaredModes)} onChange={event => edit([{ path: accessPath,
+          value: event.target.checked ? [...modes, CONSOLE_PREVIEW_AUTH_MODE] : modes.filter(mode => mode !== CONSOLE_PREVIEW_AUTH_MODE) }])} />
+        <span id={`${consolePreviewId}-label`}>Allow tests in Console</span><small className="pl-optional">Optional</small></label>
+        <small id={`${consolePreviewId}-help`} className="pl-check-hint">Console search and evaluation access for authorized workspace users. Customer ownership and approved-document rules still apply; website access is unchanged.
+          {!Array.isArray(declaredModes) && ' Custom access settings are retained; correct their format in Source before changing this option.'}</small></div></>}
       {http && <>{fields([...h, 'scheduleSeconds'], 'Baseline sync interval (seconds)', { numeric: true, hint: 'Starter: 900 seconds = 15 minutes between scheduled reconciliations after the connection is applied. Saving the definition does not start syncing.' })}
         {fields([...h, 'tombstonePolicy', 'strategy'], 'Deletion handling', { options: [{ value: 'NONE', label: 'No source deletion signals' }, { value: 'ABSENT_FROM_SNAPSHOT', label: 'Absent from a complete snapshot' }, { value: 'FIELD_VALUE', label: 'Explicit deletion field' }, { value: 'ABSENT_OR_FIELD_VALUE', label: 'Complete snapshot or deletion field' }], hint: 'Controls removal of indexed records, not deletion in the source API. Starter: keep records unless a supported deletion strategy is configured.' })}
         {['FIELD_VALUE', 'ABSENT_OR_FIELD_VALUE'].includes(textAt(document, [...h, 'tombstonePolicy', 'strategy'])) && <>{fields([...h, 'tombstonePolicy', 'operationJsonPointer'], 'Deletion field JSON pointer', { placeholder: 'e.g. /status', hint: 'Path within a record containing its deletion marker.' })}<StringList document={document} path={[...h, 'tombstonePolicy', 'deleteValues']} label="Deletion values" hint="Exact provider values meaning removed, for example deleted. Match the source API contract." placeholder="e.g. deleted" edit={edit} disabled={disabled} /></>}

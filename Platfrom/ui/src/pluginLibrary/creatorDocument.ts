@@ -62,18 +62,21 @@ export function knowledgeIndex(document: unknown, datasetIndex: number): number 
   const id = textAt(document, [...datasetPath(datasetIndex), 'datasetId'])
   return Array.isArray(sources) ? sources.findIndex(source => textAt(source, ['datasetRef']) === id) : -1
 }
+export const CONSOLE_PREVIEW_AUTH_MODE = 'PLATFORM_PROXY_SESSION'
 export function audience(document: unknown, index: number): string {
   const modes = at(document, ['contributions', 'knowledgeSources', index, 'authModes'])
   if (!Array.isArray(modes)) return 'custom'
+  const visitorModes = modes.filter(mode => mode !== CONSOLE_PREVIEW_AUTH_MODE)
   const publicModes = ['PUBLIC_RUNTIME_ANONYMOUS', 'PUBLIC_RUNTIME_AUTHENTICATED', 'PRIVATE_RUNTIME_BACKEND_MEDIATED']
   const signedModes = publicModes.slice(1)
   const staffModes = ['PRIVATE_RUNTIME_BACKEND_MEDIATED']
-  const matches = (values: string[]) => values.length === modes.length && values.every(value => modes.includes(value))
+  const matches = (values: string[]) => values.length === visitorModes.length && values.every(value => visitorModes.includes(value))
   return matches(publicModes) ? 'public' : matches(signedModes) ? 'signed' : matches(staffModes) ? 'staff' : 'custom'
 }
-export function audienceModes(value: string): string[] {
-  return value === 'public' ? ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED', 'PUBLIC_RUNTIME_ANONYMOUS']
+export function audienceModes(value: string, allowConsolePreview = false): string[] {
+  const modes = value === 'public' ? ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED', 'PUBLIC_RUNTIME_ANONYMOUS']
     : value === 'signed' ? ['PRIVATE_RUNTIME_BACKEND_MEDIATED', 'PUBLIC_RUNTIME_AUTHENTICATED'] : ['PRIVATE_RUNTIME_BACKEND_MEDIATED']
+  return allowConsolePreview ? [...modes, CONSOLE_PREVIEW_AUTH_MODE] : modes
 }
 
 export function copyDefinition(manifest: unknown, identifier: string): string {

@@ -126,7 +126,7 @@ test('starter definitions explain installation inputs without inventing customer
       assert.equal(dataset.syncConnector.httpSource.scheduleSeconds, 900)
       assert.deepEqual(dataset.syncConnector.httpSource.mapping.contentFields, {})
     } else {
-      assert.equal(dataset.documentPolicy.maxSourceBytes, 1048576)
+      assert.equal(dataset.documentPolicy.maxSourceBytes, 20 * 1024 * 1024)
       assert.equal(dataset.documentPolicy.trustedAutoIndexingAllowed, false)
     }
   }
@@ -160,11 +160,19 @@ test('audience labels follow exact declared access modes without guessing custom
   const input = document.parseDocument(document.newDefinition('private-access')).document
   assert.equal(document.audience(input, 0), 'staff')
   input.contributions.knowledgeSources[0].authModes.push('PLATFORM_PROXY_SESSION')
-  assert.equal(document.audience(input, 0), 'custom')
+  assert.equal(document.audience(input, 0), 'staff')
   for (const audience of ['staff', 'signed', 'public']) {
     input.contributions.knowledgeSources[0].authModes = document.audienceModes(audience)
     assert.equal(document.audience(input, 0), audience)
+    assert.equal(input.contributions.knowledgeSources[0].authModes.includes(document.CONSOLE_PREVIEW_AUTH_MODE), false)
+    input.contributions.knowledgeSources[0].authModes = document.audienceModes(audience, true)
+    assert.equal(document.audience(input, 0), audience)
+    assert.equal(input.contributions.knowledgeSources[0].authModes.filter(mode => mode === document.CONSOLE_PREVIEW_AUTH_MODE).length, 1)
   }
+  input.contributions.knowledgeSources[0].authModes.push('FUTURE_CUSTOM_MODE')
+  assert.equal(document.audience(input, 0), 'custom')
+  input.contributions.knowledgeSources[0].authModes = [document.CONSOLE_PREVIEW_AUTH_MODE]
+  assert.equal(document.audience(input, 0), 'custom')
 })
 
 test('numeric parsing rejects incomplete values and preserves large integers and decimals exactly', () => {
