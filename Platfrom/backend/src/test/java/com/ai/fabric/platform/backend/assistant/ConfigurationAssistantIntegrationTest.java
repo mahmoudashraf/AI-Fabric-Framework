@@ -278,6 +278,87 @@ class ConfigurationAssistantIntegrationTest {
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         verify(logins, times(2)).capture(any());
     }
+    @Test void logoutPauseAcknowledgementPreservesReauthenticationReasonAndFreshLoginResumesTheSameRoot() throws Exception {
+        var goal = startGoal(); String id = goal.path("id").asText(); String root = goal.path("workId").asText();
+        var originalCaller = goalCaller(goal);
+        operations.save(originalCaller, root + ":step:1", change("Saved before logout"));
+        var acknowledgement = mapper.createObjectNode().put("workId", root);
+        acknowledgement.putObject("goal").put("state", "PAUSED").put("reasonCode", "GOAL_USER_PAUSED").put("canResume", true);
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(acknowledgement);
+        goals.revokeActor(actor); goals.refresh(id);
+        var stored = goalRecords.findById(id).orElseThrow();
+        assertThat(stored.state).isEqualTo("PAUSED");
+        assertThat(stored.reasonCode).isEqualTo("LOGOUT_REAUTHENTICATION_REQUIRED");
+        assertThat(stored.pendingControl).isNull(); assertThat(stored.nextPollAt).isNull();
+        var paused = assistant.get(sessionId).path("goal");
+        assertThat(paused.path("reasonCode").asText()).isEqualTo("LOGOUT_REAUTHENTICATION_REQUIRED");
+        assertThat(paused.path("operationCount").asInt()).isEqualTo(1);
+        assertThatThrownBy(() -> operations.save(originalCaller, root + ":step:2", change("Late old authority")))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        when(logins.capture(any())).thenReturn(mapper.createObjectNode().put("loginSessionId", "fresh-login")
+            .put("validUntil", Instant.now().plusSeconds(3600).toString()));
+        var resumed = mapper.createObjectNode().put("workId", root);
+        resumed.putObject("goal").put("state", "RUNNING").put("reasonCode", "GOAL_RESUME_REQUESTED");
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(resumed);
+        goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME")); goals.refresh(id);
+        var current = assistant.get(sessionId).path("goal");
+        assertThat(current.path("id")).isEqualTo(goal.path("id"));
+        assertThat(current.path("workId")).isEqualTo(goal.path("workId"));
+        assertThat(current.path("state").asText()).isEqualTo("RUNNING");
+        assertThat(current.path("reasonCode").asText()).isEqualTo("GOAL_RESUME_REQUESTED");
+        var authority = mapper.readTree(crypto.decrypt(id, goalRecords.findById(id).orElseThrow().encryptedAuthority));
+        assertThat(authority.at("/login/loginSessionId").asText()).isEqualTo("fresh-login");
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 1, 2, root));
+        operations.save(goalCaller(assistant.get(sessionId).path("goal")), root + ":step:2", change("Saved with fresh authority"));
+        assertThat(assistant.get(sessionId).at("/goal/operationCount").asInt()).isEqualTo(2);
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThatThrownBy(() -> operations.save(originalCaller, root + ":step:3", change("Still old authority")))
+            .hasMessageContaining("FENCED");
+        verify(logins, times(2)).capture(any());
+        verify(runtime, times(1)).startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+    @Test void pauseAndCancelAcknowledgementsKeepControlReasonsIdempotencyAndCommittedReceipts() {
+        var goal = startGoal(); String id = goal.path("id").asText(); String root = goal.path("workId").asText();
+        var originalCaller = goalCaller(goal);
+        var receipt = operations.save(originalCaller, root + ":step:1", change("Committed before controls"));
+        var paused = goals.control(sessionId, id, new AuthoringGoalService.Control("PAUSE"));
+        var acknowledgement = mapper.createObjectNode().put("workId", root);
+        acknowledgement.putObject("goal").put("state", "PAUSED").put("reasonCode", "GOAL_USER_PAUSED");
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(acknowledgement);
+        goals.refresh(id);
+        var repeated = goals.control(sessionId, id, new AuthoringGoalService.Control("PAUSE"));
+        assertThat(repeated.path("reasonCode").asText()).isEqualTo("USER_PAUSED");
+        assertThat(repeated.path("cancellationEpoch")).isEqualTo(paused.path("cancellationEpoch"));
+        assertThat(goalRecords.findById(id).orElseThrow().pendingControl).isNull();
+        var cancelled = goals.control(sessionId, id, new AuthoringGoalService.Control("CANCEL"));
+        var late = mapper.createObjectNode().put("workId", root);
+        late.putObject("goal").put("state", "COMPLETE").put("reasonCode", "NATIVE_COMPLETED_BEFORE_CANCEL").put("terminal", true);
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(late);
+        goals.refresh(id);
+        var terminal = goals.control(sessionId, id, new AuthoringGoalService.Control("CANCEL"));
+        assertThat(terminal.path("state").asText()).isEqualTo("CANCELLED");
+        assertThat(terminal.path("reasonCode").asText()).isEqualTo("USER_CANCELLED");
+        assertThat(terminal.path("cancellationEpoch")).isEqualTo(cancelled.path("cancellationEpoch"));
+        assertThat(terminal.path("operations")).hasSize(1);
+        assertThat(terminal.at("/operations/0")).isEqualTo(changes.project(receipt));
+        assertThat(configuration.get().at("/promptConfig/systemPrompt").asText()).isEqualTo("Committed before controls");
+        assertThat(goalRecords.findById(id).orElseThrow().pendingControl).isNull();
+        assertThatThrownBy(() -> operations.save(originalCaller, root + ":step:2", change("Late write")))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        verify(runtime, times(2)).controlWork(any(), anyString(), anyString(), anyString(), any());
+    }
+    @ParameterizedTest @ValueSource(strings = {"PAUSED", "CANCELLED", "YIELDED"})
+    void nativeOperationalReasonStillFlowsWhenItsStateIsAdopted(String state) {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        var nativeView = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+        nativeView.putObject("goal").put("state", state).put("reasonCode", "NATIVE_OPERATIONAL_REASON");
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(nativeView);
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        var projected = assistant.get(sessionId).path("goal");
+        assertThat(projected.path("state").asText()).isEqualTo(state);
+        assertThat(projected.path("reasonCode").asText()).isEqualTo("NATIVE_OPERATIONAL_REASON");
+    }
     @Test void expiredAuthorityPausesAndFreshAuthenticationResumesTheSameRootAndReceipts() {
         var goal = startGoal(); String id = goal.path("id").asText(); String operation = goal.path("workId").asText() + ":step:1";
         operations.save(goalCaller(goal), operation, change("Saved before expiry"));

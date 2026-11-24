@@ -42,7 +42,8 @@ class ManagedAssistantRuntimeTest {
             "targetProfileId":"configuration-authoring-staging","environment":"staging","storeUuid":"original-store",
             "approvalId":"original-approval","runtimeFingerprint":"original-fingerprint","limits":{"chatAttempts":100,"totalTokens":2000000,"costNanoUsd":5000000000},
             "effectiveLimits":{"chatAttempts":185,"totalTokens":2000000,"costNanoUsd":5000000000},"expiresAt":"2027-01-01T00:00:00Z",
-            "effectiveExpiresAt":"2027-01-01T00:00:00Z","chatAttempts":166,"providerAttempts":166,"stopped":false}
+            "effectiveExpiresAt":"2027-01-01T00:00:00Z","chatAttempts":166,"providerAttempts":166,
+            "accountedUsage":{"inputTokens":120000,"outputTokens":50000,"costNanoUsd":900000000},"stopped":false}
             """);
         var handle = new DeploymentProviderResourceHandleEntity(); handle.setStatus("BOUND"); handle.setFqdn(properties.getRuntimeUrl());
         handle.setMetadataJson(mapper.createObjectNode().set("budget", budget).toString());
@@ -91,31 +92,40 @@ class ManagedAssistantRuntimeTest {
         service.verifyRuntime(brain, version, release); verifyNoInteractions(coolify);
         verify(authority).issueReleaseVerificationHeaders(brain, release, false);
     }
-    @Test void changedStoreOrResetCounterOrHigherCapCannotPassAdoptionVerification() {
-        for (String change : List.of("store", "counter", "cap")) {
+    @Test void changedStoreOrResetCounterOrChangedOriginalCapCannotPassAdoptionVerification() {
+        for (String change : List.of("store", "counter", "originalCap")) {
             var altered = budget.deepCopy();
             if (change.equals("store")) ((com.fasterxml.jackson.databind.node.ObjectNode) altered).put("storeUuid", "new-wallet");
             if (change.equals("counter")) ((com.fasterxml.jackson.databind.node.ObjectNode) altered).put("chatAttempts", 0);
-            if (change.equals("cap")) ((com.fasterxml.jackson.databind.node.ObjectNode) altered.path("effectiveLimits")).put("costNanoUsd", 20000000000L);
+            if (change.equals("originalCap")) ((com.fasterxml.jackson.databind.node.ObjectNode) altered.path("limits")).put("costNanoUsd", 20000000000L);
             doReturn(altered).when(service).read(eq("/api/admin/provider-budget"), anyMap());
             assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
         }
     }
-    @Test void durableAdditionalTurnsAndTokensRetainTheSameGrantWalletAndSpendingCeiling() {
+    @Test void authenticatedDurableTurnTokenAndCostTopUpsRetainTheSameOriginalGrantWalletAndUsage() throws Exception {
         var toppedUp = budget.deepCopy();
         ((com.fasterxml.jackson.databind.node.ObjectNode) toppedUp.path("effectiveLimits"))
-            .put("chatAttempts", 205).put("totalTokens", 8000000);
+            .put("chatAttempts", 1000000).put("totalTokens", 100000000).put("costNanoUsd", 25000000000L);
         doReturn(toppedUp).when(service).read(eq("/api/admin/provider-budget"), anyMap());
         service.verifyRuntime(brain, version, release);
         verifyNoInteractions(coolify);
         assertThat(toppedUp.path("limits")).isEqualTo(budget.path("limits"));
-        var changed = toppedUp.deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put("costNanoUsd", 5000000001L);
-        doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
-        assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
+        assertThat(toppedUp.path("accountedUsage")).isEqualTo(budget.path("accountedUsage"));
+        var handle = handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(brain.getId(),
+            release.getTargetProfileId(), PreservedExternalBindingKinds.MANAGED_ASSISTANT).orElseThrow();
+        assertThat(mapper.readTree(handle.getMetadataJson()).path("budget")).isEqualTo(budget);
+        verify(handles, never()).save(any()); verify(handles, never()).saveAndFlush(any());
+        verify(service).read(eq("/api/admin/provider-budget"), eq(Map.of("private", "fixture")));
     }
-    @Test void reducedOrMalformedEffectiveTurnOrTokenLimitsCannotPassVerification() {
-        for (String field : List.of("chatAttempts", "totalTokens")) for (String invalid : List.of("reduced", "text", "fraction", "overflow")) {
+    @Test void authenticatedCostOnlyTopUpCanPassWithoutChangingOtherLimits() {
+        var toppedUp = budget.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) toppedUp.path("effectiveLimits")).put("costNanoUsd", 25000000000L);
+        doReturn(toppedUp).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+        service.verifyRuntime(brain, version, release);
+        verifyNoInteractions(coolify);
+    }
+    @Test void reducedOrMalformedEffectiveTurnTokenOrCostLimitsCannotPassVerification() {
+        for (String field : List.of("chatAttempts", "totalTokens", "costNanoUsd")) for (String invalid : List.of("reduced", "text", "fraction", "overflow", "missing")) {
             var changed = budget.deepCopy();
             var limits = (com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits");
             switch (invalid) {
@@ -123,9 +133,43 @@ class ManagedAssistantRuntimeTest {
                 case "text" -> limits.put(field, "8000000");
                 case "fraction" -> limits.put(field, 1.5);
                 case "overflow" -> limits.put(field, new java.math.BigInteger("999999999999999999999999999999"));
+                case "missing" -> limits.remove(field);
             }
             doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
             assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
+        }
+    }
+    @Test void effectiveCostCannotDecreaseEvenWhenItRemainsAboveTheOriginalGrant() {
+        var observed = budget.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) observed.path("effectiveLimits")).put("costNanoUsd", 25000000000L);
+        var handle = handles.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(brain.getId(),
+            release.getTargetProfileId(), PreservedExternalBindingKinds.MANAGED_ASSISTANT).orElseThrow();
+        handle.setMetadataJson(mapper.createObjectNode().set("budget", observed).toString());
+        var reduced = observed.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) reduced.path("effectiveLimits")).put("costNanoUsd", 20000000000L);
+        doReturn(reduced).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+        assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).hasMessageContaining("BINDING_CHANGED");
+    }
+    @Test void approvedCostTopUpDoesNotAllowOriginalIdentityScopeExpiryOrUnknownLimitSubstitution() {
+        for (String field : List.of("storeUuid", "approvalId", "runtimeFingerprint", "customerId", "deploymentId", "targetProfileId",
+            "environment", "rateCardReference", "expiresAt", "effectiveExpiresAt", "originalCost", "unknownLimit")) {
+            var changed = budget.deepCopy(); var object = (com.fasterxml.jackson.databind.node.ObjectNode) changed;
+            ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put("costNanoUsd", 25000000000L);
+            if (field.equals("originalCost")) ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("limits")).put("costNanoUsd", 25000000000L);
+            else if (field.equals("unknownLimit")) ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put("unreviewedAllowance", 1);
+            else object.put(field, "substituted");
+            doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+            assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).as(field).hasMessageContaining("BINDING_CHANGED");
+        }
+    }
+    @Test void approvedCostTopUpCannotResetAttemptsOrAccountedUsage() {
+        for (String field : List.of("chatAttempts", "providerAttempts", "inputTokens", "outputTokens", "costNanoUsd")) {
+            var changed = budget.deepCopy();
+            ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("effectiveLimits")).put("costNanoUsd", 25000000000L);
+            var counters = (com.fasterxml.jackson.databind.node.ObjectNode) (field.endsWith("Attempts") ? changed : changed.path("accountedUsage"));
+            counters.put(field, 0);
+            doReturn(changed).when(service).read(eq("/api/admin/provider-budget"), anyMap());
+            assertThatThrownBy(() -> service.verifyRuntime(brain, version, release)).as(field).hasMessageContaining("BINDING_CHANGED");
         }
     }
     @Test void wrongPublishedInstructionsOrUnavailableRegistryNeverProduceVerifiedRelease() {

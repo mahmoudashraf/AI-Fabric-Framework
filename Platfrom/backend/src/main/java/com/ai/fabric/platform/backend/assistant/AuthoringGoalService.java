@@ -393,11 +393,13 @@ public class AuthoringGoalService {
                 }
                 JsonNode nativeView = response.has("goal") ? response.path("goal") : response;
                 String state = normalizeState(nativeView.path("state").asText("QUEUED"));
-                if (!"CANCELLED".equals(goal.state) && !("PAUSED".equals(goal.state) && !"RESUME".equals(delivery.command()))) goal.state = state;
-                goal.reasonCode = nativeView.path("reasonCode").asText(switch (nativeView.path("state").asText()) {
-                    case "EXPIRED" -> "GOAL_LIFETIME_EXPIRED"; case "REJECTED" -> "NATIVE_EXECUTION_REJECTED";
-                    case "UNSUPPORTED" -> "UNSUPPORTED_WORK"; default -> null;
-                });
+                if (!"CANCELLED".equals(goal.state) && !("PAUSED".equals(goal.state) && !"RESUME".equals(delivery.command()))) {
+                    goal.state = state;
+                    goal.reasonCode = nativeView.path("reasonCode").asText(switch (nativeView.path("state").asText()) {
+                        case "EXPIRED" -> "GOAL_LIFETIME_EXPIRED"; case "REJECTED" -> "NATIVE_EXECUTION_REJECTED";
+                        case "UNSUPPORTED" -> "UNSUPPORTED_WORK"; default -> null;
+                    });
+                }
                 goal.segment = Math.max(goal.segment, nativeView.path("segment").asInt(goal.segment));
                 var safe = mapper.createObjectNode();
                 for (String field : List.of("progress", "usage", "nextEligibleAt", "reasonMessage", "nextAction", "answer", "questions", "terminal", "canResume"))

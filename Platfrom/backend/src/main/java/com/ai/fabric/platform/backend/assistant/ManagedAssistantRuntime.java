@@ -302,9 +302,9 @@ public class ManagedAssistantRuntime {
         var originalLimits = expected.path("effectiveLimits");
         var currentLimits = actual.path("effectiveLimits");
         if (!originalLimits.isObject() || !currentLimits.isObject()) throw changed();
-        // Authenticated ledger top-ups may add turns/tokens, not replace the
-        // original grant, reset usage or silently increase its spending ceiling.
-        var topUpFields = List.of("chatAttempts", "totalTokens");
+        // Effective limits come from authenticated native ledger readback, not
+        // environment overrides. Top-ups preserve the original grant and usage.
+        var topUpFields = List.of("chatAttempts", "totalTokens", "costNanoUsd");
         var originalOtherLimits = (ObjectNode) originalLimits.deepCopy(); originalOtherLimits.remove(topUpFields);
         var currentOtherLimits = (ObjectNode) currentLimits.deepCopy(); currentOtherLimits.remove(topUpFields);
         if (!originalOtherLimits.equals(currentOtherLimits)) throw changed();
