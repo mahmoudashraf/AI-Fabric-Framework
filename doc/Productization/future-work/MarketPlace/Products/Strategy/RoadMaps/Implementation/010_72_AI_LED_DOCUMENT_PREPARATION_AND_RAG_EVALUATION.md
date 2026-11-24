@@ -198,6 +198,20 @@ selected-file promotion qualification. A synthetic reference and an LLM score
 remain diagnostic evidence. Existing broad backend fixtures and Incident Room
 CI failures remain separate from the passing focused release suites.
 
+## Follow-Up: Hybrid Search And Bulk Knowledge Operations
+
+[010.73 Hybrid retrieval, optional reranking and AI-led knowledge operations](010_73_HYBRID_RETRIEVAL_RERANKING_AND_AI_LED_KNOWLEDGE_OPERATIONS_PLAN.md)
+extends this work with genuine lexical/vector retrieval for documents and
+entities, comparable evaluation, customer settings, AI-assisted optimization,
+and a reviewed bulk discovery-to-indexing journey for existing S3 files and
+Console uploads. It includes future deployment and live qualification gates.
+The owner approved implementation on 23 November. Its 0.8.67 software slice was
+deployed and verified on both environments on 24 November, preserving production
+search defaults and leaving paid reranking off. The broader 010.73 plan remains
+incomplete, including Ragas calibration, mixed/entity qualification, Milvus
+lifecycle and bulk coordination. This cross-reference is not completion evidence
+for those packages or a retroactive change to the historical limits above.
+
 ## Primary Library References
 
 - PDFBox extraction/rendering: https://pdfbox.apache.org/3.0/getting-started.html

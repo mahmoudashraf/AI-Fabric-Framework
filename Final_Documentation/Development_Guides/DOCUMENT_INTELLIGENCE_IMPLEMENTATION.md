@@ -91,6 +91,37 @@ the full list. Its low judge scores were not corrected or hidden automatically.
 Review references against the original/actual excerpts before comparing scores;
 a successful optimization loop is not evidence of improved answer quality.
 
+### 010.73 Search Comparison Extension
+
+Source Evaluate reuses this service for one explicit per-run variant:
+CONFIGURED, DENSE_BASELINE or CONFIGURED_WITHOUT_RERANKING. Non-default variants
+require the runtime's preparation response to advertise evaluationVariants;
+Platform rejects an older runtime before it can silently run the wrong variant.
+All variants retain owner/source/active-version filters and configured finite
+bounds. They never enable a host-disabled provider or change the saved Brain.
+
+Comparisons record a fingerprint of the source version, release, saved questions
+and options, indexed processing, evaluator engine/rubric and model bindings.
+UI previous scores additionally require completed runs and matching actual model
+receipts. Unknown or historical provenance remains readable without a misleading
+delta. Search diagnostics and evaluated excerpts remain inspectable. This does
+not yet provide the complete entity/mixed-corpus comparison in 010.73.
+
+Improve document retains the DOCUMENT_SOURCE/DOCUMENT_PREPARATION scope. Improve
+Brain search explicitly imports a bounded attributed report into the existing
+DEPLOYMENT_DRAFT/SEARCH scope and provider draft service. It labels partial and
+historical observations; no parallel assistant or privileged operational tool is
+created. SearchAuthoringPolicy prevents new external-processing consent even in
+legacy MODELS proposals. Keys, grants, publication and indexing are not AI
+authoring side effects. See
+[Smart Brain search quality](../External_User_Guides/SMART_BRAIN_SEARCH_QUALITY.md) for the customer flow
+and the dated verification record for actual deployed status.
+
+Architecture boundary, 24 November: this is the existing legacy authoring path,
+not completion of the configured Smart Brain requirement. Further operational
+assistant work follows the proposed 010.75 migration and framework review; do
+not extend the custom Platform generation/repair loop as a substitute.
+
 ## Local Verification
 
 Public framework worktree:

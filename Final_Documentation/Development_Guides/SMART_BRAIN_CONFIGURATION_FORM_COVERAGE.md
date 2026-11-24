@@ -38,6 +38,34 @@ No editable authorization allowlist is introduced.
 
 ## Existing Coverage Reviewed
 
+010.73 software slice deployed on staging/production, 24 November 2026:
+Search settings now also owns the
+optional Meaning / Words and meaning profile, candidate/result/context bounds,
+failure policies and optional Cohere model/consent/limits. Existing values and
+unknown fields are preserved when the profile is disabled. Keys & secrets owns
+the separate required customer reranking key; exact selected-target allowance
+readback is read-only and unknown is not zero. Hybrid readiness is qualified
+only for the implemented Weaviate adapter, not inferred for every vector store.
+Build with AI uses a typed SEARCH task and the same provider draft API; it cannot
+create external-processing consent, keys, financial grants or quality evidence.
+See 010.73 and its dated verification record for actual publication/adoption.
+
+The source-level Evaluate view has three explicitly started search variants and
+a comparison inspector gated by matching experiment/model provenance. It never
+multiplies one run into three paid jobs. Optional expected-evidence forms use
+exact source/version/excerpt IDs, relevance grades and explicit human review;
+AI may propose labels but cannot attest its own new/changed labels as reviewed.
+Older runtimes must advertise both non-default variants and label support before
+their controls become editable. Existing history/labels remain readable.
+No JSON editor is required for these fields. Shipped controls are not proof of
+completed Ragas calibration or entity/mixed-corpus evaluation. Search/reranking
+defaults were not promoted; both qualified targets finish with reranking off.
+
+Absent profile result/context limits inherit the Brain's existing prompt limits;
+enabling a profile must not silently replace them with the form's examples. The
+immutable serving artifact must advertise shared retrieval and, when requested,
+learned ranking plus independent host accounting before Apply can queue work.
+
 - AI models / Purpose overrides: provider, model, temperature, timeout, token
   budgets and fallback already have forms. Provider parameters remain Advanced.
 - Knowledge / Search settings: vector engine, hosted/BYO connection, embeddings

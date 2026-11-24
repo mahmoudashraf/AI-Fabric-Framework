@@ -19955,3 +19955,688 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   infrastructure, releases or deployments changed. Do not treat the proposed
   capabilities or sample profile as implemented/default-enabled. Independent
   Support work and its active sessions/checkpoints above remain untouched.
+- 23 November review amendment: owner asked us to choose the evaluator behind
+  LoomAI rather than expose a tool choice. 010.73 now selects Ragas through the
+  existing provider/run workflow, with an internal bounded Python adapter and
+  metered inference bridge, no customer engine selector or silent custom-judge
+  fallback. Includes human calibration, reference limits, actual metric call
+  accounting and distinct historical scores. Ragas is NOT implemented/deployed
+  by this document amendment; the plan remains pending implementation review.
+
+## 2026-11-23 010.73 Implementation Started - No Release
+
+- Owner subsequently approved implementing 010.73. This supersedes the plan-only
+  status above, not infrastructure/paid-capacity or external-recipient approval.
+- First slice is local: typed retrieval profiles/readiness, bounded dense+BM25
+  legs, deterministic source/type/version/chunk-aware RRF, context limits,
+  Advanced RAG single-fusion ownership, guarded runtime source adapters, Search
+  settings draft controls/compiler, and truthful widget score presentation.
+- Actual Support provider is Weaviate1.40.3 BOTH physical hosts, not the plan's
+  earlier assumed Milvus baseline. Native Java BM25 probes passed both hosts on
+  existing indexes with no migration/provisioning or model calls. First staging
+  assumed20MiB test failed because that fact is absent there; inventories and
+  failure retained, later probes use literals confirmed in each corpus.
+- Public worktree /Users/mahmoudashraf/.codex/worktrees/hybrid-retrieval-01073,
+  branch codex/hybrid-retrieval-01073, base192caaca, local candidate version
+  0.8.66-01073-SNAPSHOT. Private source verification uses explicit Maven override
+  -Dai-fabric.framework.version=0.8.66-01073-SNAPSHOT. No release/push/deploy or
+  default-version adoption. Do not install modified code over released0.8.66.
+- Framework unit regression:1335PASS/0FAIL/0ERROR/1opt-in-live-skip; runtime
+  scope/registry25PASS; backend new-settings3PASS; Console/widget TS checks and
+  widget score tests PASS. Native adapter probes separately passed stage+prod.
+  Browser light/dark/360/390px controls passed; temporary harness/server removed.
+- Not done: Milvus SDK/BM25/generation lifecycle; orchestrator-level multi-space
+  fusion and mixed qualification; Ragas/metred bridge/reviewed comparisons;
+  bulk plans and assistant operations; optional learned reranker and provider
+  accounting; full customer UI/chat/Engage/Build with AI release qualification.
+  Asked about optional Cohere recipient/key/spending approval; no call enabled.
+- Support/Harbor releases, owner practice Brain dep-000748a0, infra and shared
+  authoring turns/caps unchanged. Other dirty worktree changes preserved. See
+  verification-support/hybrid-retrieval-01073/2026-11-23_IMPLEMENTATION.md and
+  private ~/.codex/private/loomai-hybrid-retrieval-01073 for details/receipts.
+- Follow-on local additions: provider-neutral RerankingProvider and mandatory
+  RerankingCallBudget host bridge; optional providers/ai-fabric-reranker-cohere
+  module; shared post-fusion/pre-context stage, OFF by default. No product-ledger
+  bridge/secret/UI enablement or live Cohere call yet. Updated full framework
+  result1353PASS/0FAIL/0ERROR/1opt-in-skip; Platform197PASS; runtime25PASS and
+  Console/widget typechecks remain as recorded. New tests use synthetic native
+  Cohere receipts, not fabricated live results.
+- Owner approved Cohere recipient, then asked us to check private auth. Found
+  /Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework/.private-release-materials/llm-provider-auth-material-private.md:
+  explicitly redacted inventory/<secret> examples, not an actual key. Referenced
+  private Platform handoff has historical presence only; current backend ENV
+  lacks Cohere key. Asked for unredacted file location and spending limit. Do not
+  claim key found, assume a cost cap or bypass protected secret readback.
+
+## 2026-11-23 Shared Console And Workspace Membership Plan Queued
+
+- Owner requested a change plan after pending reranking work, not implementation
+  now. New 010.74 covers a shared customer/staff/admin workspace UI, existing-
+  account Viewer/Editor delegation, validated per-request workspace scope and
+  gradual retirement of duplicate staff pages through a functionality ledger.
+- Source review confirms role-based shell/customer-only APIs, one home customer
+  per account, operator-only grants, admin deployment-access shortcuts and Kit/
+  entitlement owner checks. A visual shell switch alone is not sufficient.
+- Read-only production checks found the reported corporate email is an ACTIVE
+  PLATFORM_ADMIN with no customer binding; the reported Gmail is an ACTIVE,
+  linked CUSTOMER_ADMIN with an ACTIVE workspace. No account/link/role changes.
+  Future signup must not send staff into impossible customer-mailbox recovery.
+- Plan preserves existing Brain secrets/delegated-operator permissions, treats
+  membership removal separately from global account disable/password reset,
+  isolates tabs/caches/assistant/Support state and retains real actor/audit and
+  quotas/consent/funding/developer restrictions. No new framework work expected.
+- 010.74 starts only after 010.73 completion or explicit recorded owner deferral.
+  UI profiles and 010.73 link to the queued plan; no UI/backend/runtime code or
+  deployed behavior changed in this documentation turn. No tests/deployments
+  claimed by the plan, and no new infrastructure or provider allowance.
+- Credential status supersedes the earlier lookup note: owner supplied Cohere
+  key, stored in ignored private auth material with restricted permissions;
+  native check-api-key HTTP200/valid=true, zero inference calls. Spending cap
+  remains unapproved; paid reranking/production activation remain disabled.
+
+## 2026-11-23 010.73 Continued - Local Candidate, Not Released
+
+- Owner approved USD10 TOTAL Cohere qualification (all runs/environments),
+  reply call_f720b1efd1f14a5fb64e753777760818. This supersedes pending-cap text
+  above, not other spending/authoring limits or infrastructure approval.
+- Two actual native Fast/Pro calls passed, 164 input tokens total and 5,680
+  nano-USD (USD0.00000568) accounted in the persistent private file ledger.
+  Public/synthetic excerpts, not live Support quality comparison. Do NOT reset
+  that ledger or duplicate USD10 per environment. Freeze local admission before
+  issuing bounded portions of the remaining aggregate budget to real targets.
+- Local additions: shared multi-space search/fusion/reranking; profiled retrieval
+  failures stop generation; availability-only explicit pre-rerank fallback;
+  owned reranking secret/compiler/UI; separate runtime V26 binding and immutable
+  ledger bridge; existing Platform grant coordination separated by purpose;
+  exact-target read-only allowance API. Focused framework/backend checks passed.
+- Ragas 0.4.4 locked locally with typed process adapter and runtime inference/
+  embedding bridge. Five real-library/offline scripted-inference tests passed.
+  Runtime Java protocol/authorization tests and packaging still in progress.
+  Current deployed evaluation engine/default remains unchanged.
+- Source candidate stays0.8.66-01073-SNAPSHOT in isolated public worktree; private
+  default pin remains0.8.66. No new commit/push/release/deployment/activation.
+  Runtime tests MUST use explicit candidate version override until immutable
+  publication/adoption; new Cohere module did not exist in released0.8.66.
+- No owner Harbor practice edits, paid infra change, Support/Harbor serving
+  changes, shared authoring-turn spend or account/member migration. 010.74 remains
+  queued after this work. See dated010.73 verification record for remaining gates.
+
+## 2026-11-23 010.73 Candidate Release Qualification
+
+- Owner approved verified 0.8.67 publication/rollout, reply
+  call_08f1208d115140619c15ee3040077e04. Candidate now0.8.67, public commit
+  0b8e2c0033ed840a05dfe0d48cc5fe973bf90013 on codex/hybrid-retrieval-01073.
+  This supersedes the earlier local Snapshot identity. No immutable tag,
+  Central publication, private default-pin adoption or hosted change yet.
+- Full local release-profile32module reactor passed2682executed/0fail/0error,
+  4opt-in skips; source/Javadoc packaging passed. Hosted run45284954064 active;
+  guards/vector-container job passed, consumer/packaged checks still running.
+- Local provider/accounting/customer-status/Search assistant integration is
+  implemented. Search task reuses provider draft services; AI cannot create
+  external-processing consent, keys or grants. Backend90/UI52tests andTS passed.
+- Ragas0.4.4 locked/packaged, typed metered bridge and5actual library metrics;
+  Linux7offline/scripted tests passed including native network isolation and
+  unprivileged read-only execution. Not real-model calibration or managed-default
+  adoption. Latest shared Test search/source-evaluation scope rerun in progress.
+- Cohere cumulative4nativecalls/328inputtokens/11360nanoUSD, same aggregateUSD10
+  approval/ledger. No new ongoing production authorization. Before target
+  allocation, stop local admission and partition remaining credits exactly;
+  never issue independentUSD10caps. Do not reset usage or unknown-outcome holds.
+- Frozen6question dense retrieval baseline captured on each current Support
+  corpus using own normal staff sessions; stable source/version fingerprint,
+  all sessions logged out. No owner Harbor practice edits or shared authoring
+  turn spend. Larger010.73packages remain open;010.74stillqueuedafterthem.
+- Next checkpoint: first hosted candidate run45284954064FAILED on14IncidentRoom
+  policy denials, also reproduced against released0.8.66. Example incorrectly
+  treated callerID asincidentID and missedchain-manager@3scope. Fixed example
+  resolves interactivecaller throughowned active session and retains real
+  caller/tenant/deployment/action boundaries;34focusedtestsPASS twice. No core
+  identity or permission relaxation. Public20802eae103fc3c2d9d8e6149f4985fc7c87fa79
+  pushed; hosted rerun45287390265inprogress. Tag/publication remainHELDforgreen.
+- Latest shared Test search/sourceevaluation/five-metricRagas49testsPASS,no
+  skips; Linux7testsPASS. Local Cohereledger durablySTOPPED and nativepaid
+  testsdisabled beforepartition. Remaining9999988640nanoUSD; planned staging
+  maximum5000000000 plusproduction4999988640,notissued. Private stopreceipt
+  under~/.codex/private/loomai-hybrid-retrieval-01073. Never rerun native paid
+  probes against that stopped admission or duplicate the aggregate allowance.
+- Developer-machine disk filled during regenerated examples,not serverinfra.
+  Archived489XMLreports,cleanedonlyown generatedexampletargets/new0.8.67example
+  jars. Source,originalframeworkversions and userfiles preserved;~5GiBfree.
+
+### 010.73 Continued Qualification Checkpoint
+
+- Owner approved exactly25 additional Build with AI turns per environment,
+  reply call_32ffb12edffa4d3281c62b923a77cfa7. ALREADY APPLIED to both staging
+  and production:160->185turns. Independent receipt/readback verified existing
+  usage,2Mtoken/$5limits,approval/storeidentity and expiry unchanged. TopupIDs
+  retrieval-01073-20261123-staging-25 and retrieval-01073-20261123-production-25.
+  Do NOT replay the approval or reset usage. Own staff sessions logged out.
+- Hosted45287390265FAILED farther along in Agentic Resolver startup, not Incident
+  Room: Networknt3.0.0 crashes on valid nullable numeric bounds. Upstream#1227
+  fixes it. New regression reproduced all4numeric-bound failures;3.0.4 passes
+  those plus strict-type/null/bound enforcement,without relaxing any schema.
+- Candidate also skips embedding/dense calls in KEYWORD mode and permits a
+  request-only reranking optout for baseline comparisons. Requests cannot enable
+  host-disabled reranking or create consent/funding.77focused testsPASS. No
+  immutable publication,private default adoption or serving change yet;release
+  remains held for the final full CI gate.
+
+### 010.73 Framework Released On GitHub; Central Publication Running
+
+- Final framework gate45289711532 PASSED on exact source
+  f933227e2df814b8648bb1582bcead67f2e92f0f, including vector containers, real
+  apps, Docker startup, handover, data sync and deterministic scenario checks.
+  Local release-profile totals2694reported/2690executed/0fail/0error/4opt-in
+  skips; sources/Javadocs passed. Remote main fast-forwarded normally.
+- Immutable annotated tag ai-fabric-framework-v0.8.67 and GitHub release456137600
+  created under owner approval. DO NOT MOVE/RECREATE this tag. Central workflow
+  45292489403 is running. Publication/clean Central-only consumer/adoption are
+  not yet verified. Private default pin/manifest/backend default remain0.8.66;
+  candidate runtime tests still use explicit override0.8.67.
+- Source Evaluate now supports one explicit CONFIGURED/DENSE_BASELINE/
+  CONFIGURED_WITHOUT_RERANKING run through existing services. Same ownership,
+  active-source/version filters and bounds; no saved-profile changes or automatic
+  extra runs. Older runtime must advertise evaluationVariants before non-default
+  admission. Exact experiment fingerprint and actual model receipts gate UI
+  previous scores; old history remains readable. Shared assistant receives real
+  variant/diagnostic/excerpt findings, not fabricated improvement evidence.
+- Latest focused runtime68testsPASS; full runtime876reported/875executedPASS,
+  only paid native Cohere opt-in skipped. Real pinned Ragas library checks ran.
+  Backend focused56PASS, Console assistant/comparison66PASS andTS PASS.
+- Full backend suite was stopped after unrelated fixture failures: mock vault
+  captured an old deployment ID, isolated secret table omitted target_profile_id,
+  and dealership fixtures selected retired Inbox templates/unsupported operation
+  enum members. Test-only corrections now running in focused six-class suite;
+  full backend is NOT green yet. Production authorization/schema/catalogue are
+  unchanged. Preserve failed logs/archived reports; do not skip these tests.
+- Both Support runtimes healthy before rollout: existing1GiBlimit/512MiB
+  reservation/1CPU, about657MiBused. No capacity/infra change. Full two-process
+  Python test harness OOMed at256MiB; the actual single-worker protocol passed
+  separately at256MiB, all5metrics/15scriptedsubcalls, child peak224160KiB.
+  Previous unrestricted Linux7tests also passed. Not live model calibration.
+- Actual serving/software configuration still unchanged; only previously
+  approved authoring+25topups applied. Cohere local admission stays STOPPED;
+  no live allocation issued and cumulative native spend remains11360nanoUSD.
+
+### 010.73 Central Processing And Platform Regression Follow-up - 24 November
+
+- Framework push build45292383299 and manual45289711532 both PASSED on
+  f933227e2df814b8648bb1582bcead67f2e92f0f, including Maven Build, real apps,
+  packaged Docker checks and vector container contracts. Older failed build
+  notifications are not evidence that the current revision is failing.
+- Central workflow45292489403 uploaded successfully at00:01UTC, deployment
+  bd939952-9a29-4fd8-8f38-460e432487d7, then its30-minute publication polling
+  timed out at00:31UTC. Owner reply call_b2b980cb238445799bdf8b1a65cfcca4 confirms
+  PUBLISHING/processing, not validation failure. DO NOT re-upload/re-tag/reset
+  the version. Chrome extension UI blocked publishing-page automation; CUA was
+  closed with its completion summary. BOM/Cohere URLs still404 on last check.
+  Clean consumer/adoption/serving rollout remain held; private pins66.
+- Full Platform run completed6089reported:6057PASS,13failures,18errors,1skip.
+  Retained backend-full-first-complete-reports.tar.gz and failed log privately.
+  Missing H2 mirrors of productionV202/V233, stale exact migration/model/version
+  assertions, retired Inbox templates and incomplete connection fixtures were
+  identified. Corrections do NOT change production schema, catalogue or guards.
+  Updated fixture templates use Desk-ready simulated1.10.0, not retired1.4.0/
+  1.5.0. Full suite is NOT yet green; do not hide that distinction.
+- Broad checks also exposed a real pre-existing partner-preview denial after
+  target resolution. Owner approved scoped correction in
+  call_593f254d82374f3ab78b68750b23b5ea. New PartnerRuntimeAuthorization rechecks
+  verified identity, active member/account/store assignment, PRODUCT_CONFIG_READ,
+  store/deployment/customer relation and revocation. It grants no Console role.
+  Private preview retains owned target/resource/endpoint checks and frozen
+  target signing. Issuer allows five widget scopes, member-specific session,
+  two-minute lifetime, no admin/document-write/prompt-preview scope. No global
+  credential fallback. Partner integration10, authorizer16, authority47, POC41
+  and target-context25PASS. Post-revocation HTTP denials passed in final partner
+  rerun. Full scoped group has159PASS/6errors from the publication fixture's
+  inherited Milvus token mode; that test-only setup is being corrected.
+- Two legacy apply checks hit the requirement for an explicit reviewed
+  sourceArtifactId. Operator fixture needs a reviewed artifact; old public
+  provisioning accepts only versionId, so that API gap is not merely a fixture
+  issue. No bypass or unsupported API capability was added.
+- Document browser journey PASSED actual UI/shared assistant transport with API
+  fixtures: explicit variants, comparable history, attributed SEARCH handoff,
+  manual indexing, early cancellation, read-only, light/dark and360/390px.
+  Brain settings browser PASSED consent unchecked by default, exact-target
+  usage readback, lossless provider save, retained32000context choice and
+  existing navigation/edit safeguards. Local checks, not hosted AI proof.
+  Console67unit tests/TypeScript/production build and widget score-presentation
+  checks passed. Generated screenshots are not source changes to publish.
+- Actual live software is unchanged. Approved+25authoring topups were applied
+  once earlier; do not replay. Cohere local ledger remains durably stopped,
+  no live grants issued, total11360nanoUSD. Remaining010.73 packages and hosted
+  qualification stay open;010.74 remains queued.
+- Final fixture/auth-type rerun22testsPASS/0fail/0error/0skip: authorizer16 and
+  customer publishing/concurrency6. Along with the preceding159passing scoped
+  cases, the corrected Marketplace, partner HTTP, authority, POC, context and
+  publishing paths are qualified locally. This is NOT a new full6089-test pass.
+  Partner fix alone committed locally as56abfeaf1; NOT pushed/deployed. Reranking
+  feature/source/test/doc work remains uncommitted; preserve unrelated changes.
+- Additional corrected-fixture group completed50/50PASS/0skip at00:49UTC:
+  provider-secret deletion, bulk deletion, vector cleanup, lifecycle restore,
+  authority persistence, setup method security, migrations and workspace reads.
+  Log: backend-remaining-fixture-verification.log in the ignored private010.73
+  directory. These are scoped reruns, not a new complete backend-suite result.
+  GitHub API reconfirmed push45292383299/Maven BuildSUCCESS onf933227. The actual
+  Central coordinate io.github.loom-ai-labs:ai-fabric-bom:0.8.67 remains404;
+  no duplicate upload, private pin change, hosted rollout or paid call occurred.
+
+### 010.73 Comparison, Reviewed Labels And Final Local Checks - 24 November
+
+- Owner reconfirmed existing Central deployment
+  bd939952-9a29-4fd8-8f38-460e432487d7 is PUBLISHING. No duplicate upload,
+  retag, private pin adoption or serving change. Correct BOM still404 at the
+  latest check. Public source remains clean f933227; no further framework edit.
+- Local source Evaluate now compares three matching experiment/model variants,
+  shows actual execution/reranking receipts, and hands bounded real comparison
+  context to the existing SEARCH assistant. Missing scores are not zero. Older
+  runtime variants and reviewed-label controls require advertised capabilities.
+- Optional manually reviewed exact source/version/evidence labels support
+  Recall@k, reciprocal rank and graded nDCG without model calls. AI cannot attest
+  its own new/changed labels as reviewed. Stale/foreign/unreviewed labels are not
+  scored. Partial evaluations retain actual excerpts, answers and usage when a
+  later stage fails or is cancelled. No invented answer or replayed paid work.
+- New profiles inherit existing evidence/context budgets, including staging's
+  8documents/32000characters, unless explicitly overridden. Publication/apply
+  checks real artifact capabilities, not only requested configuration. Source
+  pages link to the one Brain-level editor and report corpus-specific readiness.
+- Final UI71tests, TypeScript, production build and source browser journey PASS;
+  browser covers three-way comparison, manual labels/review, assistant context,
+  legacy runtime, cancellation, read-only, dark and360/390px. Runtime full suite
+  885reported/884executedPASS/1paid-nativeoptinskip; final capability/controller
+  focused19PASS. Platform settings216PASS and label-authority45PASS preceded a
+  final legacy-capability guard; final authoring/settings45PASS verifies that
+  guard. Additional actual Apply-safety40PASS covers missing retrieval/ranking/
+  accounting capability denials, compatible support and disabled-profile retention.
+- Complete Platform suite finished6109reported:6106PASS/2fail/0error/1skip.
+  Remaining two: DeploymentOperationApprovalIntegrationTest reviewed-artifact
+  fixture and PublicProvisioningApiIntegrationTest legacy apply contract lacking
+  explicit artifact/target selection. Production gates were NOT weakened. Archive
+  backend-full-retrieval-final-reports.tar.gz and full log remain private. This
+  is NOT a green full suite. All required test sessions have finished. Widget
+  TypeScript and typed-score presentation alsoPASS. No paid/provider calls.
+- Read-only authenticated preflight reconfirmed Support draft revision14,
+  original verified releases, ready connectors and stable13stage/14prod active
+  sources. Both own-staff sessions were logged out and revocation verified.
+  Running image inventory confirms Weaviate1.40.3 on both hosts, not a claim
+  about external BYO vectors. No model/provider call, topup or corpus mutation.
+- Remaining whole-plan work includes Milvus lifecycle, entity/mixed evaluation,
+  hosted Ragas calibration/default cutover, durable bulk coordination/assistant
+  operations and actual staged rollout. Existing structured judge remains the
+  managed default.010.74 stays queued; owner Harbor resources remain untouched.
+
+### Build With AI Flow And Autonomy Review - 24 November 2026
+
+- User requested analysis, not implementation. No product logic, prompt,
+  runtime, deployment, allowance or infrastructure change in this review.
+- Read-only own-staff checks at02:01UTC: both staging and production report
+  enabled:true, ready:true, validationFeedback defaultEnabled:true/maxCorrections2.
+  Both sessions logged out and old-cookie revocation verified. Core controller,
+  feedback policy, runtime generation and UI feedback helper have no diff from
+  the last recorded live Console source97be03bf0c3f7f13c565ac873ffa95df5b653249.
+- Platform controls resource/task scope, next-attempt admission, authorization,
+  candidate validation and the final save. Model chooses proposed edits or
+  READY/NEEDS_INPUT/EXPLAIN/UNSUPPORTED. Runtime executes one authoring generation
+  step per request; structured executor maxAttempts1, no nested repair loop.
+  Current ceiling is initial attempt plus2corrections, shared140sPlatformdeadline.
+  Every attempt uses real provider admission/accounting. Missing request policy
+  disables corrections; the ordinary UI supplies the advertised default.
+- Multi-turn sessions persist encrypted content in platform_authoring_sessions,
+  actor/resource/task scoped, max30storedturns, up to8preceding turns supplied
+  with the fresh current configuration; expiry7daysafterlatestwrite. Workers are
+  in memory, not a durable autonomous job coordinator. Same request key reads
+  back an existing turn; it does not intentionally replay inference/writes.
+- Important confirmed edge case: complete() sets awaitingInput to NEEDS_INPUT
+  AND feedback.enabled. With repairs disabled, NEEDS_INPUT plus nonempty changes
+  can save. Enabled feedback correctly waits without saving. Reproduced locally
+  twice using the real encrypted-session/transaction test fixture and mocked
+  runtime/resource services: disabled->SAVED/draftChangedtrue;
+  enabled->NEEDS_INPUT/draftChangedfalse. Final probe exits0. No live inference
+  or live draft mutation. This needs a future scoped fix so the stop decision
+  is independent of the repair preference. It is not fixed in this review.
+- Saving an editable draft with remaining ordinary validation findings after
+  repair exhaustion is intentional and separately tested; SAVED is not
+  publishReady or proof of response quality. Hard authority/execution failures
+  remain boundaries. Do not conflate this with the NEEDS_INPUT inconsistency.
+- Private probe: ~/.codex/private/loomai-hybrid-retrieval-01073/AssistantFlowProbe.java
+  and assistant-flow-probe-final.log. Initial probe completed assertions but
+  teardown ordering failed; final corrected local harness exits0. Product source
+  and its tests were not edited. Interactive analysis outside the repository:
+  ~/.cursor/projects/Users-mahmoudashraf-Downloads-Projects-TheBaseRepo/canvases/
+  loomai-assistant-control-and-autonomy.canvas.tsx; TypeScriptPASS.
+
+### Owner Correction: Configuration Assistant Must Be A Smart Brain - 24 November
+
+- Owner explicitly rejected the current custom direct-generation authoring path
+  as a shortcut inconsistent with validating LoomAI's own Smart Brain product.
+  Required target: a real configured Platform-managed Brain driving assistance
+  through normal framework/runtime orchestration and registered capabilities.
+  Direct AICoreService generation plus a Platform-coded repair/save loop is not
+  sufficient; an endpoint rename or superficial Brain wrapper does not qualify.
+- Original PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md and product north star state
+  the managed-deployment/reference-consumer requirement. Later010.37section1.1
+  drifted to an inference helper. Added an owner correction above that historical
+  plan; do not cite its earlier implementation status as architecture acceptance.
+- Existing Support Brain/specialists and Build with AI authoring are separate
+  flows. The architectural miss concerns the latter, not a claim that the
+  existing five Support specialists were custom fake workers or disabled.
+- Preserve normal security, scoped Platform services, draft authority and
+  explicit publication/indexing/funding controls. Verify migration parity before
+  retiring the current working authoring path. Any required framework patch must
+  be proposed for review first. No product code, deployment or framework change
+  has been made in response to this correction yet.
+
+### 010.75 Configured Authoring Brain Migration Plan - 24 November 2026
+
+- Created full proposal010.75 under the Implementation roadmap. Status is OWNER
+  REVIEW, not permission to implement or release. Owner requires a genuine
+  configured Smart Brain, normal conversation ingress and framework-owned
+  planning/recovery; no renamed private-generation helper or Platform AI loop.
+- Owner clarified that bounded iteration must see both READ and WRITE Platform
+  actions and perform writes within the authorized request. Reuse actual action
+  policies, including no-confirmation draft writers. Draft editing does not grant
+  publish/apply/index/activation/paid-evaluation or broader resource authority.
+- Confirmed three framework packages for review: FW1 opt-in read/write iteration
+  reusing governed invocation; FW2 checkpointed step effects and receipt-based
+  recovery; FW3 one inherited deadline/call/step/write/repair/cancellation budget.
+  Existing BOUNDED_ITERATIVE is READ-only. Fixed execution plans, schema repairs
+  and current read-only Support consultation are not substitutes for this work.
+- Latest owner request assessed: known typed page/task should select its
+  published specialist directly; automatic coordination is for broad work. SDK
+  AIExecutionRequest and AIInteractiveExecutionGateway already accept an exact
+  SpecialistId. Current ChatQueryRequest lacks the trusted dispatch binding.
+  Platform/Runtime integration must preserve one canonical turn owner, original
+  actor/resource/task permissions and pinned profile version. Page selection is
+  not extra authority, a forced tool sequence or a hardcoded prompt switch.
+- Preserve current UI, imports, supported editors, validation findings, safe
+  references, history, follow-ups, diffs and Undo. Review intentional incremental
+  write semantics: cancel stops future edits, not committed edits; keep actual
+  receipts and grouped Undo. NEEDS_INPUT must stop independently of repair mode.
+  Do not silently save a partial candidate merely because corrections are off.
+- Plan includes M0-M6 gates, legacy retirement, storage/history ownership,
+  proposed finite limits and25acceptance scenarios. Proposed limits are not
+  applied caps. Existing transport may narrow the140sPlatformceiling; no higher
+  timeout, additional infrastructure or new allowance is authorized here.
+- Local framework contract checks:119execution +81core +18interactive selection
+  =218distinct testsPASS/0fail/0error/0skip, scripted providers only. They verify
+  existing foundations, not the unimplemented read/write runner or live quality.
+  Logs: authoring-migration-framework-contracts.log,
+  authoring-migration-core-contracts.log and
+  authoring-migration-explicit-specialist-contracts.log in the ignored private
+ 010.73directory. Public worktree remains clean f933227; private HEAD56abfeaf
+  and unrelated local work preserved. No paid calls, grants, draft edits, release
+  or deployment performed for this plan. Existing010.73rollout remains pending.
+- Supporting review canvas is outside the repo at the managed canvases path:
+  loomai-build-with-ai-migration-plan.canvas.tsx; TypeScriptPASS. Full proposal is
+  doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/
+  010_75_BUILD_WITH_AI_CONFIGURED_SMART_BRAIN_MIGRATION_AND_BOUNDED_WORKFLOW_PLAN.md.
+
+### 010.73 Resumed After Central Publication - 24 November 2026
+
+- Owner redirected execution back to reranking. 010.75 is a completed proposal,
+  not implementation approval; leave the assistant architecture migration and
+  queued staff migration untouched while resuming010.73.
+- Official Central now serves0.8.67. Nine actual runtime artifacts passed native
+  checksums. Fresh isolated Central-only Maven cache passed minimal consumer
+  packaging and agentic consumer tests. Public push45292383299 reconfirmed green
+  on f933227. No duplicate upload, immutable tag change or public source edit.
+- Private source be8a3ccd425132ad8fab340956dcb9fd993873ca committed and pushed
+  normally to Platform-V11. Includes prepared010.73 code/tests, private67pins and
+  explicit target/artifact fields in public Apply. Exact replay matches both;
+  original binding ownership and core review/capability/funding checks remain.
+  Operator fixture now supplies a reviewed runtime. Public URL-contract fixture
+  uses one explicitly team-authorized synthetic target, not a production waiver.
+  Focused52testsPASS; full Platform rerun still running at this checkpoint.
+- Runtime885reported/884executedPASS/1paid-nativeoptinskip. Console71tests,
+  TypeScript/production build, widget typed-score checks and document browser
+  journey passed. Local browser uses API fixtures, not hosted provider evidence.
+- Exact-source hosted runs: core images45319309383SUCCESS; runtime45319309561,
+  manually dispatched full code regression45319367399 and storage45319309480
+  still running; environment-quota45319309490SUCCESS. Private watcher records
+  exact-source completion and must qualify all five before serving rollout.
+- Private helpers under ~/.codex/private/loomai-hybrid-retrieval-01073:
+  watch-private-0867.mjs, register-runtime-0867.mjs, rollout-core-0867.mjs and
+  read-authoring-budget.mjs. They have not dispatched a serving rollout yet.
+  Rollout intents must be reconciled, never blindly replayed. Production requires
+  actual staging-quality evidence. Shared authoring service also needs ordinary
+  image qualification for SEARCH compatibility, without010.75implementation.
+- Fresh own-staff read-only preflight verified Support draft14 and original
+  verified releases rel-f70b01dc/stage and rel-4bf5d7be/prod, connector readiness
+  and stable13/14active sources. Sessions logged out and revocation verified.
+  No shared grant reset, extra topup, live Cohere allocation or inference yet.
+  Cohere key in ignored private handoff matches the original stopped ledger's
+  identity. Aggregate spent remains11360nanoUSD; existing USD10partition retained.
+  No infrastructure/capacity/protection setting changed; live software still66.
+
+### 010.73 Central Adoption: CI Follow-up - 24 November 2026
+
+- Complete local Platform rerun6118reported/6117executedPASS/1skip; full runtime
+  885reported/884executedPASS/1paid-nativeoptinskip. Console71/TS/build and fixture
+  browser PASS. Native runtime OCI83389d3f... contains all9checksum-matched actual
+  Central67JARs, matching manifest and no-network Ragas0.4.4 import.
+- Feature images be8a3 core45319309383/runtime45319309561/storage45319309480/
+  quota45319309490PASS. Initial fullcode45319367399FAILED DockerAPI1.32 and2
+  immediate-worker assertions. Test-only2ac2d pinsCI24.04/API1.44 and awaits
+  zero-queue worker readiness, without production code changes.
+- Fullcode45320761143FAILED timestamp precision in older route/access fixtures:
+  LinuxJVM nanoseconds rounded to PostgreSQL microseconds left frozen retry time
+  in the future, and exact JSON timestamps differed below1microsecond. Test-only
+ 70d46dee813f2df06e82328c8bfeccc96c8aff03 fixes the frozen fixture clock and
+  compares only grant timestamps within1microsecond; all other fields exact.
+  Affected45realPostgreSQLtestsPASS locally. Fullcode45322629657 nowRUNNING.
+- Watcher63071 requires all5gatesPASS; expected code-qualification source70d46,
+  serving image sourcebe8a3, exact delta4CI/test files. Do not rebuild or change
+  immutable source/images merely for test-only fixes. No serving rollout/grant/
+  paidcall dispatched yet. Preserve failed evidence; never claim initialCIgreen.
+
+### 010.73 Staging Rollout Started - 24 November 2026
+
+- Fullcode45322629657 passed backend/product/relay, thenFAILED clean UI build
+  because shared widget dependencies were absent. CI-onlyd1c737c3f adds widget
+  npmci. Fullcode45324308971 nowSUCCESS, including backend/product/relay/smoke/
+  UI71/build/sourceguards. All5required gates PASS; private CI receipt records
+  image sourcebe8a3 and qualification sourced1c737, exact delta4CI/testfiles.
+  Local fresh widgetinstall+Consoleprebuild/build alsoPASS. Dependency audit
+  still reports3high entries(source-map-js,Vite,Zod); no automatic major upgrade
+  or complete dependency-security assessment was performed in this work.
+- STAGE authoring jobzj2vap1hkll4d5vi7k3kdwip, backendgrjc69p2xf142rcq0cdxc3yt,
+  UImrd4qz33zjk7tbmrgd7a4wzi allnativehealthy/sourcebe8a3 verified. Existing
+  environments/limits/mounts preserved, backend schema247. Authoring185turn/
+  2Mtoken/$5caps and actual counters preserved. No authoring topup or extra spend.
+- Stage artifactdsa-d15f68f4 registered and stagingpromoted after native digest/
+  manifest/9CentralJAR verification. Normal Support draftprovider-only merge
+  created owned RERANKING_API_KEY and approved rerank-01073-staging-20261124 grant
+  under existing stopped-local USD10aggregatepartition. No duplicate allowance
+  or new approval. Versionver-cb68e5a8, reindexRequiredfalse; normal apply release
+  rel-7a6f60c8 nowPROVISIONING, runtimehealthy/connectorwait at checkpoint.
+- Observerexec47649 holds own normal staff session. Do not replay configure,
+  publish/apply/rollout/registration intents. Inspect existing receipts/state.
+  No live Cohere query yet. Next: observe PASSED, bind exactexistingconsumer,
+  qualify-retrieval/compare-document/isolation scripts, SupportUI and current
+  authoring regression with SEARCH, disable paidreranking through normal apply,
+  then stagequalitygate before production. Production still unchanged66.
+
+### 010.73 Native Staging Findings And Safe Rollout Mode - 24 November 2026
+
+- Support rel-7a6f60c8/ver-cb68e5a8 APPLIED_VERIFIED/PASSED(vrf-42c5766b),
+  normal existing consumer rebound without app/domain/config identity changes.
+  Native verification itself performs a real-document retrieval:8evidence on
+ 04:39:35UTC. This accounts for the first Cohere call before the later Console
+  test; the initial commentary's zero-paid-call assumption was corrected.
+- Real Support UI seven turns succeeded, including knowledge specialist and
+  knowledge-freshness plan, natural status/investigation, history reload and
+  consent revocation. First normal query proves framework-owned HYBRID/RRF and
+  native Coherefast reranking18authorized candidates, no degradation; context
+ 31714/32000characters,8items. Original conversation restored, consent revoked,
+  customer signed out. Follow-up cites old approved navigation wording; source
+  freshness finding retained, not rewritten by a phrase filter.
+- Known-real cross-customer Brain draft, document preview and retrieval-proof
+  requests all404 with unchanged reranking usage/providerAttempts. Normal own
+  customer login, explicit foreign customer/source IDs, own-staff logged out.
+- Current Build with AI existing action setup/alloperations/selectedoperation/
+  missinghost/missingcredential, follow-up/Undo/behaviour checks passed; all five
+  resource-free fixtures/sessions deleted normally and actor signed out. Added
+  SEARCH qualification FAILED request fidelity: asked12candidates/6evidence,
+  model saved maxResults12 despite valid configuration. Original failed report
+  retained; separate assessment distinguishes existing checks from new quality
+  finding. No forced validator, model-output replacement or assistant migration
+  was implemented. Stage authoring166/185, caps unchanged.
+- Console proof for the new shared profile returned NONE: Support source permits
+  three consumer authModes but excludes PLATFORM_PROXY_SESSION. Correctly no
+  source selected for that identity. Owner question pending scoped Source grant
+  on both targets; do NOT reuse Northfield's earlier approval as Support consent.
+  Original intent retained; never replay it blindly. Harness now saves native
+  proofs/usage before assertions. No source scope or template was broadened.
+- Native stage reranking snapshot after live tests:5calls/55867inputtokens/
+ 1117340nanoUSD. With frozen local qualification11360nanoUSD, aggregate actual
+ 1128700nanoUSD(USD0.0011287), within originalUSD10. Stage allocation5USD, proposed
+  production remainder4.999988640USD; no production reranking grant issued yet.
+- Paid qualification is now being closed through normal publication/apply.
+  Stagever-8811821e/rel-97112a79 PROVISIONING, observer53953/ownstaff session.
+  Draft keeps inactive retrieval settings but sets profileenabledfalse and
+  rerankingenabledfalse to preserve existing serving search defaults and prevent
+  unattended paid processing. Do not stop a still-serving strict reranker budget
+  without first disabling it through the actual release.
+- Pending owner scope approval blocks Console three-way evaluation/native Ragas
+  calibration, not proof that normal Support reranking works. Production rollout
+  may qualify ONLY a defaults-preserving67upgrade, without enabling hybrid or
+  Cohere or changing Source grants. Record that restriction in the stage gate;
+  regular production configure must require full reranking qualification. Do not
+  claim the entire010.73plan complete: Milvus lifecycle, Ragas calibration/cutover,
+  entity/mixed evaluation and bulk operations still remain.010.75 stays deferred.
+
+### 010.73 Runtime Deactivation Defect And Scoped Fix - 24 November 2026
+
+- Stage OFF release ver-8811821e/rel-97112a79 was APPLIED_VERIFIED/PASSED but
+  native runtime settings still enabled hybrid/reranking. Coolify env upsert did
+  not remove omitted settings; desired OFF status alone was not runtime proof.
+  Keep this failed qualification, not a false claim that disabling had worked.
+- Temporary exact-key containment job cesvhortgjrvizy3n7oc8ddx finished healthy:
+  removed40standard/preview rows for20Platform-owned retrieval/reranking keys,
+  preserving all other variables, image and infrastructure. Actual container has
+  no enabled feature settings. All6ordinary document retrieval proofs then
+  passed existing-dense-search with no reranking and stable approved corpus.
+  Manual containment is not product-fix acceptance.
+- Committed/pushed239bf13eabb3ba43a0c67eb229a2075e16299902 adds exact-owned-key
+  reconciliation before runtime env update/deploy, verified deletion readback,
+  and102focused passing tests. Unknown/customer settings are never prefix-pruned.
+  Failure blocks deployment dispatch. Full local backend and hosted regression
+ 45331818254/core-image45331783556 are still running at this checkpoint.
+- Stage Console supplement18b8ead41 passed image45330164969/UI regression
+ 45330189321 and rolloutl5h8j9jishmaxyx077wxca65. Optional Allow tests in Console
+  form passed real customer save/reload/uncheck, visitor-mode preservation and
+  desktop/mobile. Temporary private definition archived with0versions/0installs;
+  original cleanup harness omitted required revision body, then used wrong
+  displayName field. Both harness failures retained, cleanup now verified and
+  actor signed out. No existing source permissions were changed.
+- Native Support ON-to-OFF requalification with the product fix is next, followed
+  by production default-preserving upgrade. Production remains unchanged66;
+  paid reranking and broadened Support Console source access are not activated.
+  Pending source-mode approval still blocks Console profile evaluation/Ragas
+  calibration; retain normal own-session authentication and all source filters.
+  Original Harbor/practice Brain and unrelated work preserved.010.75 untouched.
+
+### 010.73 Fix Qualified And Native ON Rechecked - 24 November 2026
+
+-239bf13ea full hosted backend45331818254 and image45331783556PASS. Both local
+  and hosted full runs:6127reported,6126passed,0fail/0error/1skip. The skipped
+  DeploymentOperationsServiceProcessTest requires deploymentOperationsJar; it
+  is not a live paid-provider test. Local build26:49, hosted15:41. Existing local
+  stale Spring-context scheduler/DB logs and Surefire shutdown warning retained;
+  actual Maven exit0. New backend digest822faf9c... stage jobu54w5neuf77gdyq6xpqzvt12
+  finished healthy, exact environment/mounts/resource limits preserved.
+- Normal new stageONver-d94b7c20/rel-e57a63a7 APPLIED_VERIFIED/PASSED and existing
+  consumer rebound. Actual container has20owned feature keys; Coolify40rows.
+  Same runtime image and mounts; old wallet preserved,7calls/80237inputtokens/
+ 1604740nanoUSD before UI tests. This includes the earlier stale-OFF verifier
+  call and the new ON verifier, not a wallet reset.
+- Repeated cross-customer test now targets the SAME real Support Brain/source
+  whose active wallet is observed:3requests404, providerAttempts7before/7after,
+  exact accountedUsage unchanged. Original earlier foreign-resource denials were
+  valid, but that harness watched a different deployment's wallet; retain its
+  original report and do not use it alone to prove no foreign-runtime work.
+- Six fresh normal Support UI queries all returned success. Five expose native
+  HYBRID/Cohere diagnostics with8approved active owned documents each. The third
+  returned specialist-action evidence, not top-level vector RAG. Original test
+  incorrectly required hybrid diagnostics for all ragResponse.documents and
+  failed; kept that report, corrected evidence classification, ran only the
+  remaining3questions without replaying the first3. Customer signed out and
+  original conversation restored after both attempts; phone screenshot checked.
+- Manual quality is MIXED: embedding/both app modes and domain procedure good;
+  API guidance cites older connection workflow; indexing gives procedure plus
+  unrequested diagnostics; live-release/how-to and handover questions over-select
+  live diagnostics despite appropriate guides being retrieved. No resource facts
+  invented/disclosed. Do not force RAG, rewrite answers or claim comparative
+  improvement. This is not approval to change Support/Build with AI prompts.
+- Last pre-OFF native wallet:16calls/177824tokens/3556480nanoUSD. With stopped
+  local history11360nanoUSD, aggregate accountedUSD0.00356784 of approvedUSD10.
+  No production reranking grant/credential or new allowance was created.
+- OFFver-03b727dd/rel-6a743235 nowPROVISIONING; observer29050 holds own normal
+  stage staff session. Latest stepwait_for_coolify_connector_after_database_credential_scrub.
+  Do not replay disable/publish/apply or reuse manual containment as acceptance.
+  Next: observePASSED, bind, verify-native-retrieval-flags staging off, six fresh
+  qualify-retrieval proofs (phase reranking-off-productfix), normal offUI journey,
+  manual review, then create defaults-preserving staging gate. Production remains
+  unchanged66 at this checkpoint. Planned gate explicitly fullRerankingQualification
+  false; only unchanged-search67software rollout may proceed.
+- 010.73 now cross-references owner010.75architecture correction for unfinished
+  P2/P3assistant tools. No new custom assistant loop or migration implemented.
+
+### 010.73 Current Released Slice - 24 November 2026, 06:35 UTC
+
+- Final software receipt software-adoption-0867-final.private.json is
+  SOFTWARE_ADOPTION_PASS_WITH_QUALITY_FINDINGS, not full010.73completion. Stage
+  gate explicitly DEFAULTS_PRESERVING_SOFTWARE_UPGRADE_ONLY and
+  fullRerankingQualificationfalse; do not use it to activate paid/hybrid defaults.
+- Stage OFFrel-6a743235/ver-03b727dd APPLIED_VERIFIED/PASSED and bound. Actual
+  native20managed keys0, Coolifyrows0, same image/mounts/limits;6ordinary proofs
+  and6fresh normal chats succeeded without reranking. No manual containment was
+  used in this acceptance cycle. Cohere and custom hybrid profile finish OFF.
+- Production core backend239bf13ea jobl13lisapbqcvwt0y8323dfdq/digest822faf9c...,
+  UI18b8ead41 jobnjdy0jkab9hfwfvn1hjnps3w/digest472b1be4... and authoringbe8a3
+  jobb69i0gqkl2fk9hnp01drlxx2/digest83389d3f... allnativehealthy. Core before/after
+  environment, limits and mounts preserved. Runtime artifactdsa-69af59c3 promoted
+  after9actualCentralJAR hashes, capability manifest and no-networkRagas0.4.4
+  import. This is packaging proof, not real-model Ragas calibration.
+- Prod existing Support draft14 selected unchanged, allConfigsectionsdeepEqual
+  frozen preflight. No RERANKING_API_KEY/grant created. Newver-ba013240,
+  rel-91b8a237 APPLIED_VERIFIED/PASSED, same active consumer rebound. Native actual
+  expected67image, healthy/restart0,20owned feature keysabsent; runtime/connector/
+  database identities unchanged.13/14stage/prodactive sources/corpus fingerprints
+  unchanged.6prodordinary proofs allsuccess/expectedsourceintop6. Do not claim
+  every other customer deployment upgraded: original Harbor/practice stayed intact.
+- Production existing Build with AI5core casesPASS on first attempts, including
+  complete import/follow-up/Undo/behaviour, alloperations, selected-only and
+  missinghost/credentialNEEDS_INPUT. All5resource-free fixtures/sessions deleted,
+  actor signedout. Final effective authoring caps185turns/2Mtokens/USD5both;
+  stage166used, prod159used. No topup/cap/expiry/store reset.
+- Prod Support15nativeUIturns succeeded; oldcanonicaltranscript/answers retained,
+  currentconversation resumedafterreload, diagnostics revoked, originalconversation
+  restored, actor signedout.8/10specificallyrequested invocations observed; Knowledge
+  and knowledge-freshness used permitted directcompounddiagnostics instead. Actual
+  process registry verifiesall5areas+5plans. Keep selector-fidelity finding, do not
+  force by phrase rules or call all10liveinvocationsqualified.
+- Other Support quality findings: optionaldisabledhandover flags initiallycalled
+  blockedoverallreadiness despite localready true; old Configuration navigation;
+  request to select alreadyselectedresources; revoked NOT_APPLICABLE diagnostic
+  narrated as checkexecutedsuccessfully. Actual revoked resources[], requirement
+  DIAGNOSTIC_CONSENT_REQUIRED, internalendpoints403. No newprivatefacts disclosed
+  in thatanswer and no businessAPIaction/write executed. No prompt/FW patch made.
+- Production known-real foreignSupportBrain/source3requests404 with normal actor
+  login/logout. Stage SAMEtargetactivewalletproof7attemptsbefore/7after establishes
+  no reranking work. Do not reuse earlier different-targetwallet as sole proof.
+- Native Console-accessformPASSbothenvs. Private definitionsarchived0versions/
+ 0installs, actorssignedout. ExistingSupportsourceauthModesNOTbroadened. Owner
+  approvalforPLATFORM_PROXY_SESSION remains unanswered. No borrowedcookies,
+  adminAPIkeyfallback, rawSQLmutation or grantreset used. No active ownstaffsession
+  remains. All needed release/testprocesses finished at thischeckpoint.
+- Cohere lastpreOFFstage16calls/177824tokens/3556480nanoUSD plus stoppedlocal
+ 11360nanoUSD = USD0.00356784accounted ofapprovedUSD10. Production allocation not
+  issued. Both runtimesfinishrerankOFF. Invoice cost is not inferred from this.
+- Stillunfinished: reviewed comparisons/Ragascalibration+managedcutover, Support
+  documentation/selection/narrationquality, newSEARCHrequestfidelity, MilvusBM25/
+  generation/backfill, entity/mixed eval and durablebulkcoordination.010.75is a
+  completed migration proposal only; ownerexplicitlydeferredassistantchanges.
+  Do not implement FW1-FW3/authoringmigration or new custom AIloop as part of this
+  release.010.74staffmigrationalsoqueued. Guides/010.73verification updated with
+  actual shipped slice and these limits, not a false full-plan green status.
