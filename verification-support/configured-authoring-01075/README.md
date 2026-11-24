@@ -104,7 +104,7 @@ No infrastructure/capacity or spending-cap change has been performed.
   not called a green whole-backend result. No production behavior was changed
   to bypass version checks.
 
-## Still Required Before Completion
+## Earlier Migration Checkpoint (Superseded by Dated Entries Below)
 
 Staging adoption is in progress, not qualified. The core UI/backend feature
 commitf54e2b2a0 is healthy on staging; runtime artifactdsa-a2537ec2 is attested
@@ -233,3 +233,32 @@ these actual preserved limits, not create a second allocation.
   message was generated, rather than generic failure text.62backend scope/safety/
   compiler checks and8Runtime checks passed. Commit/build/stage/live qualification
   of these refinements is still required.
+
+## Staging Refinement Qualification, 24 November 2026, 13:23 UTC
+
+- Source6471aaed3 committed/pushed; core45399338477, Runtime45399338442,
+  storage45399767997 and quota45399774080 all passed. Stage backend digest
+  cf1af3181ae7af3fbe0c37765289429163c3bc76187aa6b2e8ecb3fc576bf49b is healthy.
+  Runtime digestfd6d594ce8bac5a756183e29db29a2a0ed2bde23146885172a62abfbc1651754
+  has nine checksum-verified official Central0.8.68JARs. Normal ver-d796c5ab/
+  rel-1cbce8da applied and verified. Original wallet/caps/PG/capacity preserved;
+  retired generation POST remains404. Production unchanged.
+- Initial actual API preparation, optional-input mapping, follow-up rename and
+  Undo passed; OpenAPI2-operation case passed. The first response-style check
+  incorrectly expected nonexistent friendly/concise IDs. Real catalogue IDs are
+  warm/brief. The model selected warm but edited its wording, correctly causing
+  normalization to Custom; its brief text matched. This is retained evidence,
+  not relabelled exact-preset success. New named-preset test uses Warm/Brief.
+- Seven-case repeated qualification:3passed(prose3,selectedoperation,missinghost),
+  4failed(two unnecessary creation/name clarifications, check-only false save
+  narration, missing-credential decision correction exhaustion). All temporary
+  Brains/sessions deleted and customer/staff sessions logged out. No unauthorized
+  writes/publication. Do not call this production acceptance.
+- Attempted stronger-model configuration was outside the original immutable v2
+  reviewed rate card. rel-4fd49515/ver-ab03e942 failed; no paid inference ran and
+  no ledger/rate/cap bypass was made. New normal recovery rel-b2b65d93 restores
+  the supported mini model and qualifies explicit creation/decision/check/save
+  guidance. Recovery still in progress at this entry. Original failed release
+  retained. Native observed usage193/210turns, 1830541input/61825outputtokens,
+  USD1.651118250 accounted;4Mtoken/USD5caps unchanged. Extra20stage turns requested,
+  not yet approved or applied.
