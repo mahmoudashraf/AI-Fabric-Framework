@@ -26,21 +26,31 @@ class AuthoringTaskIntentTest {
     }
     @Test void preparationKeepsTheOptionalHintUnmodified() {
         String hint = "  Only the two stock endpoints.\nKeep unusual FIELD-Name.  ";
-        assertThat(AuthoringTaskIntent.resolve("ACTIONS", hint, "PREPARE", null).query()).endsWith(hint);
+        assertThat(AuthoringTaskIntent.resolve("ACTIONS", hint, "PREPARE", null).query()).startsWith(hint);
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", null, "PREPARE", null).query()).doesNotContain("Optional focus");
     }
     @Test void actionPreparationIsAUserCommandNotASecondJavaSystemPrompt() {
         var result = AuthoringTaskIntent.resolve("ACTIONS", "Only the availability endpoint.", "PREPARE", null);
-        assertThat(result.query()).startsWith(AuthoringTaskIntent.Section.ACTIONS.intent)
+        assertThat(result.query()).startsWith("Only the availability endpoint.")
+            .contains(AuthoringTaskIntent.Section.ACTIONS.intent)
             .doesNotContain("do not ask", "never its secret value", "Explicitly public/no-auth");
         var template = new ConfigurationAssistantTemplate(new com.fasterxml.jackson.databind.ObjectMapper()).behavior();
         assertThat(template.at("/workflowAssistance/profiles/0/instructions").asText())
             .contains("Public/no-auth operations need no credential", "A single documented operation is sufficient");
-        assertThat(result.query()).endsWith("Only the availability endpoint.");
+        assertThat(result.query()).doesNotContain("Optional focus");
         assertThat(AuthoringTaskIntent.resolve("ACTIONS", "Explain this route only.", null, null).query())
             .isEqualTo("Explain this route only.");
         assertThat(AuthoringTaskIntent.resolve("MODELS", "", "PREPARE", null).query())
             .doesNotContain("ALL_SELECTED_SOURCE_OPERATIONS", "operation scope", "undocumented operations");
+    }
+    @Test void explicitPreparationRequirementsPrecedeGenericPageGuidanceWithoutChangingAuthority() {
+        String request = "Save the initial lookup, read it back, then separately rename it and save again.";
+        var result = AuthoringTaskIntent.resolve("ACTIONS", request, "PREPARE",
+            new AuthoringTaskIntent.EditorContext("ACTIONS", List.of("product_lookup")));
+        assertThat(result.query()).isEqualTo(request + "\n\nCurrent editor task:\n"
+            + AuthoringTaskIntent.Section.ACTIONS.intent + " for this resource.");
+        assertThat(result.editorContext().section()).isEqualTo("ACTIONS");
+        assertThat(result.editorContext().selectedDefinitionIds()).containsExactly("product_lookup");
     }
     @Test void apiPreparationExplicitlyRequestsCreationAndDraftSaveWithoutSelectingTheActionSequence() {
         for (String task : List.of("ACTIONS", "CONNECTIONS")) {

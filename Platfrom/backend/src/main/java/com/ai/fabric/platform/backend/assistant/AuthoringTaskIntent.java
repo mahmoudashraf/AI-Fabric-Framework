@@ -50,8 +50,10 @@ final class AuthoringTaskIntent {
         var ids = context == null || context.selectedDefinitionIds() == null ? List.<String>of() : context.selectedDefinitionIds();
         if (ids.size() > 16 || ids.stream().anyMatch(id -> id == null || id.isBlank() || id.length() > 256))
             throw bad("Select at most sixteen editor definitions with bounded identifiers.");
-        String resolved = prepare ? section.intent + " for this resource."
-            + (query.isBlank() ? "" : "\n\nOptional focus from the user:\n" + query) : query;
+        String resolved = prepare
+            ? query.isBlank() ? section.intent + " for this resource."
+                : query + "\n\nCurrent editor task:\n" + section.intent + " for this resource."
+            : query;
         return new Resolved(resolved, command, new EditorContext(section.name(), List.copyOf(ids)));
     }
 
