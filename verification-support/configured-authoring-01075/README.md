@@ -137,3 +137,21 @@ applied through the existing top-up API and read back. USD5 caps, original
 approval/store/fingerprint, expiry and accumulated usage remain unchanged.
 No model calls were made by this maintenance. Native service adoption must use
 these actual preserved limits, not create a second allocation.
+
+## Staging Authority Qualification, 24 November 2026
+
+- Adoption correction676ecb35a passed CI and is healthy on staging. The existing
+  image service now retains its real PostgreSQL/port defaults. The original
+  private route,640MiB/1CPU capacity, provider key and budget remain unchanged.
+- The operator TEAM_AUTHORIZED target list now includes the exact existing
+  `configuration-authoring-staging` target, retaining all previous entries.
+- First queued release rel-68aff6e7 stopped PRE_APPLY_BLOCKED/FAILED before any
+  Runtime change. Its frozen authority snapshot was absent: normal release
+  freezing included private Tasks but omitted enabled private workflows.
+- The normal freeze predicate now includes enabled workflow assistance. No
+  authorization bypass or synthetic snapshot is used. Focused authority,
+  lifecycle, compiler, apply-guard and funding-mode regression:82passed.
+  Verification exposes safe failure phase/type, not exception/secret contents.
+- Deploy this backend correction and create a new normal apply for the same
+  published version. Preserve the failed release. Runtime adoption and paid
+  model qualification are still pending; production remains unchanged.

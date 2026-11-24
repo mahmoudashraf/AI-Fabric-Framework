@@ -1931,7 +1931,9 @@ public class DeploymentService {
         JsonNode drain = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled");
         boolean privateTasks = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler.enabled(
             readJson(version.getBehaviorConfigJson()));
-        boolean authorityRequired = productized || publicRuntimeRequested || privateTasks || drain.isBoolean() && drain.booleanValue();
+        boolean privateWorkflows = com.ai.fabric.platform.backend.deployment.specialist.WorkflowAssistanceCompiler.enabled(
+            readJson(version.getBehaviorConfigJson()));
+        boolean authorityRequired = productized || publicRuntimeRequested || privateTasks || privateWorkflows || drain.isBoolean() && drain.booleanValue();
         if (!authorityRequired) {
             return null;
         }

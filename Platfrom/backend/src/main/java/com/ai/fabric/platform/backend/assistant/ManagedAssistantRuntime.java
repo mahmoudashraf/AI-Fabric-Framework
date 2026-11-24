@@ -226,15 +226,18 @@ public class ManagedAssistantRuntime {
     }
     public DeploymentVerificationRunEntity verify(DeploymentEntity deployment, DeploymentVersionEntity version,
         DeploymentReleaseEntity release, String type) {
-        var checks = mapper.createArrayNode(); String status = "PASSED";
+        var checks = mapper.createArrayNode(); String status = "PASSED", phase = "installed_service_binding";
         try {
             requireInstalled(deployment, release);
+            phase = "frozen_release_authority";
             authority.requireReleaseUnchangedForProvisioning(deployment, version, release);
+            phase = "runtime_release_and_budget";
             if (!"PRE_APPLY".equals(type)) verifyRuntime(deployment, version, release);
             checks.addObject().put("key", "configured_authoring_native_release").put("status", "PASSED")
                 .put("message", "Exact installed service, frozen authority, published workflow and original budget verified.");
         } catch (RuntimeException failed) {
             status = "FAILED"; checks.addObject().put("key", "configured_authoring_native_release").put("status", "FAILED")
+                .put("phase", phase).put("failureType", failed.getClass().getSimpleName())
                 .put("message", "The installed assistant does not match its published release or preserved budget.");
         }
         var run = new DeploymentVerificationRunEntity(); run.setId("vrf-" + UUID.randomUUID()); run.setDeploymentId(deployment.getId());

@@ -170,11 +170,12 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         order.verify(execution).executeApply(deployment.getId(), version.getId(), release.getValue().getId());
     }
 
-    @Test
-    void privateManagedTasksFreezeExactAuthorityWithoutRequiringBrowserOrigins() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"managedTasks", "workflowAssistance"})
+    void privateNativeWorkFreezesExactAuthorityWithoutRequiringBrowserOrigins(String configuration) {
         version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\",\"publicRuntimeBootstrapEnabled\":false}");
         version.setProviderConfigJson("{\"operationalDrainEnabled\":false}");
-        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"managedTasks\":{\"enabled\":true}}");
+        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"" + configuration + "\":{\"enabled\":true}}");
         var candidate = new RuntimeAuthorityBinding.Snapshot("task-candidate", null, "task-fingerprint", null);
         when(authorities.freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of()))
             .thenReturn(candidate);
@@ -187,10 +188,11 @@ class DeploymentServiceRuntimeAuthorityFreezeTest {
         verifyNoInteractions(releases, execution);
     }
 
-    @Test
-    void privateManagedTasksCannotQueueWithoutFreezingAuthority() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"managedTasks", "workflowAssistance"})
+    void privateNativeWorkCannotQueueWithoutFreezingAuthority(String configuration) {
         version.setSecurityConfigJson("{\"authzMode\":\"ALLOW_VERIFIED\"}");
-        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"managedTasks\":{\"enabled\":true}}");
+        version.setBehaviorConfigJson("{\"type\":\"CONVERSATIONAL\",\"" + configuration + "\":{\"enabled\":true}}");
         doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "TASK_AUTHORITY_UNAVAILABLE"))
             .when(authorities).freezeCandidateForAuthorizedApply(deployment.getId(), target.getId(), version.getId(), List.of());
 

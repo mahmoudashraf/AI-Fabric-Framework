@@ -20775,3 +20775,23 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   no hidden legacy inference fallback. Production completely unchanged by010.75.
   Approved210turn/4Mtoken/USD5caps preserved both; paid010.75calls0. All own staff
   sessions logged out. Continue implementation; no full live acceptance claimed.
+
+### 010.75 Staging Authority Freeze Correction - 24 November 2026
+
+- Adoption fix676ecb35adb1c574c6ed7c08c117507c51102119 is healthy on stage;
+  core45384988756/storage45385132455/quota45385137452allSUCCESS. Backend
+  digest409413f91a7be637396e1981e37390c816ab3052db789334a43245845e677bf4;
+  UI/Runtime artifact stillf54. Existing private route/PG/capacity preserved.
+- Existing staging TEAM_AUTHORIZED list explicitly extended with the original
+  configuration-authoring-staging wallet target, preserving all previous
+  entries and actual runtime budget/usage. No mode bypass or new allocation.
+- Normal apply rel-68aff6e7 stoppedPRE_APPLY_BLOCKED/FAILED before provision,
+  verificationvrf-9e480bf5-6fda-4d02-99c4-9f8e9ddbc572. Actual release snapshot
+  fieldsNULL: normal authority-freeze predicate omitted enabled workflows.
+- Correction adds workflow assistance beside private Tasks to normal freezing;
+  no fabricated authority/SQL mutation.82focused checksPASS, including exact
+  freeze without public origins, unavailable-authority denial and secret-safe
+  diagnostic phase. Commit/deploy correction, then NEW normal apply operation
+  for samever-ff755b1a/dsa-a2537ec2; preserve failed immutable release.
+- Both native assistants still67; stage entry featurefalse. Production unchanged,
+  no paid010.75model calls. Approved210turn/4Mtoken/USD5bounds retained.

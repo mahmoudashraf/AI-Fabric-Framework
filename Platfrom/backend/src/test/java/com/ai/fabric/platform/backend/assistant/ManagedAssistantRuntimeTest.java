@@ -105,6 +105,14 @@ class ManagedAssistantRuntimeTest {
         doReturn(mapper.createObjectNode().put("deploymentVersionId", "other-version")).when(service).read(eq("/api/admin/overview"), anyMap());
         assertThat(service.verify(brain, version, release, "POST_APPLY").getStatus()).isEqualTo("FAILED");
     }
+    @Test void frozenAuthorityFailureIsVisibleWithoutReturningExceptionOrSecretContents() {
+        doThrow(new IllegalStateException("private-secret-canary")).when(authority)
+            .requireReleaseUnchangedForProvisioning(brain, version, release);
+        var failed = service.verify(brain, version, release, "PRE_APPLY");
+        assertThat(failed.getStatus()).isEqualTo("FAILED");
+        assertThat(failed.getChecksJson()).contains("frozen_release_authority", "IllegalStateException").doesNotContain("private-secret-canary");
+        verify(service, never()).read(anyString(), anyMap());
+    }
     @Test void purposeSpecificClientsCannotSilentlySwitchToAnotherPaidProviderAccount() {
         var environment = new LinkedHashMap<String, String>();
         environment.put("AI_PROVIDERS_GENERATION_API_KEY", "secret:unrelated-platform-key");
