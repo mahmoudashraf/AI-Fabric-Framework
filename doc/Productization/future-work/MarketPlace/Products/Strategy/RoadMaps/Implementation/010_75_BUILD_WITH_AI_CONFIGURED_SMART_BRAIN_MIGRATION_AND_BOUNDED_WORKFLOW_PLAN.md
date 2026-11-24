@@ -1,15 +1,22 @@
 # 010.75 Build with AI Smart Brain Migration and Bounded Workflow Plan
 
-Status: implementation approved by the owner, 24 November 2026. Approval covers
-the full migration and required framework changes FW1-FW3 below, with staging
-and production live verification. This supersedes the initial review-only
-status; implementation and qualification evidence must be recorded separately.
-Existing infrastructure, financial/token caps and authorization boundaries are
-unchanged. Approval is not evidence of implementation or deployment.
+Status: implemented, released and live-qualified on staging and production,
+24 November 2026. Approved framework work FW1-FW3 ships in official0.8.69.
+Build with AI now uses the published Configuration Assistant Brain and its nine
+native profiles through canonical conversations and framework-controlled tools.
+Production rel-e062a404/ver-1023f9af and staging rel-457731ae/ver-caba7e36
+are APPLIED_VERIFIED/PASSED. No required migration work or framework approval
+remains pending. Model reasoning is still probabilistic, not guaranteed perfect.
 
-Implementation is in progress. See
-`verification-support/configured-authoring-01075/README.md` for local test
-evidence and remaining migration/release gates. Cancellation uses a generic
+See `verification-support/configured-authoring-01075/README.md` for exact
+component sources, CI, live acceptance and retained failed experiments. The
+final production11-case suite, three MEDIUM sequential-save repetitions, live
+UI/import/Undo/profile scenarios, plugin/Engage edits, document previews, history
+migration and real cross-customer denials passed. Infrastructure and financial
+ceilings were preserved; separately approved durable turn/token top-ups retain
+original grants and usage. Existing read-only Support remains separate.
+
+Cancellation uses a generic
 history-preserving `INTERRUPT_AI` epoch transition within FW2; erasure of
 authoring content retains closed owner tombstones and financial receipts.
 

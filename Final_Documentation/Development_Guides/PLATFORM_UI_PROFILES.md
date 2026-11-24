@@ -160,6 +160,11 @@ shell are not otherwise redesigned by this follow-up; 010.65 stays rejected.
 The assistant is page-aware and shows selected reference documents, real draft
 save results and inspectable diffs. Review draft opens the existing Updates
 workflow with the selected target preserved; it never publishes or applies.
+Earlier-generation assistant sessions remain readable after the configured-Brain
+migration. Start Build with AI explicitly opens the current engine; View earlier
+conversation returns to the old transcript, including after reload. Never send
+earlier sources/history automatically or reload manual forms from old save
+receipts. Reusing an owned document remains an explicit existing action.
 Source import alone does not invoke AI or index customer knowledge. Actual
 validation warnings/failures remain visible even if a candidate was saved.
 Keep model text intact; human status labels use exact protocol states only.

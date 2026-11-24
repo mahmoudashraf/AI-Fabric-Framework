@@ -111,6 +111,31 @@ fallbacks. READ actions do not require indexed vector spaces unless their own
 declared contract or actual retrieval needs them. Measure semantic quality
 separately; acceptance tolerance never relaxes authorization or confirmation.
 
+## Configured Build With AI (Owner Decision, 2026-11-24)
+
+Build with AI must use a real configured, published Smart Brain, canonical
+conversations and the framework's bounded READ/WRITE workflow. Do not restore a
+private generation endpoint or a Platform-owned model/retry loop as a shortcut.
+Platform supplies authorized resource context and normal scoped capability
+adapters; the configured Brain/framework chooses and observes its tool steps.
+Known page tasks use their published profile binding; broad Brain setup has its
+own configured profile. Support's separate read-only authority is not expanded.
+
+Authorized requested draft writes need no approval after every step. Users
+review/edit afterward, then publish separately. AI may replace requested manual
+values; do not add AI/manual editing locks or conflict approvals. Keep short
+atomic saves, real ownership/delegation checks, scope, cancellation, operation
+idempotency and durable receipts. An advisory candidate check is not a save and
+does not freeze the exact arguments of a later valid draft write. Never replay
+executed or uncertain writes merely to satisfy completion or narration.
+
+Earlier assistant conversations remain read-only history after migration, with
+an explicit start/return path. Do not silently copy their sources or content to
+a new conversation. Financial grants, recorded usage and approved limits must
+survive native-service adoption and release updates without resets. See 010.75
+and its verification record; this decision is not deployment evidence. Read the
+latest CODEX_WORKING_CONTEXT entry for current versions and remaining gates.
+
 ## AI Behaviour Profiles And Closer Removal (2026-11-07)
 
 The owner rejected keeping phrase-based generic-closer removal as an advanced

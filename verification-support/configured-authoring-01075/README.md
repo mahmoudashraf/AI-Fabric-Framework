@@ -1,14 +1,89 @@
 # Configured Build with AI Migration - Implementation Record
 
-Implementation and live qualification in progress, 24 November 2026. Staging
-has a verified native release, but production migration and full acceptance are
-not complete. The owner approved the full010.75migration and framework work.
-No infrastructure/capacity or spending-cap change has been performed.
+The full010.75 migration is deployed and live-qualified on staging and production,
+24 November 2026. No required migration/release work remains. Existing service
+capacity, databases, credentials, financial ceilings and recorded usage were
+preserved. Separately approved turn/token top-ups were applied durably.
 
-## Current Qualification - 24 November 2026
+## Accepted Release - 24 November 2026, 17:42 UTC
 
-This section supersedes the historical candidate versions below; it is not a
-production acceptance record.
+This section supersedes every earlier checkpoint below.
+
+- Both environments: backend a2eb8a8a8, UI004941892, Runtimee54aa965f,
+  official framework0.8.69. Runtime contains nine checksum-attested official
+  Central JARs. Source-matched backend Core45448513267, storage45448557971,
+  quota45448565340 and Runtime45442209066 passed. Public framework Build
+  45409684432 and Central publication45413133017 passed; no duplicate upload.
+- Staging rel-457731ae/ver-caba7e36/dsa-8064b693 and production
+  rel-e062a404/ver-1023f9af/dsa-698a679c are APPLIED_VERIFIED/PASSED.
+  Both report CONFIGURED_BRAIN ready, nine published profiles, gpt-5.4-mini
+  and guarded reasoning MEDIUM. Existing services/databases were adopted,
+  not replaced with newly allocated infrastructure.
+- Build with AI now posts to the canonical
+  `/api/chat/me/conversations/{id}/messages` API. Framework planning sees
+  governed READ/WRITE capabilities and observes actual receipts. The retired
+  `/api/private/configuration-authoring/generate` returns404 on both hosts;
+  no Platform-owned model/retry loop has replaced it.
+- Production's final11-case suite passed on the current backend/MEDIUM setting:
+  whole-Brain setup, nonmutating preview, read-only guidance, search, models,
+  manager instructions, source-injection resistance, cancellation/erasure and
+  three separate two-save/readback repetitions. Staging's11-case baseline,
+  three fresh MEDIUM sequential cases and additional browser checks passed.
+- Six live customer browser cases per environment passed, plus two MEDIUM
+  cases each. Blank Prepare, all/selected/narrowed API operations, genuinely
+  missing host/credential questions, rename, Undo and Warm/Brief were checked.
+  Manual editors/navigation stay usable during AI. Desktop/mobile screenshots
+  were inspected. Earlier history remains read-only, can be revisited, and
+  requires explicit document reuse; actual production migration/reuse/save
+  passed without auto-sharing old content.
+- Current private DATA and Engage draft edits passed on BOTH environments,
+  preserving connection/authentication/origin/identity fields. Actual Support
+  document preparation returned a nonmutating PREVIEW with three differences;
+  saved source settings/revision were unchanged, including the MEDIUM prod test.
+  No indexing, activation, publication or customer business action was triggered.
+- Four known-real foreign-resource/session attempts were denied404 on EACH
+  environment before model calls or draft effects. Support team/history
+  transport smoke checks passed with no inference or new conversation. Existing
+  read-only Support specialists/plans and other product runtimes were not
+  upgraded or granted authoring access by this migration.
+- All temporary sessions/Brains/apps/consumers were removed normally. Uninstalled
+  private plugin definitions retain archived audit metadata. The intentionally
+  retained real legacy-history fixture was tested and deleted. Normal customer
+  and staff test sessions signed out; no test runtime was provisioned.
+- Broad backend suite6148/0fail/0error/1opt-in skip, Runtime816/0/0/5opt-in
+  skips, current context/authority/merge/idempotency77/0/0/0 and earlier
+  funding/compiler19/0/0/0 passed. UI71 unit checks,53 fixture browser groups,
+  typecheck and production build passed. Preserve the existing broad-suite
+  scheduler/forced-fork shutdown warning; it did not fail its test result.
+- Native bounds remain8 tool steps,3 writes,16 model calls,2 corrections,
+  120seconds and4096 maximum completion tokens. Actual reasoning setting is
+  the trusted existing-service override
+  `LOOMAI_PROVIDER_BUDGET_REASONING_EFFORT=MEDIUM`; preserve it on upgrades.
+  A new host's source-profile fallback isLOW; other products retainNONE.
+  No caller can raise the host-selected effort or its financial/token ceiling.
+- Staging:10000 turns/30M tokens/USD5, latest token approval
+  call_290a94ea7bdf4a3595777972fe4cb5b2. Production:10000 turns/4M tokens/USD5;
+  extra turns use the existing unrestricted-turn approval
+  call_972bf3d5c3784467990df413aba73dd4. Original grants, expiry, store UUIDs,
+  account references and consumed usage remain unchanged. Combined owner
+  ceilingUSD50 is retained. Cumulative recorded ledger cost at acceptance was
+  USD4.07551425 staging and USD2.63045925 production, not incremental cost
+  attributable solely to this migration.
+- Earlier NONE/LOW failures, the over-strict advisory-check hash and the
+  contradictory editable/read-only context are retained in historical evidence.
+  Current MEDIUM acceptance does not claim deterministic model reasoning or
+  guarantee every future request. Failures/limits remain visible with actual
+  receipts; no phrase matching, forced-write count or hidden retry was added.
+
+Private acceptance records: `authoring-01075-staging-acceptance.private.json`
+and `authoring-01075-production-acceptance.private.json` under the existing
+ignored hybrid-retrieval operations directory. Live reports are under
+`/private/tmp/loomai-01075-live/`, especially
+`tasks-production-a2-medium-final` and `resources-production-a2-context`.
+
+## Earlier Qualification - 24 November 2026 (Superseded)
+
+The following checkpoints are historical, not the current deployment status.
 
 - Framework 0.8.69 is officially published. Public build 45409684432 and Central
   publication 45413133017 passed; nine downloaded JARs match their repository
@@ -72,9 +147,9 @@ production acceptance record.
   is configured-authoring-01075-20261124-staging-extra4m, approved in
   call_be5ad93dc5244eeda69eb481b9ad3141.
 
-## Worktrees and Baseline
+## Historical Worktrees And Baseline
 
-### Continuing Release Qualification
+### Earlier Release Qualification (Superseded)
 
 Staging host improvement, not yet adopted in production: the guarded resolver had
 forced `reasoning_effort:none`. It now supports trusted NONE/LOW/MEDIUM selection

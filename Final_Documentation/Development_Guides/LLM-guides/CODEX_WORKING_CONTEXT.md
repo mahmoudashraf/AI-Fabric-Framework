@@ -21200,3 +21200,131 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   sequential retest plus binding/security readback, genuine Stage acceptance,
   then original-service production adoption/activation and full verification.
 
+### 010.75 Final Staging Candidate - 24 November 2026, 17:04 UTC
+
+- Full backend004 suite PASS6148/0fail/0error/1opt-in skip; existing scheduled
+  test teardown warning and forced fork exit30s are retained in the log, not a
+  product failure claim. New backend preview/top-up checks PASS19/0/0/0 in an
+  isolated copied backend. Full Runtime final PASS816/0/0/5opt-in skips.
+  The first Runtime run failed one stale feedback-message test assertion; its
+  correction is committed, failed log retained, whole suite rerun successfully.
+- Backend0672fba43 / Core45441717619, storage45441812098, quota45441820187
+  all PASS and staged, imageb2a5287e..., jobw9ew5vu787czcq1hdkn8ex6q. UI004
+  remains source-identical in the new commits. Runtime067CI45441717210 cancelled
+  only because of that known stale test; no067Runtime image was adopted.
+- Runtime sourcee54aa965ff79f39d4571bbb5b900918d600f486f CI45442209066 PASS,
+  image5e22a74e..., artifactdsa-8064b693 attested to nine official69JARs.
+  Stage rel-457731ae/ver-caba7e36 APPLIED_VERIFIED/PASSED, actual LOW/nine
+  profiles. Original native identity/keys/capacity/store/usage retained.
+- Newest owner replycall_290a94ea7bdf4a3595777972fe4cb5b2 explicitly approved
+ 30M STAGING tokens, superseding both8M and the intervening20M message. Applied
+  durableextra22M receipt configured-authoring-01075-20261124-staging-extra22m:
+  actual10000turns/30Mtokens/USD5. Original grant/history/expiry unchanged.
+  Production210turns/4Mtokens/USD5 unchanged; combined owner ceilingUSD50.
+- Actual11case final parity currently exec75521, prefix tasks-staging-e54-final-parity.
+  Need all PASS, exact cleanup and logout; then security-readback with
+  LOOMAI_AUTHORING_ATTEMPT=e54-final, then support-smoke. Acceptance assembler
+  /private/tmp/loomai-01075-staging-acceptance.mjs checks real reports, CI,
+  current image/native release and original wallet; never fabricate this gate.
+- Production still unmodified. After genuine Stage acceptance: rollout backend
+  0672fba43 and UI004; authorize-target production; register Runtimee54;
+  install-production; apply-assistant production; enable production. Helpers
+  are updated to these exact component sources and preserve original service.
+  Then real legacy-history verify/cleanup, primary UI/tasks/resources/security/
+  document/SUPPORT qualification, native readback and final docs. Existing
+  retained prod legacy fixture must not be forgotten. Do not stop early again.
+
+### 010.75 Production Migration And Final Context Fix - 24 November 2026, 17:32 UTC
+
+- Genuine Stage acceptance PASS:11native cases,6browser cases,2resource cases,
+  actual document preview, four known-foreign denials/no inference, retired
+  generation404 and original wallet preserved. Production backend0672fba43
+  and UI004 deployed/source verified; target policy adds only the existing
+  configuration-authoring-production placement. No infrastructure change.
+- Production original service adopted and managed rel-e062a404/ver-1023f9af/
+  artifactdsa-698a679c APPLIED_VERIFIED/PASSED on Runtimee54/FW69/nineprofiles.
+  Entry flag enabled, ready CONFIGURED_BRAIN, original160-turn usage/store
+  retained. Actual old-history UI migration PASS: read-only old transcript,
+  explicit document reuse, new native save, no auto-copy. Exact retained Brain
+  dep-f53267df and both sessions now DELETED normally; no legacy fixture remains.
+- Production LOW parity10/11PASS; final two-save repetition stopped after its
+  first save despite completion feedback. Failed record retained. Six current
+  UI cases plus rename/Undo/Warm/Brief PASS. Private DATA PASS. Engage asked to
+  disable an already-DRAFT app. Actual Support document PREVIEW3diffs PASS,
+  source settings/revision unchanged. All fixtures cleaned and sessions signed out.
+- Qualified trusted MEDIUM reasoning on the SAME e54image/model/token/call/
+  financial limits; no public FW release. Actual three fresh two-save repetitions
+  PASS on BOTH environments, plus two UI cases each (blank Prepare, follow-ups,
+  Undo, profiles and full two-endpoint import). Actual production documents
+  PREVIEW3diffs PASS again. Medium native jobs: stagef2llv6o5pafipikv3etznuy0,
+  productionli77mdlvnqinc6w216l9shhe. Both actual overview saysmedium. Preserve
+  LOOMAI_PROVIDER_BUDGET_REASONING_EFFORT=MEDIUM on these existing managed apps;
+  source YAML fallback remainsLOW for an unconfigured new host. Other products
+  retain defaultNONE. Original caps/stores/counters preserved.
+- Found concrete Engage context bug: editable:true also advertised a disable-
+  before-save reason. Snapshot now clears readOnlyReason only when editable;
+  real active/archived restrictions unchanged. Sourcea2eb8a8a8d2072d32cb97a3a72aac2f3e635c25e
+  pushed;77focused resource/authority/merge/idempotency checks PASS. Core45448513267,
+  storage45448557971/quota45448565340 all PASS. Stage backenda2/e2a5084d.../
+  joboettgx0ucgqh2un7i29cgiyf healthy, UI004/Runtimee54 unchanged.
+- NOW: real Stage resources-a2-context exec39391. NeedPASS2, exact cleanup;
+  then security-readback stage with attempta2-context, support-smoke stage,
+  /private/tmp/loomai-01075-context-acceptance.mjs (genuine new a2+MEDIUM gate),
+  rollout-core production backenda2. Then resources-production-a2-context,
+  security productiona2-context, support-smoke production, native readback,
+  final acceptance/docs/commit. Do not stop at this intermediate checkpoint.
+- Production document inventory helper initially used customer-only target
+  options as staff and correctly received403; switched to normal staff provider
+  catalogue, no permission relaxation. Approved production source inventory21.
+  No other running CI/Maven tasks at this checkpoint;39391 is the only live
+  qualification helper. Preserve all unrelated dirty files and private evidence.
+
+### 010.75 COMPLETE - 24 November 2026, 17:42 UTC
+
+- Full migration implemented, deployed and live-qualified on BOTH environments.
+  Actual components: backenda2eb8a8a8 (imagee2a5084d...), UI004941892
+  (7fc7d515...), Runtimee54aa965f (5e22a74e...), official FW0.8.69/nine
+  checksum-attested Central JARs. Core45448513267/storage45448557971/
+  quota45448565340/Runtime45442209066 and public69Build/Central PASS.
+- Stage rel-457731ae/ver-caba7e36/artifactdsa-8064b693 and production
+  rel-e062a404/ver-1023f9af/artifactdsa-698a679c APPLIED_VERIFIED/PASSED.
+  Actual native MEDIUM/gpt-5.4-mini, nine profiles, original service/PG/keys/
+  capacity/wallet retained. Canonical conversation messages now drive native
+  SDK tools; private configuration-authoring/generate404 BOTH. No Platform
+  inference/retry loop, no new infrastructure and no ordinary Support write grant.
+- Latest production11-case a2-medium-final PASS including all THREE separate
+  two-save/readback repetitions. Stage11baseline and three fresh MEDIUM
+  repetitions PASS. Six customer browser cases and two MEDIUM cases EACH
+  passed, including blank Prepare, all/selected API operations, missing facts,
+  rename, Undo, Warm/Brief and manual editors usable during AI. Actual final
+  private DATA+Engage a2-context PASS BOTH; corrected context no longer asks
+  to disable a DRAFT. Real active/archived restrictions stay enforced.
+- Actual Support documents PREVIEW3diffs/no configuration or revision changes
+  PASS including MEDIUM prod. Four known-real foreign denials404/no inference
+  or draft effects EACH. Support team/history read smoke PASS, no AI query or
+  new conversation. Support's separate runtime/specialists/plans unchanged.
+- Actual legacy UI migration PASS: old history unchanged/read-only, explicit
+  source reuse only, genuine new native save; retained legacy Brain/both
+  sessions deleted normally. All temporary test Brains/apps/consumers/sessions
+  cleaned; uninstalled plugin definitions archived as audit metadata. All own
+  customer/staff sessions signed out. No test runtime allocated.
+- Stage10000turns/30Mtokens/USD5, latest explicit30M approvalcall_290a94ea.
+  Production10000turns/4Mtokens/USD5, added9790turns under already-approved
+  unrestricted turns/USD50 combined replycall_972bf3d5. Durable top-up
+  configured-authoring-01075-20261124-production-expanded-qualification.
+  All original grants, expiry, keys and consumed usage retained. Native
+  cumulative ledger costs at acceptance: stageUSD4.07551425/prodUSD2.63045925;
+  not incremental cost of this request. No financial ceiling or ratecard change.
+- Broad backend6148/0fail/0error/1skip, current focused77 and prior19 all PASS;
+  Runtime816/0/0/5opt-in skips, UI71unit/53fixture browser/typecheck/build PASS.
+  Retain known broad-test scheduler/forced-fork teardown warning. Prior NONE/
+  LOW semantic failures, stale assertion and corrected context mismatch remain
+  historical failures, not erased. No deterministic-reasoning guarantee, text
+  matcher, forced minimum-write executor or hidden extra generation was added.
+- Genuine private staging+production acceptance records both PASS. README
+  Accepted Release and010.75 status updated; operating/UI guides now forbid
+  restoring the private generation shortcut or manual-edit locks. No required
+  migration work or framework approval remains. Preserve explicit MEDIUM
+  service override on upgrades; source's new-host fallback isLOW, other products
+  defaultNONE. Do not change unrelated user files or expand into010.74 here.
+
