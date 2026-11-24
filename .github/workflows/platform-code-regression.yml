@@ -100,6 +100,7 @@ jobs:
       - name: Run platform UI build
         if: ${{ inputs.ui_build }}
         run: |
+          npm --prefix max-mode-widget ci
           cd Platfrom/ui
           npm ci
           npm run build
