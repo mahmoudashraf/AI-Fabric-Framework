@@ -136,3 +136,13 @@ No production Brain or Harbor update has happened at this checkpoint. See
 `verification-support/conversational-autonomy/README.md` and the latest working
 context for subsequent evidence, rather than interpreting this checkpoint as
 proof of the eventual rollout.
+
+### External Release Hold
+
+Final framework build45648988414 passed all jobs. SDK72 tag is created against
+the final636934bd source, but GitHub workflow dispatch is returning HTTP500
+during its official25November service incident. No72publication job/upload
+exists at16:10UTC. This is not a Sonatype wait. Main72adoption20ab6e66d is local
+and intentionally unpushed until official jars exist; production/Harbor remain
+SDK70. All test and observer processes are collected. See the verification
+README for exact reconciliation and staged live acceptance still required.

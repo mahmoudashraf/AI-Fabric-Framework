@@ -5,6 +5,10 @@ compatible Framework/Runtime rollout and live qualification recorded in 010.77.
 The qualified rollout target is Framework 0.8.72 or later; 0.8.71 must not be
 used for this rollout because of the named-mode policy issue tracked there.
 
+Release checkpoint: final SDK72 build passed, but publication is blocked by the
+25 November GitHub service incident. Production availability and Harbor live
+qualification are still pending. Existing products have not been switched.
+
 ## Choose Conversation Handling
 
 Open your Smart Brain, then **Responses -> Conversation flow**. Standard keeps

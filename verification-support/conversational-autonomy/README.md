@@ -52,3 +52,31 @@ provider payloads or visitor authorization are committed here.
 All rollouts must preserve capacity, storage, app identity, credentials, action
 permissions, funding identity and recorded usage. The combined testing ceiling
 is USD50. Active-request autonomy is not restart-durable background execution.
+
+## Release Blocker, 25 November 16:10 UTC
+
+Final framework build45648988414 is fully green, including all three jobs and
+packaged real-app smokes. The exact SDK72 tag points to636934bd. Publication did
+not start: two CLI workflow dispatches failed with an empty-response parse
+error; reconciliation found no run. One directly observed REST dispatch returned
+HTTP500 with an empty body, request2A8E:1995FD:15F60A4:218A27D:6B0707A3. GitHub's
+official status then reported a Partial System Outage and degraded Git Operations.
+This is a workflow-start failure, not a Sonatype processing/upload timeout.
+
+No SDK72 publisher/upload exists as of the final readback. Never rerun the
+original release script against its already-created intent/tag. After recovery,
+reconcile delayed jobs first, then dispatch only if no release run exists. Keep
+the original tag and source; do not invent another version or duplicate upload.
+
+Main adoption20ab6e66d is committed locally but deliberately not pushed while
+SDK72 is absent from Central. Full Runtime72 PASS878/5optional skips; focused
+Platform41 PASS; both consecutive27-case browser runs PASS. All local test,
+publication and read-only observer processes have stopped/been collected. No
+new inference, synthetic business write, configuration fixture, runtime artifact
+registration or deployment occurred after the earlier staging UI-only proof.
+
+Prepared SDK72 helpers in `/private/tmp/loomai-01077-sdk72-*` pin final sources and
+retain one-operation journals. Resume official-nine-jar proof, Main push/five CI
+gates and the staged acceptance sequence above. Do not treat prepared helpers or
+local success as live verification. Private budgets remain exactly USD22.04900275
+staging and USD10.71304 production, with original identities/caps and Harbor reserve.
