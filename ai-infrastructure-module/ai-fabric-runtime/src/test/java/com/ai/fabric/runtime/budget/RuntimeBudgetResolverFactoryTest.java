@@ -13,6 +13,35 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class RuntimeBudgetResolverFactoryTest extends RuntimeBudgetFixture.TestScope {
+    @Test void astraPurposeRequiresTheDurableAmendmentAndSupportedReasoningBeforeResolverCreation() throws Exception {
+        var fixture = new RuntimeBudgetFixture(); var original = scope();
+        var extended = new Scope(original.customerId(), original.deploymentId(), original.targetProfileId(), original.environment(),
+            original.credentialIdentity(), ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE);
+        var budgets = fixture.service(extended);
+        var approval = new com.ai.fabric.budget.ProviderBudgetLedger.Approval("astra-fixture", extended,
+            new com.ai.fabric.budget.ProviderBudgetLedger.Limits(100, 2_000_000, 5_000_000_000L), NOW.plusSeconds(3600));
+        activate(budgets, budgets.initialize(allocation(approval)));
+        var config = providers(); config.getGeneration().setModel(ReviewedOpenAiRateCard.ASTRA_MODEL);
+        var medium = com.ai.fabric.budget.openai.GuardedReasoningEffort.MEDIUM;
+        assertThatThrownBy(() -> RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
+            budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS, medium)).isInstanceOf(OpenAiBudgetException.class);
+        var binding = budgets.readStore().binding();
+        var before = budgets.readCurrent();
+        budgets.amendPricing(new RuntimeBudgetPricingAmendment.Command(1, "astra", approval.id(), binding.storeUuid(), binding.runtimeFingerprint(),
+            extended.rateCardReference(), ReviewedOpenAiRateCard.ASTRA_REFERENCE, "operator", "owner-review", "quality qualification"));
+        var resolver = RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
+            budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS, medium);
+        try {
+            var options = (org.springframework.ai.openai.OpenAiChatOptions) resolver.resolveChatOptions("openai",
+                ai.fabric.dto.AIGenerationRequest.builder().model(ReviewedOpenAiRateCard.ASTRA_MODEL).maxTokens(8192).build());
+            assertThat(options.getModel()).isEqualTo(ReviewedOpenAiRateCard.ASTRA_MODEL);
+            assertThat(options.getReasoningEffort()).isEqualTo("medium"); assertThat(options.getTemperature()).isNull();
+            assertThat(options.getMaxCompletionTokens()).isEqualTo(8192);
+        } finally { resolver.destroy(); }
+        assertThatThrownBy(() -> RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
+            budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS)).isInstanceOf(OpenAiBudgetException.class);
+        assertThat(budgets.readCurrent()).isEqualTo(before);
+    }
     @Test void hostCanSelectBoundedReasoningWithoutChangingFundingOrTokenLimits() throws Exception {
         var fixture = new RuntimeBudgetFixture(); var original = scope();
         var extended = new Scope(original.customerId(), original.deploymentId(), original.targetProfileId(), original.environment(),

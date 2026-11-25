@@ -34,9 +34,9 @@ public final class RuntimeBudgetResolverFactory {
         String expectedCredential = budgets.scope().credentialIdentity();
         String rateCard = budgets.scope().rateCardReference();
         if (!ReviewedOpenAiRateCard.isReviewedReference(rateCard)) throw unsupported();
-        chat(providers.resolveLlmDefaults(), rateCard);
-        chat(providers.resolveOrchestrationLlmDefaults(), rateCard);
-        chat(providers.resolveGenerationLlmDefaults(), rateCard);
+        chat(providers.resolveLlmDefaults(), rateCard, budgets, reasoningEffort);
+        chat(providers.resolveOrchestrationLlmDefaults(), rateCard, budgets, reasoningEffort);
+        chat(providers.resolveGenerationLlmDefaults(), rateCard, budgets, reasoningEffort);
         credential(expectedCredential, providers.getOpenai().getApiKey());
         endpoint(providers.getOpenai().getBaseUrl());
         if (providers.getOrchestration() != null) {
@@ -63,9 +63,13 @@ public final class RuntimeBudgetResolverFactory {
     }
 
     private static boolean configured(List<String> values) { return values != null && !values.isEmpty(); }
-    private static void chat(AIProviderConfig.GenerationDefaults defaults, String rateCard) {
+    private static void chat(AIProviderConfig.GenerationDefaults defaults, String rateCard,
+        RuntimeBudgetBindingService budgets, GuardedReasoningEffort reasoningEffort) {
+        boolean astra = ReviewedOpenAiRateCard.ASTRA_MODEL.equals(defaults.model());
+        boolean amended = astra && reasoningEffort != GuardedReasoningEffort.NONE
+            && budgets.pricingAmendment().filter(value -> ReviewedOpenAiRateCard.ASTRA_REFERENCE.equals(value.additionalRateCardReference())).isPresent();
         if (!"openai".equals(defaults.providerName()) || !ReviewedOpenAiRateCard.isReviewedChatModel(defaults.model())
-            || !ReviewedOpenAiRateCard.supportsModel(rateCard, defaults.model())
+            || !(ReviewedOpenAiRateCard.supportsModel(rateCard, defaults.model()) || amended)
             || defaults.maxTokens() == null || defaults.maxTokens() < 1
             || defaults.maxTokens() > ReviewedOpenAiRateCard.CHAT_MAX_OUTPUT_TOKENS) throw unsupported();
     }

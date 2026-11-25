@@ -71,6 +71,7 @@ class GuardedNativeTransportTest {
     private java.util.concurrent.ExecutorService executor;
     private String endpoint;
     private OpenAiBudgetInvocation.Capture captures = operation -> OpenAiBudgetInvocation.NONE;
+    private boolean astraAmended;
 
     @BeforeEach void setup() throws Exception {
         source = new JdbcDataSource();
@@ -163,6 +164,116 @@ class GuardedNativeTransportTest {
         assertEquals(0, sends.get());
         assertEquals(0, ledger.read("approval", scope).providerAttempts());
         assertEquals(REFERENCE, scope.rateCardReference());
+    }
+
+    @Test void astraUsesTheOriginalScopeAndAmendmentWithNativeJsonUsageAndMetadataOnly() throws Exception {
+        approveAstra(); astraAmended = true;
+        var observed = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
+        var denied = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Denial>();
+        captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), denied::add, observed::add);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT);
+        response.put("model", ASTRA_MODEL);
+        response.withObject("/usage/completion_tokens_details").put("reasoning_tokens", 2);
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null));
+        var request = AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(8192).temperature(0.2)
+            .parameters(Map.of("response_format", Map.of("type", "json_object"))).build();
+        var resolver = resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.MEDIUM);
+        assertDoesNotThrow(() -> resolver.resolveChatModel("openai", request).call(new Prompt("private-request-canary")), denied::toString);
+        var body = json.readTree(requests.element());
+        assertEquals(8192, body.path("max_completion_tokens").intValue());
+        assertEquals("medium", body.path("reasoning_effort").asText()); assertFalse(body.has("temperature"));
+        assertEquals("json_object", body.path("response_format").path("type").asText());
+        var snapshot = ledger.read("approval", scope);
+        assertEquals(GPT_54_MINI_REFERENCE, snapshot.approval().scope().rateCardReference());
+        assertEquals(chat(ASTRA_MODEL, 12, 3), snapshot.accountedUsage()); assertEquals(1, snapshot.providerAttempts());
+        assertEquals(1, sends.get()); assertEquals(1, observed.size());
+        var metadata = json.writeValueAsString(observed.element());
+        assertTrue(metadata.contains(ASTRA_MODEL)); assertFalse(metadata.contains("private-request-canary"));
+        assertEquals(2, observed.element().reasoningTokens());
+    }
+
+    @Test void astraWithoutAmendmentOrWithNoneReasoningCannotSendOrReserve() {
+        approveAstra();
+        var request = AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(1000).build();
+        assertThrows(RuntimeException.class, () -> resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.MEDIUM)
+            .resolveChatModel("openai", request).call(new Prompt("fixture")));
+        astraAmended = true;
+        assertThrows(OpenAiBudgetException.class, () -> resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.NONE)
+            .resolveChatOptions("openai", request));
+        assertEquals(0, sends.get()); assertEquals(0, ledger.read("approval", scope).providerAttempts());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"ascii", "unicode", "schema"})
+    void astraOversizedUtf8RequestsAreRejectedBeforeAnyHttpOrReservation(String kind) {
+        approveAstra(); astraAmended = true;
+        String content = kind.equals("unicode") ? "\u20ac".repeat(ASTRA_REQUEST_BYTES / 3 + 1) : "x".repeat(ASTRA_REQUEST_BYTES + 1);
+        var builder = AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(1000);
+        if (kind.equals("schema")) builder.parameters(ai.fabric.llm.structured.StructuredJsonProviderHints.jsonSchemaResponseParameters(
+            "{\"type\":\"object\",\"description\":\"" + content + "\",\"properties\":{},\"additionalProperties\":false}"));
+        var request = builder.build();
+        assertThrows(RuntimeException.class, () -> resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.LOW)
+            .resolveChatModel("openai", request).call(new Prompt(kind.equals("schema") ? "fixture" : content)));
+        assertEquals(0, sends.get()); assertEquals(0, ledger.read("approval", scope).providerAttempts());
+    }
+
+    @Test void astraProviderFailureRetainsOneHoldWithoutRetry() {
+        approveAstra(); astraAmended = true;
+        replies.add(new Reply(503, "{}", null, null));
+        var request = AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(1000).build();
+        assertThrows(RuntimeException.class, () -> resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.LOW)
+            .resolveChatModel("openai", request).call(new Prompt("fixture")));
+        var snapshot = ledger.read("approval", scope);
+        assertEquals(chat(ASTRA_MODEL, ASTRA_INPUT_TOKENS, 1000), snapshot.accountedUsage());
+        assertEquals(1, snapshot.providerAttempts()); assertEquals(1, sends.get()); assertFalse(snapshot.stopped());
+    }
+
+    @Test void astraExactByteEnvelopeAndSeparateInputOutputBoundsSettleWithoutAFalseContextConflict() throws Exception {
+        approveAstra(); astraAmended = true;
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT); response.put("model", ASTRA_MODEL);
+        response.withObject("/usage").put("prompt_tokens", ASTRA_INPUT_TOKENS).put("completion_tokens", CHAT_MAX_OUTPUT_TOKENS)
+            .put("total_tokens", ASTRA_INPUT_TOKENS + CHAT_MAX_OUTPUT_TOKENS);
+        replies.add(new Reply(200, json.writeValueAsString(response), null, null));
+        var body = astraBody(json); int overhead = json.writeValueAsBytes(body).length - 1;
+        ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("messages").get(0)).put("content", "x".repeat(ASTRA_REQUEST_BYTES - overhead));
+        assertEquals(ASTRA_REQUEST_BYTES, json.writeValueAsBytes(body).length);
+        try (var result = rawAstra(json.writeValueAsBytes(body))) { assertEquals(200, result.code()); }
+        assertEquals(chat(ASTRA_MODEL, ASTRA_INPUT_TOKENS, CHAT_MAX_OUTPUT_TOKENS), ledger.read("approval", scope).accountedUsage());
+        assertEquals(1, sends.get()); assertFalse(ledger.read("approval", scope).stopped());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"bytes", "messages", "tools", "retention", "sampling", "snapshot"})
+    void astraUnreviewedInputShapesCannotSendOrReserve(String kind) throws Exception {
+        approveAstra(); astraAmended = true;
+        var json = new com.fasterxml.jackson.databind.ObjectMapper(); var body = astraBody(json);
+        switch (kind) {
+            case "bytes" -> ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("messages").get(0)).put("content", "x".repeat(ASTRA_REQUEST_BYTES));
+            case "messages" -> { for (int i = 0; i < ASTRA_MAX_MESSAGES; i++) body.withArray("messages").addObject().put("role", "user").put("content", "x"); }
+            case "tools" -> body.putArray("tools").addObject().put("type", "function").putObject("function").put("name", "unreviewed");
+            case "retention" -> body.put("prompt_cache_retention", "12h");
+            case "sampling" -> body.put("temperature", 0.2);
+            case "snapshot" -> body.put("model", "gpt-6.2-astra-2026-11-25");
+        }
+        var denied = assertThrows(OpenAiBudgetTransportException.class, () -> rawAstra(json.writeValueAsBytes(body)));
+        if (kind.equals("bytes") || kind.equals("messages"))
+            assertEquals(OpenAiBudgetException.Code.SHORT_CONTEXT_INPUT_BOUND_EXCEEDED, denied.guardCode().orElseThrow());
+        assertEquals(0, sends.get()); assertEquals(0, ledger.read("approval", scope).providerAttempts());
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode astraBody(com.fasterxml.jackson.databind.ObjectMapper json) {
+        var body = json.createObjectNode().put("model", ASTRA_MODEL).put("service_tier", "default")
+            .put("max_completion_tokens", CHAT_MAX_OUTPUT_TOKENS).put("reasoning_effort", "medium");
+        body.putArray("messages").addObject().put("role", "user").put("content", "x"); return body;
+    }
+
+    private okhttp3.Response rawAstra(byte[] bytes) throws Exception {
+        var client = new OkHttpClient.Builder().retryOnConnectionFailure(false).followRedirects(false).callTimeout(Duration.ofSeconds(3))
+            .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, identity -> new OpenAiBudgetScopeResolver.Binding("approval", scope,
+                ASTRA_REFERENCE, "astra-test"), HttpUrl.get(endpoint), meteringStops, GuardedReasoningEffort.MEDIUM)).build();
+        closeables.add(() -> { client.dispatcher().executorService().shutdown(); client.connectionPool().evictAll(); });
+        return client.newCall(new okhttp3.Request.Builder().url(endpoint + "/chat/completions").header("Authorization", "Bearer " + KEY)
+            .post(okhttp3.RequestBody.create(bytes, okhttp3.MediaType.get("application/json"))).build()).execute();
     }
 
     @Test void miniResponseCannotSettleAtAnotherModelsLowerRate() {
@@ -884,6 +995,11 @@ class GuardedNativeTransportTest {
         ledger.approve(new Approval("approval", scope, new Limits(50, tokens, 2_000_000_000L), Instant.now().plusSeconds(120)));
     }
 
+    private void approveAstra() {
+        miniScope();
+        ledger.approve(new Approval("approval", scope, new Limits(50, 600_000, 5_000_000_000L), Instant.now().plusSeconds(120)));
+    }
+
     private BudgetGuardedSpringAiModelResolver resolver() {
         return resolver(MAX_COMPLETION_TOKENS);
     }
@@ -949,7 +1065,9 @@ class GuardedNativeTransportTest {
     private NativeOpenAiHttpClient transport(Duration timeout, GuardedReasoningEffort effort) {
         return new NativeOpenAiHttpClient(new OkHttpClient.Builder().retryOnConnectionFailure(false)
             .followRedirects(false).followSslRedirects(false).callTimeout(timeout).readTimeout(timeout)
-            .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, identity -> new OpenAiBudgetScopeResolver.Binding("approval", scope),
+            .addNetworkInterceptor(new OpenAiExchangeGuard(ledger, identity -> astraAmended
+                ? new OpenAiBudgetScopeResolver.Binding("approval", scope, ASTRA_REFERENCE, "astra-test")
+                : new OpenAiBudgetScopeResolver.Binding("approval", scope),
                 HttpUrl.get(endpoint), meteringStops, effort)).build());
     }
 

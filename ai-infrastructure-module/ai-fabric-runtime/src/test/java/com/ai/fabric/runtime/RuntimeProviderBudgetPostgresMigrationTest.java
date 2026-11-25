@@ -52,7 +52,7 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var before = ledger.read(approval.id(), scope);
         var bindingBefore = service.readStore().binding();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("29");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("30");
         assertThat(ledger.read(approval.id(), scope)).isEqualTo(before);
         assertThat(service.readStore().binding()).isEqualTo(bindingBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM provider_budget_validity_extension", Long.class)).isZero();
@@ -107,7 +107,7 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         var before = tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
         var upgraded = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema).locations("classpath:db/runtime-migration").load();
         upgraded.migrate(); upgraded.validate();
-        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("29");
+        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("30");
         // Compare every original column; migration adds only immutable original-limit copies and an empty receipt table.
         for (int i = 0; i < tables.size(); i++) {
             var after = jdbc.queryForList("SELECT * FROM " + tables.get(i));
@@ -127,5 +127,41 @@ class RuntimeProviderBudgetPostgresMigrationTest {
         assertThat(service.requireActive().effectiveLimits()).isEqualTo(receipt.effectiveLimits());
         upgraded.migrate(); upgraded.validate();
         assertThat(service.readTopUp("historical-top-up")).contains(receipt);
+    }
+
+    @Test void upgradeFromV29AddsOnlyTheEmptyPricingReceiptThenPreservesAllFinancialRows() {
+        String schema = "pricing_" + UUID.randomUUID().toString().replace("-", "");
+        String url = POSTGRES.getJdbcUrl() + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema;
+        var source = new DriverManagerDataSource(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        var old = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema)
+            .locations("classpath:db/runtime-migration").target("29").load();
+        old.migrate();
+        var jdbc = new JdbcTemplate(source); var clock = Clock.fixed(Instant.parse("2026-11-25T00:00:00Z"), ZoneOffset.UTC);
+        var scope = new Scope("customer", "deployment", "target", "staging", "sha256:" + "a".repeat(64), ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE);
+        var approval = new Approval("pricing-history", scope, new Limits(50, 2_000_000, 5_000_000_000L), clock.instant().plusSeconds(3600));
+        var ledger = new JdbcProviderBudgetLedger(source, clock);
+        var service = new RuntimeBudgetBindingService(new RuntimeBudgetConfiguration(true, scope, "tenant"), ledger, source, clock);
+        var binding = service.initialize(new RuntimeBudgetAllocation(approval, RuntimeBudgetAllocation.fingerprint(approval)));
+        service.activate(new RuntimeBudgetBindingService.Activation(binding.approvalId(), binding.storeUuid(), binding.runtimeFingerprint()));
+        var attempt = UUID.randomUUID(); ledger.reserveAttempt(approval.id(), scope, attempt, new Usage(100, 10, 1000));
+        ledger.markAmbiguous(approval.id(), scope, attempt, "historical unknown");
+        ledger.recordChatIngress(approval.id(), scope, UUID.randomUUID());
+        service.topUp(new TopUpCommand(1, "existing-topup", approval.id(), binding.storeUuid(), binding.runtimeFingerprint(), approval.limits(),
+            new Limits(0, 100_000, 20_000_000_000L), "operator", "existing-approval", "payer", "existing topup"));
+        service.extendValidity(new ValidityExtensionCommand(1, "existing-validity", approval.id(), binding.storeUuid(), binding.runtimeFingerprint(),
+            approval.expiresAt(), approval.expiresAt().plusSeconds(3600), "existing validity"));
+        var tables = java.util.List.of("provider_budget_approval", "provider_budget_attempt", "provider_budget_chat_ingress",
+            "provider_budget_top_up", "provider_budget_validity_extension", "runtime_provider_budget_binding");
+        var before = tables.stream().map(table -> jdbc.queryForList("SELECT * FROM " + table)).toList();
+        var upgraded = Flyway.configure().dataSource(source).schemas(schema).defaultSchema(schema).locations("classpath:db/runtime-migration").load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM runtime_provider_budget_pricing_amendment", Integer.class)).isZero();
+        var command = new RuntimeBudgetPricingAmendment.Command(1, "astra-owner-review", approval.id(), binding.storeUuid(), binding.runtimeFingerprint(),
+            scope.rateCardReference(), ReviewedOpenAiRateCard.ASTRA_REFERENCE, "operator", "new-model-approval", "quality qualification");
+        var receipt = service.amendPricing(command);
+        for (int i = 0; i < tables.size(); i++) assertThat(jdbc.queryForList("SELECT * FROM " + tables.get(i))).isEqualTo(before.get(i));
+        var reloaded = new RuntimeBudgetBindingService(new RuntimeBudgetConfiguration(true, scope, "tenant"), ledger, source, clock);
+        assertThat(reloaded.amendPricing(command)).isEqualTo(receipt);
+        assertThat(reloaded.pricingAmendment()).contains(receipt); upgraded.validate();
     }
 }

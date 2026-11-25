@@ -65,6 +65,22 @@ public final class RuntimeProviderBudgetAdminController {
             HttpStatus.NOT_FOUND, "RUNTIME_BUDGET_TOP_UP_NOT_FOUND"));
     }
 
+    @PostMapping("/pricing-amendments")
+    public RuntimeBudgetPricingAmendment.Receipt amendPricing(HttpServletRequest request,
+        @RequestBody RuntimeBudgetPricingAmendment.Command command) {
+        administration.authorize(request, request.getRequestURI(), WRITE_SCOPE);
+        return budgets.amendPricing(command);
+    }
+
+    @GetMapping("/pricing-amendments/{amendmentId}")
+    public RuntimeBudgetPricingAmendment.Receipt readPricingAmendment(HttpServletRequest request, @PathVariable String amendmentId) {
+        administration.authorize(request, request.getRequestURI(),
+            com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW);
+        return budgets.pricingAmendment().filter(value -> value.amendmentId().equals(amendmentId))
+            .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND,
+                "RUNTIME_BUDGET_PRICING_AMENDMENT_NOT_FOUND"));
+    }
+
     @GetMapping("/validity-extensions/{extensionId}")
     public ValidityExtensionReceipt readValidityExtension(HttpServletRequest request, @PathVariable String extensionId) {
         administration.authorize(request, request.getRequestURI(),

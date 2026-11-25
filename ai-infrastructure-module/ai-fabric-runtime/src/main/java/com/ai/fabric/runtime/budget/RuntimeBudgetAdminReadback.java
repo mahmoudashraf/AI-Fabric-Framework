@@ -35,7 +35,8 @@ public final class RuntimeBudgetAdminReadback {
             snapshot == null ? null : snapshot.approval().limits(), snapshot == null ? null : snapshot.approval().expiresAt(),
             snapshot == null ? null : snapshot.chatAttempts(), snapshot == null ? null : snapshot.providerAttempts(),
             snapshot == null ? null : snapshot.accountedUsage(), snapshot == null ? null : snapshot.stopped(),
-            snapshot == null ? null : budgets.effectiveExpiresAt(), snapshot == null ? null : snapshot.effectiveLimits());
+            snapshot == null ? null : budgets.effectiveExpiresAt(), snapshot == null ? null : snapshot.effectiveLimits(),
+            snapshot == null ? null : budgets.pricingAmendment().orElse(null));
     }
 
     void authorize(HttpServletRequest request, String surface, String requiredScope) {
@@ -55,5 +56,5 @@ public final class RuntimeBudgetAdminReadback {
                            String customerId, String deploymentId, String targetProfileId,
                            String environment, String rateCardReference, Limits limits, Instant expiresAt,
                            Long chatAttempts, Long providerAttempts, Usage accountedUsage, Boolean stopped, Instant effectiveExpiresAt,
-                           Limits effectiveLimits) { }
+                           Limits effectiveLimits, RuntimeBudgetPricingAmendment.Receipt pricingAmendment) { }
 }

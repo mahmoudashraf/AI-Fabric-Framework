@@ -72,6 +72,7 @@ class RuntimeAdminOverviewControllerTest {
         for (var migration : Map.of(
             "provider budget accounting", List.of("19", "provider-budget-accounting-v1"),
             "provider budget validity extensions", List.of("20", "provider-budget-validity-extensions-v1"),
+            "provider budget pricing amendment", List.of("30", "provider-pricing-amendment-v30"),
             "provider budget accounting extra", List.of("19", "provider-budget-accounting-extra-v19"),
             "provider budget validity extension", List.of("20", "provider-budget-validity-extension-v20")
         ).entrySet()) {
@@ -114,7 +115,7 @@ class RuntimeAdminOverviewControllerTest {
                 .locations("classpath:db/runtime-migration").load();
             v20.migrate(); v20.validate();
             beans.addBean("flyway", v20);
-            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("29");
+            assertThat(v20.info().current().getVersion().getVersion()).isEqualTo("30");
             var after = migrationOverview(controller, authProperties);
             assertThat(after).containsEntry("available", true);
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("provider-budget-accounting-v1", "provider-budget-validity-extensions-v1", "provider-budget-top-ups-v1", "loomai-document-preparation-evaluation-v1")
@@ -125,7 +126,8 @@ class RuntimeAdminOverviewControllerTest {
             assertThat((List<Map<String, String>>) after.get("applied")).contains(Map.of("id", "release-scoped-retirement-v24",
                 "version", "24", "description", "release scoped retirement", "state", "SUCCESS"));
             assertThat((List<String>) after.get("appliedMigrationIds")).contains("reranking-budget-binding-v1")
-                .hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 9);
+                .contains("provider-pricing-amendment-v30")
+                .hasSize(((List<?>) before.get("appliedMigrationIds")).size() + 10);
         }
     }
 

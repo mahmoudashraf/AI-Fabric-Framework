@@ -56,6 +56,7 @@
     "deployment-local-provider-budget-v1",
     "deployment-local-provider-budget-validity-extension-v1",
     "deployment-local-provider-budget-top-up-v1",
+    "deployment-local-provider-budget-pricing-amendment-v1",
     "deployment-local-reranking-budget-v1",
     "shared-profiled-retrieval-v1",
     "learned-reranking-v1",
@@ -147,6 +148,7 @@
     ,"workflow-execution-checkpoint-v27"
     ,"protected-conversation-message-capacity-v28"
     ,"workflow-goal-continuation-v29"
+    ,"provider-pricing-amendment-v30"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",

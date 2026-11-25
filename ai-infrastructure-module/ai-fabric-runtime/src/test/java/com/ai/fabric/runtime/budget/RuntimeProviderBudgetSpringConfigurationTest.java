@@ -225,7 +225,7 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
                 "management.endpoint.health.group.readiness.include=readinessState")
             .run(context -> {
                 assertThat(context).hasNotFailed().hasSingleBean(RuntimeProviderBudgetAdminController.class);
-                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("29");
+                assertThat(context.getBean(Flyway.class).info().current().getVersion().getVersion()).isEqualTo("30");
                 AvailabilityChangeEvent.publish(context, LivenessState.CORRECT);
                 AvailabilityChangeEvent.publish(context, ReadinessState.ACCEPTING_TRAFFIC);
                 var health = context.getBean(HealthEndpoint.class);
@@ -235,6 +235,7 @@ class RuntimeProviderBudgetSpringConfigurationTest extends RuntimeBudgetFixture.
                 var jdbc = new JdbcTemplate(source);
                 assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM provider_budget_approval", Long.class)).isZero();
                 assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM provider_budget_attempt", Long.class)).isZero();
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM runtime_provider_budget_pricing_amendment", Long.class)).isZero();
                 verifyNoInteractions(context.getBean(AIEmbeddingService.class), context.getBean(VectorDatabaseService.class));
             });
     }

@@ -19,6 +19,10 @@ import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.Optional;
+import com.ai.fabric.budget.openai.ReviewedOpenAiRateCard;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import javax.sql.DataSource;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.http.HttpStatus;
@@ -194,6 +198,79 @@ public final class RuntimeBudgetBindingService {
         var receipt = ledger.readTopUp(current.approvalId(), configuration.scope(), topUpId);
         receipt.ifPresent(value -> requireMatch(current, value.approvalId(), value.storeUuid(), value.runtimeFingerprint()));
         return receipt;
+    }
+
+    public RuntimeBudgetPricingAmendment.Receipt amendPricing(RuntimeBudgetPricingAmendment.Command command) {
+        requireEnabled(); Objects.requireNonNull(command);
+        if (account != Account.GENERATION || !configuration.scope().rateCardReference().equals(command.originalRateCardReference()))
+            throw failure(ALLOCATION_SCOPE_MISMATCH);
+        var current = readStore();
+        if (current.binding().state() != State.ACTIVE) throw failure(NOT_ACTIVE);
+        requireMatch(current.binding(), command.approvalId(), command.storeUuid(), command.runtimeFingerprint());
+        var validUntil = ledger.effectiveExpiresAt(command.approvalId(), configuration.scope());
+        String reasonHash = reasonHash(command.reason());
+        return transaction(connection -> {
+            var locked = binding(connection, true);
+            requireMatch(locked, command.approvalId(), command.storeUuid(), command.runtimeFingerprint());
+            if (locked.state() != State.ACTIVE) throw failure(NOT_ACTIVE);
+            var existing = pricingAmendment(connection, locked);
+            if (existing.isPresent()) {
+                var receipt = existing.get();
+                if (!receipt.amendmentId().equals(command.amendmentId())
+                    || !receipt.authorizedBy().equals(command.authorizedBy())
+                    || !receipt.approvalEvidenceRef().equals(command.approvalEvidenceRef())
+                    || !receipt.reasonSha256().equals(reasonHash)) throw failure(PRICING_AMENDMENT_CONFLICT);
+                return receipt;
+            }
+            if (current.accounting().stopped()) throw new BudgetException(STOPPED);
+            if (!clock.instant().isBefore(validUntil)) throw new BudgetException(EXPIRED);
+            var now = clock.instant();
+            try (var insert = connection.prepareStatement("""
+                INSERT INTO runtime_provider_budget_pricing_amendment
+                (amendment_id,approval_id,store_uuid,runtime_fingerprint,original_rate_card_reference,
+                 additional_rate_card_reference,authorized_by,approval_evidence_ref,reason_sha256,authorized_second,authorized_nano)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """)) {
+                insert.setString(1, command.amendmentId()); insert.setString(2, locked.approvalId());
+                insert.setString(3, locked.storeUuid().toString()); insert.setString(4, locked.runtimeFingerprint());
+                insert.setString(5, command.originalRateCardReference()); insert.setString(6, command.additionalRateCardReference());
+                insert.setString(7, command.authorizedBy()); insert.setString(8, command.approvalEvidenceRef());
+                insert.setString(9, reasonHash); insert.setLong(10, now.getEpochSecond()); insert.setInt(11, now.getNano());
+                insert.executeUpdate();
+            }
+            return pricingAmendment(connection, locked).orElseThrow(() -> failure(STORAGE_UNAVAILABLE));
+        });
+    }
+
+    public Optional<RuntimeBudgetPricingAmendment.Receipt> pricingAmendment() {
+        requireEnabled();
+        if (account != Account.GENERATION || !ReviewedOpenAiRateCard.GPT_54_MINI_REFERENCE.equals(configuration.scope().rateCardReference()))
+            return Optional.empty();
+        var current = readStore();
+        if (current.accounting() == null) return Optional.empty();
+        return transaction(connection -> pricingAmendment(connection, current.binding()));
+    }
+
+    private Optional<RuntimeBudgetPricingAmendment.Receipt> pricingAmendment(Connection connection, StoreReceipt binding) throws SQLException {
+        try (var query = connection.prepareStatement("SELECT * FROM runtime_provider_budget_pricing_amendment WHERE approval_id=?")) {
+            query.setString(1, binding.approvalId());
+            try (var row = query.executeQuery()) {
+                if (!row.next()) return Optional.empty();
+                var receipt = new RuntimeBudgetPricingAmendment.Receipt(1, row.getString("amendment_id"), row.getString("approval_id"),
+                    UUID.fromString(row.getString("store_uuid")), row.getString("runtime_fingerprint"), row.getString("original_rate_card_reference"),
+                    row.getString("additional_rate_card_reference"), row.getString("authorized_by"), row.getString("approval_evidence_ref"),
+                    row.getString("reason_sha256"), java.time.Instant.ofEpochSecond(row.getLong("authorized_second"), row.getInt("authorized_nano")));
+                requireMatch(binding, receipt.approvalId(), receipt.storeUuid(), receipt.runtimeFingerprint());
+                if (!configuration.scope().rateCardReference().equals(receipt.originalRateCardReference())
+                    || !ReviewedOpenAiRateCard.ASTRA_REFERENCE.equals(receipt.additionalRateCardReference())) throw failure(BINDING_CONFLICT);
+                return Optional.of(receipt);
+            }
+        } catch (IllegalArgumentException corrupt) { throw failure(STORAGE_UNAVAILABLE); }
+    }
+
+    private static String reasonHash(String reason) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(reason.getBytes(StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException("SHA_256_UNAVAILABLE"); }
     }
 
     /** Host must resolve verified auth first. Every HTTP retry receives a fresh server attempt. */

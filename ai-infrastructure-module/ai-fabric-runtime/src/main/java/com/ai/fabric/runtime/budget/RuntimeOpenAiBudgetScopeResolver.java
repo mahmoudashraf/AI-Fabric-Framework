@@ -24,4 +24,12 @@ public final class RuntimeOpenAiBudgetScopeResolver implements OpenAiBudgetScope
         }
         return new Binding(expected.id(), expected.scope());
     }
+
+    @Override public Binding requireBinding(String credentialIdentity, String model) {
+        var original = requireBinding(credentialIdentity);
+        if (!ReviewedOpenAiRateCard.ASTRA_MODEL.equals(model)) return original;
+        var amendment = budgets.pricingAmendment().orElseThrow(() ->
+            new OpenAiBudgetException(OpenAiBudgetException.Code.RATE_CARD_MISMATCH));
+        return new Binding(original.approvalId(), original.scope(), amendment.additionalRateCardReference(), amendment.amendmentId());
+    }
 }

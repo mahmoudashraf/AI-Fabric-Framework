@@ -70,6 +70,8 @@ class RuntimeCapabilityManifestServiceTest {
         assertThat(strings(manifest.path("capabilities"))).contains("configured-workflow-assistance", "workflow-bundle-capacity-v2", "goal-driven-workflow-assistance", "workflow-goal-profile-delegation-v1");
         assertThat(strings(manifest.path("endpointClasses"))).contains("canonical-goal-work-control");
         assertThat(strings(manifest.path("migrationIds"))).contains("workflow-execution-checkpoint-v27", "protected-conversation-message-capacity-v28", "workflow-goal-continuation-v29");
+        assertThat(strings(manifest.path("migrationIds"))).contains("provider-pricing-amendment-v30");
+        assertThat(strings(manifest.path("capabilities"))).contains("deployment-local-provider-budget-pricing-amendment-v1");
         assertThat(strings(manifest.path("capabilities"))).contains("managed-mcp-connections");
         assertThat(strings(manifest.path("capabilities"))).contains("internal-decision-recovery-v1");
         assertThat(projection.get("supportedBehaviorTypes")).isEqualTo(List.of(

@@ -125,7 +125,9 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
             || (options.getMaxTokens() != null && options.getMaxCompletionTokens() != null))
             throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);
         var guarded = options.mutate().n(1).serviceTier("default");
-        if (isGpt54Mini(options.getModel())) {
+        if (isGpt54Mini(options.getModel()) || ASTRA_MODEL.equals(options.getModel())) {
+            if (ASTRA_MODEL.equals(options.getModel()) && reasoningEffort == GuardedReasoningEffort.NONE)
+                throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);
             if (options.getMaxCompletionTokens() == null && outputCapMode != OutputCapMode.MAX_COMPLETION_TOKENS)
                 throw new OpenAiBudgetException(UNSUPPORTED_OUTPUT_LIMIT_MODE);
             // Sampling stays disabled; only the trusted host chooses bounded reasoning.

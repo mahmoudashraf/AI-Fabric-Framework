@@ -11,6 +11,16 @@ public final class ReviewedOpenAiRateCard {
     // Keep the original reference and model coverage immutable for existing allocations.
     public static final String REFERENCE = "openai-gpt4omini-embedding3small-20261018-v1";
     public static final String GPT_54_MINI_REFERENCE = "openai-gpt4omini-gpt54mini-embedding3small-20261024-v2";
+    public static final String ASTRA_REFERENCE = "openai-gpt62astra-text-short-20261125-v3";
+    public static final String ASTRA_MODEL = "gpt-6.2-astra";
+    public static final long ASTRA_CONTEXT_TOKENS = 1_050_000;
+    public static final long ASTRA_INPUT_TOKENS = 256_000;
+    public static final int ASTRA_REQUEST_BYTES = 224_000;
+    public static final int ASTRA_MAX_MESSAGES = 32;
+    public static final long ASTRA_FRAMING_TOKENS = 32_000;
+    // Default 30-minute cache writes are conservatively charged for every input token.
+    public static final long ASTRA_INPUT_NANO_USD = 10_000;
+    public static final long ASTRA_OUTPUT_NANO_USD = 40_000;
     public static final String CHAT_MODEL = "gpt-4o-mini";
     public static final String GPT_54_MINI_MODEL = "gpt-5.4-mini";
     public static final String GPT_54_MINI_SNAPSHOT = "gpt-5.4-mini-2026-03-17";
@@ -43,7 +53,7 @@ public final class ReviewedOpenAiRateCard {
     }
 
     public static boolean isReviewedChatModel(String model) {
-        return CHAT_MODEL.equals(model) || isGpt54Mini(model);
+        return CHAT_MODEL.equals(model) || isGpt54Mini(model) || ASTRA_MODEL.equals(model);
     }
 
     public static boolean supportsModel(String reference, String model) {
@@ -53,17 +63,29 @@ public final class ReviewedOpenAiRateCard {
 
     public static long chatContextTokens(String model) {
         if (!isReviewedChatModel(model)) throw new OpenAiBudgetException(OpenAiBudgetException.Code.UNSUPPORTED_CONFIGURATION);
+        if (ASTRA_MODEL.equals(model)) return ASTRA_CONTEXT_TOKENS;
         return isGpt54Mini(model) ? GPT_54_MINI_CONTEXT_TOKENS : CHAT_CONTEXT_TOKENS;
+    }
+
+    public static long chatInputBound(String model) {
+        return ASTRA_MODEL.equals(model) ? ASTRA_INPUT_TOKENS : chatContextTokens(model);
     }
 
     public static Usage chat(String model, long input, long output) {
         chatContextTokens(model);
+        if (ASTRA_MODEL.equals(model)) {
+            if (input > ASTRA_INPUT_TOKENS || output > CHAT_MAX_OUTPUT_TOKENS)
+                throw new OpenAiBudgetException(OpenAiBudgetException.Code.UNSUPPORTED_CONFIGURATION);
+            return new Usage(input, output, Math.addExact(Math.multiplyExact(input, ASTRA_INPUT_NANO_USD),
+                Math.multiplyExact(output, ASTRA_OUTPUT_NANO_USD)));
+        }
         return isGpt54Mini(model) ? new Usage(input, output,
             Math.addExact(Math.multiplyExact(input, GPT_54_MINI_INPUT_NANO_USD),
                 Math.multiplyExact(output, GPT_54_MINI_OUTPUT_NANO_USD))) : chat(input, output);
     }
 
     static boolean matchesChatResponse(String requested, String actual) {
+        if (ASTRA_MODEL.equals(requested)) return ASTRA_MODEL.equals(actual);
         if (CHAT_MODEL.equals(requested)) return CHAT_MODEL.equals(actual) || "gpt-4o-mini-2024-07-18".equals(actual);
         if (GPT_54_MINI_MODEL.equals(requested)) return isGpt54Mini(actual);
         return GPT_54_MINI_SNAPSHOT.equals(requested) && GPT_54_MINI_SNAPSHOT.equals(actual);

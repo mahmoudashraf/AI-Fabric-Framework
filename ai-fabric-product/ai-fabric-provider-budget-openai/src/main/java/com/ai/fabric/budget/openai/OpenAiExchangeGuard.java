@@ -83,11 +83,11 @@ final class OpenAiExchangeGuard implements Interceptor {
         }
 
         Response response = null;
-        String requestEvidence = "native-json-usage:" + attemptId;
+        String requestEvidence = pricingEvidence(binding, plan, "native-json-usage:" + attemptId);
         try {
             request = request.newBuilder().header("X-Client-Request-Id", attemptId.toString()).build();
             response = chain.proceed(request);
-            requestEvidence = evidenceReference(response, attemptId);
+            requestEvidence = pricingEvidence(binding, plan, evidenceReference(response, attemptId));
             if (!response.isSuccessful() || response.body() == null
                 || (response.header("Content-Encoding") != null && !"identity".equalsIgnoreCase(response.header("Content-Encoding")))
                 || !"application/json".equals(response.body().contentType() == null ? null
@@ -191,23 +191,26 @@ final class OpenAiExchangeGuard implements Interceptor {
         Buffer buffer = new Buffer();
         request.body().writeTo(buffer);
         if (buffer.size() > MAX_BODY_BYTES) throw unsupported();
+        byte[] requestBytes = buffer.readByteArray();
         JsonNode body;
-        try { body = json.readTree(buffer.readByteArray()); }
+        try { body = json.readTree(requestBytes); }
         catch (Exception invalid) { throw unsupported(); }
         if (body == null || !body.isObject()) throw unsupported();
         String prefix = origin.encodedPath().replaceAll("/$", "");
-        if ((prefix + "/chat/completions").equals(url.encodedPath())) return chatPlan(body);
+        if ((prefix + "/chat/completions").equals(url.encodedPath())) return chatPlan(body, requestBytes.length);
         if ((prefix + "/embeddings").equals(url.encodedPath())) return embeddingPlan(body);
         throw unsupported();
     }
 
-    private Plan chatPlan(JsonNode body) {
+    private Plan chatPlan(JsonNode body, int requestBytes) {
         fields(body, CHAT_FIELDS);
         String model = body.path("model").asText();
         if (!isReviewedChatModel(model) || (body.has("stream") && !body.get("stream").isBoolean())
             || body.path("stream").asBoolean() || (body.has("n") && integer(body.get("n")) != 1)
             || !"default".equals(body.path("service_tier").asText())) throw unsupported();
-        if (isGpt54Mini(model)) {
+        boolean astra = ASTRA_MODEL.equals(model);
+        if (isGpt54Mini(model) || astra) {
+            if (astra && reasoningEffort == GuardedReasoningEffort.NONE) throw unsupported();
             if (!reasoningEffort.wireValue().equals(body.path("reasoning_effort").asText())
                 || MINI_UNREVIEWED_OPTIONS.stream().anyMatch(body::has)) throw unsupported();
         } else if (body.has("reasoning_effort")) throw unsupported();
@@ -219,10 +222,18 @@ final class OpenAiExchangeGuard implements Interceptor {
         if (output < 1 || output > CHAT_MAX_OUTPUT_TOKENS) throw unsupported();
         var messages = body.path("messages");
         if (!messages.isArray() || messages.isEmpty()) throw unsupported();
+        // Funding boundary: byte-fallback text tokens cannot exceed UTF-8 bytes. Reserve
+        // another 32K tokens for framing; native tools/server-side context are excluded.
+        if (astra && (requestBytes > ASTRA_REQUEST_BYTES || messages.size() > ASTRA_MAX_MESSAGES
+            || Math.addExact(requestBytes, ASTRA_FRAMING_TOKENS) > ASTRA_INPUT_TOKENS))
+            throw new OpenAiBudgetException(SHORT_CONTEXT_INPUT_BOUND_EXCEEDED);
+        if (astra && (body.has("tools") || body.has("tool_choice") || body.has("parallel_tool_calls"))) throw unsupported();
         for (JsonNode message : messages) {
             if (!message.isObject()) throw unsupported();
             fields(message, Set.of("role", "content", "name", "tool_calls", "tool_call_id", "refusal"));
             if (!Set.of("system", "developer", "user", "assistant", "tool").contains(message.path("role").asText())) throw unsupported();
+            if (astra && ("tool".equals(message.path("role").asText()) || message.has("tool_calls")
+                || message.has("tool_call_id") || message.has("refusal"))) throw unsupported();
             JsonNode content = message.get("content");
             if (content != null && !content.isNull() && !content.isTextual()) {
                 if (!content.isArray()) throw unsupported();
@@ -235,7 +246,7 @@ final class OpenAiExchangeGuard implements Interceptor {
         }
         if (body.has("tools")) functionTools(body.get("tools"));
         // The ledger has component-wise bounds; this deliberately overholds the shared context envelope.
-        return new Plan(true, model, output, chat(model, chatContextTokens(model), output));
+        return new Plan(true, model, output, chat(model, chatInputBound(model), output));
     }
 
     private Plan embeddingPlan(JsonNode body) {
@@ -271,9 +282,11 @@ final class OpenAiExchangeGuard implements Interceptor {
         var headers = request.headers("Authorization");
         if (headers.size() != 1 || !headers.getFirst().startsWith("Bearer ")) throw new OpenAiBudgetException(CREDENTIAL_SCOPE_MISMATCH);
         String identity = credentialIdentity(headers.getFirst().substring(7));
-        var binding = scopes.requireBinding(identity);
+        var binding = scopes.requireBinding(identity, plan.model());
         if (binding == null || !identity.equals(binding.scope().credentialIdentity())) throw new OpenAiBudgetException(CREDENTIAL_SCOPE_MISMATCH);
-        if (!supportsModel(binding.scope().rateCardReference(), plan.model())) throw new OpenAiBudgetException(RATE_CARD_MISMATCH);
+        if (!supportsModel(binding.scope().rateCardReference(), plan.model())
+            && !(ASTRA_MODEL.equals(plan.model()) && ASTRA_REFERENCE.equals(binding.additionalRateCardReference())))
+            throw new OpenAiBudgetException(RATE_CARD_MISMATCH);
         return binding;
     }
 
@@ -302,6 +315,11 @@ final class OpenAiExchangeGuard implements Interceptor {
         for (JsonNode tool : tools) {
             if (!tool.isObject() || !"function".equals(tool.path("type").asText()) || !tool.path("function").isObject()) throw unsupported();
         }
+    }
+
+    private static String pricingEvidence(OpenAiBudgetScopeResolver.Binding binding, Plan plan, String evidence) {
+        return ASTRA_MODEL.equals(plan.model()) ? "pricing:" + ASTRA_REFERENCE + ":amendment:"
+            + binding.pricingAmendmentId() + ":" + evidence : evidence;
     }
 
     private static void fields(JsonNode body, Set<String> allowed) {

@@ -6,6 +6,18 @@ import static com.ai.fabric.budget.openai.ReviewedOpenAiRateCard.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReviewedOpenAiRateCardTest {
+    @Test void astraAmendmentCannotExpandEitherOriginalCardAndHasOneShortContextPrice() {
+        assertFalse(supportsModel(REFERENCE, ASTRA_MODEL));
+        assertFalse(supportsModel(GPT_54_MINI_REFERENCE, ASTRA_MODEL));
+        assertFalse(supportsModel(ASTRA_REFERENCE, ASTRA_MODEL));
+        assertFalse(isReviewedChatModel("gpt-6.2-astra-2026-11-25"));
+        assertEquals(1_050_000, chatContextTokens(ASTRA_MODEL));
+        assertEquals(256_000, chatInputBound(ASTRA_MODEL));
+        assertEquals(3_215_360_000L, chat(ASTRA_MODEL, 256_000, 16_384).costNanoUsd());
+        assertEquals(240_000L, chat(ASTRA_MODEL, 12, 3).costNanoUsd());
+        assertThrows(OpenAiBudgetException.class, () -> chat(ASTRA_MODEL, 256_001, 1));
+        assertThrows(OpenAiBudgetException.class, () -> chat(ASTRA_MODEL, 1, 16_385));
+    }
     @Test void legacyReferencePricesAndCoverageRemainUnchanged() {
         assertEquals("openai-gpt4omini-embedding3small-20261018-v1", REFERENCE);
         assertEquals(150_000_000L, chat(1_000_000, 0).costNanoUsd());
