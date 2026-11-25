@@ -1,8 +1,33 @@
 # Autonomous Build With AI Qualification
 
-Status: implementation committed and release CI passed; staging rollout and
-hosted qualification in progress. Not a live-release acceptance record. A
-published artifact is not proof of an applied or qualified customer workflow.
+Status, 25 November: staging and production assistant qualification passed.
+Three fresh production API preparations, required write-body mappings and all
+eight Quick edit cases plus three extra compatibility checks passed. Primary
+Harbor Engage and the new walkthrough are not yet qualified. A published artifact
+alone is not proof of an applied or qualified customer workflow.
+
+Current production: backend `dea4450e9`, UI `0390c345b`, Runtime `8c9d40db2`,
+Framework0.8.70, authoring release `rel-5dfc5e2e` / `ver-bc9a3ea0`, verified and
+ACTIVE. Nine profiles and native autonomous execution are enabled, with the
+staging-qualified Astra generation purpose. Available configuration tasks default
+to Autonomous; explicit Quick edit, explanation-only guidance and normal draft
+review/publication boundaries remain. Servers, keys, storage and spending caps
+are unchanged. Earlier checkpoints below are historical, not current state.
+
+Production controls passed through a composite record: real Pause, quiet
+refresh/navigation, exact foreign denials, logout/re-auth restoration and Resume
+with a new executed draft save. That goal completed before Cancel could be
+clicked; its original NOT_PROVEN cancellation result remains. A separate active
+native goal was cancelled through the normal UI, followed by an independent
+25-second quiet window with no new inference or draft change. Both cases passed
+exact cleanup and normal sign-outs. No product or authorization relaxation was
+needed for the corrected test-launch/navigation assumptions.
+
+Private actual acceptance: `assistant-production-acceptance.private.json` in
+the private01076 root, status `PASS_ASSISTANT_PRODUCTION`. Conservative accounted
+qualification use at that checkpoint was USD22.04900275 staging and USD10.01386
+production, combined USD32.06286275; the USD50 ceiling and USD5 Harbor reserve
+remain. This is not a claim that the primary app/video journey is finished.
 
 ## Contract
 

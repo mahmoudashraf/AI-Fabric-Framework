@@ -25,6 +25,13 @@ when only part of a contract is needed, and choose an execution mode.
   model chooses tools, smaller batches, corrections and optional published
   specialist focus until the requested draft work is complete or needs attention.
 
+Available configuration tasks default to Autonomous, including page-specific
+editing, not only whole-Brain setup. Preserve the user's explicit Quick edit
+choice for that editing context. Unknown or disabled server availability falls
+back to Quick edit. Guidance and explanation-only requests remain nonmutating.
+The visible selection must match the native request and published goal policy;
+an Autonomous label alone is not evidence that Framework goal execution is used.
+
 Prepare remains page-aware. Users need not describe the internal action schema
 or manually ask the assistant to recover from its own validation errors. Missing
 business facts and authorization are still genuine questions.

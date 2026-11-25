@@ -22217,3 +22217,66 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   new UI proof and current reviewed R9 hash before production; never invent a
   staging UI proof, digest or final acceptance.
 
+## 2026-11-25 Autonomous Assistant Production Rollout
+
+- UI B2 `0390c345b5438567aa7d310b90d983a3b3841774` committed/pushed. Exact
+  core45588486865, storage45588568803, quota45588574111 and full code45588578399
+  gates all passed. Staging UI jobftjato6woryns4rxbin5kirl is healthy; actual
+  digest e7f9157e54f7d7e1f89caed95a0c4c3f180bdf9902aa8ff5b7cde6d61a69a55b.
+  Fresh actual desktop Models/Responses/Search and390px capability-panel checks
+  passed Autonomous defaults, zero inference/publication, unchanged draft and
+  complete normal cleanup/logouts. First checker wrongly required a background
+  opener hidden by the already-open mobile Drawer; original FAIL retained.
+- Genuine staging-acceptance.private.json now exists in private01076root and
+  passes the frozen current-source loader. It binds15 original raw model/native/
+  Harbor files plus seven supplemental control/UI/erasure files. Original short
+  ACK NOT_PROVEN and cleanup-checker FAIL are retained, not rewritten; separate
+  actual ACK/quiet timing and exact deletion receipts close those checks.
+- PRODUCTION SOFTWARE IS NOW ACTIVE: backend DEA jobu4rg38l6o9on78o6qfx3ma3w,
+  UI B2 jobea0c2skyqupzkho1u81ihbht, Runtime R9 artifactdsa-9767fe33. Same
+  staging-qualified digests, original servers/environment/keys/storage/caps and
+  financial records retained. Nine official SDK0.8.70 JARs matched. Internal
+  configured Brain goal mode/nine profiles were explicitly published first as
+  ver-5f1e873d/rel-0e7531db, then model-only Astra as
+  ver-bc9a3ea0/rel-5dfc5e2e, APPLIED_VERIFIED/PASSED/ACTIVE. Own logouts passed.
+- Astra pricing update already succeeded on the first POST, but its immediate
+  checker stopped. Actual GET receipt reconciliation passed; the helper's existing
+  receipt branch completed without another POST or model call. Historical intent/
+  POST marker retained; no funding or cap change. Final model proof is
+  authoring-astra-p20-r9-astra-model-1-production-verified.private.json.
+- Three normal production UI blank one-Prepare Harbor runs p20-r9-astra-1..3
+  passed all five semantic operations with one save and no manual correction;
+  all resource/session/key cleanup and both logouts passed. These are temporary
+  authoring fixtures, NOT the primary Harbor Engage walkthrough/video.
+- Private production control harness had two own issues: direct CLI top-level
+  await deadlocked its cyclic adapter import before any login (empty evidence
+  directory retained), then its re-auth restoration stayed on Home instead of
+  navigating back to the Brain. Both harness fixes have53 contract plus5 new
+  navigation/entry tests; no product change or permission relaxation. Original
+  reports remain. Corrected live Main exec70833, labelp20-r9-controls-smoke-3,
+  is running. Prior exec9663 cleaned up and signed out despite its harness FAIL.
+  Quick edit has NOT run in production; watcher23178 stopped before invoking it.
+- Main production deploy exec9592, receipt reconciliation92515, model publish
+  13381 and three-import pipeline61871 are all collected. No recording/browser
+  session is active outside control70833. Primary Harbor remains v13/FW69 and
+  the new video is not recorded. Do not mark broader qualification complete.
+- Production assistant closure29406 completed PASS_ASSISTANT_PRODUCTION. All
+  three fresh Harbor imports also passed the independent required-body mapping
+  audit. Controls3 genuinely restored after re-auth and Resume produced a new
+  executed save; it finished before Cancel, retaining NOT_PROVEN for that timing.
+  Separate actual native cancellation p20-r9-cancel-1 passed with25s quiet and
+  zero additional inference/writes. Both cases cleaned up and signed out.
+- Production Quick edit78523 completed PASS8cases+3extras (follow-up/Undo,
+  Warm/Brief presets, Search settings), full cleanup/both logouts and budget
+  preservation. Stage accounted22.04900275, prod10.01386, combined32.06286275;
+  native25/20 caps and Harbor reserve5 unchanged. No active test goal remains.
+  Source-exact final native observer confirmed R9/Framework70/Astra8192/nine
+  autonomous profiles and original financial identity. Earlier failed/unknown
+  reports remain immutable; composite actual evidence is private01076root/
+  assistant-production-acceptance.private.json.
+- Main exec70833, cancellation56358, Quick78523 and closure29406 all collected.
+  Main browser11433 is now normally signed in to production for PRIMARY Harbor
+  preparation only; recording=false, no reset/upload/publish yet. Keep it open
+  only for the walkthrough and sign out normally when finished. Primary remains
+  dep-86ad8f93 / kit-08db160a-e9c7-4d80-8aa4-ccd286905da4 / oldv13/FW69.
+
