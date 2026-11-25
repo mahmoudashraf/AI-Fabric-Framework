@@ -274,6 +274,11 @@ class RuntimeAdminOverviewControllerTest {
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "specialistChainsEnabled", false);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "productSourceCommit", "commit-123");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "productBuildTime", "2026-07-30T12:00:00Z");
+        var orchestration = new ai.fabric.config.OrchestrationProperties();
+        orchestration.getAutonomy().setEnabled(true);
+        orchestration.getAutonomy().setMaxElapsedSeconds(90);
+        orchestration.getAutonomy().setInstructions("PRIVATE_INTERNAL_AUTONOMY_INSTRUCTIONS");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "orchestrationProperties", orchestration);
 
         ResponseEntity<?> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
 
@@ -283,8 +288,13 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.70"));
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", System.getProperty("ai-fabric.framework.version", "0.8.71"));
         assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.8.52");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> autonomy = (Map<String, Object>) body.get("conversationalAutonomy");
+        assertThat(autonomy).containsEntry("enabled", true).containsEntry("execution", "ACTIVE_REQUEST")
+            .containsEntry("maxElapsedSeconds", 90).containsEntry("maxModelCallsPerSegment", 12)
+            .doesNotContainKey("instructions");
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
         assertThat(body).containsEntry("deploymentVersionId", "ver-123");
@@ -305,7 +315,7 @@ class RuntimeAdminOverviewControllerTest {
             "schemaVersion",
             "loomai-runtime-capabilities-v1"
         );
-        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.70");
+        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.8.71");
         assertThat(runtimeCapabilityManifest.get("supportedBehaviorTypes")).isEqualTo(List.of(
             "AGENTIC_SPECIALIST_TEAM",
             "CONVERSATIONAL",

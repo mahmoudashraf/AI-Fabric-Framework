@@ -50,6 +50,9 @@ public class RuntimeAdminOverviewController {
     private com.ai.fabric.runtime.workflow.WorkflowAssistanceStatus workflowAssistance;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ai.fabric.config.OrchestrationProperties orchestrationProperties;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ai.fabric.runtime.budget.RuntimeProviderBudgetProperties guardedProviderProfile;
 
     private final AIActionRegistry actionRegistry;
@@ -199,6 +202,16 @@ public class RuntimeAdminOverviewController {
             ? Map.of("enabled", false, "ready", true) : specialistAssistanceStatus.status());
         body.put("workflowAssistance", workflowAssistance == null
             ? Map.of("enabled", false, "ready", true) : workflowAssistance.status());
+        var autonomy = orchestrationProperties == null ? null : orchestrationProperties.getAutonomy();
+        body.put("conversationalAutonomy", autonomy == null ? Map.of("enabled", false) : Map.ofEntries(
+            Map.entry("enabled", autonomy.isEnabled()), Map.entry("defaultEnabled", autonomy.isDefaultEnabled()),
+            Map.entry("execution", "ACTIVE_REQUEST"), Map.entry("maxElapsedSeconds", autonomy.getMaxElapsedSeconds()),
+            Map.entry("segmentSeconds", autonomy.getSegmentSeconds()), Map.entry("maxActionsPerSegment", autonomy.getMaxActionsPerSegment()),
+            Map.entry("maxWritesPerSegment", autonomy.getMaxWritesPerSegment()), Map.entry("maxModelCallsPerSegment", autonomy.getMaxModelCallsPerSegment()),
+            Map.entry("maxCorrectionsPerSegment", autonomy.getMaxCorrectionsPerSegment()),
+            Map.entry("maxConsecutiveNoProgress", autonomy.getMaxConsecutiveNoProgress()),
+            Map.entry("maxConsecutivePlannerFailures", autonomy.getMaxConsecutivePlannerFailures()),
+            Map.entry("replanNonAuthorityReadFailures", autonomy.isReplanNonAuthorityReadFailures())));
         body.put("managedTasks", managedTasks == null
             ? Map.of("contractVersion", "LOOMAI_MANAGED_TASKS_V1", "enabled", false, "ready", true, "tasks", List.of())
             : managedTasks.status());

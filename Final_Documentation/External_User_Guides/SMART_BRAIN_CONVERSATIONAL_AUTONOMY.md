@@ -15,6 +15,13 @@ products do not switch automatically. The selected runtime must support this
 capability; the Platform checks compatibility before applying it. Website widgets,
 max-mode and standalone Engage apps use the same configured Brain.
 
+Engage follows the canonical conversation routes supplied by its installation
+manifest automatically. A custom API client must use those existing conversation
+and message routes after enabling this mode; it must not keep using a legacy
+query-only route when canonical conversation control is enabled. The chat request
+does not gain any private authoring scope. Framework-only applications can bind
+the same engine through their existing trusted conversation host.
+
 Advanced execution limits control elapsed time, per-segment tool/model use and
 no-progress protection. Segments may continue within the request's deadline;
 they do not create extra funding. Zero allowed writes makes the autonomous

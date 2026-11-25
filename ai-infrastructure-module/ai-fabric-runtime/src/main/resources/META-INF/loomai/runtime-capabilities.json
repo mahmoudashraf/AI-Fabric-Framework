@@ -1,6 +1,6 @@
 {
   "schemaVersion": "loomai-runtime-capabilities-v1",
-  "aiFabricVersion": "0.8.70",
+  "aiFabricVersion": "0.8.71",
   "supportedBehaviorTypes": [
     "AGENTIC_SPECIALIST_TEAM",
     "CONVERSATIONAL",
@@ -26,6 +26,7 @@
     "SPECIALIST_ASSISTANCE"
   ],
   "capabilities": [
+    "conversational-autonomy-v1",
     "configured-workflow-assistance",
     "workflow-bundle-capacity-v2",
     "goal-driven-workflow-assistance",

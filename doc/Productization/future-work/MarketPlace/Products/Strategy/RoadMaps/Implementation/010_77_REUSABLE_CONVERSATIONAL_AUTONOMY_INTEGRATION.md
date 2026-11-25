@@ -63,17 +63,34 @@ are not rolled back or automatically replayed when a request is interrupted.
 
 - [x] Traced the public mode rejection and private-authoring permission boundary.
 - [x] Shared Framework integration and focused tests.
-- [ ] Configuration controls, compiler and Runtime capability.
+- [x] Configuration controls, compiler and Runtime capability (source/local proof).
 - [ ] Complete regression and immutable release.
 - [ ] Harbor live comparison and Build with AI regression.
 - [ ] Actual rollout evidence and customer guide.
 
 ### Local Qualification
 
-Framework 0.8.71 candidate: 33-module reactor passed; final core/default-prompt
-install passed with 1,306 core and 17 curated tests. Source release guards passed.
+Framework 0.8.71 candidate: 33-module reactor passed; final core/chat install
+passed with 1,308 core, 98 chat and 17 curated tests. The final owned-reference
+test class passed 10 tests, including a known other owner's denied canonical
+conversation. Source release guards passed. All reference-app reactor tests
+passed against this SDK. Standalone Incident Room then exposed a mixed-version
+dependency through its installed test-support artifact; importing the selected
+SDK BOM corrected it, with 50 active tests passing and 15 profile-specific skips.
 Platform integration: 285 focused backend tests passed. Console: TypeScript build,
 42 policy/assistant-scope tests and 27 browser cases passed, including desktop and
-mobile light/dark layouts. This is local proof, not Central publication, hosted
-rollout or a Harbor quality improvement. Earlier tooling/mock/test-fixture failures
-are retained in the local verification logs; no security or test gate was disabled.
+mobile light/dark layouts. Runtime: 876 tests passed, with four external Ragas
+worker tests and one optional Cohere test skipped; eight environment-binding and
+policy-readback checks passed. Build with AI backend regression: 157 tests passed.
+
+Staging Console UI/backend source `aa42380229141c7bd982f495f88f6be18c8ff413`
+is image-identity verified with capacity/storage/environment preserved. A fresh
+customer UI test saved Autonomous to a configuration-only Brain, proved a focused
+provider merge, then deleted the exact test record and signed out. Desktop/mobile
+screens were inspected. Initial harness failures (no existing owned Brain and an
+ambiguous Autonomous locator) are retained; neither was bypassed with another
+identity or permissions. No inference was submitted by that form test.
+
+This is not Central publication, a customer Runtime rollout or Harbor quality
+improvement. Those gates remain pending. Earlier tooling/mock/test-fixture failures
+are retained in the verification logs; no security or test gate was disabled.

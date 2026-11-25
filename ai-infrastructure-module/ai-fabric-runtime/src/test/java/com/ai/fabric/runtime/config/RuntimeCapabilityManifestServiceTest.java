@@ -22,6 +22,7 @@ class RuntimeCapabilityManifestServiceTest {
         assertThat(strings(manifest.path("supportedExecutionExtensions")))
             .containsExactly("CONVERSATION_HANDOVER", "HUMAN_REVIEW", "SPECIALIST_ASSISTANCE");
         assertThat(strings(manifest.path("capabilities"))).contains(
+            "conversational-autonomy-v1",
             "specialist-chains",
             "jdbc-specialist-chain-state",
             "smart-brain-durable-operations",
@@ -66,7 +67,7 @@ class RuntimeCapabilityManifestServiceTest {
         assertThat(strings(manifest.path("capabilities"))).doesNotContain("runtime-cold-maintenance-generation-adoption-v1");
         Map<String, Object> projection = service.manifestProjection();
         assertThat(projection).containsEntry("schemaVersion", "loomai-runtime-capabilities-v1");
-        assertThat(projection).containsEntry("aiFabricVersion", "0.8.70");
+        assertThat(projection).containsEntry("aiFabricVersion", "0.8.71");
         assertThat(strings(manifest.path("capabilities"))).contains("configured-workflow-assistance", "workflow-bundle-capacity-v2", "goal-driven-workflow-assistance", "workflow-goal-profile-delegation-v1");
         assertThat(strings(manifest.path("endpointClasses"))).contains("canonical-goal-work-control");
         assertThat(strings(manifest.path("migrationIds"))).contains("workflow-execution-checkpoint-v27", "protected-conversation-message-capacity-v28", "workflow-goal-continuation-v29");
