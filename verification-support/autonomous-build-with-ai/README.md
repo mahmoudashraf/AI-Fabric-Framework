@@ -3,8 +3,10 @@
 Status, 25 November: staging and production assistant qualification passed.
 Three fresh production API preparations, required write-body mappings and all
 eight Quick edit cases plus three extra compatibility checks passed. Primary
-Harbor Engage and the new walkthrough are not yet qualified. A published artifact
-alone is not proof of an applied or qualified customer workflow.
+Harbor is now ACTIVE on verified v14 / Framework0.8.70, but its first natural
+customer-chat batch passed six of eight cases; the new walkthrough is not yet
+qualified. A published artifact alone is not proof of an applied or qualified
+customer workflow.
 
 Current production: backend `dea4450e9`, UI `0390c345b`, Runtime `8c9d40db2`,
 Framework0.8.70, authoring release `rel-5dfc5e2e` / `ver-bc9a3ea0`, verified and
@@ -28,6 +30,47 @@ the private01076 root, status `PASS_ASSISTANT_PRODUCTION`. Conservative accounte
 qualification use at that checkpoint was USD22.04900275 staging and USD10.01386
 production, combined USD32.06286275; the USD50 ceiling and USD5 Harbor reserve
 remain. This is not a claim that the primary app/video journey is finished.
+
+The final read-only observer after primary Harbor preparation again confirmed
+Framework0.8.70, nine autonomous profiles, Astra generation, zero active goals,
+and unchanged financial identity/limits. Accounted assistant qualification use
+was then USD32.76204275 combined; the separate Harbor reserve and USD50 owner
+ceiling remain. No usage was reset.
+
+### Primary Harbor Follow-Through
+
+Actual v14 `ver-e5452f3f` / `rel-e26602db` is APPLIED_VERIFIED, with verification
+`vrf-39795a8b`: 30 passed, zero failed and four skipped checks. The same existing
+Engage installation was explicitly disabled for editing, connected to v14,
+saved, checked and activated. Routing reconciliation generation76 completed;
+all thirteen app readiness checks passed. No new app, server, bucket, database
+or vector service was created.
+
+The original eight business cases passed catalogue, delivery, returns,
+confirmed enquiry, receipt lookup and rejection with zero write effect. Two
+remain quality failures, not assistant-authoring failures:
+
+- The planner supplied `Harbor Standing Desk` where the API requires a returned
+  catalogue ID. The actual action description already requires the exact ID.
+  The API returned404; a separate exact-ID question succeeded with price499,
+  stock8 and adjustableHeight=true. The action/route itself is functional.
+- The care question attempted the authorized knowledge source successfully but
+  received zero raw results. A focused care-guide question returned the newly
+  indexed guide and correct instructions. A similarity-threshold cause is not
+  established; no global retrieval setting or evidence boundary was changed.
+
+The confirmed fictional enquiry increased the lab count by exactly one; receipt
+lookup returned the same reference/product/status. Rejection increased it by
+zero. No email, purchase or stock reservation occurred. Original failures and
+the two isolation probes remain in private
+`harbor-autonomy-01076-continuation/business-qualification.private.json`, status
+`PARTIAL_PRIMARY_HARBOR`, separate from `PASS_ASSISTANT_PRODUCTION`.
+
+The first new recording was interrupted by an unhandled recorder-observer
+timeout. Its raw files remain private and are not presented as a completed
+walkthrough. The continuation was deliberately not recorded. The customer was
+normally signed out, local identity cleared, browser closed with zero recorded
+page errors, and all verification processes collected.
 
 ## Contract
 

@@ -1,6 +1,31 @@
 # 010.76 Goal-Driven Full Autonomy and Adaptive Authoring
 
-Status: owner approved; implementation in progress, 24 November 2026.
+Status: production assistant rollout verified, 25 November 2026. Primary Harbor
+customer-chat quality and the new walkthrough remain open.
+
+## Production Rollout Checkpoint, 25 November 2026
+
+The configured authoring Brain is ACTIVE on Framework 0.8.70 / Runtime
+`8c9d40db2`, backend `dea4450e9`, UI `0390c345b`, release `rel-5dfc5e2e`.
+Nine native autonomous profiles are enabled. Available configuration tasks
+default to Autonomous; explicit Quick edit and explanation-only tasks retain
+their existing behavior. The framework owns continuation and authorized draft
+writes; publication remains an explicit user operation.
+
+Three fresh production API preparations passed all five operations without
+manual correction. Quick edit passed eight cases and three extra compatibility
+checks. Pause, Resume, cancellation, logout quietness, foreign-resource denials,
+cleanup and preserved financial identity passed. Exact evidence and historical
+failures are recorded in `verification-support/autonomous-build-with-ai/README.md`.
+
+Primary Harbor v14 is separately ACTIVE and verified on Framework 0.8.70, with
+five AI-prepared operations and two newly indexed documents on existing managed
+services. Its first eight business cases passed six and failed two: a natural
+product-name follow-up used the name as an API ID, and a care question searched
+successfully but returned zero matches. Exact-ID lookup and a focused care
+question subsequently passed; those probes do not erase the original failures.
+Confirmed enquiry, receipt and rejected-write/no-effect checks passed. The
+interrupted recording is retained, not a completed or qualified new video.
 
 ## Owner Clarification, 25 November 2026
 

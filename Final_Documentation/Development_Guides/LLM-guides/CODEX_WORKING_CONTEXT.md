@@ -22279,4 +22279,74 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   preparation only; recording=false, no reset/upload/publish yet. Keep it open
   only for the walkthrough and sign out normally when finished. Primary remains
   dep-86ad8f93 / kit-08db160a-e9c7-4d80-8aa4-ccd286905da4 / oldv13/FW69.
+- Primary Harbor walkthrough is now active in browser11433, recording=true,
+  private harbornative01076 browser root/raw. Only unpublished draft was reset
+  through normal UI to zero actions/routes; old livev13 was retained. Fresh
+  source sessioncas-467178f8-4477-4734-a5be-2ef8f9731f03 completed exactly one
+  empty-hint Autonomous Prepare: five operations, six model calls, zero repairs,
+  one real save. Old test conversation was explicitly deleted after its normal
+  same-scope session reuse was discovered; backed-up original evidence remains.
+- Two fresh approved text uploads exist in the same existing bucket, new purpose
+  walkthrough-20261125-autonomous/. Existing connectiondsc7f9 was normally bound;
+  actual API exposes allowedPrefixDigest, not plaintext prefix. A temporary proof
+  verifier now accepts the exact cryptographic prefix match, with105 offline
+  tests (original100 retained plus five hashed-prefix checks); no product change.
+  The first upload response body was evicted by browser inspection; actual GET
+  uploads confirmed success and the write was not repeated.
+- Normal owner UI explicitly published ver-e5452f3f (v14, actualFW0.8.70) and
+  confirmed Apply as rel-e26602db on existingtargetdtp-coolify-staging-behavior,
+  RuntimeR9 artifactdsa-9767fe33. Startup/verification is being observed. Original
+  services were independently READ-captured before apply; no new infrastructure.
+  Customer global-resource GET403 and nonexistent BYO vector-binding GET404 were
+  correctly retained, not bypassed. Existing runtime vector-connection values
+  are hash-captured privately; later comparison must exclude the expected
+  release-specific vector-space allowlist change. Still pending indexing,
+  verification/Engage assignment, eight business checks, privacy QA and assembly.
+- Primary14 is now physically ACTIVE on Framework70; initial verification
+  vrf-23905396 failed only document_active_sources_ready before indexing.
+  Fresh care doc-ecebe53c7287839865683e7cf525572b and returns
+  doc-babb609eac838cd4dd36d93b280fb469 both have ACTIVE version1/chunk1 and
+  successful terminal INDEX work25/26. The UI selection clears checked files
+  after submitting; reselect before an explicit reconciliation if needed.
+- Recording attempt1 browser11433 exited on an UNHANDLED observer timeout after
+  a pending waitForResponse outlived a failed click. This is the recorder, not a
+  native AI/configuration failure. Preserve its raw video/events/chapters in
+  ~/.codex/private/harbor-autonomy-walkthrough-01076; no qualifying final video or
+  PASS walkthrough-proof exists. Never relabel the interrupted recording.
+  Main continuation browser1107 is signed in normally, recording=false, with
+  separate evidence ~/.codex/private/harbor-autonomy-01076-continuation.
+  Runtime/connector update completed normally, both reused; no resize/restart.
+- Primary verification retry button uses window.confirm. The first automated
+  click was dismissed by Playwright's default, creating no new run. Latest
+  continuation command explicitly accepts only the exact release confirmation
+  and is observing real rerun admission. Finish14 readiness/Engage/business
+  qualification, then make a clean new recording (within existing caps).
+- Primary14 verification actually completed: vrf-39795a8b30PASS/0FAIL/4SKIP,
+  rel-e26602db APPLIED_VERIFIED/PASSED/ACTIVE. Same Engage installation was
+  explicitly disabled for editing, saved against14, readiness-checked and
+  activated. Temporary delivery warning cleared after ordinary routing
+  generation76 reconciled; all13 readiness checks PASS. No new app, capacity,
+  bucket, database or vector service. Existing primary now has five API actions.
+- Actual first business batch:6/8 PASS (catalogue/delivery/returns/confirmed
+  enquiry/receipt/rejection-no-effect). Natural product-name follow-up supplied
+  the name instead of exact catalogue ID and got upstream404; action description
+  already correctly requires ID. Exact-ID probe subsequently PASS499/8/true.
+  Care question performed successful authorized search but got0raw results;
+  focused care-guide probe later retrieved the new guide and correct content.
+  Threshold as cause NOT_ESTABLISHED; no global setting or trust rule changed.
+  Keep these original failures: later probes are isolation, not replacements.
+- Confirmed synthetic enquiry actual count delta1, returned receipt and GET
+  reference/product/status match; rejected second enquiry delta0. No email,
+  stock reservation or purchase. Private continuation/business-qualification
+  report PARTIAL_PRIMARY_HARBOR is separate from assistant production PASS.
+  No completed new video exists; attempt1 recorder failure remains preserved.
+- Final read-only native observation PASS_ASSISTANT_PRODUCTION_FINAL_READONLY:
+  SDK70/R9/Astra/nine autonomous profiles/zero active goals, original financial
+  identity and limits. Combined assistant accounted USD32.76204275; separate
+  Harbor reserve5 and owner ceiling50 retained. No ledger reset or cap change.
+  Customer normal UI logout completed, local identity absent; browser1107
+  closed (recording=false/pathnull/zero page errors), exec5744 collected. No
+  running Main verification process remains. Production Build with AI defaults
+  to genuine native Autonomous; explicit Quick edit remains. Harbor quality
+  follow-through and a clean <=20-minute mouse-highlighted video remain ours.
 
