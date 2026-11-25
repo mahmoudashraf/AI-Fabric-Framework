@@ -22627,3 +22627,34 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   staging-mini-qualification-accepted.private.jsonwithallAreasPassed/Quickedit.
   No productionmodelchangeatthischeckpoint. Modelapplydoesnotprovequality.
 
+## 2026-11-25 21:48 UTC Mini Qualification And Context-Read Fix
+
+- Main e69425c98 pushed. All4exactcore/code/storage/quotaCI PASS; stagingUI
+  e694 nowhealthy/exactdigestf3e56b24/capacity+env+mountspreserved. ProductionUI
+  still23ff. BWAstagingmini model-onlyver-c54c023b/rel-077109f1 appliedverified
+  SDK72/sameimage/dsa22ed/profiles+budgets+keysunchanged. Initialpublish201
+  assertionfailure reconciledexactoneversion; no duplicatepublish/apply.
+- MiniMEDIUM stage-mini-all-1 passed10authoringareasbothmodes. Originalknowledge
+  fixtureinvalid(noncanonicaldisplayName/incompletebinding), replacedwithreal
+  approved-support-documents source. Canonical-1 guidanceEXPLAINbothPASS;
+  documentbothPASS(normalcandidateincrements,activeindexunchanged/restored).
+  KnowledgeREALFAIL unnecessarysourceIDquestion despiteonesavedsource. Do NOT
+  countreadonlyFAILEDguideasPASS; harnessnowrequiresEXPLAIN. Allcleanup/logouts
+  verified, no indexing/publication. Originalfailures retained.
+- SeparatefullHarborUImini-ui-api-1 FAILED no coaching: 8192reasoningtokens/empty
+  output, repairthenWORKFLOW_AUTHORITY_EXPIRED/0writes. ExactBrain/key/sessions
+  cleaned. No modelqualityacceptancegate/productionmodelchange. No newAstra
+  calls; stageaccounted31.4258135/prod12.48094 lastseen, caps33+20+reserve2=55.
+- Boundedbackendcontextdefect confirmedREDtests: emptyaction/routefilters remove
+  allnonactionconfiguration; nonemptyactionfiltersalsohideotherpagetasks.
+  AuthoringDraftOperations nowonlynarrowsnonemptyfiltersonaction-compatible
+  tasks, retainsexisting20filterbounds/auth/redaction. Otherfiltersreturncurrent
+  taskwithvisiblemarker. 86focusedtestsPASSinclnormalnonemptyselection. Notyet
+  committed/deployedatentry. Thisconfirmssourcebug,NOTeveryfailedLLMchoicecause.
+- SecondcandidateLOWreasoning samepinnedmini nowapplyingthroughprivatehelper
+  /private/tmp/loomai-build-ai-qualify-low.mjs staging, session21348. Exclusive
+  intentprivateall-areas/staging-mini-low-*. Do notreplayrestart. No output/cap/
+  model/prompt/tool/lease/infrachange. Needall13bothmodes+fullHarbor/realshortcuts
+  stagingPASSbeforeproduction. Remainingfundingheadroom~1.57stage; stopatguard,
+  no65approval. Costdocupdated; unrelatedworktreefilespreserved.
+

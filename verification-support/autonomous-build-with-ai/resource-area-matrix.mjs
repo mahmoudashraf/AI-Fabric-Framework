@@ -5,6 +5,40 @@ import { configs } from './area-matrix.mjs'
 
 export const resourceCases = [
   {
+    id: 'knowledge', task: 'KNOWLEDGE', profile: 'data', auth: 'STAFF',
+    auto: 'Change the citation label of the existing approved support document source to Office approved policies. Preserve its identity, filters, authentication, dataset and all other settings. Save the draft without indexing or publishing.',
+    quick: 'Temporarily disable that same approved support document source in this draft. Keep its citation label and all connection, identity, approval and authentication settings intact for re-enabling. Do not remove or publish it.',
+    async prepare({ api, privateRoot, save, environment }) {
+      const inventory = JSON.parse(fs.readFileSync(path.join(privateRoot, 'loomai-hybrid-retrieval-01073', 'authoring-01075-' + environment + '-document-inventory.private.json')))
+      const id = inventory.brain, before = await api('/api/deployments/' + id + '/draft')
+      const source = before.knowledgeSourceConfig.sources.find(s => s.id === 'approved-support-documents')
+      assert.ok(source?.marketplaceManaged && source.marketplaceInstallId && source.entityType && source.enabled)
+      const versions = await api('/api/deployments/' + id + '/versions'), releases = await api('/api/deployments/' + id + '/releases')
+      save('knowledge-original-draft', before)
+      return { scope: { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: id, task: this.task },
+        read: () => api('/api/deployments/' + id + '/draft'),
+        async assertIsolated() { assert.deepEqual(await api('/api/deployments/' + id + '/versions'), versions); assert.deepEqual(await api('/api/deployments/' + id + '/releases'), releases) },
+        async cleanup() {
+          const current = await this.read(), knowledgeSourceConfig = structuredClone(current.knowledgeSourceConfig)
+          const selected = knowledgeSourceConfig.sources.find(s => s.id === source.id)
+          for (const field of ['attributionLabel', 'enabled']) {
+            if (Object.hasOwn(source, field)) selected[field] = source[field]
+            else delete selected[field]
+          }
+          const restored = await api('/api/deployment-drafts/' + current.id, 'PUT', { knowledgeSourceConfig })
+          assert.deepEqual(configs(restored), configs(before))
+          return [{ brain: id, draftRestored: true, cleaned: true, noPublication: true }]
+        },
+      }
+    },
+    verify(before, after, mode) {
+      const expected = structuredClone(configs(before)), source = expected.knowledgeSourceConfig.sources.find(s => s.id === 'approved-support-documents')
+      if (mode === 'AUTONOMOUS') source.attributionLabel = 'Office approved policies'
+      else source.enabled = false
+      assert.deepEqual(configs(after), expected)
+    },
+  },
+  {
     id: 'human-support', task: 'HUMAN_SUPPORT', profile: 'workspace', auth: 'STAFF',
     auto: 'Set only the existing handover queue timeout to 180 seconds. Preserve its installed Desk binding, confirmation, recovery, enabled state and every other setting. Save the draft without publishing or assigning agents.',
     quick: 'Set only the existing handover queue timeout to 240 seconds. Preserve the installed binding and every other setting. Save without publication.',
@@ -124,7 +158,7 @@ export const resourceCases = [
       const reference = [inventory.brain, inventory.release.targetProfileId, inventory.release.id, source.sourceId].join('|')
       return { scope: { resourceKind: 'DOCUMENT_SOURCE', resourceId: reference, task: this.task }, source: content,
         read: () => api(base + '/preparation'),
-        async assertIsolated() { const current = await this.read(); assert.equal(current.sourceVersion, before.sourceVersion) },
+        async assertIsolated() { const current = await this.read(); assert.equal(current.activeSourceVersion, before.activeSourceVersion); assert.ok(current.sourceVersion >= before.sourceVersion) },
         async cleanup() {
           const current = await this.read()
           const restored = await api(base + '/preparation', 'POST', { expectedRevision: current.revision, configuration: before.configuration })

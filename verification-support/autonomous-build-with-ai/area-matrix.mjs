@@ -37,17 +37,6 @@ export const brainCases = [
     },
   },
   {
-    id: 'knowledge', task: 'KNOWLEDGE', profile: 'data', page: 'knowledge', fields: ['knowledgeSourceConfig'],
-    seed(draft) { draft.knowledgeSourceConfig.sources = [{ id: 'office-policy', displayName: 'Office policy', datasetRef: 'office-policy', future: { preserve: true } }, { id: 'keep-source', displayName: 'Unrelated source' }] },
-    auto: 'Rename the existing office-policy knowledge source to Office approved policies. Do not create a source, install a plugin or change the dataset or permissions. Save this draft label only.',
-    quick: 'Rename that same office-policy knowledge source to Office policy guide. Keep all other source settings and sources unchanged. Save the draft.',
-    verify(before, after, mode) {
-      equalExcept(before, after, this.fields)
-      const expected = structuredClone(before.knowledgeSourceConfig); expected.sources[0].displayName = mode === 'AUTONOMOUS' ? 'Office approved policies' : 'Office policy guide'
-      assert.deepEqual(after.knowledgeSourceConfig, expected)
-    },
-  },
-  {
     id: 'responses', task: 'BEHAVIOUR', profile: 'responses', page: 'responses', fields: ['promptConfig'],
     auto: 'Use Warm tone and Brief answer length. Preserve answer breadth, next steps, prompts outside these presets and all other settings. Save the draft.',
     quick: 'Change only the tone preset to Consultative. Keep the Brief answer length and everything else. Save the draft.',

@@ -150,6 +150,36 @@ before establishing the cause of quality failures; truncation can cost more.
 6. Present separate instruction/context/cache changes for their own measured
    qualification rather than mixing them into the model-only baseline.
 
-At document creation, mini application is in progress on staging only. It is
-not yet a passing model-quality result. See the latest working context and
-private run receipts for actual subsequent status.
+## Qualification Checkpoint
+
+Staging model-only mini release `rel-077109f1` / `ver-c54c023b` is applied and
+verified on the same SDK72 image. Production remains unchanged at this checkpoint.
+The medium-reasoning candidate is not yet accepted for the complete workload:
+
+- Ten authoring areas passed both modes: actions, connections, responses,
+  models, search, specialists, whole-Brain setup, handover, private data and Engage.
+- Guidance passed both actual Explain requests. The earlier PREPARE-based guide
+  test failed and is retained; read-only safety alone is no longer scored PASS.
+- Document preparation passed both modes after correcting the test to preserve
+  the active indexed version, not forbid the normal candidate-version increment.
+- The original knowledge fixture was incomplete and asserted a noncanonical
+  displayName. Its failure remains recorded. A separate real installed-source
+  test then unnecessarily requested an identifier already in the saved draft.
+  This is a genuine remaining qualification failure, not dismissed as a fixture.
+- The full Harbor API import hit reasoning truncation: 8192 reasoning tokens,
+  no visible decision, then repair and authorization expiry before saving. No
+  partial write was replayed. Exact fixture, session and created key were removed.
+
+The context reader also demonstrably turns optional empty definition filters
+into an empty action-only result and applies action filters to non-action tasks.
+Two failing regressions reproduced this behavior; the bounded fix preserves the
+current task when no real applicable filter exists. All86 focused tests passed,
+including nonempty action selection. This is a confirmed code defect, not proof
+that it caused every live knowledge decision. Requalify after deployment.
+
+Next candidate: the same pinned mini with LOW reasoning, unchanged output/repair
+allowances, tools and prompts. This is a separately measured configuration trial,
+not a silent alteration of the model-only comparison. LOW is supported by the
+[model contract](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+Do not extend authentication leases or disable guards to accommodate slow calls.
+Do not create the staging acceptance gate until all required cases genuinely pass.

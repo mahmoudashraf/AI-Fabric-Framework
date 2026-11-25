@@ -82,7 +82,8 @@ async function createBrain(name) {
 }
 async function turn(c, session, requestedMode, prefix) {
   const executionMode = c.readOnly ? 'BOUNDED' : requestedMode
-  const request = { query: requestedMode === 'AUTONOMOUS' ? c.auto : c.quick, command: 'PREPARE',
+  const query = requestedMode === 'AUTONOMOUS' ? c.auto : c.quick
+  const request = { query: c.readOnly ? 'Explain only; do not change the draft.\n\n' + query : query, ...(c.readOnly ? {} : { command: 'PREPARE' }),
     executionMode, previewOnly: Boolean(c.readOnly), sourceIds: session.sources.map(s => s.id), operationIds: [],
     editorContext: c.editorContext ?? { section: c.task, selectedDefinitionIds: [] }, ...(executionMode === 'BOUNDED' ? { validationFeedback: { enabled: !c.readOnly, maxCorrections: 2 } } : {}) }
   save(prefix + '-request', request)
@@ -111,7 +112,7 @@ async function turn(c, session, requestedMode, prefix) {
     assert.equal(session.activeTurnId, null)
     assert.equal(result.workflow?.selection?.profileId, c.profile)
     if (!c.readOnly) { assert.equal(result.status, 'SAVED'); assert.ok(result.operations?.some(o => o.status === 'EXECUTED')) }
-    else assert.ok(!result.operations?.some(o => o.status === 'EXECUTED'))
+    else { assert.equal(result.status, 'EXPLAIN', 'Read-only safety alone does not qualify a failed answer.'); assert.ok(result.message?.trim()); assert.ok(!result.operations?.some(o => o.status === 'EXECUTED')) }
   }
   return { session, executionMode, goalId, status: result.status, usage: executionMode === 'AUTONOMOUS' ? session.goal.usage : result.workflow?.usage }
 }
@@ -204,9 +205,9 @@ finally {
     await page.waitForURL(u => u.pathname.startsWith('/sign-in'))
     assert.equal(await page.evaluate(() => Boolean(localStorage.getItem('loomai-console-supabase'))), false)
     report.customerSignedOut = true
-  } catch (e) { report.logoutError = safe(e); process.exitCode = 1 }
+  } catch (e) { report.status = 'FAIL'; report.logoutError = safe(e); process.exitCode = 1 }
   token = null; await browser.close(); report.browserClosed = true
-  if (staffSignedIn) try { await logout(environment); report.staffSignedOut = true } catch (e) { report.staffLogoutError = safe(e); process.exitCode = 1 }
+  if (staffSignedIn) try { await logout(environment); report.staffSignedOut = true } catch (e) { report.status = 'FAIL'; report.staffLogoutError = safe(e); process.exitCode = 1 }
   report.nativeAfter = nativeRead(environment, '/api/admin/provider-budget')
   report.at = new Date().toISOString(); save('report', report)
   console.log(JSON.stringify({ environment, status: report.status, root, error: report.error, customerSignedOut: report.customerSignedOut, staffSignedOut: report.staffSignedOut }))

@@ -98,6 +98,33 @@ class AuthoringDraftOperationsIntegrationTest {
             .put("path", "/promptConfig/systemPrompt").put("value", text));
     }
     String operation(int step) { return turnId + ":step:" + step; }
+    @Test void emptyOptionalDefinitionFiltersRetainTheCurrentTaskConfiguration() {
+        bind(false);
+        var unfiltered = operations.context(caller).path("configuration");
+        var empty = operations.context(caller, new AuthoringDraftOperations.ContextRead(List.of(), List.of()));
+        assertThat(empty.path("configuration")).isEqualTo(unfiltered);
+        assertThat(empty.has("configurationSelection")).isFalse();
+    }
+    @Test void actionDefinitionFiltersCannotHideANonActionTasksConfiguration() {
+        bind(false);
+        var unfiltered = operations.context(caller).path("configuration");
+        var selected = operations.context(caller, new AuthoringDraftOperations.ContextRead(List.of("unrelated-action"), null));
+        assertThat(selected.path("configuration")).isEqualTo(unfiltered);
+        assertThat(selected.path("configurationSelection").asText()).isEqualTo("TASK_CONTEXT_NOT_ACTION_DEFINITIONS");
+    }
+    @Test void nonemptyActionDefinitionFiltersStillNarrowOnlyTheSelectedDefinitions() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow(); session.task = "ACTIONS"; sessions.saveAndFlush(session);
+        var config = mapper.readTree("{\"actionsConfig\":{\"actions\":[{\"name\":\"first\"},{\"name\":\"second\"}]},\"routingConfig\":{\"actions\":{\"first\":{\"method\":\"GET\"},\"second\":{\"method\":\"POST\"}}}}");
+        when(resources.load("DEPLOYMENT_DRAFT", resourceId, "ACTIONS")).thenReturn(new AuthoringResourceService.Snapshot(
+            customerId, "Fixture", config, mapper.createObjectNode(), List.of("/actionsConfig", "/routingConfig"), "draft", true, ""));
+        bind(false);
+        var selected = operations.context(caller, new AuthoringDraftOperations.ContextRead(List.of("second"), List.of("first")));
+        assertThat(selected.path("configurationSelection").asText()).isEqualTo("SELECTED_DEFINITIONS");
+        assertThat(selected.at("/configuration/actionsConfig/actions")).hasSize(1);
+        assertThat(selected.at("/configuration/actionsConfig/actions/0/name").asText()).isEqualTo("second");
+        assertThat(selected.at("/configuration/routingConfig/actions").properties()).hasSize(1);
+        assertThat(selected.at("/configuration/routingConfig/actions/first/method").asText()).isEqualTo("GET");
+    }
     @Test void explicitPreparationCarriesAMatchingSaveIdentityAndNoOpChecksNeedNoWrite() throws Exception {
         var session = sessions.findById(sessionId).orElseThrow();
         var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));

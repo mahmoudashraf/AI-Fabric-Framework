@@ -113,9 +113,14 @@ public class AuthoringDraftOperations {
                 .put("fingerprint", fingerprint(snapshot.configuration()));
             var references = snapshot.catalogue().path("secretReferences");
             var configuration = changes.project(snapshot.configuration(), references);
-            if (read != null && (read.actionNames() != null || read.routeNames() != null)) {
-                if (read.actionNames() != null && read.actionNames().size() > 20 || read.routeNames() != null && read.routeNames().size() > 20)
-                    throw new AuthoringContractException("DEFINITION_READ_BOUNDS_INVALID", "Select at most 20 actions or routes per read.");
+            if (read != null && (read.actionNames() != null && read.actionNames().size() > 20
+                || read.routeNames() != null && read.routeNames().size() > 20))
+                throw new AuthoringContractException("DEFINITION_READ_BOUNDS_INVALID", "Select at most 20 actions or routes per read.");
+            boolean definitionSelection = read != null && (read.actionNames() != null && !read.actionNames().isEmpty()
+                || read.routeNames() != null && !read.routeNames().isEmpty());
+            boolean actionTask = List.of("ACTIONS", "CONNECTIONS", "BRAIN_SETUP").contains(work.session().task);
+            if (definitionSelection && !actionTask) result.put("configurationSelection", "TASK_CONTEXT_NOT_ACTION_DEFINITIONS");
+            if (definitionSelection && actionTask) {
                 var selected = mapper.createObjectNode();
                 if (read.actionNames() != null) {
                     var definitions = selected.putObject("actionsConfig").putArray("actions");
