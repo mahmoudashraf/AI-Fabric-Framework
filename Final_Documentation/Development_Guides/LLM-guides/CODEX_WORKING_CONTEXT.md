@@ -22476,3 +22476,23 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Source/docs are implementation evidence only, NOT live acceptance. Private
   rootloomai-conversational-autonomy-01077; seeverificationREADME/01077.
 
+## 2026-11-25 17:14 UTC GitHub Recovered - SDK72 Publisher Running
+
+- Owner asked to recheck GitHub. Official status AllSystemsOperational/no active
+  incidents; no delayed SDK72 publisher existed and Central returned404. Normal
+  existing636934bdtag/build45648988414/main refs reverified. A single recovered
+  REST dispatch returned204, starting publisher45659897069 at
+  https://github.com/Loom-AI-Labs/ai-fabric-framework/actions/runs/45659897069.
+  NO new tag/version/duplicate upload. See framework-0872-recovered-dispatch-*
+  and framework-0872-publication-run private receipts.
+- Final17:14readback publisherIN_PROGRESS/Deploysignedartifacts, CentralBOM72
+  still404. This is now an actual running release job, NOT GitHub dispatch outage.
+  Do NOT dispatch again. Read-only Central observer56525 stopped130; all local
+  sessions collected. No Runtime registration, Main push, deploy, new fixture,
+  business write, inference, credential/financial/infra change in this recheck.
+- Main software+checkpoint remain local, remote Platform-V11 stille11; official
+  9jarproof72 is absent. Once Central is available, run SDK72officialproof helper,
+  push finalMainHEAD and update frozenMainSHA in start-ci/rollout helpers if needed.
+  FiveexactCIgates then stage-first acceptance sequence in01077 still REQUIRED.
+  SDK70 production/Harbor and earlieraa stagingUI/backend remain unchanged.
+

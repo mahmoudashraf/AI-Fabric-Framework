@@ -80,3 +80,14 @@ retain one-operation journals. Resume official-nine-jar proof, Main push/five CI
 gates and the staged acceptance sequence above. Do not treat prepared helpers or
 local success as live verification. Private budgets remain exactly USD22.04900275
 staging and USD10.71304 production, with original identities/caps and Harbor reserve.
+
+### GitHub Recovery, 17:14 UTC
+
+The owner requested another check. GitHub reports operational/no active incidents.
+No delayed job existed; a single recovered dispatch succeeded with HTTP204 and
+started publisher45659897069 against the same verified SDK72 tag. Its final
+readback remains IN_PROGRESS at Deploy signed artifacts; Central still returns404
+for the72BOM. Do not dispatch again or interpret this as publication success.
+The read-only local observer was stopped and all local sessions collected.
+No Main push, Runtime registration, rollout, fixture, business write or inference
+occurred. The staged verification gates above still remain pending.
