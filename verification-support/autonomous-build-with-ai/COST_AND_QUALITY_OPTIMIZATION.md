@@ -329,3 +329,42 @@ staging, with intended caps35/18 plus Harbor2 =55. Approval does not itself chan
 either native ledger; record the completed operation separately, lower production
 first, preserve original approvals/usage/history and never claim a transfer before
 both live readbacks prove it. No additional overall funding was authorized.
+
+### Further Structural Gaps Found By Live Qualification
+
+Runtime `f78d812fd` passed its complete CI image workflow45717858336 and is
+verified on staging as rel-12952cce/ver-896c65db/artifactdsa-2b7be33f. The
+knowledge dependency repeat now passes: model-generated UNSUPPORTED explanation,
+four calls/two corrections/zero writes, unchanged/restored draft, no publication,
+and exact conversation cleanup/sign-out. This is a real recovered response,
+not a relabeled original failure.
+
+The first new Harbor repeat stopped NEEDS_INPUT after6 calls/0 saves, asking
+the customer for path-template syntax. Its retained candidate and validation
+show a templated absolute URL. Existing route guidance contained conflicting
+advice about absolute targets when the upstream was unbound. The follow-up
+provides a native parameterized-path change example, removes the contradictory
+fallback and puts the repair syntax directly in ROUTE_URL_INVALID feedback.
+It still requires a documented/authorized host and preserves unrelated bindings.
+
+Important correction to the earlier body diagnosis: `{{params}}` is supported
+by the actual connector and preserves the parameter object. The coverage
+checker did not recognize it, so the older4/5 result was a false-negative body
+coverage finding, not proof that the original mapping was unusable. The backend
+fix mirrors that native binding and still requires declared required inputs and
+nested required properties. Existing host, owned-secret and MCP checks remain.
+Two red tests reproduced the whole-object rejection and absent path example;
+all214 focused backend tests now pass. Live qualification awaits this backend
+image; the already-qualified Runtime/UI images are unchanged by this follow-up.
+
+Budget redistribution completed with both native readbacks: staging35,
+production18, Harbor reserve2, combined55. Production was reduced first by an
+explicit owner-authorized, exact-scope operator transaction because the native
+API supports additive top-ups only. Its original approval, usage, attempts and
+top-up records were preserved and checked against private before/after hashes;
+no synthetic refund/provider usage was inserted. Staging then received its real
+audited2 top-up through the existing API. The immutable private operation receipt
+is `build-ai-20261125-owner-approved-redistribution2-verified.private.json`.
+This is an operator qualification adjustment, not a claim that a customer-facing
+budget-reduction API has been implemented. Production software/model is still
+unchanged, with no new paid Astra calls. No acceptance gate exists yet.

@@ -813,6 +813,8 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .contains("ROUTE_URL_INVALID");
+        assertThat(response.issues().stream().filter(issue -> "ROUTE_URL_INVALID".equals(issue.code())))
+            .allSatisfy(issue -> assertThat(issue.message()).contains("route.path", "{{params.name}}", "connector.upstream.base-url", "Remove url"));
     }
 
     @Test

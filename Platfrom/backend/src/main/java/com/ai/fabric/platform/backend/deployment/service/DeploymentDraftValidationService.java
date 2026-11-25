@@ -1519,7 +1519,8 @@ public class DeploymentDraftValidationService {
             validateSourceProjectionRoute(basePath, route, sourceProjection, httpDataSources, issues);
         } else if (!url.isEmpty()) {
             if (!isAbsoluteHttpUrl(url) && !isManagedEnvironmentReference(url)) {
-                issues.add(error("routing", "ROUTE_URL_INVALID", basePath + ".url", "Action route url must be a valid absolute http(s) URL."));
+                issues.add(error("routing", "ROUTE_URL_INVALID", basePath + ".url",
+                    "Action route url must be a valid absolute http(s) URL without path placeholders. For path parameters, use route.path with {{params.name}} and configure connector.upstream.base-url from the documented server. Remove url when switching to path."));
             }
         } else {
             String connectorBaseUrl = connector.path("upstream").path("base-url").asText("").trim();

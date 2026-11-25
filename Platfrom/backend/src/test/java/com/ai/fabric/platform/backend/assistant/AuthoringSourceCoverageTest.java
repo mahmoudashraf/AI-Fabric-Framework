@@ -7,6 +7,35 @@ import static org.assertj.core.api.Assertions.*;
 
 class AuthoringSourceCoverageTest {
     final ObjectMapper mapper = new ObjectMapper();
+    @Test void wholeParameterBodiesUseTheConnectorsRealObjectBindingAndRetainRequiredInputChecks() throws Exception {
+        var content = mapper.readTree("""
+            {"sources":[{"sourceId":"src","operations":[{"id":"submit","method":"POST","path":"/orders",
+             "servers":[{"url":"https://api.example.test"}],"requestBody":{"required":true,
+              "content":{"application/json":{"schema":{"type":"object","required":["email","details"],"properties":{
+               "email":{"type":"string"},"details":{"type":"object","required":["productId"],"properties":{"productId":{"type":"string"}}}}}}}}}]}]}
+            """);
+        var turn = mapper.readTree("{\"command\":\"PREPARE\",\"sourceIds\":[\"src\"],\"operationIds\":[]}");
+        ObjectNode configuration = (ObjectNode) mapper.readTree("""
+            {"actionsConfig":{"actions":[{"name":"submit","params":[
+             {"name":"email","type":"STRING","required":true},
+             {"name":"details","type":"OBJECT","required":true,"requiredProperties":["productId"],"properties":{"productId":{"type":"STRING"}}},
+             {"name":"message","type":"STRING","required":false}]}]},
+             "routingConfig":{"actions":{"submit":{"method":"POST","url":"https://api.example.test/orders","request":{"body":"{{params}}"}}}}}
+            """);
+        assertThat(AuthoringSourceCoverage.inspect(mapper, content, turn, configuration, "ACTIONS").path("complete").asBoolean()).isTrue();
+        configuration.withObject("/routingConfig/actions/submit/request").put("body", "{{ params }}");
+        assertThat(AuthoringSourceCoverage.inspect(mapper, content, turn, configuration, "ACTIONS").path("complete").asBoolean()).isTrue();
+        ((ObjectNode) configuration.at("/actionsConfig/actions/0/params/0")).put("required", false);
+        assertThat(AuthoringSourceCoverage.inspect(mapper, content, turn, configuration, "ACTIONS").path("complete").asBoolean()).isFalse();
+        ((ObjectNode) configuration.at("/actionsConfig/actions/0/params/0")).put("required", true);
+        ((ObjectNode) configuration.at("/actionsConfig/actions/0/params/1")).putArray("requiredProperties");
+        var missingNested = AuthoringSourceCoverage.inspect(mapper, content, turn, configuration, "ACTIONS");
+        assertThat(missingNested.path("complete").asBoolean()).isFalse();
+        assertThat(missingNested.at("/items/0/savedCandidates/0/missingRequiredMappings/0/name").asText()).isEqualTo("details.productId");
+        ((ObjectNode) configuration.at("/actionsConfig/actions/0/params/1")).putArray("requiredProperties").add("productId");
+        configuration.withObject("/routingConfig/actions/submit").put("url", "https://another.example.test/orders");
+        assertThat(AuthoringSourceCoverage.inspect(mapper, content, turn, configuration, "ACTIONS").path("complete").asBoolean()).isFalse();
+    }
     @Test void coverageIsCurrentStateBasedSupportsNoOpAndDoesNotForceNarrowRequestToAllSources() throws Exception {
         JsonNode content = mapper.readTree("""
             {"sources":[{"sourceId":"src-doc","operations":[

@@ -7,6 +7,7 @@ import java.util.*;
 /** Structural catalogue/state observations, not inference about a natural-language request. */
 final class AuthoringSourceCoverage {
     private static final java.util.regex.Pattern OBJECT_PARAMETER = java.util.regex.Pattern.compile("\\{\\{\\s*params\\.([A-Za-z_][A-Za-z0-9_]*)\\s*}}");
+    private static final java.util.regex.Pattern ROOT_PARAMETERS = java.util.regex.Pattern.compile("\\{\\{\\s*params\\s*}}");
     private static final java.util.regex.Pattern DOCUMENTED_PATH_PARAMETER = java.util.regex.Pattern.compile("\\{([^{}]+)}");
     private static final String PATH_SLOT = "\u0000";
     private AuthoringSourceCoverage() { }
@@ -191,6 +192,18 @@ final class AuthoringSourceCoverage {
         requiredFields(media.path("schema"), mapped, action, "", missing);
     }
     private static JsonNode mappedParameter(JsonNode mapped, JsonNode action) {
+        if (mapped.isTextual() && ROOT_PARAMETERS.matcher(mapped.textValue()).matches()) {
+            // The connector preserves the whole parameter object for this native template.
+            var object = JsonNodeFactory.instance.objectNode();
+            var properties = object.putObject("properties"); var required = object.putArray("requiredProperties");
+            for (var parameter : action.path("params")) {
+                String name = parameter.path("name").asText();
+                if (name.isBlank()) continue;
+                properties.set(name, parameter);
+                if (parameter.path("required").asBoolean()) required.add(name);
+            }
+            return object;
+        }
         var reference = OBJECT_PARAMETER.matcher(mapped.asText());
         if (mapped.isTextual() && reference.matches()) for (var param : action.path("params"))
             if (reference.group(1).equals(param.path("name").asText())) return param;

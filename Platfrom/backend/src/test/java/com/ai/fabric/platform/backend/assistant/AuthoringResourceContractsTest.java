@@ -5,6 +5,23 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class AuthoringResourceContractsTest {
+    @Test void parameterizedRouteExampleConfiguresTheKnownBaseAndRemovesTheOldAbsoluteTarget() throws Exception {
+        var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
+        AuthoringResourceContracts.populate(mapper, catalogue, "ACTIONS");
+        var example = catalogue.path("parameterizedPathRouteChanges");
+        assertThat(example.isArray()).isTrue();
+        var before = mapper.readTree("""
+            {"routingConfig":{"actions":{"lookup_record":{"url":"https://api.example.invalid/v1/records/{{params.recordId}}",
+             "headers":{"X-Existing":"${OWNED}"},"custom":{"keep":true}}}}}
+            """);
+        var saved = new AuthoringChanges(mapper).apply(before, example, java.util.List.of("/routingConfig"));
+        assertThat(saved.candidate().at("/routingConfig/connector/upstream/base-url").asText()).isEqualTo("https://api.example.invalid/v1");
+        assertThat(saved.candidate().at("/routingConfig/actions/lookup_record/path").asText()).isEqualTo("/records/{{params.recordId}}");
+        assertThat(saved.candidate().at("/routingConfig/actions/lookup_record").has("url")).isFalse();
+        assertThat(saved.candidate().at("/routingConfig/actions/lookup_record/headers")).isEqualTo(before.at("/routingConfig/actions/lookup_record/headers"));
+        assertThat(saved.candidate().at("/routingConfig/actions/lookup_record/custom")).isEqualTo(before.at("/routingConfig/actions/lookup_record/custom"));
+        assertThat(catalogue.path("routeExampleRules").asText()).contains("no path parameters", "parameterized", "not missing user input");
+    }
     @Test void knowledgeSourceExampleUsesTheExistingIdentityMergeWithoutLosingSiblingFields() throws Exception {
         var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
         AuthoringResourceContracts.populate(mapper, catalogue, "KNOWLEDGE");

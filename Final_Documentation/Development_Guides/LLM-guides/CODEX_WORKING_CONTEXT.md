@@ -22794,3 +22794,33 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   prodceilingfirstusinganexplicitlyauditedscopedoperatoradjustmentifneeded,
   thennormalstagingtopup. Existingusage32.49458075/12.48094 unchangedcurrently.
 
+## 2026-11-25 23:23 UTC Runtime Repair Live - Backend Mapping Follow-Up Ready
+
+- Runtimef78d812fd705b0986c93f42c2e742a2522028f44 committed/pushed. FullRuntime
+  CI45717858336 PASSinclreleasedSDK72/privatebudget/workerchecks. STAGE native
+  rel12952cce/ver896c65db/dsa2b7be33f verified; nineprofiles/MiniLOW/budgets/keys/
+  storage/capacitypreserved. Backendstill6455/UIdef. Runtimewatch43954finished.
+- Liveknowledge-dependency repeatPASS:4calls/2corrections/0writes/modelUNSUPPORTED
+  usefuldependencyexplanation. Originaldraft/versions/releases unchanged, exact
+  sessiondeleted/bothsignouts. No false relabelofearlierFAILEDrecord.
+- NewHarborUImini-low-recovery-1 FAILretained:6calls/2corrections/0writes,
+  unnecessaryNEEDS_INPUT forinternalURLtemplatingsyntax. RealcandidateusesURL
+  placeholders. Sourcecontractscontainedconflictingabsolutetargetfallback.
+  ExactBrain/key/sessionsremoved, bothsignedout; no businessAPI/publish.
+- IMPORTANTrootcorrection:olderwholebody{{params}}WASnativelysupported (actual
+  connectorTemplateEngineTest). SourceCoveragewronglyrejecteditsrequiredfields.
+  Newbackendrecognizeswholeparamsusingdeclaredrequiredinputs/nestedproperties,
+  preservingallhost/ownedcredential/MCPchecks. Sourcecontractsnowgiveworking
+  nativepath+baseURL+obsoleteURLremovalexample; validatorfeedbackgivesrepairsyntax.
+  TwoREDtestsreproducedgaps;214focusedbackendtestsPASSincl119draftvalidation,
+ 20draftoperationintegration,existingauth/receipt/sourcecases. Notdeployedyet;
+  needcommit/push/backend4gates/fullbackendCI(ui_build=false,UI/Runtimeunchanged),
+  applySTAGEbackendthenrepeatuncoachedHarbor/area13both/negative/actualshortcuts.
+- ApprovedUSD2redistributionAPPLIEDandnativeverified:STAGE35/PROD18/Harbor2=55.
+  Prodexact-scopeauditedoperatorSQLcapreductionfirst (nativeAPIadditive-only),
+  originalapproval/usage/attempt/topuphistorypreserved; thenrealstagingAPIgrant2.
+  Privateimmutableevidenceallareas/build-ai-20261125-owner-approved-
+  redistribution2-verified.private.json. Nofakefinancialevent/reset/newfunding.
+  Prodsoftware/modelstill23ff/Astra,NOnewpaidAstraproductioncalls. Acceptance
+  gatenotcreated. Allliveactorssignedout; no activepaidtestatentry.
+
