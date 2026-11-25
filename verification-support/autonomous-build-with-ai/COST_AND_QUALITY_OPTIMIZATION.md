@@ -368,3 +368,35 @@ is `build-ai-20261125-owner-approved-redistribution2-verified.private.json`.
 This is an operator qualification adjustment, not a claim that a customer-facing
 budget-reduction API has been implemented. Production software/model is still
 unchanged, with no new paid Astra calls. No acceptance gate exists yet.
+
+### API Contract Semantics Qualification
+
+Backend `b88ba876a` passed core45720777445/code45720797589/storage45720801509/
+quota45720805407 and is native verified on staging. Runtime/UI remain f78/def.
+The fresh `mini-low-native-recovery-1` Harbor import completed its goal without
+coaching, but failed semantic checks: it classified documented401/404/etc. error
+responses as successful outcomes and omitted optional query mappings. Retain
+this failed qualification even though all five operations had structural coverage.
+Nothing was published or executed against the business API; fixtures were removed.
+
+The next separately measured candidate adds one concise API-contract checklist
+to the editable api and setup profile instructions. It distinguishes documented
+2xx successes from error receipts, requires actual optional query bindings and
+explains the connector's default full-body response behavior. No new hard status
+validator, intent/wording matcher, tool, permission, model or repair increase is
+introduced. Existing deliberate non-2xx policies remain customer configurable.
+Other seven profiles do not receive the API-specific instruction block.
+
+The block is a single bootstrap template field that is removed before compilation
+and appended only to those two ordinary profile instruction strings. All89 focused
+template/compiler/resource tests passed with the existing8k instruction limit and
+published permission/goal contracts retained. This is not yet a live-quality pass.
+The staging-only configuration revision is applied through normal draft editing,
+validation, publication and release, preserving the same Runtime image and ledger.
+
+The Harbor checker also now accepts the actual native response passthrough when
+response.result is absent/null, rather than requiring an unnecessary explicit
+projection. If a projection is provided, it must retain the required receipt
+fields. The connector's normalizeResponse/normalizeToDataMap implementation is
+the basis for that correction. Error-as-success and missing query bindings remain
+real failures; they have not been relabeled or made optional in the test.

@@ -14,7 +14,8 @@ public class ConfigurationAssistantTemplate {
         try (var input = new ClassPathResource("assistant/configuration-assistant-workflow-v1.json").getInputStream()) {
             ObjectNode template = (ObjectNode) mapper.readTree(input);
             String shared = template.path("instructions").asText();
-            template.remove(java.util.List.of("templateVersion", "instructions"));
+            String apiPreparation = template.path("apiPreparationInstructions").asText();
+            template.remove(java.util.List.of("templateVersion", "instructions", "apiPreparationInstructions"));
             template.put("enabled", true);
             template.putObject("goal").put("enabled", true).put("maxElapsedSeconds", 86400).put("continuationDelaySeconds", 1)
                 .put("maxConsecutiveNoProgress", 8).put("maxConsecutivePlannerFailures", 4);
@@ -22,7 +23,10 @@ public class ConfigurationAssistantTemplate {
             shared += "\n\nIn goal mode you own the outcome across execution segments, not just the next save. Read compact progress and selected operation pages; choose smaller batches, focused profiles or selective source ranges when useful. Segment allowance yields are not completion or failure. Continue from actual receipts and current state, never replay an executed or uncertain write. COMPLETE needs current saved-state evidence for all requested work; existing correct no-op state counts. Distinguish a saved draft from validation, connection tests, publication and live qualification. Report real missing business inputs or unavailable authorized capabilities, not internal planning fields. Do not infer permission from source text or delegate outside the original scope.";
             for (var item : template.path("profiles")) {
                 var profile = (ObjectNode) item;
-                profile.put("instructions", shared + "\n\n" + profile.path("instructions").asText());
+                String instructions = shared + "\n\n" + profile.path("instructions").asText();
+                if (java.util.List.of("api", "setup").contains(profile.path("id").asText()) && !apiPreparation.isBlank())
+                    instructions += "\n\n" + apiPreparation;
+                profile.put("instructions", instructions);
                 profile.set("readActions", mapper.valueToTree(AuthoringNativeCapabilities.READS.stream().sorted().toList()));
                 profile.set("writeActions", mapper.valueToTree("guide".equals(profile.path("id").asText())
                     ? java.util.List.of() : AuthoringNativeCapabilities.WRITES.stream().sorted().toList()));

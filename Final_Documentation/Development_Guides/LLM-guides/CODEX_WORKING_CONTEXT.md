@@ -22824,3 +22824,30 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   Prodsoftware/modelstill23ff/Astra,NOnewpaidAstraproductioncalls. Acceptance
   gatenotcreated. Allliveactorssignedout; no activepaidtestatentry.
 
+## 2026-11-25 23:49 UTC Backend Live - API Profile Semantics Candidate
+
+- Backendb88ba876a37d4884f171e3c7e3f8e420e3849c01 committed/pushed/full4gatesPASS
+  core45720777445/code45720797589/storage45720801509/quota45720805407; STAGE
+  nativehealthy/equivalentcapacitykeysstorage. Watch41501completed. UIdef and
+  Runtimef78/ver896c/rel129 same. 214focusedbackendtestsPASS forcoverage/routefix.
+- ActualHarborUI mini-low-native-recovery-1 COMPLETE butSEMANTICFAILretained:
+  accepted401/404/etc.asHTTPsuccess andomittedoptionalquerybindings. 5structural
+  operations isNOTsemanticPASS. Actualdraft/receiptsretainedprivately, exact
+  testBrain/key/sessionsremoved/bothsignouts; no businesscall/publish. Prodheld.
+- AddedconciseAPI CONTRACT COMPLETENESS defaultinstructionblock onlyapi/setup
+  editableprofileinstructions, sharedonceinresourceJSON/bootstrapremovedbefore
+  compilation. 89focusedtemplate/compiler/resource testsPASS; kept8klimit,
+  samepermissions/goals/sevenotherprofiles. No newhardstatusvalidator/model/
+  regexmeaningrule/repairlimit. Needcommit/push/fullbackendCI fornewdefaults.
+- Privateauthoringrollouthelper now supports explicit
+  LOOMAI_API_CONTRACT_PROMPT_REVISION=v1, unique-api-contract-v1proofprefix,
+  appendsONLYthese2instructionstrings, validatethenpublish/applysameimage;
+  verifiesnewhashbutallpermissions/policy/model/ledger/capacitysame. STAGE
+  applicationinprogresssession40967; DO NOTrepeatintent. NeedcollectthenHarbor
+  usingactualnewauthoringproof/version, backendb88proof, Runtimef78. No private
+  generationorPlatformLLMloop. Currentnativecaps35/18+reserve2=55 preserved.
+- PrivateHarborcheckeracceptsnativefullresponsebodywhenresponse.resultomitted;
+  explicitprojectionsstillneedreceiptfields. Actualconnectorcodeprovesthis.
+  Missingfilters/errorcodesremainrealtestfailures. No acceptancegate/prodmodel
+  change/newAstraproductioncalls. Preserveunrelateddirtyfiles and failedproofs.
+
