@@ -13,6 +13,8 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okio.Buffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Set;
@@ -20,11 +22,14 @@ import java.util.UUID;
 
 import static com.ai.fabric.budget.openai.OpenAiBudgetException.Code.*;
 import static com.ai.fabric.budget.openai.ReviewedOpenAiRateCard.*;
+import static com.ai.fabric.budget.openai.OpenAiBudgetTransportException.FailureStage.*;
 
 /** Installed as a network interceptor: every exchange gets a new reservation, even follow-ups. */
 final class OpenAiExchangeGuard implements Interceptor {
+    private static final Logger LOG = LoggerFactory.getLogger(OpenAiExchangeGuard.class);
     static final String BASE_URL = "https://api.openai.com/v1";
     static final int MAX_BODY_BYTES = 16 * 1024 * 1024;
+    private static final int MAX_ERROR_METADATA_BYTES = 8192;
     private static final Set<String> CHAT_FIELDS = Set.of("model", "messages", "max_tokens", "max_completion_tokens",
         "n", "stream", "frequency_penalty", "presence_penalty", "logit_bias", "logprobs", "top_logprobs",
         "response_format", "seed", "stop", "temperature", "top_p", "user", "parallel_tool_calls", "store",
@@ -83,26 +88,40 @@ final class OpenAiExchangeGuard implements Interceptor {
         }
 
         Response response = null;
+        var diagnostic = new ExchangeDiagnostic(plan);
         String requestEvidence = pricingEvidence(binding, plan, "native-json-usage:" + attemptId);
         try {
             request = request.newBuilder().header("X-Client-Request-Id", attemptId.toString()).build();
             response = chain.proceed(request);
             requestEvidence = pricingEvidence(binding, plan, evidenceReference(response, attemptId));
-            if (!response.isSuccessful() || response.body() == null
-                || (response.header("Content-Encoding") != null && !"identity".equalsIgnoreCase(response.header("Content-Encoding")))
-                || !"application/json".equals(response.body().contentType() == null ? null
-                    : response.body().contentType().type() + "/" + response.body().contentType().subtype())) {
+            diagnostic.status = response.code();
+            diagnostic.requestId = providerRequestId(response);
+            if (!response.isSuccessful()) {
+                diagnostic.stage = HTTP_NON_SUCCESS;
+                errorMetadata(response, diagnostic);
                 throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
             }
+            diagnostic.stage = BODY_MISSING;
+            if (response.body() == null) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+            diagnostic.stage = ENCODING;
+            if (response.header("Content-Encoding") != null && !"identity".equalsIgnoreCase(response.header("Content-Encoding")))
+                throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+            diagnostic.stage = CONTENT_TYPE;
+            if (!jsonContent(response)) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+            diagnostic.stage = BODY_READ;
             byte[] bytes = response.body().byteStream().readNBytes(MAX_BODY_BYTES + 1);
+            diagnostic.stage = BODY_TOO_LARGE;
             if (bytes.length > MAX_BODY_BYTES) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+            diagnostic.stage = JSON;
             JsonNode nativeResponse = json.readTree(bytes);
-            Usage actual = actual(plan, nativeResponse);
+            diagnostic.nativeMetadata(nativeResponse);
+            Usage actual = actual(plan, nativeResponse, diagnostic);
             String providerRequestId = providerRequestId(response);
             Response result = response.newBuilder().body(ResponseBody.create(bytes, response.body().contentType())).build();
             response.close();
             response = null;
             // Successful settlement is performed once, from the native body, before the SDK sees it.
+            diagnostic.stage = SETTLEMENT;
             ledger.settle(binding.approvalId(), binding.scope(), attemptId, actual, requestEvidence);
             observeCompletion(request, plan, nativeResponse, actual, attemptId, providerRequestId);
             return result;
@@ -122,10 +141,75 @@ final class OpenAiExchangeGuard implements Interceptor {
             } catch (RuntimeException unavailable) {
                 // RESERVED already holds the complete bound if the ambiguity update cannot commit.
             }
-            var failure = breach ? meteringFailure(attemptId, stopFailure)
-                : new OpenAiBudgetTransportException(attemptId, null, ATTEMPT_AMBIGUOUS);
+            var metadata = diagnostic.snapshot(unknown);
+            var failure = breach ? meteringFailure(attemptId, stopFailure, metadata)
+                : new OpenAiBudgetTransportException(attemptId, null, ATTEMPT_AMBIGUOUS, metadata);
+            logFailure(failure);
             observe(request, failure);
             throw failure;
+        }
+    }
+
+    private static boolean jsonContent(Response response) {
+        return response.body() != null && "application/json".equals(response.body().contentType() == null ? null
+            : response.body().contentType().type() + "/" + response.body().contentType().subtype());
+    }
+
+    private void errorMetadata(Response response, ExchangeDiagnostic diagnostic) {
+        if (!jsonContent(response) || response.header("Content-Encoding") != null
+            && !"identity".equalsIgnoreCase(response.header("Content-Encoding"))) return;
+        try {
+            byte[] bytes = response.body().byteStream().readNBytes(MAX_ERROR_METADATA_BYTES + 1);
+            if (bytes.length <= MAX_ERROR_METADATA_BYTES) diagnostic.nativeMetadata(json.readTree(bytes));
+        } catch (Exception unavailable) {
+            // A diagnostic body-read/parse failure cannot replace the known HTTP rejection.
+        }
+    }
+
+    private static void logFailure(OpenAiBudgetTransportException failure) {
+        try {
+            LOG.warn("GUARDED_OPENAI_EXCHANGE_FAILURE attemptId={} guardCode={} metadata={}", failure.attemptId(),
+                failure.guardCode().orElse(null), failure.failureMetadata().orElse(null));
+        } catch (RuntimeException unavailable) {
+            // Logging is optional and cannot change the reserved/ambiguous financial outcome.
+        }
+    }
+
+    private static final class ExchangeDiagnostic {
+        private final Plan plan;
+        private OpenAiBudgetTransportException.FailureStage stage = TRANSPORT;
+        private Integer status;
+        private String requestId;
+        private String responseModel;
+        private String tier;
+        private String errorType;
+        private String errorCode;
+        private String errorParam;
+
+        ExchangeDiagnostic(Plan plan) { this.plan = plan; }
+
+        void nativeMetadata(JsonNode response) {
+            if (response == null || !response.isObject()) return;
+            responseModel = response.path("model").textValue();
+            tier = response.path("service_tier").textValue();
+            JsonNode error = response.path("error");
+            errorType = error.path("type").textValue();
+            errorCode = error.path("code").textValue();
+            errorParam = error.path("param").textValue();
+        }
+
+        OpenAiBudgetTransportException.FailureMetadata snapshot(Exception failure) {
+            var type = failure instanceof java.net.SocketTimeoutException ? OpenAiBudgetTransportException.FailureType.SOCKET_TIMEOUT
+                : failure instanceof java.io.InterruptedIOException ? OpenAiBudgetTransportException.FailureType.INTERRUPTED_IO
+                : failure instanceof java.net.ConnectException ? OpenAiBudgetTransportException.FailureType.CONNECT
+                : failure instanceof javax.net.ssl.SSLException ? OpenAiBudgetTransportException.FailureType.TLS
+                : failure instanceof com.fasterxml.jackson.core.JsonProcessingException ? OpenAiBudgetTransportException.FailureType.JSON
+                : failure instanceof IOException ? OpenAiBudgetTransportException.FailureType.IO
+                : failure instanceof OpenAiBudgetException ? OpenAiBudgetTransportException.FailureType.GUARD
+                : failure instanceof BudgetException ? OpenAiBudgetTransportException.FailureType.BUDGET
+                : OpenAiBudgetTransportException.FailureType.OTHER;
+            return new OpenAiBudgetTransportException.FailureMetadata(stage, status, requestId, plan.model(),
+                plan.chat() ? plan.outputCap() : null, responseModel, tier, errorType, errorCode, null, errorParam, type);
         }
     }
 
@@ -290,20 +374,31 @@ final class OpenAiExchangeGuard implements Interceptor {
         return binding;
     }
 
-    private Usage actual(Plan plan, JsonNode response) {
-        if (response == null || !response.isObject() || response.has("error")) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+    private Usage actual(Plan plan, JsonNode response, ExchangeDiagnostic diagnostic) {
+        diagnostic.stage = RESPONSE_OBJECT;
+        if (response == null || !response.isObject()) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+        diagnostic.stage = PROVIDER_ERROR;
+        if (response.has("error")) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+        diagnostic.stage = RESPONSE_MODEL;
         String model = response.path("model").asText();
         if (plan.chat() ? !matchesChatResponse(plan.model(), model) : !EMBEDDING_MODEL.equals(model))
             throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
         var usage = response.path("usage");
+        diagnostic.stage = USAGE_OBJECT;
         if (!usage.isObject()) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+        diagnostic.stage = USAGE_INPUT_TOKENS;
         long input = integer(usage.get("prompt_tokens"));
+        diagnostic.stage = USAGE_OUTPUT_TOKENS;
         long output = plan.chat() ? integer(usage.get("completion_tokens")) : 0;
+        diagnostic.stage = USAGE_TOTAL_TOKENS;
         long total = integer(usage.get("total_tokens"));
+        diagnostic.stage = USAGE_SUM;
         if (Math.addExact(input, output) != total) throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
+        diagnostic.stage = USAGE_BOUND;
         if (input > plan.upperBound().inputTokens() || output > plan.outputCap()
             || (plan.chat() && total > chatContextTokens(plan.model())))
             throw new OpenAiBudgetException(METERING_BOUND_BREACH);
+        diagnostic.stage = SERVICE_TIER;
         if (response.has("service_tier") && (!response.get("service_tier").isTextual()
             || !"default".equals(response.get("service_tier").textValue())))
             throw new OpenAiBudgetException(ATTEMPT_AMBIGUOUS);
@@ -341,9 +436,14 @@ final class OpenAiExchangeGuard implements Interceptor {
     }
 
     private static OpenAiBudgetTransportException meteringFailure(UUID attemptId, RuntimeException stopFailure) {
+        return meteringFailure(attemptId, stopFailure, null);
+    }
+
+    private static OpenAiBudgetTransportException meteringFailure(UUID attemptId, RuntimeException stopFailure,
+        OpenAiBudgetTransportException.FailureMetadata metadata) {
         BudgetException.Code code = stopFailure == null ? null : stopFailure instanceof BudgetException budget
             ? budget.code() : BudgetException.Code.STORAGE_UNAVAILABLE;
-        return new OpenAiBudgetTransportException(attemptId, code, METERING_BOUND_BREACH);
+        return new OpenAiBudgetTransportException(attemptId, code, METERING_BOUND_BREACH, metadata);
     }
 
     record Plan(boolean chat, String model, long outputCap, Usage upperBound) { }

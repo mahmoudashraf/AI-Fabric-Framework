@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.ai.fabric.budget.ProviderBudgetLedger.*;
 import static com.ai.fabric.budget.openai.ReviewedOpenAiRateCard.*;
 import static com.ai.fabric.budget.openai.BudgetGuardedSpringAiModelResolver.OutputCapMode.*;
+import static com.ai.fabric.budget.openai.OpenAiBudgetTransportException.FailureStage.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GuardedNativeTransportTest {
@@ -101,6 +102,10 @@ class GuardedNativeTransportTest {
                 if (reply.location() != null) exchange.getResponseHeaders().set("Location", reply.location());
                 byte[] bytes = reply.wireBody() == null ? reply.body().getBytes(StandardCharsets.UTF_8) : reply.wireBody();
                 exchange.sendResponseHeaders(reply.status(), bytes.length);
+                if (reply.bodyRelease() != null) {
+                    exchange.getResponseBody().flush();
+                    reply.bodyRelease().await(5, TimeUnit.SECONDS);
+                }
                 exchange.getResponseBody().write(bytes);
             } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
             finally { exchange.close(); }
@@ -168,6 +173,7 @@ class GuardedNativeTransportTest {
 
     @Test void astraUsesTheOriginalScopeAndAmendmentWithNativeJsonUsageAndMetadataOnly() throws Exception {
         approveAstra(); astraAmended = true;
+        var logs = failureLogs();
         var observed = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
         var denied = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Denial>();
         captures = operation -> new OpenAiBudgetInvocation(UUID.randomUUID(), denied::add, observed::add);
@@ -191,6 +197,7 @@ class GuardedNativeTransportTest {
         var metadata = json.writeValueAsString(observed.element());
         assertTrue(metadata.contains(ASTRA_MODEL)); assertFalse(metadata.contains("private-request-canary"));
         assertEquals(2, observed.element().reasoningTokens());
+        assertTrue(logs.list.isEmpty());
     }
 
     @Test void astraWithoutAmendmentOrWithNoneReasoningCannotSendOrReserve() {
@@ -226,6 +233,135 @@ class GuardedNativeTransportTest {
         var snapshot = ledger.read("approval", scope);
         assertEquals(chat(ASTRA_MODEL, ASTRA_INPUT_TOKENS, 1000), snapshot.accountedUsage());
         assertEquals(1, snapshot.providerAttempts()); assertEquals(1, sends.get()); assertFalse(snapshot.stopped());
+    }
+
+    @ParameterizedTest @ValueSource(ints = {400, 401, 403, 404, 422, 429, 500, 503})
+    void astraHttpFailureReportsSafeMetadataWithoutChangingItsAmbiguousHold(int status) throws Exception {
+        approveAstra(); astraAmended = true;
+        var approval = ledger.read("approval", scope).approval();
+        var logs = failureLogs();
+        replies.add(new Reply(status, """
+            {"model":"gpt-6.2-astra-2026-11-25","service_tier":"standard","error":{
+             "type":"invalid_request_error","code":"unsupported_parameter","param":"reasoning_effort",
+             "message":"fixture-private-provider-prose"}}
+            """, null, null));
+        replies.add(new Reply(200, CHAT, null, null));
+        var error = assertThrows(RuntimeException.class, () -> resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.MEDIUM)
+            .resolveChatModel("openai", AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(8192).build())
+            .call(new Prompt("fixture-private-request")));
+        var failure = OpenAiBudgetTransportException.find(error).orElseThrow();
+        var metadata = failure.failureMetadata().orElseThrow();
+        assertEquals(HTTP_NON_SUCCESS, metadata.stage()); assertEquals(status, metadata.httpStatus());
+        assertEquals("req_fixture_1", metadata.providerRequestId()); assertEquals(ASTRA_MODEL, metadata.requestedModel());
+        assertEquals(8192L, metadata.effectiveOutputCap()); assertEquals("gpt-6.2-astra-2026-11-25", metadata.responseModel());
+        assertEquals("standard", metadata.responseServiceTier()); assertEquals("invalid_request_error", metadata.providerErrorType());
+        assertEquals("unsupported_parameter", metadata.providerErrorCode()); assertEquals("reasoning_effort", metadata.providerErrorParam());
+        assertNull(metadata.providerErrorCodeSha256());
+        assertEquals(approval, ledger.read("approval", scope).approval());
+        assertAmbiguousOnly(failure, chat(ASTRA_MODEL, ASTRA_INPUT_TOKENS, 8192));
+        assertEquals(1, logs.list.size()); assertNull(logs.list.getFirst().getThrowableProxy());
+        assertTrue(logs.list.getFirst().getFormattedMessage().contains("stage=HTTP_NON_SUCCESS"));
+        for (String text : List.of(metadata.toString(), logs.list.getFirst().getFormattedMessage(), failure.toString())) {
+            assertFalse(text.contains("fixture-private-provider-prose")); assertFalse(text.contains("fixture-private-request"));
+            assertFalse(text.contains(KEY));
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"model", "tier-auto", "tier-standard", "usage-object", "input", "output", "total", "sum", "bound", "json", "object", "provider-error", "content-type", "encoding", "body-size"})
+    void nativeAstraFailureStageIdentifiesTheExistingRejectingCheck(String kind) throws Exception {
+        approveAstra(); astraAmended = true;
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(CHAT); response.put("model", ASTRA_MODEL);
+        var headers = Map.<String, String>of();
+        String body = null;
+        OpenAiBudgetTransportException.FailureStage expected = switch (kind) {
+            case "model" -> { response.put("model", "gpt-6.2-astra-2026-11-25"); yield RESPONSE_MODEL; }
+            case "tier-auto", "tier-standard" -> { response.put("service_tier", kind.substring(5)); yield SERVICE_TIER; }
+            case "usage-object" -> { response.remove("usage"); yield USAGE_OBJECT; }
+            case "input" -> { response.withObject("/usage").put("prompt_tokens", "fixture-private-token"); yield USAGE_INPUT_TOKENS; }
+            case "output" -> { response.withObject("/usage").put("completion_tokens", -1); yield USAGE_OUTPUT_TOKENS; }
+            case "total" -> { response.withObject("/usage").remove("total_tokens"); yield USAGE_TOTAL_TOKENS; }
+            case "sum" -> { response.withObject("/usage").put("total_tokens", 99); yield USAGE_SUM; }
+            case "bound" -> { response.withObject("/usage").put("completion_tokens", CHAT_MAX_OUTPUT_TOKENS + 1)
+                .put("total_tokens", CHAT_MAX_OUTPUT_TOKENS + 13); yield USAGE_BOUND; }
+            case "json" -> { body = "{fixture-private-invalid-json"; yield JSON; }
+            case "object" -> { body = "[]"; yield RESPONSE_OBJECT; }
+            case "provider-error" -> { response.putObject("error").put("code", "server_error").put("message", "fixture-private-prose"); yield PROVIDER_ERROR; }
+            case "content-type" -> { headers = Map.of("Content-Type", "text/plain"); yield CONTENT_TYPE; }
+            case "encoding" -> { headers = Map.of("Content-Encoding", "gzip"); yield ENCODING; }
+            case "body-size" -> { body = "x".repeat(OpenAiExchangeGuard.MAX_BODY_BYTES + 1); yield BODY_TOO_LARGE; }
+            default -> throw new AssertionError();
+        };
+        if (body == null) body = json.writeValueAsString(response);
+        replies.add(new Reply(200, body, null, null, headers, null));
+        var failure = assertThrows(OpenAiBudgetTransportException.class, () -> rawAstra(json.writeValueAsBytes(astraBody(json))));
+        var metadata = failure.failureMetadata().orElseThrow();
+        assertEquals(expected, metadata.stage()); assertEquals(200, metadata.httpStatus());
+        assertEquals("req_fixture_1", metadata.providerRequestId());
+        if (kind.equals("model")) assertEquals("gpt-6.2-astra-2026-11-25", metadata.responseModel());
+        if (kind.startsWith("tier-")) assertEquals(kind.substring(5), metadata.responseServiceTier());
+        if (kind.equals("bound")) {
+            assertEquals(OpenAiBudgetException.Code.METERING_BOUND_BREACH, failure.guardCode().orElseThrow());
+            assertTrue(ledger.read("approval", scope).stopped());
+        } else assertAmbiguousOnly(failure, chat(ASTRA_MODEL, ASTRA_INPUT_TOKENS, CHAT_MAX_OUTPUT_TOKENS));
+        assertEquals(1, sends.get());
+        assertFalse(metadata.toString().contains("fixture-private"));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"unknown", "malformed", "oversized", "duplicate"})
+    void failureMetadataAndPrivateLogsNeverContainUnrecognizedProviderTextOrSecrets(String kind) throws Exception {
+        approve(200_000);
+        var logs = failureLogs();
+        String secret = "fixture-private-secret-canary";
+        String body = switch (kind) {
+            case "unknown" -> "{\"model\":\"" + secret + "\",\"service_tier\":\"" + secret + "\",\"error\":{\"type\":\"" + secret
+                + "\",\"code\":\"" + secret + "\",\"param\":\"" + secret + "\",\"message\":\"" + secret + "\"}}";
+            case "malformed" -> "{\"error\":\"" + secret;
+            case "oversized" -> "{\"error\":{\"code\":\"" + secret + "\",\"message\":\"" + secret.repeat(400) + "\"}}";
+            case "duplicate" -> "{\"error\":{\"code\":\"unsupported_parameter\",\"code\":\"" + secret + "\"}}";
+            default -> throw new AssertionError();
+        };
+        replies.add(new Reply(400, body, null, null, Map.of("x-request-id", secret, "private-header", KEY), null));
+        var failure = assertThrows(OpenAiBudgetTransportException.class, () -> rawChat(OpenAiBudgetInvocation.NONE));
+        var metadata = failure.failureMetadata().orElseThrow();
+        assertEquals(HTTP_NON_SUCCESS, metadata.stage()); assertEquals(400, metadata.httpStatus());
+        assertNull(metadata.providerRequestId()); assertNull(metadata.responseModel()); assertNull(metadata.responseServiceTier());
+        assertNull(metadata.providerErrorType()); assertNull(metadata.providerErrorCode()); assertNull(metadata.providerErrorParam());
+        if (kind.equals("unknown")) assertEquals(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+            .digest(secret.getBytes(StandardCharsets.UTF_8))), metadata.providerErrorCodeSha256());
+        else assertNull(metadata.providerErrorCodeSha256());
+        assertEquals(1, logs.list.size()); assertNull(logs.list.getFirst().getThrowableProxy());
+        String projected = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(metadata);
+        for (String text : List.of(projected, metadata.toString(), failure.toString(), logs.list.getFirst().getFormattedMessage())) {
+            assertFalse(text.contains(secret)); assertFalse(text.contains(KEY));
+            assertFalse(text.contains("fixture-private-request")); assertFalse(text.contains("fixture-private-param"));
+            assertFalse(text.contains("private-header"));
+        }
+        assertAmbiguousOnly(failure, chat(128_000, 1000));
+    }
+
+    private void assertAmbiguousOnly(OpenAiBudgetTransportException failure, Usage hold) throws Exception {
+        assertEquals(OpenAiBudgetException.Code.ATTEMPT_AMBIGUOUS, failure.guardCode().orElseThrow());
+        var snapshot = ledger.read("approval", scope);
+        assertEquals(hold, snapshot.accountedUsage()); assertEquals(1, snapshot.providerAttempts()); assertFalse(snapshot.stopped());
+        assertEquals(1, sends.get());
+        try (var connection = source.getConnection(); var statement = connection.prepareStatement(
+            "SELECT attempt_state,actual_input_tokens,actual_output_tokens,actual_cost_nano_usd,evidence_reference,ambiguity_reason FROM provider_budget_attempt WHERE attempt_id=?")) {
+            statement.setString(1, failure.attemptId().toString());
+            try (var rows = statement.executeQuery()) {
+                assertTrue(rows.next()); assertEquals("AMBIGUOUS", rows.getString(1));
+                for (int column = 2; column <= 5; column++) assertNull(rows.getObject(column));
+                assertTrue(rows.getString(6).startsWith("NATIVE_EXCHANGE_UNVERIFIED:")); assertFalse(rows.next());
+            }
+        }
+    }
+
+    private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> failureLogs() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OpenAiExchangeGuard.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        closeables.add(() -> { logger.detachAppender(appender); appender.stop(); });
+        return appender;
     }
 
     @Test void astraExactByteEnvelopeAndSeparateInputOutputBoundsSettleWithoutAFalseContextConflict() throws Exception {
@@ -314,6 +450,7 @@ class GuardedNativeTransportTest {
 
     @Test void nativeChatSettlesOnceFromJsonAndKeepsStructuredOptions() throws Exception {
         approve(200_000);
+        var logs = failureLogs();
         var completions = new ConcurrentLinkedQueue<OpenAiBudgetInvocation.Completion>();
         UUID operationId = UUID.randomUUID();
         captures = operation -> new OpenAiBudgetInvocation(operationId, failure -> fail("Unexpected denial"), completions::add);
@@ -333,6 +470,7 @@ class GuardedNativeTransportTest {
         assertEquals(1, snapshot.providerAttempts());
         assertEquals(chat(12, 3), snapshot.accountedUsage());
         assertFalse(snapshot.stopped());
+        assertTrue(logs.list.isEmpty());
         assertEquals("identity", acceptEncodings.element());
         UUID clientId = UUID.fromString(clientRequestIds.element());
         assertEquals(List.of(new OpenAiBudgetInvocation.Completion(operationId, clientId, "req_fixture_1",
@@ -488,7 +626,9 @@ class GuardedNativeTransportTest {
             }
         };
         replies.add(new Reply(200, CHAT, null, null));
-        assertThrows(RuntimeException.class, () -> call(resolver()));
+        var error = assertThrows(RuntimeException.class, () -> call(resolver()));
+        var metadata = OpenAiBudgetTransportException.find(error).orElseThrow().failureMetadata().orElseThrow();
+        assertEquals(SETTLEMENT, metadata.stage()); assertEquals(OpenAiBudgetTransportException.FailureType.BUDGET, metadata.failureType());
         assertTrue(completions.isEmpty()); assertEquals(1, denials.size());
         assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
         assertEquals(1, sends.get());
@@ -920,9 +1060,28 @@ class GuardedNativeTransportTest {
         CountDownLatch release = new CountDownLatch(1);
         replies.add(new Reply(200, CHAT, null, release));
         try {
-            assertThrows(RuntimeException.class, () -> client(0, Duration.ofMillis(250)).chat().completions().create(params()));
+            var error = assertThrows(RuntimeException.class, () -> client(0, Duration.ofMillis(250)).chat().completions().create(params()));
+            var metadata = OpenAiBudgetTransportException.find(error).orElseThrow().failureMetadata().orElseThrow();
+            assertEquals(TRANSPORT, metadata.stage()); assertNull(metadata.httpStatus());
+            assertTrue(List.of(OpenAiBudgetTransportException.FailureType.SOCKET_TIMEOUT,
+                OpenAiBudgetTransportException.FailureType.INTERRUPTED_IO, OpenAiBudgetTransportException.FailureType.IO).contains(metadata.failureType()));
             assertEquals(1, sends.get());
             assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
+        } finally { release.countDown(); }
+    }
+
+    @Test void bodyReadFailureRetainsResponseStatusAndDoesNotPretendTheResponseWasMissing() {
+        approve(200_000);
+        var release = new CountDownLatch(1);
+        replies.add(new Reply(200, CHAT, null, null, Map.of(), null, release));
+        try {
+            var error = assertThrows(RuntimeException.class, () -> client(0, Duration.ofMillis(500)).chat().completions().create(params()));
+            var metadata = OpenAiBudgetTransportException.find(error).orElseThrow().failureMetadata().orElseThrow();
+            assertEquals(BODY_READ, metadata.stage()); assertEquals(200, metadata.httpStatus());
+            assertEquals("req_fixture_1", metadata.providerRequestId());
+            assertTrue(List.of(OpenAiBudgetTransportException.FailureType.SOCKET_TIMEOUT,
+                OpenAiBudgetTransportException.FailureType.INTERRUPTED_IO, OpenAiBudgetTransportException.FailureType.IO).contains(metadata.failureType()));
+            assertEquals(1, sends.get()); assertEquals(chat(128_000, 1000), ledger.read("approval", scope).accountedUsage());
         } finally { release.countDown(); }
     }
 
@@ -1088,7 +1247,11 @@ class GuardedNativeTransportTest {
         public Snapshot read(String id, Scope scope) { return delegate.read(id, scope); }
     }
 
-    private record Reply(int status, String body, String location, CountDownLatch release, Map<String, String> headers, byte[] wireBody) {
+    private record Reply(int status, String body, String location, CountDownLatch release, Map<String, String> headers, byte[] wireBody,
+                         CountDownLatch bodyRelease) {
+        Reply(int status, String body, String location, CountDownLatch release, Map<String, String> headers, byte[] wireBody) {
+            this(status, body, location, release, headers, wireBody, null);
+        }
         Reply(int status, String body, String location, CountDownLatch release) { this(status, body, location, release, Map.of(), null); }
     }
 }

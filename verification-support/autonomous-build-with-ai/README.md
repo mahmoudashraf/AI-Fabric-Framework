@@ -111,8 +111,13 @@ GET-only reconciliation; the existing POST was not replayed. Own logout passed.
 Normal model-only publication passed on staging: version `ver-e914d80e`, release
 `rel-50b35ab2`, verified/ACTIVE with Astra/8192/timeout40. Financial rows, keys,
 primary model and other configuration remained unchanged, with verified logout.
-The first paid Astra UI run `s25-r5-astra-1` is now in progress; this is not yet
-model-quality acceptance.
+The first paid Astra UI run `s25-r5-astra-1` failed before any action or save with
+PROVIDER_BUDGET_INTERRUPTED. Its uncertain provider outcome retains a conservative
+USD2.88768 bound, not a confirmed invoice charge. Cleanup and both logouts passed.
+Safe native diagnostics are being added to distinguish HTTP rejection, invalid
+response metadata and I/O before another paid attempt. Existing guards, rates,
+funding and the original failed record remain unchanged. This is not model-quality
+acceptance or a production rollout.
 Production autonomy and the new walkthrough remain unqualified. Exact restart
 recovery is deferred by owner; basic authority, cancellation and erasure are not.
 The earlier checkpoints below remain historical evidence.

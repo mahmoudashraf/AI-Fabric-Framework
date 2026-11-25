@@ -21780,8 +21780,21 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   financial rows, keys, host, storage, primary model and other settings were
   unchanged; own logout passed. Proof:
   authoring-astra-s25-astra-model-1-staging-verified.private.json.
-- Main owns the first paid Astra Harbor UI window `s25-r5-astra-1`, exec 69834.
-  Await semantic completion, usage and normal cleanup; the model-only apply is
-  not model-quality acceptance. Production autonomy remains unchanged/unqualified.
-  Exact restart recovery remains deferred.
+- First paid Astra Harbor UI window `s25-r5-astra-1` FAILED before any action or
+  draft save: one model call, PAUSED/PROVIDER_BUDGET_INTERRUPTED, no completion
+  observations. Test resources/session were cleaned up and both logouts passed.
+  Native attempt `91057e72-2742-48ee-aa56-28c3159700c1` is AMBIGUOUS with a real
+  provider request ID. Its USD2.88768 conservative upper-bound hold remains
+  accounted; this is not proof of that amount being invoiced. Cumulative staging
+  ledger is USD8.50327275. Never reset/refund that row without provider evidence.
+- The generic guard hides the distinction between non-success HTTP responses,
+  invalid usage/model/tier data and I/O failure. OpenAIIoException alone does not
+  establish a timeout; the observed attempt stopped in about five seconds.
+  Carver owns a minimal safe diagnostics-only native/provider correction, not
+  committed or deployed yet. No blind paid retry, model allowlist/rate widening,
+  HTTP retry, grant replacement or new framework publication is authorized by
+  this diagnosis. Preserve the failed report and original pricing receipt.
+- Production autonomy remains unchanged/unqualified. Staging currently runs
+  R5/Astra pending diagnosis; the prior mini runs remain the successful quality
+  baseline. Exact restart recovery remains deferred.
 
