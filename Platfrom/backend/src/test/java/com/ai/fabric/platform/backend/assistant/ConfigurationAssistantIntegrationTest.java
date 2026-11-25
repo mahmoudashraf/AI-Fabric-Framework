@@ -143,6 +143,54 @@ class ConfigurationAssistantIntegrationTest {
         when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(nativeView);
         return assistant.turn(sessionId, new ConfigurationAssistantService.TurnRequest("Set the greeting.", false, null, null, null, null, null, "AUTONOMOUS"), "goal-start").path("goal");
     }
+    @Test void foreignAndMissingGoalControlsHaveTheSameDenialWithoutReceiverEffects() {
+        var goal = startGoal();
+        String goalId = goal.path("id").asText();
+        var originalGoal = goalRecords.findById(goalId).orElseThrow();
+        long originalEpoch = originalGoal.cancellationEpoch;
+        String originalState = originalGoal.state;
+        var originalConfiguration = configuration.get().deepCopy();
+        clearInvocations(runtime, resources, logins);
+        signIn("other-owner@example.test");
+        try {
+            for (String command : List.of("PAUSE", "RESUME", "CANCEL")) {
+                for (String selectedSession : List.of(sessionId, "cas-does-not-exist")) {
+                    var failure = catchThrowableOfType(() -> goals.control(selectedSession, goalId,
+                        new AuthoringGoalService.Control(command)), org.springframework.web.server.ResponseStatusException.class);
+                    assertThat(failure.getStatusCode().value()).isEqualTo(403);
+                    assertThat(failure.getReason()).isEqualTo("AUTHORING_GOAL_ACCESS_DENIED");
+                }
+            }
+            for (String selectedSession : List.of(sessionId, "cas-does-not-exist")) {
+                var failure = catchThrowableOfType(() -> assistant.get(selectedSession),
+                    org.springframework.web.server.ResponseStatusException.class);
+                assertThat(failure.getStatusCode().value()).isEqualTo(404);
+                assertThat(failure.getReason()).isEqualTo("Assistant session not found.");
+            }
+            signIn(actor);
+            for (String command : List.of("PAUSE", "RESUME", "CANCEL")) {
+                var missing = catchThrowableOfType(() -> goals.control(sessionId, "cag-does-not-exist",
+                    new AuthoringGoalService.Control(command)), org.springframework.web.server.ResponseStatusException.class);
+                assertThat(missing.getStatusCode().value()).isEqualTo(403);
+                assertThat(missing.getReason()).isEqualTo("AUTHORING_GOAL_ACCESS_DENIED");
+            }
+            var expired = sessions.findById(sessionId).orElseThrow();
+            expired.expiresAt = Instant.now().minusSeconds(1); sessions.saveAndFlush(expired);
+            for (String command : List.of("PAUSE", "RESUME", "CANCEL")) {
+                var failure = catchThrowableOfType(() -> goals.control(sessionId, goalId,
+                    new AuthoringGoalService.Control(command)), org.springframework.web.server.ResponseStatusException.class);
+                assertThat(failure.getStatusCode().value()).isEqualTo(403);
+                assertThat(failure.getReason()).isEqualTo("AUTHORING_GOAL_ACCESS_DENIED");
+            }
+            verifyNoInteractions(runtime, resources, logins);
+            var after = goalRecords.findById(goalId).orElseThrow();
+            assertThat(after.cancellationEpoch).isEqualTo(originalEpoch);
+            assertThat(after.state).isEqualTo(originalState);
+            assertThat(configuration.get()).isEqualTo(originalConfiguration);
+            assertThat(operationRecords.findByGoalIdOrderByCreatedAtAscIdAsc(goalId,
+                org.springframework.data.domain.PageRequest.of(0, 10))).isEmpty();
+        } finally { signIn(actor); }
+    }
     AuthoringDraftOperations.Caller goalCaller(JsonNode goal) {
         return new AuthoringDraftOperations.Caller(sessionId, goal.path("turnId").asText(), "assistant-brain", "release", null, true,
             goal.path("id").asText(), goal.path("requestRevision").asLong(), goal.path("cancellationEpoch").asLong(), goal.path("segment").asInt());
@@ -269,14 +317,130 @@ class ConfigurationAssistantIntegrationTest {
         assertThatThrownBy(() -> operations.save(who, root + ":step:2", change("Late"))).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         assertThat(assistant.get(sessionId).at("/goal/operations")).hasSize(1);
         goals.control(sessionId, goal.path("id").asText(), new AuthoringGoalService.Control("RESUME"));
-        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 1, 1));
+        assertThat(assistant.get(sessionId).at("/goal/cancellationEpoch").asLong()).isEqualTo(2);
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 2, 1));
         var resumed = goalCaller(assistant.get(sessionId).path("goal"));
         operations.save(resumed, root + ":step:2", change("After resume"));
         goals.revokeActor(actor);
         assertThat(assistant.get(sessionId).at("/goal/reasonCode").asText()).isEqualTo("LOGOUT_REAUTHENTICATION_REQUIRED");
-        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 1, 2)))
+        assertThat(assistant.get(sessionId).at("/goal/cancellationEpoch").asLong()).isEqualTo(3);
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(goal.path("id").asText(), 1, 2, 2)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         verify(logins, times(2)).capture(any());
+    }
+    @ParameterizedTest @ValueSource(strings = {"PAUSED", "WAITING_FOR_INPUT", "BLOCKED"})
+    void eachFreshResumeAfterNativeOperationalPauseAdvancesTheExistingFence(String nativeState) {
+        var goal = startGoal(); String id = goal.path("id").asText(); String root = goal.path("workId").asText();
+        var delivered = new ArrayList<JsonNode>();
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
+            JsonNode control = call.getArgument(4); delivered.add(control.deepCopy());
+            var response = mapper.createObjectNode().put("workId", root);
+            response.putObject("goal").put("state", "RUNNING").put("segment", control.path("segment").asInt());
+            return response;
+        });
+        goals.control(sessionId, id, new AuthoringGoalService.Control("PAUSE"));
+        var first = goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"));
+        assertThat(first.path("cancellationEpoch").asLong()).isEqualTo(2);
+        goals.refresh(id);
+        var operationalPause = mapper.createObjectNode().put("workId", root);
+        operationalPause.putObject("goal").put("state", nativeState).put("reasonCode", "NATIVE_OPERATIONAL_PAUSE")
+            .put("canResume", true).put("segment", 2);
+        when(runtime.work(any(), anyString(), anyString(), anyString())).thenReturn(operationalPause);
+        var record = goalRecords.findById(id).orElseThrow(); record.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(record);
+        goals.refresh(id);
+        var paused = assistant.get(sessionId).path("goal");
+        assertThat(paused.path("state").asText()).isEqualTo(nativeState);
+        assertThat(paused.path("cancellationEpoch").asLong()).isEqualTo(2);
+        var second = goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"));
+        assertThat(second.path("cancellationEpoch").asLong()).isEqualTo(3);
+        goals.refresh(id);
+        assertThat(delivered).hasSize(2);
+        assertThat(delivered.get(0).path("cancellationEpoch").asLong()).isEqualTo(2);
+        assertThat(delivered.get(1).path("cancellationEpoch").asLong()).isEqualTo(3);
+        assertThat(delivered.get(0).path("segment").asInt()).isEqualTo(1);
+        assertThat(delivered.get(1).path("segment").asInt()).isEqualTo(2);
+        for (var control : delivered) {
+            assertThat(control.path("command").asText()).isEqualTo("RESUME");
+            assertThat(control.path("requestRevision").asLong()).isEqualTo(1);
+            assertThat(control.path("goalId").asText()).isEqualTo(id);
+            assertThat(control.path("turnId")).isEqualTo(goal.path("turnId"));
+        }
+        assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()),
+            new AuthoringGoalService.Renewal(id, 1, 2, 2, root))).hasMessageContaining("AUTHORING_GOAL_FENCED");
+        assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
+        assertThat(assistant.get(sessionId).at("/goal/operationCount").asInt()).isZero();
+        verify(runtime, times(1)).startGoal(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(logins, times(3)).capture(any());
+    }
+    @Test void resumeDeliveryRetryAndPollingKeepTheSamePersistedIntentFenceAndPayload() {
+        var goal = startGoal(); String id = goal.path("id").asText(); String root = goal.path("workId").asText();
+        goals.control(sessionId, id, new AuthoringGoalService.Control("PAUSE"));
+        var resumed = goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"));
+        assertThat(resumed.path("cancellationEpoch").asLong()).isEqualTo(2);
+        var delivered = new ArrayList<JsonNode>();
+        when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
+            delivered.add(call.getArgument(4, JsonNode.class).deepCopy());
+            if (delivered.size() == 1) throw new IllegalStateException("Acknowledgement unavailable");
+            var response = mapper.createObjectNode().put("workId", root);
+            response.putObject("goal").put("state", "RUNNING").put("segment", 1); return response;
+        });
+        goals.refresh(id);
+        var pending = goalRecords.findById(id).orElseThrow();
+        assertThat(pending.pendingControl).isEqualTo("RESUME");
+        assertThat(pending.reasonCode).isEqualTo("NATIVE_STATUS_UNAVAILABLE");
+        assertThat(pending.cancellationEpoch).isEqualTo(2);
+        assertThatThrownBy(() -> goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME")))
+            .hasMessageContaining("AUTHORING_GOAL_NOT_PAUSED");
+        pending.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(pending);
+        goals.refresh(id);
+        assertThat(delivered).hasSize(2); assertThat(delivered.get(1)).isEqualTo(delivered.get(0));
+        var running = goalRecords.findById(id).orElseThrow();
+        assertThat(running.cancellationEpoch).isEqualTo(2); assertThat(running.pendingControl).isNull();
+        running.nextPollAt = Instant.now().minusSeconds(1); goalRecords.saveAndFlush(running);
+        goals.refresh(id);
+        assertThat(goalRecords.findById(id).orElseThrow().cancellationEpoch).isEqualTo(2);
+        verify(runtime, times(2)).controlWork(any(), anyString(), anyString(), anyString(), any());
+        verify(logins, times(2)).capture(any());
+    }
+    @ParameterizedTest @ValueSource(strings = {"ACTIVE", "NATIVE_NOT_RESUMABLE", "NATIVE_TERMINAL",
+        "LOGIN_CAPTURE_FAILED", "FRESH_AUTHORITY_FAILED", "FOREIGN_ACTOR"})
+    void rejectedResumeNeverAdvancesFenceOrRetainsUnvalidatedFreshAuthority(String rejection) {
+        var goal = startGoal(); String id = goal.path("id").asText();
+        if (!"ACTIVE".equals(rejection)) {
+            goals.control(sessionId, id, new AuthoringGoalService.Control("PAUSE"));
+            var acknowledgement = mapper.createObjectNode().put("workId", goal.path("workId").asText());
+            acknowledgement.putObject("goal").put("state", "PAUSED").put("canResume", !"NATIVE_NOT_RESUMABLE".equals(rejection))
+                .put("terminal", "NATIVE_TERMINAL".equals(rejection));
+            when(runtime.controlWork(any(), anyString(), anyString(), anyString(), any())).thenReturn(acknowledgement);
+            goals.refresh(id);
+        }
+        var before = goalRecords.findById(id).orElseThrow(); clearInvocations(runtime);
+        if ("LOGIN_CAPTURE_FAILED".equals(rejection)) when(logins.capture(any())).thenThrow(
+            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "AUTHORING_REAUTHENTICATION_REQUIRED"));
+        if ("FRESH_AUTHORITY_FAILED".equals(rejection)) {
+            when(logins.capture(any())).thenReturn(mapper.createObjectNode().put("loginSessionId", "unvalidated-fresh-login")
+                .put("validUntil", Instant.now().plusSeconds(7200).toString()));
+            doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED,
+                "AUTHORING_REAUTHENTICATION_REQUIRED")).when(logins).requireCurrent(any(), any());
+        }
+        if ("FOREIGN_ACTOR".equals(rejection)) signIn("other-owner@example.test");
+        try {
+            String expected = switch (rejection) {
+                case "ACTIVE" -> "AUTHORING_GOAL_NOT_PAUSED";
+                case "NATIVE_NOT_RESUMABLE" -> "AUTHORING_NATIVE_GOAL_NOT_RESUMABLE";
+                case "NATIVE_TERMINAL" -> "AUTHORING_GOAL_TERMINAL";
+                case "FOREIGN_ACTOR" -> "AUTHORING_GOAL_ACCESS_DENIED";
+                default -> "AUTHORING_REAUTHENTICATION_REQUIRED";
+            };
+            assertThatThrownBy(() -> goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"))).hasMessageContaining(expected);
+            var after = goalRecords.findById(id).orElseThrow();
+            assertThat(after.cancellationEpoch).isEqualTo(before.cancellationEpoch);
+            assertThat(after.requestRevision).isEqualTo(before.requestRevision); assertThat(after.segment).isEqualTo(before.segment);
+            assertThat(after.state).isEqualTo(before.state); assertThat(after.reasonCode).isEqualTo(before.reasonCode);
+            assertThat(after.pendingControl).isEqualTo(before.pendingControl);
+            assertThat(after.validUntil).isEqualTo(before.validUntil); assertThat(after.encryptedAuthority).isEqualTo(before.encryptedAuthority);
+            verifyNoInteractions(runtime);
+        } finally { signIn(actor); }
     }
     @Test void logoutPauseAcknowledgementPreservesReauthenticationReasonAndFreshLoginResumesTheSameRoot() throws Exception {
         var goal = startGoal(); String id = goal.path("id").asText(); String root = goal.path("workId").asText();
@@ -308,7 +472,8 @@ class ConfigurationAssistantIntegrationTest {
         assertThat(current.path("reasonCode").asText()).isEqualTo("GOAL_RESUME_REQUESTED");
         var authority = mapper.readTree(crypto.decrypt(id, goalRecords.findById(id).orElseThrow().encryptedAuthority));
         assertThat(authority.at("/login/loginSessionId").asText()).isEqualTo("fresh-login");
-        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 1, 2, root));
+        assertThat(current.path("cancellationEpoch").asLong()).isEqualTo(2);
+        goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 2, 2, root));
         operations.save(goalCaller(assistant.get(sessionId).path("goal")), root + ":step:2", change("Saved with fresh authority"));
         assertThat(assistant.get(sessionId).at("/goal/operationCount").asInt()).isEqualTo(2);
         assertThat(assistant.get(sessionId).path("turns")).hasSize(1);
@@ -372,9 +537,10 @@ class ConfigurationAssistantIntegrationTest {
         assertThatThrownBy(() -> goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 0, 1)))
             .hasMessageContaining("FENCED");
         goals.control(sessionId, id, new AuthoringGoalService.Control("RESUME"));
-        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 1, 1, goal.path("workId").asText()));
+        var renewed = goals.renew(caller(sessionId, goal.path("turnId").asText()), new AuthoringGoalService.Renewal(id, 1, 2, 1, goal.path("workId").asText()));
         assertThat(renewed.path("workId")).isEqualTo(goal.path("workId"));
         assertThat(renewed.path("requestRevision").asInt()).isEqualTo(1);
+        assertThat(renewed.path("cancellationEpoch").asLong()).isEqualTo(2);
         var resumed = goalCaller(assistant.get(sessionId).path("goal"));
         operations.save(resumed, operation, change("Saved before expiry"));
         operations.save(resumed, goal.path("workId").asText() + ":step:2", change("After reauthentication"));

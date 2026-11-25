@@ -21899,4 +21899,124 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   review found no blocking issue; no Runtime production code or public SDK
   changed. Private regression diagnostics now show actual failure before limit
   checks (48 offline PASS), retaining the original eight failed live reports.
+- B6 `820ef3b35e178c504e55aa42ea03112f8d22e90a` committed/pushed. All four
+  gates passed: core 45542477882, storage 45542533445 attempt two, quota/Desk
+  45542535908 and full code 45542539080. Storage attempt one stopped before tests
+  on Maven Central HTTP429/PluginResolutionException; its private log is retained.
+  Only that failed job was retried. Incidental Runtime CI 45542477676 also passed,
+  but authoring Runtime intentionally remains qualified R7, not a new image.
+- Main release watcher 47933 completed normal staging backend rollout, job
+  `buxpqjasbobcdoko4akyzvrf`, native healthy digest
+  sha256:0d88fbaac41024659fadf22c3eeea52f66a4debd0aae7bb326f89401d359a188.
+  Environment, host capacity and storage match the prior backend. No production
+  or funding changes. Fresh readonly evidence
+  `staging-readonly-acceptance-2026-11-25T04-15-44-295Z/` passed all 12 gates,
+  now separately checking actual B6 backend identity from historical R5 model
+  publication and R7/B5 software-apply provenance; original proofs stay unchanged.
+- Main owns exclusive live Quick regression exec 40590,
+  `quick-edit-staging-s25-b6-r7-astra-quick-1/`. First action preparation,
+  follow-up and Undo have actual saved evidence; remaining eight-case/profile
+  checks and cleanup are still running. Do not start another paid test or admin
+  login until this helper ends with both verified logouts. Stage cumulative
+  ledger was USD13.44572275 before this run. No final Quick PASS claimed yet.
+- Private production Astra helpers were updated and tested against the actual
+  source chain, not fictional R7 model-publication receipts. 435 offline checks
+  passed; fresh genuine B6/R7 semantic acceptance remains required. Readonly
+  source-identity helper update passed 29 unit plus 39 offline checks. No
+  production pricing amendment, model change or rollout has been executed.
+- Quick exec 40590 completed PASS: all eight cases, plus follow-up/Undo,
+  Warm/Brief response presets and search configuration. Six complete-input cases
+  saved; missing provider host and credential reference correctly NEEDS_INPUT.
+  Cleanup and both logouts passed. Actual native deltas: 49 provider calls,
+  11 canonical messages, USD3.77674; cumulative staging USD17.22246275.
+- Fresh actual B6/R7 normal UI Harbor `s25-b6-r7-astra-1` passed all five semantic
+  operations with six Astra calls, zero corrections and one executed save.
+  Cleanup, both logouts and financial preservation passed; USD0.68475,
+  cumulative staging USD17.90721275. Evidence remains separate from the earlier
+  three B5/R7 passes; no original report/provenance was rewritten.
+- Main exclusive basic controls window is active: exec 24504, read-only encrypted
+  observer/exporter exec 81491, label `s25-r7-astra-basic-controls-1`. Mode basic
+  explicitly excludes restart; normal Pause/Resume, known-real foreign404,
+  paused logout/re-auth, cancellation and source-withdrawal evidence remain
+  required. Both encrypted withdrawal captures must validate before phase ACK;
+  separate trusted-key in-memory erasure closure still required afterward.
+  No other inference, admin login, release or publication until this window
+  closes and all test cleanup/logouts are verified.
+- First basic controls run ended FAIL on a harness status assumption, not an
+  unauthorized operation: known-real foreign goal control returned403 while the
+  helper demanded404. Pause/refresh/navigation quietness and first paused audit
+  passed. Source withdrawal/Resume were not reached. Fixture, owner, foreign and
+  own-staff cleanup/logout all passed; observer 81491 ended PARTIAL with only
+  first-paused metadata. Both execs are collected; no source-erasure PASS.
+- Trace: AuthoringGoalService.owned intentionally uses the same403
+  AUTHORING_GOAL_ACCESS_DENIED for missing and foreign goals, whereas ordinary
+  session/source reads use404. Main's new focused regression proves uniform
+  denials, unchanged goal/epoch/configuration, and no receiver interaction.
+  One focused test passed; full class is running. Jason is correcting the
+  private checker to require explicit403 controls/404 reads plus missing-ID
+  equivalence and zero effects, not accepting arbitrary denial status codes.
+  No production authorization or Framework code change is needed. Original FAIL
+  remains retained. Cumulative staging after this bounded pause USD17.94239275.
+- Goal journal reads share the goal403 contract, unlike session/source404.
+  Independent review found no blocking security finding or need for a status-only
+  product change. The expanded full integration class passed46 tests, including
+  missing goals within an owned session and expired-session controls; no Runtime,
+  resource receiver or login-authority interaction occurred during denials.
+- Private control checker now requires exact typed403 goal controls/journals,
+  exact typed404 sessions/sources, known-real foreign versus missing-ID equality
+  and unchanged effects/inference. 119 offline tests passed. Source/history
+  fixtures and original failed reports were not changed to fit the checker.
+  Main fresh exclusive window: controls exec99442 and observer exec21536 use
+  label `s25-r7-astra-basic-controls-2`; earlier controls24504 is collected.
+  Wait for final cleanup/logouts and separate decrypted-body closure before
+  qualification. Production remains unchanged.
+- Basic controls2 ended FAIL, both helpers collected (99442/21536). Known-real
+  foreign controls/journal403 and session/source404 exactly matched nonexistent
+  IDs; no inference/write/state change. UI pause/refresh/navigation, normal
+  logout quietness and re-auth restoration all passed. Both resource-free
+  fixtures were removed and owner/foreign/own-staff logouts passed. No page errors.
+- REAL RESUME DEFECT: user Resume retained revision1/epoch2 and native work ID,
+  but the next segment paused AUTHORING_GOAL_FENCED before any new model/tool/
+  save. Main, Lagrange and Carver traced RuntimeDurableGoalHost.control setting
+  canonical PAUSED even for RESUME; segment admission correctly rejects it.
+  No Platform epoch mismatch or reason to relax fencing was found. Carver is
+  implementing a bounded Runtime-only coherent resume/admission handoff with
+  real HTTP/scheduler regression; no public SDK/provider/budget change proposed.
+- The independent second goal did save a real receipt and UI cancellation stayed
+  inference-quiet. Source withdrawal was correctly held because encrypted export
+  failed before ACK. Request omitted platformUserId (not returned by normal auth
+  session), but the decrypt verifier requires that authenticated identity field.
+  Jason is tracing the correct trusted identity source; no fabricated ID, manual
+  ACK, weakened erasure check or erasure PASS. Original FAIL/NOT_CAPTURED retained.
+- Expanded denial regression including owned-session missing goal and expiry
+  passed the full46-test class. Product code is unchanged. Cumulative conservative
+  staging ledger after controls2 is USD18.67896275, including original uncertain
+  holds. No active Main inference, helper or admin session remains. Production
+  autonomy, valid Resume and erased-body closure remain required before rollout.
+- Frozen Runtime candidate: canonical SDK control admission and ready metadata
+  now share the existing JDBC row-lock transaction. Rejected Resume cannot leave
+  ready metadata, and stale lifecycle notifications cannot overwrite a newer
+  control. Red regression reproduced R7 AUTHORING_GOAL_FENCED; green35 tests
+  include19 real native HTTP/scheduler integrations, rollback visibility across
+  connections, same-key replay and newer-pause fencing. No SDK/provider/schema/
+  recovery-engine change. Main independently verified all three source and both
+  red/green log hashes against the source freeze manifest.
+- A second source-confirmed bug affected subsequent user Resume after a native
+  operational pause: the old persisted epoch reused the previous transport key.
+  The scoped Platform fix advances cancellationEpoch once after fresh Resume
+  authority validation; polling and delivery retries retain that epoch/payload.
+  Sixty-five tests passed (56 integration,9 client), including rejected-authority
+  rollback and wire-level new-intent versus retry keys. Main's denial/expiry test
+  is preserved. All three source and two log hashes independently matched freeze.
+- Private verification now resolves the real owned Platform user ID from one
+  active customer-admin metadata row, matching authenticated actor/customer;
+  it does not expose a new auth API field or remove crypto identity checks.
+  Main's actual read-only DB schema preflight passed all five exact columns.
+  Final private control harness passed130 offline tests, with post-delete goal
+  journal403 and session/source404 checked separately. Neither synthetic tests
+  nor schema metadata claim live erasure. All Main/agent test execs are collected.
+- Next: commit combined Platform/Runtime Resume fixes, pass source-exact CI,
+  staging software rollout preserving model/funds/keys/storage, fresh genuine
+  Resume+save and encrypted erasure qualification, then production and Harbor
+  video. Production still unchanged; no new inference or cap increase at freeze.
 

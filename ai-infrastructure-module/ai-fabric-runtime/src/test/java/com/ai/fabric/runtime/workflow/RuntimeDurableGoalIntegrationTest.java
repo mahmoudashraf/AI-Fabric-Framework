@@ -67,7 +67,7 @@ class RuntimeDurableGoalIntegrationTest {
     @Autowired ChatRuntimeController chat;
     @Autowired RuntimeAuthProperties authProperties;
     @Autowired RuntimePrivateAssertionService assertions;
-    @Autowired RuntimeDurableGoalHost durableHost;
+    @MockitoSpyBean RuntimeDurableGoalHost durableHost;
     @Autowired DurableExecutionRepository repository;
     @Autowired DurableExecutionSecurity security;
     @Autowired AIExecutionGateway gateway;
@@ -99,6 +99,99 @@ class RuntimeDurableGoalIntegrationTest {
         byte[] bytes = MAPPER.writeValueAsBytes(compiled); String hash = WorkflowAssistanceBundleTest.hash(bytes);
         properties.add("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", () -> Base64.getEncoder().encodeToString(bytes));
         properties.add("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", () -> hash);
+    }
+
+    @Test void explicitPauseResumeDoesNotDependOnQueuedLifecycleNotificationBeforeTheRealSchedulerClaims() throws Exception {
+        var run = pausedHttpGoal(); var client = run.client();
+        doAnswer(call -> {
+            var snapshot = call.getArgument(0, ExecutionSnapshot.class);
+            if (snapshot.handle().status() == ExecutionHandleStatus.QUEUED) return null;
+            return call.callRealMethod();
+        }).when(durableHost).executionUpdated(any(), eq(client.goal()));
+        try {
+            var paused = repository.findById(run.id()).orElseThrow();
+            var scope = new ai.fabric.chat.control.ConversationScope("tenant-test", "dep-test", client.conversation(), "authoring:" + client.session());
+            var root = storedRoot(scope, client.goal());
+            var resume = new RuntimeDurableGoalHost.Control("RESUME", client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null);
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "explicit-resume", resume, 200);
+            await(run.id(), client, ExecutionHandleStatus.SUCCEEDED);
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "explicit-resume", resume, 200);
+            assertThat(run.calls()).hasValue(3); assertThat(run.writes()).containsExactly(run.id() + ":step:1");
+            assertThat(repository.findById(run.id()).orElseThrow().requestFingerprint()).isEqualTo(paused.requestFingerprint());
+            assertThat(storedRoot(scope, client.goal()).budgetReceipt()).isEqualTo(root.budgetReceipt());
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+            long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role='AI'",
+                Integer.class, client.conversation()) == 0 && System.nanoTime() < until) Thread.sleep(20);
+            for (String role : List.of("USER", "AI")) assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role=?", Integer.class, client.conversation(), role)).isEqualTo(1);
+        } finally { chat.deleteConversation(client.conversation(), "erase-normal-resume", client.request()); }
+    }
+
+    @Test void rolledBackControlAdmissionCannotPublishEitherQueuedRowOrAuthorizeWorkerEffects() throws Exception {
+        var run = pausedHttpGoal(); var client = run.client();
+        try {
+            var transaction = new org.springframework.transaction.support.TransactionTemplate(
+                web.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+            assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+                conversations.controlWork(client.conversation(), run.id(), "resume-rollback", new RuntimeDurableGoalHost.Control("RESUME",
+                    client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null), client.request());
+                assertThat(repository.findById(run.id()).orElseThrow().status()).isEqualTo(ExecutionHandleStatus.QUEUED);
+                assertThat(goalState(client).path("state").asText()).isEqualTo("QUEUED");
+                assertThat(java.util.concurrent.CompletableFuture.supplyAsync(() -> repository.findById(run.id()).orElseThrow().status()).join())
+                    .isEqualTo(ExecutionHandleStatus.PAUSED);
+                assertThat(run.calls()).hasValue(1); assertThat(run.writes()).isEmpty();
+                throw new IllegalStateException("fixture-control-publication-rollback");
+            })).isInstanceOf(IllegalStateException.class).hasMessage("fixture-control-publication-rollback");
+            assertThat(repository.findById(run.id()).orElseThrow().status()).isEqualTo(ExecutionHandleStatus.PAUSED);
+            assertThat(goalState(client).path("state").asText()).isEqualTo("PAUSED");
+            assertThat(goalState(client).path("lastControlKey").asText()).isEqualTo("explicit-pause");
+            assertThat(run.calls()).hasValue(1); assertThat(run.writes()).isEmpty();
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "resume-rollback", new RuntimeDurableGoalHost.Control("RESUME",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null), 200);
+            await(run.id(), client, ExecutionHandleStatus.SUCCEEDED);
+            assertThat(run.calls()).hasValue(3); assertThat(run.writes()).containsExactly(run.id() + ":step:1");
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+        } finally { chat.deleteConversation(client.conversation(), "erase-rollback-resume", client.request()); }
+    }
+
+    @Test void newerPauseFencesAnOlderResumeEvenWhenItsAuthorityRenewalAlreadySucceeded() throws Exception {
+        var run = pausedHttpGoal(); var client = run.client();
+        var entered = new java.util.concurrent.CountDownLatch(1); var release = new java.util.concurrent.CountDownLatch(1);
+        var oldGrant = lease(client, List.of(), List.of("source-one"));
+        var blocked = new java.util.concurrent.atomic.AtomicBoolean();
+        doAnswer(call -> {
+            var work = call.getArgument(0, ChatQueryRequest.ConfigurationWork.class);
+            var grant = oldGrant.apply(work, call.getArgument(1));
+            if (work.cancellationEpoch() == 1 && blocked.compareAndSet(false, true)) {
+                entered.countDown(); assertThat(release.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            }
+            return grant;
+        }).when(platform).renew(any(), nullable(String.class));
+        java.util.concurrent.CompletableFuture<?> resuming = null;
+        try {
+            resuming = java.util.concurrent.CompletableFuture.runAsync(() -> conversations.controlWork(client.conversation(), run.id(),
+                "older-resume", new RuntimeDurableGoalHost.Control("RESUME", client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null), client.request()));
+            assertThat(entered.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "newer-pause", new RuntimeDurableGoalHost.Control("PAUSE",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 2, 1, null), 200);
+            release.countDown();
+            var rejected = catchThrowableOfType(resuming::join, java.util.concurrent.CompletionException.class);
+            assertThat(rejected.getCause()).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+            assertThat(((org.springframework.web.server.ResponseStatusException) rejected.getCause()).getStatusCode().value()).isEqualTo(409);
+            assertThat(goalState(client).path("state").asText()).isEqualTo("PAUSED");
+            assertThat(goalState(client).path("cancellationEpoch").asLong()).isEqualTo(2);
+            assertThat(repository.findById(run.id()).orElseThrow().status()).isEqualTo(ExecutionHandleStatus.PAUSED);
+            assertThat(run.calls()).hasValue(1); assertThat(run.writes()).isEmpty();
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "fresh-resume", new RuntimeDurableGoalHost.Control("RESUME",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 2, 1, null), 200);
+            await(run.id(), client, ExecutionHandleStatus.SUCCEEDED);
+            assertThat(run.calls()).hasValue(3); assertThat(run.writes()).containsExactly(run.id() + ":step:1");
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+        } finally {
+            release.countDown(); if (resuming != null) resuming.handle((ignored, failure) -> null).join();
+            chat.deleteConversation(client.conversation(), "erase-raced-resume", client.request());
+        }
     }
 
     @Test void canonicalHttpBoundedSenderRunsOnGoalEnabledProfileWithoutStartingADurableGoal() throws Exception {
@@ -770,6 +863,49 @@ class RuntimeDurableGoalIntegrationTest {
         var task = decision.putObject("delegation").put("profileId", profile).put("task", "Prepare only the selected owned capability draft.");
         task.putArray("workReferences").add(workId); task.set("sourceReferences", MAPPER.valueToTree(sources));
         return decision.toString();
+    }
+
+    private record ResumeRun(Client client, String id, AtomicInteger calls, ConcurrentLinkedQueue<String> writes, ProviderBudgetLedger.Snapshot before) { }
+    private ResumeRun pausedHttpGoal() throws Exception {
+        var client = client(); renew(client, null);
+        var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();
+        var decisions = new ConcurrentLinkedQueue<>(List.of("{\"type\":\"NEEDS_INPUT\",\"questions\":[\"Should I continue the saved request?\"]}",
+            save("The normally resumed edit is saved."), "{\"type\":\"COMPLETE\",\"message\":\"The resumed edit is saved in the draft.\"}"));
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall(); calls.incrementAndGet();
+            return AIGenerationResponse.builder().content(Objects.requireNonNull(decisions.poll())).build();
+        }).when(core).generateContent(any(), any());
+        doAnswer(call -> {
+            String action = call.getArgument(0); Map<String, Object> parameters = call.getArgument(1);
+            var result = MAPPER.createObjectNode();
+            if ("authoring_update_draft".equals(action)) {
+                writes.add(String.valueOf(parameters.get("operationId")));
+                result.put("operationId", String.valueOf(parameters.get("operationId"))).put("status", "EXECUTED");
+            } else result.putObject("sourceCoverage").put("required", false);
+            return new AuthoringPlatformClient.Reply(200, result);
+        }).when(platform).call(anyString(), anyMap(), any());
+        var before = funded.readCurrent();
+        String id = authoringPostOverHttp(client, "/messages", client.turn(), client.body(), 202).path("workId").asText();
+        await(id, client, ExecutionHandleStatus.PAUSED);
+        authoringPostOverHttp(client, "/work/" + id + "/control", "explicit-pause", new RuntimeDurableGoalHost.Control("PAUSE",
+            client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null), 200);
+        await(id, client, ExecutionHandleStatus.PAUSED);
+        assertThat(calls).hasValue(1); assertThat(writes).isEmpty();
+        return new ResumeRun(client, id, calls, writes, before);
+    }
+    private JsonNode goalState(Client client) {
+        var scope = new ai.fabric.chat.control.ConversationScope("tenant-test", "dep-test", client.conversation(), "authoring:" + client.session());
+        return MAPPER.valueToTree(canonical.orchestrationState(scope, 0).orElseThrow().metadata()).path("authoringGoal");
+    }
+    private JsonNode authoringPostOverHttp(Client client, String path, String key, Object body, int expectedStatus) throws Exception {
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/chat/me/conversations/{conversation}" + path, client.conversation())
+            .contentType("application/json").content(MAPPER.writeValueAsBytes(body)).header("Idempotency-Key", key);
+        client.request().getHeaderNames().asIterator().forEachRemaining(name -> request.header(name, client.request().getHeader(name)));
+        var response = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web).build().perform(request)
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(expectedStatus)).andReturn();
+        byte[] bytes = response.getResponse().getContentAsByteArray();
+        return bytes.length == 0 ? MAPPER.nullNode() : MAPPER.readTree(bytes);
     }
 
     private record Client(String session, String turn, String goal, String conversation, RuntimeAuthContext auth,

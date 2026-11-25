@@ -164,6 +164,8 @@ public class AuthoringGoalService {
             authority.set("login", login); goal.validUntil = Instant.parse(login.path("validUntil").asText());
             if (goal.validUntil.isAfter(session.expiresAt)) goal.validUntil = session.expiresAt;
             goal.encryptedAuthority = encrypt(goal.id, authority); validate(goal, session, true);
+            // A fresh user Resume fences prior segments; delivery retries retain this epoch.
+            goal.cancellationEpoch++;
             goal.state = "QUEUED"; goal.reasonCode = null;
             session.status = "RUNNING"; session.activeTurnId = goal.turnId; session.deadline = goal.validUntil;
         } else {

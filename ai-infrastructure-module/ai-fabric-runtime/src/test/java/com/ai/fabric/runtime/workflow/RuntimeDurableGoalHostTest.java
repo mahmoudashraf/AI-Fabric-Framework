@@ -219,6 +219,46 @@ class RuntimeDurableGoalHostTest {
         verify(fixture.gateway, times(2)).controlGoal(eq(fixture.id), eq(GoalExecutionControl.PAUSE), any());
     }
 
+    @Test void rejectedResumeCannotLeaveCanonicalReadyStateOrAnAppliedControlReceipt() throws Exception {
+        var fixture = new Fixture();
+        var values = new LinkedHashMap<>(fixture.metadata.get());
+        var state = new LinkedHashMap<>((Map<String, Object>) values.get("authoringGoal")); state.put("state", "PAUSED");
+        values.put("authoringGoal", state); fixture.metadata.set(values);
+        when(fixture.platform.renew(any(), anyString())).thenReturn(fixture.lease());
+        when(fixture.gateway.controlGoal(eq(fixture.id), eq(GoalExecutionControl.RESUME), any())).thenReturn(false);
+        var control = new RuntimeDurableGoalHost.Control("RESUME", fixture.goal, fixture.goal, fixture.work.sessionId(), fixture.work.turnId(), 1, 0, 1, null);
+        var identity = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+        var failure = catchThrowableOfType(() -> fixture.host.control(identity, fixture.conversation, fixture.id, control, "rejected-resume"), ResponseStatusException.class);
+        assertThat(failure.getStatusCode().value()).isEqualTo(409);
+        assertThat(fixture.metadata.get()).isEqualTo(values);
+        verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+    }
+
+    @Test void lifecycleNotificationCannotOverwriteANewerNativeControlWhileWaitingForCanonicalLock() throws Exception {
+        var fixture = new Fixture();
+        var paused = fixture.record.controlled(ExecutionHandleStatus.PAUSED, null, null, "GOAL_USER_PAUSED", fixture.now, Duration.ofDays(7));
+        when(fixture.conversations.updateOrchestrationState(any(), eq(0L), any())).thenAnswer(call -> {
+            when(fixture.repository.findById(fixture.id)).thenReturn(Optional.of(paused));
+            var values = new LinkedHashMap<>(fixture.metadata.get());
+            var state = new LinkedHashMap<>((Map<String, Object>) values.get("authoringGoal"));
+            state.put("state", "PAUSED"); state.put("cancellationEpoch", 2L); values.put("authoringGoal", state);
+            UnaryOperator<Map<String, Object>> mutation = call.getArgument(2); fixture.metadata.set(mutation.apply(values));
+            return new ConversationOrchestrationState(call.getArgument(0), 1, fixture.metadata.get(), fixture.now);
+        });
+        fixture.host.executionUpdated(new ExecutionSnapshot(new ExecutionHandle(fixture.id, ExecutionDurability.DURABLE,
+            ExecutionHandleStatus.RUNNING, fixture.record.deadline(), fixture.record.expiresAt(), null), null), fixture.goal);
+        assertThat((Map<String, Object>) fixture.metadata.get().get("authoringGoal"))
+            .containsEntry("state", "PAUSED").containsEntry("cancellationEpoch", 2L);
+    }
+
+    @Test void latePausedNotificationCannotFenceANewerRunningClaim() throws Exception {
+        var fixture = new Fixture(); var before = fixture.metadata.get();
+        fixture.host.executionUpdated(new ExecutionSnapshot(new ExecutionHandle(fixture.id, ExecutionDurability.DURABLE,
+            ExecutionHandleStatus.PAUSED, fixture.record.deadline(), fixture.record.expiresAt(), "GOAL_USER_PAUSED"), null), fixture.goal);
+        assertThat(fixture.metadata.get()).isEqualTo(before);
+        verify(fixture.conversations, never()).updateOrchestrationState(any(), anyLong(), any());
+    }
+
     @Test void narrowedAndEmptySourceSelectionsNeverRestoreTheBroaderPinnedDelegationGrant() {
         var mapper = new ObjectMapper();
         var pins = mapper.createObjectNode().put("one", "hash-one").put("two", "hash-two");

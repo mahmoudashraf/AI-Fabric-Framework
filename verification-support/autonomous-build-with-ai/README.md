@@ -194,9 +194,30 @@ omitted the new primitive goal-mode fields and the Runtime's actual JSON parser
 returned HTTP400. All eight failed cases had zero provider calls and no saves.
 The bounded sender now explicitly sends false/zero mode fields; it does not add
 goal authority or relax strict parsing. Eight wire checks, 108 focused backend
-checks and a real Runtime HTTP regression passed locally. Hosted verification
-of this correction is still required. Production autonomy, normal Pause/Resume,
-source-erasure closure and the new primary Harbor walkthrough are not yet closed.
+checks and a real Runtime HTTP regression passed locally. Backend B6
+`820ef3b35e178c504e55aa42ea03112f8d22e90a` passed all four release gates and
+staging rollout. Eight real customer-API cases plus follow-up/Undo, response
+presets and search changes passed, with actual cleanup and both logouts. A fresh
+normal UI Harbor run on B6/R7 again saved all five operations in six model calls
+without correction. The prior failed reports were not rewritten.
+
+Basic controls proved pause/refresh/navigation quietness, exact foreign versus
+nonexistent-ID denials, normal logout/re-auth restoration and cancellation.
+Goal control/journal endpoints intentionally use 403; session/source reads use 404.
+The first harness's blanket 404 assumption was corrected without changing product
+permissions. Forty-six backend integration tests also verify unchanged state and
+no receiver interaction for foreign, missing and expired requests.
+
+Real Resume qualification found a Runtime host bug: its canonical state remained
+PAUSED after accepting Resume, so the next SDK segment correctly fenced itself.
+The bounded host fix passed 35 native HTTP/scheduler/unit checks but is not yet
+released. The corresponding Platform fix gives each authorized new Resume a fresh
+fence epoch while preserving delivery retries; 65 integration/client checks pass.
+Existing replay and permission fences remain enforced. Encrypted source-body export
+needs the actual owned Platform user ID, which auth-session responses do not
+expose; the private verifier now obtains scoped read-only metadata rather than
+inventing an ID or weakening erasure checks. Erasure is not yet proven live.
+Production autonomy and the primary Harbor walkthrough remain unqualified.
 
 ## Spending And Rollback
 

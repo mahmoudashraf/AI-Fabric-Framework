@@ -95,6 +95,29 @@ class ConfiguredAuthoringRuntimeClientTest {
             .put("requestRevision", 2).put("cancellationEpoch", 1).put("segment", 1).put("validUntil", Instant.now().plusSeconds(3600).toString());
         assertThat(client.startGoal(binding, "cas-test", "conversation-test", "cat-test", "ACTIONS", "Prepare", authority).path("workId").asText()).isEqualTo("exec-native");
     }
+    @Test void resumeWireKeysDistinguishFreshFenceEpochsButKeepDeliveryRetriesIdentical() throws Exception {
+        var keys = new CopyOnWriteArrayList<String>();
+        var bodies = new CopyOnWriteArrayList<com.fasterxml.jackson.databind.JsonNode>();
+        server.createContext("/api/chat/me/conversations/conversation-test/work/exec-native/control", exchange -> {
+            keys.add(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+            bodies.add(mapper.readTree(exchange.getRequestBody()));
+            byte[] response = "{\"workId\":\"exec-native\",\"goal\":{\"state\":\"RUNNING\"}}".getBytes();
+            exchange.sendResponseHeaders(keys.size() == 1 ? 503 : 200, response.length);
+            exchange.getResponseBody().write(response); exchange.close();
+        });
+        var first = mapper.createObjectNode().put("authorityId", "cag-test").put("goalId", "cag-test")
+            .put("sessionId", "cas-test").put("turnId", "cat-test").put("command", "RESUME")
+            .put("requestRevision", 1).put("cancellationEpoch", 2).put("segment", 1)
+            .put("validUntil", Instant.now().plusSeconds(3600).toString()).put("previewOnly", false);
+        assertThatThrownBy(() -> client.controlWork(binding, "cas-test", "conversation-test", "exec-native", first))
+            .hasMessageContaining("INCOMPLETE_503");
+        assertThat(keys).hasSize(1);
+        client.controlWork(binding, "cas-test", "conversation-test", "exec-native", first);
+        var second = first.deepCopy().put("cancellationEpoch", 3).put("segment", 2);
+        client.controlWork(binding, "cas-test", "conversation-test", "exec-native", second);
+        assertThat(keys).containsExactly("exec-native:RESUME:1:2", "exec-native:RESUME:1:2", "exec-native:RESUME:1:3");
+        assertThat(bodies).containsExactly(first, first, second);
+    }
     private com.fasterxml.jackson.databind.JsonNode message(Instant deadline) {
         return client.message(binding, "cas-test", "conversation-test", "cat-test", "ACTIONS", "Prepare the documented actions", false, 2, deadline);
     }

@@ -284,33 +284,36 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
             var work = root.work().renewed(control.requestRevision(), control.cancellationEpoch(), Math.max(1, control.segment()), root.work().authorityDeadline());
             renewedIdentity(root, work, platform.renew(work, workId), trusted(identity, conversationId), workId);
         }
+        var gateway = required(gateways);
+        var trusted = trusted(identity, conversationId);
+        var command = "DIRECTIVE".equals(control.command()) ? GoalExecutionControl.RESUME : GoalExecutionControl.valueOf(control.command());
+        // This canonical row lock/transaction also contains the co-resident SDK JDBC CAS.
+        // Workers cannot claim the queued native row before its canonical authority is ready.
         required(conversations).updateOrchestrationState(scope, root.controlEpoch(), values -> {
             var copy = new LinkedHashMap<>(values); var next = new LinkedHashMap<>(mapper.convertValue(values.get(STATE), new TypeReference<Map<String, Object>>() {}));
             if (!workId.equals(next.get("workId")) || ((Number) next.get("requestRevision")).longValue() > control.requestRevision()
                 || ((Number) next.get("cancellationEpoch")).longValue() > control.cancellationEpoch())
                 throw new ResponseStatusException(CONFLICT, "AUTHORING_GOAL_STALE_CONTROL");
+            boolean lockedReplay = key.equals(next.get("lastControlKey"));
+            if (lockedReplay) {
+                if (!fingerprint.equals(next.get("lastControlHash"))) throw new ResponseStatusException(CONFLICT, "AUTHORING_GOAL_CONTROL_KEY_REUSED");
+                if (Boolean.TRUE.equals(next.get("lastControlApplied"))) return copy;
+            }
+            var current = required(repositories).findById(workId).orElseThrow(RuntimeDurableGoalHost::missing);
+            boolean alreadyApplied = lockedReplay && (command == GoalExecutionControl.RESUME
+                ? Set.of(ExecutionHandleStatus.QUEUED, ExecutionHandleStatus.RUNNING, ExecutionHandleStatus.YIELDED).contains(current.status())
+                : command == GoalExecutionControl.CANCEL && current.status() == ExecutionHandleStatus.CANCELLED);
+            if (!alreadyApplied && "DIRECTIVE".equals(control.command())) gateway.controlGoal(workId, GoalExecutionControl.PAUSE, trusted);
+            if (!alreadyApplied && !("DIRECTIVE".equals(control.command()) && !directiveResumes)
+                && !gateway.controlGoal(workId, command, trusted) && (command == GoalExecutionControl.RESUME || !current.terminal()))
+                throw new ResponseStatusException(CONFLICT, "AUTHORING_GOAL_CONTROL_CONFLICT");
             next.put("requestRevision", control.requestRevision()); next.put("cancellationEpoch", control.cancellationEpoch());
             next.put("lastControlKey", key); next.put("lastControlHash", fingerprint);
-            next.put("lastControlApplied", false); next.put("lastControlResume", directiveResumes);
+            next.put("lastControlApplied", true); next.put("lastControlResume", directiveResumes);
             next.remove("segmentLease");
-            next.put("state", "CANCEL".equals(control.command()) ? "CANCELLED" : "PAUSED"); copy.put(STATE, next); return copy;
-        });
-        var gateway = required(gateways);
-        var trusted = trusted(identity, conversationId);
-        var command = "DIRECTIVE".equals(control.command()) ? GoalExecutionControl.RESUME : GoalExecutionControl.valueOf(control.command());
-        boolean alreadyApplied = replay && (command == GoalExecutionControl.RESUME
-            ? Set.of(ExecutionHandleStatus.QUEUED, ExecutionHandleStatus.RUNNING, ExecutionHandleStatus.YIELDED).contains(record.status())
-            : command == GoalExecutionControl.CANCEL && record.status() == ExecutionHandleStatus.CANCELLED);
-        if (!alreadyApplied && "DIRECTIVE".equals(control.command())) gateway.controlGoal(workId, GoalExecutionControl.PAUSE, trusted);
-        if (!alreadyApplied && !("DIRECTIVE".equals(control.command()) && !directiveResumes)
-            && !gateway.controlGoal(workId, command, trusted) && !record.terminal())
-            throw new ResponseStatusException(CONFLICT, "AUTHORING_GOAL_CONTROL_CONFLICT");
-        required(conversations).updateOrchestrationState(scope, root.controlEpoch(), values -> {
-            var copy = new LinkedHashMap<>(values); var next = new LinkedHashMap<>(mapper.convertValue(values.get(STATE), new TypeReference<Map<String, Object>>() {}));
-            if (key.equals(next.get("lastControlKey")) && fingerprint.equals(next.get("lastControlHash"))) {
-                next.put("lastControlApplied", true); copy.put(STATE, next);
-            }
-            return copy;
+            next.put("state", "CANCEL".equals(control.command()) ? "CANCELLED"
+                : "RESUME".equals(control.command()) || directiveResumes ? "QUEUED" : "PAUSED");
+            copy.put(STATE, next); return copy;
         });
         return find(identity, conversationId, workId);
     }
@@ -323,7 +326,7 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
         catch (ResponseStatusException revoked) { return; }
         if (!authorityReference.equals(root.work().authorityReference())) throw denied();
         String lifecycle = lifecycle(snapshot.handle().status(), workflow(snapshot));
-        updateState(root, record.invocationId(), lifecycle);
+        if (!updateState(root, record, lifecycle)) return;
         if (!Set.of("COMPLETE", "FAILED", "BLOCKED").contains(lifecycle) || snapshot.result() == null) return;
         JsonNode output = mapper.valueToTree(snapshot.result().output());
         String answer = output.path("answer").asText(null);
@@ -552,19 +555,24 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
             next.put("workId", workId); copy.put(STATE, next); return copy;
         });
     }
-    private void updateState(Root root, String workId, String lifecycle) {
-        var record = required(repositories).findById(workId).orElseThrow();
+    private boolean updateState(Root root, DurableExecutionRecord record, String lifecycle) {
+        String workId = record.invocationId();
         var scope = scopeFromRoot(record, root);
-        if (required(conversations).status(scope).controlEpoch() != root.controlEpoch()) return;
+        if (required(conversations).status(scope).controlEpoch() != root.controlEpoch()) return false;
+        var applied = new java.util.concurrent.atomic.AtomicBoolean();
         required(conversations).updateOrchestrationState(scope, root.controlEpoch(), values -> {
             var copy = new LinkedHashMap<>(values); var next = new LinkedHashMap<>(mapper.convertValue(values.get(STATE), new TypeReference<Map<String, Object>>() {}));
+            var current = required(repositories).findById(workId).orElseThrow(RuntimeDurableGoalHost::missing);
+            if (current.version() != record.version() || current.status() != record.status()) return copy;
             if (workId.equals(next.get("workId"))) {
                 next.put("state", lifecycle);
                 if (!"RUNNING".equals(lifecycle)) next.remove("segmentLease");
                 copy.put(STATE, next);
+                applied.set(true);
             }
             return copy;
         });
+        return applied.get();
     }
     private void bindSegmentLease(Root root, ConversationScope scope, GoalExecutionClaim claim, ConversationTurnLease lease, int segment) {
         var record = required(repositories).findById(claim.invocationId()).orElseThrow();
