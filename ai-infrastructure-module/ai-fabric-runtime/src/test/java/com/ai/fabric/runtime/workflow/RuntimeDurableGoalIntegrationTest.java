@@ -101,6 +101,98 @@ class RuntimeDurableGoalIntegrationTest {
         properties.add("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", () -> hash);
     }
 
+    @Test void canonicalHttpBoundedSenderRunsOnGoalEnabledProfileWithoutStartingADurableGoal() throws Exception {
+        var client = client(); var profile = bundle.select("ACTIONS", null);
+        assertThat(specialists.require(profile.specialist()).executionProfile().workflowPolicy().goalMode()).isTrue();
+        var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();
+        var decisions = new ConcurrentLinkedQueue<>(List.of(save("The bounded edit is saved."),
+            "{\"type\":\"COMPLETE\",\"message\":\"The bounded edit is saved in the draft.\"}"));
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall(); calls.incrementAndGet();
+            return AIGenerationResponse.builder().content(Objects.requireNonNull(decisions.poll())).build();
+        }).when(core).generateContent(any(), any());
+        doAnswer(call -> {
+            String action = call.getArgument(0); Map<String, Object> parameters = call.getArgument(1);
+            ai.fabric.intent.action.ActionContext context = call.getArgument(2);
+            assertThat(context.authContext().getSubjectId()).isEqualTo("authoring:" + client.session());
+            assertThat(context.authContext().getAuthMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+            assertThat(context.authContext().getCallerType()).isEqualTo("TRUSTED_BACKEND");
+            assertThat(context.authContext().getGrantedScopes()).contains("configuration:author");
+            assertThat(context.metadata()).containsEntry("authoringSessionId", client.session())
+                .containsEntry("authoringTurnId", client.turn()).doesNotContainKey("authoringGoalId");
+            var result = MAPPER.createObjectNode();
+            if ("authoring_update_draft".equals(action)) {
+                assertThat(parameters.get("operationId")).isEqualTo(client.turn() + ":step:1");
+                writes.add(String.valueOf(parameters.get("operationId")));
+                result.put("operationId", String.valueOf(parameters.get("operationId"))).put("status", "EXECUTED").put("published", false);
+            } else result.putObject("sourceCoverage").put("required", false);
+            return new AuthoringPlatformClient.Reply(200, result);
+        }).when(platform).call(anyString(), anyMap(), any());
+        // Match ConfiguredAuthoringRuntimeClient.message, including explicit primitive defaults.
+        var body = MAPPER.createObjectNode().put("query", "Make this bounded edit and save its draft.");
+        var work = body.putObject("configurationWork").put("sessionId", client.session()).put("turnId", client.turn())
+            .put("task", "ACTIONS").put("profileId", profile.id()).put("releaseId", "release-test")
+            .put("bundleHash", bundle.contentHash()).put("previewOnly", false).put("maxCorrections", 2)
+            .put("goalMode", false).put("requestRevision", 0).put("cancellationEpoch", 0).put("segment", 0);
+        assertThat(work.fieldNames()).toIterable().containsExactlyInAnyOrder("sessionId", "turnId", "task", "profileId",
+            "releaseId", "bundleHash", "previewOnly", "maxCorrections", "goalMode", "requestRevision", "cancellationEpoch", "segment");
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web).build();
+        var converters = web.getBean(org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.class).getMessageConverters();
+        assertThat(converters.stream().filter(converter -> converter.canRead(ChatQueryRequest.class,
+            org.springframework.http.MediaType.APPLICATION_JSON)).findFirst().orElseThrow().getClass().getName())
+            .contains("JacksonJsonHttpMessageConverter");
+        java.util.function.Function<JsonNode, org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder> post = value -> {
+            var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/api/chat/me/conversations/{conversation}/messages", client.conversation())
+                .contentType("application/json").content(value.toString()).header("Idempotency-Key", client.turn());
+            client.request().getHeaderNames().asIterator().forEachRemaining(name -> request.header(name, client.request().getHeader(name)));
+            return request;
+        };
+        var before = funded.readCurrent(); var binding = funded.readStore().binding();
+        for (String field : List.of("goalMode", "requestRevision", "cancellationEpoch", "segment")) {
+            var omitted = body.deepCopy(); ((ObjectNode) omitted.path("configurationWork")).remove(field);
+            mvc.perform(post.apply(omitted)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+            var explicitNull = body.deepCopy(); ((ObjectNode) explicitNull.path("configurationWork")).putNull(field);
+            mvc.perform(post.apply(explicitNull)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/chat/me/conversations/{conversation}/messages", client.conversation()).contentType("application/json")
+            .content(body.toString()).header("Idempotency-Key", client.turn()))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is4xxClientError());
+        assertThat(calls).hasValue(0); assertThat(writes).isEmpty(); assertThat(funded.readCurrent()).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=?", Integer.class, client.conversation())).isZero();
+        var response = mvc.perform(post.apply(body)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
+        var result = MAPPER.readTree(response.getResponse().getContentAsByteArray());
+        assertThat(result.path("success").asBoolean()).as("bounded native HTTP response %s", result).isTrue();
+        assertThat(result.path("type").asText()).isNotEqualTo("WORK_ACCEPTED");
+        assertThat(result.path("workId").isMissingNode()).isTrue(); assertThat(result.path("goal").isMissingNode()).isTrue();
+        var workflow = result.path("metadata").path("workflow");
+        assertThat(workflow.path("state").asText()).isEqualTo("COMPLETE");
+        assertThat(workflow.path("usage").path("modelCalls").asInt()).isEqualTo(2);
+        assertThat(workflow.path("usage").path("writes").asInt()).isEqualTo(1);
+        assertThat(calls).hasValue(2); assertThat(writes).containsExactly(client.turn() + ":step:1");
+        var bounded = repository.findById(client.turn()).orElseThrow();
+        assertThat(bounded.status()).isEqualTo(ExecutionHandleStatus.SUCCEEDED); assertThat(bounded.goalExecution()).isFalse();
+        assertThat(repository.findById(client.goal())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_specialist_execution WHERE goal_authority_reference=?", Integer.class, client.goal())).isZero();
+        var scope = new ai.fabric.chat.control.ConversationScope("tenant-test", "dep-test", client.conversation(), "authoring:" + client.session());
+        canonical.orchestrationState(scope, 0).ifPresent(state -> assertThat(MAPPER.valueToTree(state.metadata()).has("authoringGoalRoots")).isFalse());
+        verify(platform, never()).renew(any(), nullable(String.class));
+        var replay = mvc.perform(post.apply(body)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
+        assertThat(MAPPER.readTree(replay.getResponse().getContentAsByteArray())).isEqualTo(result);
+        assertThat(calls).hasValue(2); assertThat(writes).hasSize(1);
+        assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
+        assertThat(funded.readCurrent().providerAttempts()).isEqualTo(before.providerAttempts());
+        assertThat(funded.readCurrent().accountedUsage()).isEqualTo(before.accountedUsage());
+        assertThat(funded.readCurrent().approval()).isEqualTo(before.approval());
+        assertThat(funded.readCurrent().effectiveLimits()).isEqualTo(before.effectiveLimits());
+        assertThat(funded.readStore().binding()).isEqualTo(binding);
+        for (String role : List.of("USER", "AI")) assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role=?", Integer.class, client.conversation(), role)).isEqualTo(1);
+        chat.deleteConversation(client.conversation(), "erase-bounded-http", client.request());
+        assertThat(repository.findById(client.turn())).isEmpty();
+    }
+
     @Test void canonicalHttpAdmissionSurvivesUnavailableRenewalAndResumesTheSameNativeRoot() throws Exception {
         var client = client(); var unavailable = new java.util.concurrent.atomic.AtomicBoolean(true);
         var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();

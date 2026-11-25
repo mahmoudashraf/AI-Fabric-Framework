@@ -11,6 +11,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ConfiguredAuthoringRuntimeClientTest {
     HttpServer server; ExecutorService executor; ObjectMapper mapper = new ObjectMapper();
@@ -33,6 +35,28 @@ class ConfiguredAuthoringRuntimeClientTest {
             exchange.getResponseBody().write(response); exchange.close();
         });
         assertThat(message(Instant.now().plusSeconds(5)).path("answer").asText()).isEqualTo("Saved");
+    }
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void quickEditSendsExplicitBoundedModeAndAllPrimitiveWorkFields(boolean preview) throws Exception {
+        var observed = new java.util.concurrent.atomic.AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
+        server.createContext("/api/chat/me/conversations/conversation-test/messages", exchange -> {
+            observed.set(mapper.readTree(exchange.getRequestBody()));
+            byte[] response = "{\"success\":true}".getBytes();
+            exchange.sendResponseHeaders(200, response.length); exchange.getResponseBody().write(response); exchange.close();
+        });
+        client.message(binding, "cas-test", "conversation-test", "cat-test", "ACTIONS", "Prepare", preview, 5, Instant.now().plusSeconds(5));
+        var work = observed.get().path("configurationWork");
+        assertThat(work.path("goalMode").isBoolean()).isTrue();
+        assertThat(work.path("goalMode").booleanValue()).isFalse();
+        assertThat(work.path("previewOnly").booleanValue()).isEqualTo(preview);
+        assertThat(work.path("maxCorrections").intValue()).isEqualTo(2);
+        for (String field : List.of("requestRevision", "cancellationEpoch", "segment")) {
+            assertThat(work.path(field).isIntegralNumber()).as(field).isTrue();
+            assertThat(work.path(field).longValue()).as(field).isZero();
+        }
+        for (String field : List.of("authorityReference", "goalId", "authorityDeadline"))
+            assertThat(work.has(field)).as(field).isFalse();
     }
     @Test void unavailableReceiverIsNotAutomaticallyRetried() {
         var calls = new AtomicInteger(); server.createContext("/", exchange -> { calls.incrementAndGet(); exchange.sendResponseHeaders(503, -1); exchange.close(); });

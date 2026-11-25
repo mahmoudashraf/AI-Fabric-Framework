@@ -31,7 +31,8 @@ public class ConfiguredAuthoringRuntimeClient {
         var request = mapper.createObjectNode().put("query", query);
         request.putObject("configurationWork").put("sessionId", sessionId).put("turnId", turnId).put("task", task)
             .put("profileId", binding.profileId()).put("releaseId", binding.releaseId()).put("bundleHash", binding.bundleHash())
-            .put("previewOnly", preview).put("maxCorrections", Math.min(corrections, binding.maxCorrections()));
+            .put("previewOnly", preview).put("maxCorrections", Math.min(corrections, binding.maxCorrections()))
+            .put("goalMode", false).put("requestRevision", 0).put("cancellationEpoch", 0).put("segment", 0);
         return exchange(binding, sessionId, conversationId, "POST", "/messages", request, turnId, deadline);
     }
     public JsonNode conversation(AuthoringBrainBindingService.Binding binding, String sessionId, String conversationId) {

@@ -21856,4 +21856,47 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   model/pricing configuration authority; 110 offline tests passed, not invoked.
   Production remains on the prior configured bounded assistant, unmodified by
   the staging model comparison. Primary Harbor and the new video remain pending.
+- R7 was committed/pushed as `7983f1e7d5e917ae0fb20e3ee77d2145ee60386d` after
+  all four source hashes and both test-log hashes matched the freeze manifest.
+  Main exec 96699 owns Runtime image CI 45538896695 -> normal staging artifact
+  registration -> same-version Astra software apply. CI is running; do not start
+  inference or another apply until its proof and verified logout exist. Backend
+  stays B5/UI B1. No final staging acceptance or production rollout is claimed.
+
+### 010.76 Astra Autonomy Passes, Quick Edit Wire Regression - 25 November 2026
+
+- R7 Runtime CI 45538896695 passed. Actual staging artifact `dsa-30277351`,
+  digest sha256:2effbd7fe3658a713db831981e38e20d64c3f6258cc3cc1f0106183d8f5d8ce1,
+  release `rel-34d3f016` is APPLIED_VERIFIED/PASSED/ACTIVE. Backend B5 and UI B1
+  remain unchanged. SDK 0.8.70, effective Astra/8192/timeout40, exact owned keys,
+  original funding/usage/pricing receipt, host capacity and storage were retained.
+- Fresh read-only acceptance passed all 12 gates. The earlier R6 SDK-count
+  failure remains preserved: its nine critical official JAR hashes were correct;
+  the corrected inventory validator separately checks all 24 packaged modules.
+- Three independent real UI Harbor preparations passed from one blank Prepare,
+  without coaching or manual configuration saves: all five operations, exact
+  owned credential references, visitor permissions and write confirmation;
+  each used six model calls, zero corrections, one executed save and one segment.
+  Costs USD0.70306/0.69339/0.65832. All fixture/session cleanup and both logouts
+  passed. Staging cumulative conservative ledger USD13.44572275 includes both
+  earlier uncertain provider holds; no accounting reset or refund occurred.
+- Quick edit regression then failed all eight cases before model execution:
+  AUTHORING_CANONICAL_DELIVERY_INCOMPLETE_400, no workflow, zero provider/chat/
+  cost delta. Actual native logs prove strict JSON parsing rejected the absent
+  primitive `goalMode` field, not an autonomy planning/model failure. The normal
+  bounded sender omitted the new record primitives. Main is adding explicit
+  false/zero mode fields and wire tests; Carver owns a native HTTP regression.
+  No parser relaxation, extra framework publication or paid blind retry.
+- Framework owns the basic reusable READ/WRITE/observation/repair/continuation
+  loop; Platform provides context, scoped tools and UI only. Production autonomy,
+  normal Pause/Resume and erasure qualification, primary Harbor and the new
+  walkthrough video remain open. Exact restart recovery stays deferred.
+- B6 bounded-sender correction is locally qualified: eight wire tests and 108
+  focused backend tests passed, plus one real Runtime/Jackson3 HTTP test on a
+  goal-enabled profile. The native test rejects eight missing/null primitive
+  forms before admission, then proves authorized bounded completion, one save,
+  idempotent replay, unchanged funding and no autonomous root. Independent
+  review found no blocking issue; no Runtime production code or public SDK
+  changed. Private regression diagnostics now show actual failure before limit
+  checks (48 offline PASS), retaining the original eight failed live reports.
 

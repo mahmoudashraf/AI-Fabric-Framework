@@ -179,6 +179,25 @@ Private authenticated receipts, provider metadata and release intents belong in
 `~/.codex/private/loomai-autonomy-01076/`, not Git. Never include credentials,
 raw provider responses or private reasoning in this record.
 
+## Latest Staging Qualification - 25 November
+
+R7 `7983f1e7d5e917ae0fb20e3ee77d2145ee60386d` is verified on staging with
+Framework 0.8.70 and the configured Astra generation purpose. Three fresh Harbor
+UI requests each prepared all five documented operations with six model calls,
+zero corrections and one executed draft save, without coaching or manual repair.
+Scoped credential references, visitor permissions and confirmation semantics
+passed. All temporary resources/sessions were removed and both logouts passed.
+The earlier unsuccessful attempts above remain retained as separate evidence.
+
+Quick edit then exposed a request-format regression before inference: its sender
+omitted the new primitive goal-mode fields and the Runtime's actual JSON parser
+returned HTTP400. All eight failed cases had zero provider calls and no saves.
+The bounded sender now explicitly sends false/zero mode fields; it does not add
+goal authority or relax strict parsing. Eight wire checks, 108 focused backend
+checks and a real Runtime HTTP regression passed locally. Hosted verification
+of this correction is still required. Production autonomy, normal Pause/Resume,
+source-erasure closure and the new primary Harbor walkthrough are not yet closed.
+
 ## Spending And Rollback
 
 The owner approved at most USD50 combined qualification spend. Durable additive
