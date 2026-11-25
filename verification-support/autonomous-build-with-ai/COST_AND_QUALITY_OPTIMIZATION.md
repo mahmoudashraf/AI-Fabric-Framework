@@ -219,3 +219,33 @@ No Framework source/release change, prompt rewrite, larger output allowance,
 funding increase or infrastructure change was required for these bounded fixes.
 The last idle staging ledger was USD31.9227035 under33; production remains
 USD12.48094 under20, with the separate2 reserve and55 combined ceiling intact.
+
+### Knowledge Context And Final Stage Checkpoint
+
+After the empty-filter fix, the real knowledge citation edit completed
+autonomously (11 calls,3 corrections,1 save). Quick edit still proposed an object
+where the source array belongs. The disable-source request also conflicted with
+an actual specialist dependency, so it is not a valid isolated routine edit.
+Its original FAILED result is retained, not relabeled as a passing rejection.
+
+The bounded follow-up provides an identity-preserving source UPSERT example and
+returns complete knowledge/entity/dataset context without unrelated model,
+response, action and specialist catalogues. All saves still validate the full
+draft and dependencies. Nothing is removed from saved configuration. Explicit
+dependency findings must be explained, not bypassed. All88 focused backend tests
+passed, including preservation of unknown source fields and sibling sources.
+The normal Quick edit case now edits the citation label while retaining enabled
+state. A separate dependency case checks that an incompatible request leaves
+the full draft unchanged and produces a useful explanation instead of a false
+save or failed generic reply. Both still await the follow-up deployment.
+
+Staging Runtime and UI `defa59983` are now verified, SDK72/same nine profiles and
+Mini LOW. Authoring release `rel-38ba13bb` / `ver-c474e862`, artifact `dsa-722a3566`.
+Real document shortcut `low-fixed-2` passed actual Autonomous and Quick edit
+requests, exact document scope, both normal cancellations, source restoration,
+zero page errors and sign-out. A real guide request passed EXPLAIN/zero writes,
+with its full Brain draft unchanged. This is mode/control and guide proof, not
+a claim that either cancelled document optimization completed successfully.
+
+Production is still unchanged at this checkpoint. No acceptance gate has been
+created prematurely. Last idle staging accounting was USD32.0451905 under33.

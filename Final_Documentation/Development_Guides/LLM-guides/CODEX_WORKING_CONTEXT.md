@@ -22701,3 +22701,44 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   acceptancegate beforeprod. Currentmainbeforecommit5bb; nativebackend/runtime
  23ff, stageUIe694, prodUI23ff. Allshelltestscompleted/collected atcheckpoint.
 
+## 2026-11-25 22:24 UTC Stage Runtime/UI Verified - Knowledge Follow-up Local
+
+- Main defa59983f3c71a1e25524c14da1831ac2a2b26d pushed. All5gatesPASS:
+  runtime45710671991/core45710671675/code45710727274/storage45710734167/
+  quota45710740839. Codebackend_tests=false was deliberate: actualbackendtree
+  ac8ddd85 is EXACTequal5bb fulltestedbackend. Sourceequivalence privateproof
+  saved. 5bbcode45707813903 FULLdefault run nowPASS, all4gatesPASS.
+- STAGE backend5bb/nativehealthy digest6f9e7a1.../jobdo5m3e4cx18d3ogk5nzumi9s;
+  UIdef verified; RuntimeDef/dsa722a3566/digest87451b07/9official72jarschecked.
+  SAMEauthoringapp normallyappliedver-c474e862/rel-38ba13bb verifiedACTIVE.
+  Nineprofiles/hash/MiniLOW/providerfunding+usage+keys+storage/capacity preserved.
+  No Frameworkchange/release. Both helpersfinished/logout; no activeopsactors.
+- mini-low-knowledge-fixed-1: realcitationlabelAUTOPASS11calls/3corrections/1save.
+  QuickFAILretained: wrongarray-shaperepairs AND disablingownedsource conflicts
+  withactualworkspace specialistrequirement. Allsettingsrestored/no publish.
+  Do notclaiminvalidQuicktestaspassorforge rejection. NewvalidQuickedit changes
+  onlycitationlabel; newseparate dependencyCheck flagtests honest explanation,
+  0executedwrites/full-draftpreservation withknownactualdependency.
+- Follow-upLOCALbackend: AuthoringResourceContracts addsdomain-neutral source
+  identity/UPSERT/citation/enablement guidance+workingexample. ContextKNOWLEDGE
+  nowonlycompleteentity/source/datasetsettings; unrelatedcataloguesomitted,
+  full-draftvalidation/allowedpaths/secretprojection/unknownfieldspreserved.
+  REDtestsshowedmissingcontract+6vs3configurationgroups; all88focusedGREEN,
+  plusmatrix2PASS. Notcommitted/deployedatentry. No extraRuntime/UI change.
+- REALstage document-shortcut-low-fixed-2 PASS ondefRuntime/UI: actualAUTOand
+  QuickDOC_PREPARATION requests, exactsample, normalCancelbothincloldgoal->Quick,
+  sourceprep restored/activeindexunchanged, 0pageerrors/signout. ExtraactualGUI
+  guideEXPLAIN2calls/0writes/fullBraindraftunchanged; technicalfieldanswerbut
+  accuratepresets/nofalsesave. Thisproveshandoff/controlNOTcompletedoptimization.
+  Originallow-1 earlycancel502retained. Neverconcurrentsame-staffactor logout.
+- LastidleStage32.0451905/prod12.48094; caps33+20+reserve2=55, unchanged. Need
+  commit/pushbackendfollowup andfullbackendCI(ui_build=false allowedONLYbecause
+  UI/Runtime treesidenticaltodef anditsgatePASS); backendimage/core/storage/quota.
+  Keep UI+RuntimeDef images, SDK72. Applynewbackendstageonlythenvalidknowledge
+  bothmodes+dependencynegative. StageacceptanceNOTyetcreated; produnchanged/Astra
+  butZEROnewpaidproductioncalls. Allother12taskslowcompositePASS; realHarborLOW
+  importPASS alreadyon23ffRuntime/unchangedprompt/model. Neednewstagingacceptance
+  keyedactualRuntimeDef+newbackend andoriginalproofreferences, thenprodbackend+
+  UIdef+RuntimeDef, Mini modelnormalpublish/apply, LOWconfigsamecap, fullfresh
+  prod13both+negative+HarborUI+documenthandoff/guide. Don't overwriteoldgates.
+

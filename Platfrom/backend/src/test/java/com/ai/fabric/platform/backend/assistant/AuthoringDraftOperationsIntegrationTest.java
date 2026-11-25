@@ -125,6 +125,22 @@ class AuthoringDraftOperationsIntegrationTest {
         assertThat(selected.at("/configuration/routingConfig/actions").properties()).hasSize(1);
         assertThat(selected.at("/configuration/routingConfig/actions/first/method").asText()).isEqualTo("GET");
     }
+    @Test void knowledgeContextContainsItsCompleteSettingsWithoutUnrelatedProviderAndActionCatalogues() throws Exception {
+        var session = sessions.findById(sessionId).orElseThrow(); session.task = "KNOWLEDGE"; sessions.saveAndFlush(session);
+        var config = mapper.readTree("{\"entityConfig\":{\"entities\":{}},\"knowledgeSourceConfig\":{\"sources\":[{\"id\":\"source-one\",\"attributionLabel\":\"Policies\",\"future\":{\"keep\":true}}]},\"marketplaceDatasetConfig\":{\"datasets\":[]},\"providerConfig\":{\"generationModel\":\"unrelated\"},\"promptConfig\":{\"instructions\":\"unrelated\"},\"actionsConfig\":{\"actions\":[]}}");
+        var catalogue = mapper.createObjectNode(); AuthoringResourceContracts.populate(mapper, catalogue, "KNOWLEDGE");
+        catalogue.put("actionContract", "unrelated"); catalogue.putArray("llmProviders").add("unrelated");
+        when(resources.load("DEPLOYMENT_DRAFT", resourceId, "KNOWLEDGE")).thenReturn(new AuthoringResourceService.Snapshot(
+            customerId, "Fixture", config, catalogue, List.of("/entityConfig", "/knowledgeSourceConfig", "/marketplaceDatasetConfig"), "draft", true, ""));
+        bind(false);
+        var result = operations.context(caller, new AuthoringDraftOperations.ContextRead(List.of(), List.of()));
+        assertThat(result.path("configuration").properties()).hasSize(3);
+        for (String field : List.of("entityConfig", "knowledgeSourceConfig", "marketplaceDatasetConfig"))
+            assertThat(result.path("configuration").path(field)).isEqualTo(config.path(field));
+        assertThat(result.at("/contracts/knowledgeSourceChangeExample/operation").asText()).isEqualTo("UPSERT");
+        assertThat(result.path("contracts").has("actionContract")).isFalse();
+        assertThat(result.path("contracts").has("llmProviders")).isFalse();
+    }
     @Test void explicitPreparationCarriesAMatchingSaveIdentityAndNoOpChecksNeedNoWrite() throws Exception {
         var session = sessions.findById(sessionId).orElseThrow();
         var content = mapper.readTree(crypto.decrypt(sessionId, session.encryptedContent));

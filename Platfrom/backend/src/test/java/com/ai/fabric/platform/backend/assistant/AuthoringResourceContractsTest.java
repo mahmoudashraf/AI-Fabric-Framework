@@ -5,6 +5,20 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class AuthoringResourceContractsTest {
+    @Test void knowledgeSourceExampleUsesTheExistingIdentityMergeWithoutLosingSiblingFields() throws Exception {
+        var mapper = new ObjectMapper(); var catalogue = mapper.createObjectNode();
+        AuthoringResourceContracts.populate(mapper, catalogue, "KNOWLEDGE");
+        assertThat(catalogue.path("knowledgeSourceChangeExample").isObject()).isTrue();
+        var example = (com.fasterxml.jackson.databind.node.ObjectNode) catalogue.path("knowledgeSourceChangeExample").deepCopy();
+        assertThat(example.path("operation").asText()).isEqualTo("UPSERT");
+        assertThat(example.path("path").asText()).isEqualTo("/knowledgeSourceConfig/sources");
+        example.put("key", "source-one"); ((com.fasterxml.jackson.databind.node.ObjectNode) example.path("value")).put("id", "source-one");
+        var before = mapper.readTree("{\"knowledgeSourceConfig\":{\"sources\":[{\"id\":\"source-one\",\"attributionLabel\":\"Original\",\"enabled\":true,\"future\":{\"keep\":true}},{\"id\":\"other\",\"enabled\":false}]}}");
+        var expected = before.deepCopy(); ((com.fasterxml.jackson.databind.node.ObjectNode) expected.at("/knowledgeSourceConfig/sources/0"))
+            .put("attributionLabel", example.at("/value/attributionLabel").asText());
+        var saved = new AuthoringChanges(mapper).apply(before, mapper.createArrayNode().add(example), java.util.List.of("/knowledgeSourceConfig"));
+        assertThat(saved.candidate()).isEqualTo(expected);
+    }
     @Test void searchGuidanceDistinguishesCandidatePoolFromFinalEvidenceUsingConsoleLabels() {
         var mapper = new ObjectMapper();
         for (String task : new String[] {"SEARCH", "BRAIN_SETUP"}) {

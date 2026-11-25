@@ -7,7 +7,7 @@ export const resourceCases = [
   {
     id: 'knowledge', task: 'KNOWLEDGE', profile: 'data', auth: 'STAFF',
     auto: 'Change the citation label of the existing approved support document source to Office approved policies. Preserve its identity, filters, authentication, dataset and all other settings. Save the draft without indexing or publishing.',
-    quick: 'Temporarily disable that same approved support document source in this draft. Keep its citation label and all connection, identity, approval and authentication settings intact for re-enabling. Do not remove or publish it.',
+    quick: 'Change only that same source citation label to Office policy guide. Preserve its enabled state, all connection, identity, approval and authentication settings. Save without publishing or indexing.',
     async prepare({ api, privateRoot, save, environment }) {
       const inventory = JSON.parse(fs.readFileSync(path.join(privateRoot, 'loomai-hybrid-retrieval-01073', 'authoring-01075-' + environment + '-document-inventory.private.json')))
       const id = inventory.brain, before = await api('/api/deployments/' + id + '/draft')
@@ -34,7 +34,7 @@ export const resourceCases = [
     verify(before, after, mode) {
       const expected = structuredClone(configs(before)), source = expected.knowledgeSourceConfig.sources.find(s => s.id === 'approved-support-documents')
       if (mode === 'AUTONOMOUS') source.attributionLabel = 'Office approved policies'
-      else source.enabled = false
+      else source.attributionLabel = 'Office policy guide'
       assert.deepEqual(configs(after), expected)
     },
   },

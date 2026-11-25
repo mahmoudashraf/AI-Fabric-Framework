@@ -30,6 +30,13 @@ const allCases = [...brainCases, ...resourceCases]
 assert.ok(!selected || selected.every(id => allCases.some(c => c.id === id)))
 const modes = process.env.LOOMAI_AREA_MODES?.split(',') ?? ['AUTONOMOUS', 'BOUNDED']
 assert.ok(modes.every(m => ['AUTONOMOUS', 'BOUNDED'].includes(m)))
+const dependencyCheck = process.env.LOOMAI_KNOWLEDGE_DEPENDENCY_CHECK === 'true'
+if (dependencyCheck) { assert.deepEqual(selected, ['knowledge']); assert.deepEqual(modes, ['BOUNDED']) }
+const cases = allCases.filter(c => !selected || selected.includes(c.id)).map(c => dependencyCheck ? {
+  ...c, id: 'knowledge-dependency', expectBlocked: true,
+  quick: 'Disable the existing approved support document source in this draft. Preserve every other setting, including dependent specialist plans. If it is required by another capability, explain the dependency and leave the draft unchanged. Do not index or publish.',
+  verify(before, after) { assert.deepEqual(configs(after), configs(before)) },
+} : c)
 const report = { status: 'RUNNING', environment, label, framework: '0.8.72', entry: 'PUBLIC_CUSTOMER_API_WITH_NORMAL_UI_AUTH', cases: [], pageErrors: [], at: new Date().toISOString() }
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -111,7 +118,8 @@ async function turn(c, session, requestedMode, prefix) {
   } else {
     assert.equal(session.activeTurnId, null)
     assert.equal(result.workflow?.selection?.profileId, c.profile)
-    if (!c.readOnly) { assert.equal(result.status, 'SAVED'); assert.ok(result.operations?.some(o => o.status === 'EXECUTED')) }
+    if (c.expectBlocked) { assert.ok(['NEEDS_INPUT', 'UNSUPPORTED', 'EXPLAIN'].includes(result.status), 'An incompatible change needs an honest explanation, not a failed turn or a false save.'); assert.ok(result.message?.trim()); assert.ok(!result.operations?.some(o => o.status === 'EXECUTED')) }
+    else if (!c.readOnly) { assert.equal(result.status, 'SAVED'); assert.ok(result.operations?.some(o => o.status === 'EXECUTED')) }
     else { assert.equal(result.status, 'EXPLAIN', 'Read-only safety alone does not qualify a failed answer.'); assert.ok(result.message?.trim()); assert.ok(!result.operations?.some(o => o.status === 'EXECUTED')) }
   }
   return { session, executionMode, goalId, status: result.status, usage: executionMode === 'AUTONOMOUS' ? session.goal.usage : result.workflow?.usage }
@@ -137,7 +145,7 @@ try {
   assert.equal(status.engine, 'CONFIGURED_BRAIN'); assert.equal(status.autonomousEnabled, true)
   await api('/api/configuration-assistant/sessions', 'POST', { resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'loomai-configuration-assistant', task: 'BRAIN_SETUP' }, [403, 404])
   report.knownForeignAssistantDenied = true
-  for (const c of allCases.filter(c => !selected || selected.includes(c.id))) {
+  for (const c of cases) {
     if (stop) break
     activeApi = c.auth === 'STAFF' ? staffApi : customerApi
     let brain, resource, session

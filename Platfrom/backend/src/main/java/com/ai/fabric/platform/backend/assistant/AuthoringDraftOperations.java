@@ -143,6 +143,13 @@ public class AuthoringDraftOperations {
                 result.put("configurationScope", "Only action and endpoint settings are shown. Unshown settings are unchanged, not absent.");
                 ((ObjectNode) contracts).remove(List.of("behaviorTypes", "llmProviders", "embeddingProviders", "aiBehaviourProfiles",
                     "aiBehaviourConfigurationExample", "behaviorContract", "humanSupportContract", "specialistContract"));
+            } else if ("KNOWLEDGE".equals(work.session().task)) {
+                ((ObjectNode) configuration).retain("entityConfig", "knowledgeSourceConfig", "marketplaceDatasetConfig");
+                result.put("configurationScope", "Only complete knowledge, entity and dataset settings are shown. Unshown settings are unchanged, not absent; normal candidate validation still checks the full draft and its dependencies.");
+                ((ObjectNode) contracts).remove(List.of("behaviorTypes", "llmProviders", "embeddingProviders", "aiBehaviourProfiles",
+                    "aiBehaviourConfigurationExample", "actionContract", "behaviorContract", "humanSupportContract", "specialistContract"));
+                if (contracts.path("collectionShapes").isObject()) ((ObjectNode) contracts.path("collectionShapes"))
+                    .retain("/knowledgeSourceConfig/sources", "/marketplaceDatasetConfig/datasets");
             }
             result.set("configuration", configuration);
             result.set("contracts", contracts);
