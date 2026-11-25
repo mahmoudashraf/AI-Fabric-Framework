@@ -44,6 +44,10 @@ if (mode === 'preview' || mode === 'preview-unavailable') {
   state.draft.knowledgeSourceConfig = {sources:[{id:'delivery',attributionLabel:'Delivery & collection guide',accessKey:'HIDDEN_ACCESS_KEY'}]};
   if (mode === 'preview-unavailable') delete state.manifests['version-12'];
 }
+if (mode === 'autonomy-preview') {
+  state.manifests['version-12'].providerConfig = {llmProvider:'openai'};
+  state.draft.providerConfig = {llmProvider:'openai',conversationalAutonomy:{enabled:true,maxWritesPerSegment:0,maxElapsedSeconds:90,unknown:'HIDDEN_AUTONOMY_VALUE'}};
+}
 export const getState = () => state;
 const copy = value => structuredClone(value);
 export async function fetchDeploymentDraft() { return copy(state.draft) }
@@ -124,6 +128,7 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
       if (id === '../auth/PlatformAuthProvider') return '\0virtual:brain-updates-auth'
       if (id === '../workspace/DeploymentWorkspaceContext') return '\0virtual:brain-updates-workspace'
       if (id === '../pages/RevisionsPage') return '\0virtual:brain-updates-revisions'
+      if (id === '../assistant/AssistantWorkspace') return '\0virtual:brain-updates-assistant-workspace'
       if (id === './BrainCustomerReleaseTasks') return '\0virtual:brain-updates-release-tasks'
       if (id === '../components/customer/CustomerSupportContext') return '\0virtual:brain-updates-support-context'
       if (id === '../components/customer/CustomerSupportAssistant') return '\0virtual:brain-updates-support-assistant'
@@ -136,6 +141,7 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
       if (id === '\0virtual:brain-updates-workspace') return `import {getState} from 'virtual:brain-updates-fixture'; export const useDeploymentWorkspace=()=>({selectedDeploymentId:'brain-1',selectedDeploymentSummary:getState().summary,workspace:getState().workspace,deploymentsLoading:false})`
       if (id === '\0virtual:brain-updates-revisions') return `export const RevisionsPage=()=>null`
       if (id === '\0virtual:brain-updates-release-tasks') return `import {createElement} from 'react'; export const BrainCustomerReleaseTasks=({section})=>createElement('div',{'data-release-task':section},'Fixture release task: '+section)`
+      if (id === '\0virtual:brain-updates-assistant-workspace') return `export const AssistantWorkspace=({children})=>typeof children==='function'?children({revision:0}):children`
       if (id === '\0virtual:brain-updates-support-context') return `export const CustomerSupportProvider=({children})=>children`
       if (id === '\0virtual:brain-updates-support-assistant') return `export const CustomerSupportAssistant=()=>null`
       if (id === '\0virtual:brain-updates-support-dialog') return `export const SupportResourceDialog=()=>null`
@@ -150,14 +156,14 @@ const server = await createServer({ root, configFile: false, cacheDir: `${output
       })
     },
   }], server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' })
-let browser
+let browser, page
+const errors = []
 try {
   await server.listen()
   const address = server.httpServer.address()
   const url = `http://127.0.0.1:${address.port}/__brain_updates_test`
   browser = await chromium.launch({headless:true})
-  const page = await browser.newPage({viewport:{width:1440,height:900}})
-  const errors = []
+  page = await browser.newPage({viewport:{width:1440,height:900}})
   page.on('pageerror', error => { errors.push(error.message); console.error(error.message) })
   page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
   await page.route('**/api/**', route => {
@@ -202,6 +208,23 @@ try {
   await page.getByRole('button', {name:'Close update details'}).click()
   await page.getByRole('button', {name:'Activity',exact:true}).click()
   assert.ok(!(await page.locator('body').innerText()).includes('production-should-not-appear'))
+
+  await open('?mode=autonomy-preview')
+  await page.getByText('Standard → Autonomous',{exact:true}).waitFor()
+  await page.getByRole('button',{name:'Preview Conversation flow',exact:true}).click()
+  await page.getByRole('dialog').getByRole('heading',{name:'Conversation handling',exact:true}).waitFor()
+  await page.getByRole('dialog').getByText('Autonomous',{exact:true}).waitFor()
+  await page.getByRole('dialog').getByText('0',{exact:true}).waitFor()
+  assert.match(await page.getByRole('dialog').getByRole('link',{name:'Edit Conversation flow',exact:true}).getAttribute('href'), /responses\/execution/)
+  assert.ok(!(await page.locator('body').innerText()).includes('HIDDEN_AUTONOMY_VALUE'))
+  for (const [width,height] of [[1440,900],[390,844]]) {
+    await page.setViewportSize({width,height})
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false)
+    await page.screenshot({path:`${output}/autonomy-preview-${width}.png`,fullPage:true})
+  }
+  assert.deepEqual(await calls(),[],'autonomy comparisons must not publish or run inference')
+  await page.getByRole('dialog').getByRole('button',{name:'Back to changes',exact:true}).click()
+  await page.setViewportSize({width:1440,height:900})
 
   await open('?mode=preview')
   await page.getByText('Professional → Warm & consultative',{exact:true}).waitFor()

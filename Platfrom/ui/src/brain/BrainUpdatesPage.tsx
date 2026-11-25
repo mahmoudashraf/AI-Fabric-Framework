@@ -149,6 +149,7 @@ function ChangeTable({ changes, nextLabel = 'Saved draft', maxHeight }: { change
 export function outcomeSummary(key: string, value: unknown, catalogue?: AiBehaviourCatalogue): string {
   if (key === 'promptConfig') return responseSummary(value, catalogue) ?? (record(value) && Object.keys(value).length ? 'Reply preferences and instructions' : summary(value))
   if (!record(value)) return summary(value)
+  if (key === 'providerConfig') return `${record(value.conversationalAutonomy) && value.conversationalAutonomy.enabled === true ? 'Autonomous' : 'Standard'} conversations · AI models, embeddings and search`
   if (key === 'behaviorConfig' && record(value.managedTasks) && Array.isArray(value.managedTasks.tasks)) {
     const tasks = value.managedTasks.tasks.filter(record)
     const names = tasks.map(task => typeof task.name === 'string' ? task.name : '').filter(Boolean)

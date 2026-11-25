@@ -22,7 +22,8 @@ async function loadModule(path, dependencies = {}) {
 const navigation = await loadModule('../src/brain/brainNavigation.ts')
 const presentation = await loadModule('../src/brain/brainReleasePresentation.ts', { './brainNavigation': navigation })
 const versionView = await loadModule('../src/brain/BrainReleaseVersions.tsx', { './brainReleasePresentation': presentation })
-const previews = await loadModule('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles })
+const autonomy = await loadModule('../src/brain/conversationalAutonomy.ts')
+const previews = await loadModule('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles, './conversationalAutonomy': autonomy })
 const previewView = await loadModule('../src/brain/BrainChangeComparison.tsx')
 const deploymentPolicy = await loadModule('../src/developer/deploymentPolicy.ts')
 const revisions = await readFile(new URL('../src/pages/RevisionsPage.tsx', import.meta.url), 'utf8')
@@ -75,6 +76,13 @@ const exports = {}
 new Function('require', 'exports', ts.transpileModule(source, { compilerOptions: {
   target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText)(name => name in dependencies ? dependencies[name] : require(name), exports)
+
+test('provider outcome summary names the saved conversation mode without projecting credentials', () => {
+  assert.match(exports.outcomeSummary('providerConfig', { conversationalAutonomy: { enabled: true }, token: 'SECRET' }), /^Autonomous conversations/)
+  assert.match(exports.outcomeSummary('providerConfig', { conversationalAutonomy: { enabled: false } }), /^Standard conversations/)
+  assert.match(exports.outcomeSummary('providerConfig', {}), /^Standard conversations/)
+  assert.ok(!exports.outcomeSummary('providerConfig', { token: 'SECRET' }).includes('SECRET'))
+})
 
 test('compares all ten sections with the selected target immutable manifest', () => {
   const changes = exports.buildUpdateChanges(draft, manifest, 'v12')

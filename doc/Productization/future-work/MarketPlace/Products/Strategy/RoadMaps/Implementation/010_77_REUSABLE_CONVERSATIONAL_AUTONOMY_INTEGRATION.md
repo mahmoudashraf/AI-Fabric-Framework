@@ -82,6 +82,12 @@ Platform integration: 285 focused backend tests passed. Console: TypeScript buil
 mobile light/dark layouts. Runtime: 876 tests passed, with four external Ragas
 worker tests and one optional Cohere test skipped; eight environment-binding and
 policy-readback checks passed. Build with AI backend regression: 157 tests passed.
+The final Runtime rerun passed 878 tests with the same five optional external
+skips. Its canonical response now includes a bounded workflow summary without
+prompts, parameters or observations; 36 controller tests passed, including
+secret-canary checks. Updates comparison also shows the actual conversation mode
+and changed limits, including zero writes and inherited defaults, and links a
+mode-only change to the canonical Conversation flow editor.
 
 Staging Console UI/backend source `aa42380229141c7bd982f495f88f6be18c8ff413`
 is image-identity verified with capacity/storage/environment preserved. A fresh

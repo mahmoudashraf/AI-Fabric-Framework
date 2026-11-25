@@ -1,5 +1,6 @@
 import type { AiBehaviourCatalogue } from '../api/platformApi'
 import { AI_BEHAVIOUR_GROUP_KEYS, AI_BEHAVIOUR_PROMPT_KEYS, promptConfigIdentity, readAiBehaviour } from '../aiBehaviourProfiles'
+import { autonomyLimitFields } from './conversationalAutonomy'
 
 export type PreviewBaseline = 'applied' | 'new' | 'unavailable'
 export type PreviewValue = { id: string; label: string; current: string; proposed: string; kind: 'Added' | 'Removed' | 'Changed' }
@@ -88,6 +89,11 @@ export function buildChangePreview(key: string, current: unknown, proposed: unkn
   const result: ChangePreview = { title, impact, editor, editorLabel, values: [],
     fieldChanges, runtimeFieldChanges: promptConfigIdentity(fieldChanges) !== promptConfigIdentity(rawChanges) ? rawChanges : [], baseline }
   const before = record(current), after = record(proposed)
+  if (key === 'providerConfig' && fieldChanges.length && fieldChanges.every(row => row.path === '$.conversationalAutonomy' || row.path.startsWith('$.conversationalAutonomy.'))) {
+    result.title = 'Conversation flow'
+    result.impact = 'The conversation handling and execution limits used after this version is applied.'
+    result.editor = 'responses/execution'; result.editorLabel = 'Conversation flow'
+  }
   const add = (id: string, label: string, left: string | undefined, right: string | undefined, changed = left !== right) => {
     if (baseline === 'applied' && !changed || left === undefined && right === undefined) return
     result.values.push({ id, label, current: baseline === 'unavailable' ? 'Unavailable' : baseline === 'new' ? 'Not applied' : left ?? 'Not configured',
@@ -145,6 +151,20 @@ export function buildChangePreview(key: string, current: unknown, proposed: unkn
     shellConfig: [['defaultConversationMode', 'Conversation mode']],
   }
   for (const [field, label] of knownFields[key] ?? []) add(field, label, scalar(before[field]), scalar(after[field]))
+  if (key === 'providerConfig') {
+    const left = record(before.conversationalAutonomy), right = record(after.conversationalAutonomy)
+    const mode = (value: Record<string, unknown>) => value.enabled === true ? 'Autonomous' : value.enabled === false || value.enabled == null ? 'Standard' : undefined
+    add('conversationalAutonomy.enabled', 'Conversation handling', mode(left), mode(right))
+    for (const [field, label, _min, _max, fallback] of autonomyLimitFields) {
+      if (left[field] !== undefined || right[field] !== undefined)
+        add(`conversationalAutonomy.${field}`, label, scalar(left[field]) ?? `Default (${fallback})`, scalar(right[field]) ?? `Default (${fallback})`)
+    }
+    for (const [field, label] of [['defaultEnabled', 'Use Autonomous by default'], ['replanNonAuthorityReadFailures', 'Recover from non-authority read failures']]) {
+      if (left[field] !== undefined || right[field] !== undefined)
+        add(`conversationalAutonomy.${field}`, label, scalar(left[field]) ?? 'Default (enabled)', scalar(right[field]) ?? 'Default (enabled)')
+    }
+    add('conversationalAutonomy.instructions', 'Workflow instructions', text(left.instructions), text(right.instructions))
+  }
   if (key === 'shellConfig') {
     add('greeting.title', 'Welcome title', text(record(before.greeting).title), text(record(after.greeting).title))
     add('greeting.message', 'Welcome message', text(record(before.greeting).message), text(record(after.greeting).message))

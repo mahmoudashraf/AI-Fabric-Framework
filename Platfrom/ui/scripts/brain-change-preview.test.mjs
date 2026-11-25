@@ -14,12 +14,36 @@ async function load(file, dependencies = {}) {
   return exports
 }
 const profiles = await load('../src/aiBehaviourProfiles.ts')
-const { buildChangePreview: preview, previewHeadline: headline, sectionPreviewBaseline } = await load('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles })
+const autonomy = await load('../src/brain/conversationalAutonomy.ts')
+const { buildChangePreview: preview, previewHeadline: headline, sectionPreviewBaseline } = await load('../src/brain/brainChangePreview.ts', { '../aiBehaviourProfiles': profiles, './conversationalAutonomy': autonomy })
 const { BrainChangeComparison } = await load('../src/brain/BrainChangeComparison.tsx', {
   'react-router-dom': { Link: ({ to, children, ...props }) => React.createElement('a', { ...props, href: to }, children) },
 })
 const catalogue = { groups: [{ key: 'tone', label: 'Tone', options: [{ id: 'professional', label: 'Professional' }, { id: 'warm', label: 'Warm & consultative' }] }] }
 const prompt = (presetId, instructions) => ({ aiBehaviour: { schemaVersion: 'loomai-ai-behaviour-v1', tone: { presetId, instructions } } })
+
+test('autonomy review shows actual mode, zero writes and inherited limits in the canonical editor', () => {
+  const result = preview('providerConfig', { llmProvider: 'openai', secret: 'OLD_SECRET' },
+    { llmProvider: 'openai', secret: 'OLD_SECRET', conversationalAutonomy: { enabled: true, maxWritesPerSegment: 0, maxElapsedSeconds: 90, unknown: 'HIDDEN_VALUE' } }, 'applied')
+  assert.equal(headline(result), 'Standard → Autonomous')
+  assert.equal(result.title, 'Conversation flow')
+  assert.equal(result.editor, 'responses/execution')
+  assert.equal(result.values.find(row => row.id.endsWith('maxWritesPerSegment')).proposed, '0')
+  assert.equal(result.values.find(row => row.id.endsWith('maxElapsedSeconds')).current, 'Default (120)')
+  assert.ok(result.fieldChanges.some(row => row.path === '$.conversationalAutonomy'))
+  assert.ok(!JSON.stringify(result).includes('OLD_SECRET'))
+  assert.ok(!JSON.stringify(result).includes('HIDDEN_VALUE'))
+})
+test('autonomy view keeps disabled saved options, false values and unavailable baselines honest', () => {
+  const result = preview('providerConfig', { conversationalAutonomy: { enabled: true, maxWritesPerSegment: 0 } },
+    { conversationalAutonomy: { enabled: false, maxWritesPerSegment: 0, defaultEnabled: false } }, 'applied')
+  assert.equal(headline(result), 'Autonomous → Standard')
+  assert.equal(result.values.find(row => row.id.endsWith('defaultEnabled')).proposed, 'Disabled')
+  assert.equal(result.values.some(row => row.id.endsWith('maxWritesPerSegment')), false)
+  const missing = preview('providerConfig', undefined, { conversationalAutonomy: { enabled: true } }, 'unavailable')
+  assert.equal(missing.values[0].current, 'Unavailable')
+  assert.deepEqual(missing.fieldChanges, [])
+})
 
 test('tone comparison comes from exact metadata and catalogue, not inferred prompt meaning', () => {
   const result = preview('promptConfig', prompt('professional', 'Be formal.'), prompt('warm', 'Ask a useful follow-up.'), 'applied', catalogue)

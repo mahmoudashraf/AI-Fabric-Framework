@@ -15,6 +15,10 @@ products do not switch automatically. The selected runtime must support this
 capability; the Platform checks compatibility before applying it. Website widgets,
 max-mode and standalone Engage apps use the same configured Brain.
 
+Updates compares the saved handling mode and changed execution limits against
+the applied configuration. A mode-only change links back to Conversation flow;
+unchanged models, source permissions and stored keys are not replaced by it.
+
 Engage follows the canonical conversation routes supplied by its installation
 manifest automatically. A custom API client must use those existing conversation
 and message routes after enabling this mode; it must not keep using a legacy
