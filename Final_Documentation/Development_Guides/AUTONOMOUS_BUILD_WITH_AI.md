@@ -4,6 +4,16 @@ Implementation reference for 010.76. Hosted availability must be checked against
 the latest `LLM-guides/CODEX_WORKING_CONTEXT.md` acceptance record; this guide
 does not itself establish a successful rollout.
 
+Owner clarification, 25 November: Build with AI is a user-invoked helper, not a
+durable background-service promise. Active-request autonomy and quality remain
+required. Exact recovery of unsaved AI work after service restart is deferred;
+the user may run the request again against the current saved draft. Existing
+saved changes, permissions, cancellation, spending and effect receipts remain
+protected. Do not add more restart-recovery machinery or treat unqualified
+cross-restart recovery as a release blocker for this helper. The generic SDK's
+existing capabilities remain available; the sections below describe mechanisms,
+not an exact-recovery service guarantee.
+
 ## Customer Journey
 
 Use the existing Build with AI panel on the selected Smart Brain or supported
@@ -46,6 +56,14 @@ Withdrawing a reference does not silently undo already-saved configuration; use
 the existing draft review and Undo controls for that separate decision.
 
 ## Execution Ownership
+
+Basic autonomy is a reusable Framework 0.8.70 capability, not a Console-only
+loop. `BoundedWorkflowRunner` owns model-directed action selection, observations,
+correction, goal completion and continuation across segments. The execution
+module supplies the native gateway and scheduling. Another application can bind
+its own authorized `Actions`, checkpoint store and published goal policy without
+depending on LoomAI Platform. A scheduler continues eligible work; it does not
+choose the next tool or make a separate planning call.
 
 The configured Smart Brain owns model decisions through AI Fabric's native
 workflow and durable execution gateway. Platform owns the authenticated resource
@@ -99,6 +117,15 @@ There is no small total-call limit, but provider admission, funding, token
 allowances, cancellation and authentication remain mandatory. High test allowances
 are qualification settings, not unlimited customer credit or infrastructure.
 
+Planning uses the configured generation-model purpose. Its existing control is
+AI models -> Purpose overrides -> Answer generation routing -> Generation max
+tokens (`providerConfig.generationMaxTokens`). A published purpose override takes
+precedence over the primary model and older authoring-host defaults. The
+specialist's `limits.maxOutputTokens` is a separate final-output limit, not this
+planner's cap. Inspect actual provider diagnostics before attributing empty
+planning output to a budget. Reasoning and visible content can share the provider's
+completion allowance; increasing repair counts cannot fix an inadequate cap.
+
 ## Recovery And Evidence
 
 Every actual provider attempt remains accounted, including repairs. Safe provider
@@ -123,8 +150,10 @@ Already-correct state may complete without a forced write.
 
 ## Qualification And Rollback
 
-See 010.76 for the required failure-injection, restart, authority, budgeting,
-browser and Harbor acceptance matrix. Keep unsuccessful attempts in evidence.
+See 010.76 for the authority, budgeting, browser, failure-injection and Harbor
+acceptance matrix. Exact restart recovery is deferred under the owner
+clarification above; basic cancellation, source erasure and permission checks
+remain required. Keep unsuccessful attempts in evidence.
 Passing unit tests or a saved action definition alone does not qualify autonomy.
 
 Disable new goal admission to roll back to the existing configured-Brain bounded

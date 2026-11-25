@@ -21482,4 +21482,306 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   {staging,production}.private.json withforeign-fixture-verification.private.json.
   Ownerfixture remainsoriginal01049 onboarding; bothaccounts aredifferent actual
   customers, no newusers/workspaces/infrastructure. Allownsessionsloggedout.
+- Backend/UI/fullcontrols source frozen, committed+pushed as
+  0b3197a65097e6ad907803aeb8aa9fd1a385f8be. Backendfullpre-closure6191/0/0/1skip
+  and final484assistant/materialization/safety checksPASS. Mainfinalcompiler/
+  catalogue/alignment21PASS, fixtureexportrefreshed/private/tmp/loomai-01076-
+  workflow.json. Roottrackedremainingdirtyfiles areonlypreexisting.gitignore,
+  tsbuildinfo andfourBrainPNGs, before this newworking-context note.
+- ExactB1 gates: Core45505263980SUCCESS, storage45505263845SUCCESS,
+  quota45505263933SUCCESS. Fullcode45505285987 attempt1failed BEFOREtests on
+  MavenCentralHTTP429 fetchingSpringBootplugin3.2.0; preservedprivatefailurelog.
+  Main waited90seconds andreranfailedjobsofSAMErun/source; attempt2running.
+  Do notcreateanotherdispatch/source or weaken thefour-gateproductioncheck.
+- Mainprivategoal-controls fixtures atgoal-controls-foreign-staging.private.json
+  andgoal-controls-foreign-production.private.json passedactualnormalSupabase+
+  ConsoleCustomerAdminread-onlyverification. Helperrequirescorrespondingenvvar
+  LOOMAI_GOAL_CONTROLS_FOREIGN_FIXTURE plusLOOMAI_GOAL_CONTROLS_RUN=env:label;
+  thatinternalacknowledgment needsnonewuserapproval withinalreadyapprovedUSD50.
+- Newprivatevideo browserprepared, syntaxcheckedNOTstarted:
+  ~/.codex/private/harbor-autonomy-walkthrough-01076/browser.mjs (directory700,
+  script600). Usesnormalcustomerloginbeforefilming, actualUI, cursorhalo above
+  ShadowDOM, chapter/waitevidence. No newvideo or actualHarborrebuild yet.
+  RuntimeR1onlyregisteredstage; actualservicesstill69untilgates/normalapply.
+
+### 010.76 Staging Activation Closure - 24 November 2026
+
+- B1 full code CI 45505285987 attempt two passed; source-exact core, storage and
+  quota/Desk gates passed too. Staging backend/UI B1 are healthy with unchanged
+  environment, capacity, storage and service identities. Production is unchanged.
+- First authoring release `rel-6055b90b` failed before startup: entrypoint curl
+  retained a 65,536-byte limit while the actual workflow bundle is 68,170 bytes.
+  Runtime correction `997815dc10e3089571ebc125d0f1e39d2c87dc73` keeps Support's
+  old limit but allows the declared 96,000-byte workflow transport. Eleven
+  focused shell/parser tests and full Runtime image CI 45510010248 passed.
+- Corrected staging artifact `dsa-eabec1ce`, image
+  `sha256:4e6940d665c715e6c4679d0a17e7e603338f441b8fc507dad61cddb4038d5fca`,
+  has nine official 0.8.70 JARs verified. Release `rel-bbe2cb6f` successfully
+  installed native version `ver-2a7757a6`: native overview reports 0.8.70, all
+  nine profiles ready and Autonomous enabled. Finalization then failed because
+  the old binding guard rejects the owner-approved durable USD5 -> USD25 top-up.
+  Do not replace its ledger or manually rebase binding metadata.
+- B2 `cfc80f0fe851a1122100858345a8b8780773de31` preserves authoritative
+  pause/logout/cancel reasons across native acknowledgement and accepts
+  authenticated additive cost top-ups while keeping immutable original grant,
+  identity, scope, expiry and cumulative usage checks. 364 focused tests passed.
+  Core CI 45512465347, storage 45512581330 and quota 45512585826 passed; full
+  code CI 45512490113 is in progress. Main pipeline waits for all four gates,
+  rolls staging backend only to B2, then performs an explicit software-only
+  cold apply of the same published version/R2 artifact. Generic failure marked
+  provisioning FAILED too; a clean apply avoids retaining contradictory status.
+  Do not manually patch release/provider/ledger rows or republish the version.
+- Private recheck helper writes `authoring-997815dc1-staging-verified` only after
+  verification PASS and its own logout. Fresh Harbor bulk, controls, directives,
+  restart, larger-contract, Quick edit and production checks have NOT run yet.
+  Main exec session 51849 owns the pending CI/rollout/recheck pipeline. No paid
+  model calls or new walkthrough recording in this continuation so far.
+
+### 010.76 First Hosted Admission Finding - 25 November 2026
+
+- B2 full code CI 45512490113 passed. Staging backend B2
+  `cfc80f0fe851a1122100858345a8b8780773de31` is healthy; UI remains B1 and Runtime
+  remains R2. Explicit same-version/R2 software apply `rel-c334d1fb` completed
+  APPLIED_VERIFIED/PASSED with provisioning ACTIVE and original ledger intact.
+- First real one-Prepare UI attempt `s25-bulk-1` failed before model execution:
+  the new `/api/internal/configuration-authoring/*/*/authority` callback was
+  missing from the exact Spring Security callback allowlist. Native renewal was
+  rejected, then canonical admission could remain FAILED with no work handle.
+  Actual outcome: 0/5 coverage, zero receipts, +1 chat admission, zero provider
+  calls/tokens/cost. Original goal cancelled, session erased, resource-free
+  Brain deleted and both own logins logged out. No running test exec remains.
+  Retained private report: `harbor-staging-s25-bulk-1/report.private.json`.
+- B3 `e2dd3ab1ba4b8927da663376619f851fe7dd0fdc` adds only that exact POST route
+  and 29 real filter/authentication/renewal regression cases. 429 focused tests
+  passed, with dedicated service credential/release checks and original user,
+  ownership, login, scope and epoch validation unchanged. B3 core 45518115574,
+  storage 45518196184 and quota 45518200392 passed. Code 45518192520 attempt one
+  hit Maven Central HTTP429 before compilation; main cooled down and reran failed
+  jobs of the same source/run. Attempt two is running. Main exec 86251 waits for
+  all four gates, then rolls staging backend only to B3; no native apply in it.
+- Runtime agent owns an additional native-only admission correction, not yet
+  committed: persist the trusted goal/work/root before renewal network I/O;
+  first worker renewal atomically pins the Platform's frozen source hashes before
+  any model/tool; later segments must match. Unavailable authority pauses the
+  same work and receipt for Resume. Unpinned execution progress is rejected.
+  No backend wire change, ordinary-chat change or new SDK publication is needed.
+- Native tests/three-file Runtime diff are still in progress. Do not register or
+  roll an uncommitted image. Fresh Harbor/stress helpers are being updated to
+  require the actual next Runtime/backend proof sources, not the old R2 gate.
+  Controls/restart, directives/logout, 24-operation doc-only stress and video
+  helpers are prepared privately; none has run live. Production remains unchanged.
+
+### 010.76 Effective Planning Budget Finding - 25 November 2026
+
+- B3 code CI 45518192520 attempt two passed. Staging backend B3 is healthy;
+  Runtime R3 `8921e6aa579d869b91086c394871db35304b94f4` passed image CI
+  45520284390 and 68 focused local cases, including 15 durable-goal and 13 host
+  cases. R3 persists trusted admission before renewal I/O and pins frozen source
+  authority before any model/tool step. SDK publication remains immutable 0.8.70.
+- Explicit same-version staging apply `rel-407a3181` is APPLIED_VERIFIED/PASSED,
+  provisioning ACTIVE, version `ver-2a7757a6`, artifact `dsa-b4a740c9`, image
+  `sha256:6b7ffe914024b0658a51fd3022d6dcb7ce258d3e5915a5c4efea3fca393cf2f4`.
+  Nine profiles are ready; environment, capacity, keys, storage and original
+  funding/usage are preserved. UI remains B1. Production remains unchanged.
+- Fresh normal-UI one-Prepare `s25-r3-bulk-1` admitted real native work but paused
+  with WORKFLOW_PLANNER_UNAVAILABLE: five provider calls, zero writes, 0/5 source
+  coverage. Actual diagnostics prove an effective 4096-token output cap. Four
+  planning calls ended with finish reason length, 4096 reasoning tokens and zero
+  content. A deeper trace found the actual controlling override:
+  AI_PROVIDERS_GENERATION_MAX_TOKENS=4096, while the older authoring host setting
+  is 8192. The SDK planner uses LlmPurpose.GENERATION with no request override;
+  the specialist's separate 4096 final-output limit is not its planning cap.
+  More repair attempts alone do not address this observed failure.
+  Delta: 43,297 input tokens, 16,443 output tokens, USD0.10646625. All own test
+  resources/sessions were cancelled/erased/deleted and both logins revoked.
+- A scoped normal published provider-configuration correction is in progress:
+  set the generation purpose's existing token limit to 8192, retaining the
+  existing model, reasoning level, spending ledger and authorization. A proposed
+  duplicate workflow-budget field was discarded before commit/publication.
+  Actual hosted qualification is still required. A separate Runtime web projection fix is
+  tracing Jackson node objects exposed as flags instead of numeric goal usage;
+  financial ledger counters themselves remain authoritative and unchanged.
+- No successful all-five-operation autonomy run, full control qualification,
+  production autonomy rollout or new video is claimed. Preserve both failed
+  run directories and do not reset usage or duplicate the framework release.
+
+- Runtime R4 `0546601da6ab763f20987f80f7b33b6560b038c4` fixes only HTTP goal
+  projection: Jackson2 SDK nodes are converted to plain Java data before Boot's
+  Jackson3 converter, retaining typed usage and ISO timestamps. Real MVC checks
+  are part of 68 passing focused tests. Full Runtime image CI 45524600734 passed;
+  artifact `dsa-5305d19f`, digest
+  `sha256:2c1aa6ec5b23d53a24efe1fa02322d9d50486be95153350558a3c56361de5308`
+  is registered/promoted on staging with nine official SDK JAR checksums matched.
+- Main normal-draft update published assistant version `ver-99a2a21d` (v14):
+  only providerConfig.generationMaxTokens changes 4096 -> 8192. The nine-profile
+  workflow bundle/hash and each specialist final-output limit remain unchanged.
+  Release `rel-630090bd` was PROVISIONING/PENDING at this checkpoint. Main exec
+  10962 owns apply verification/own logout; readonly observer 6095 holds a fresh
+  pre-apply Support, ledger and host baseline and waits for the verified marker.
+  Do not start inference until both finish. Production remains unchanged.
+
+- Subsequent R4 apply completed APPLIED_VERIFIED/PASSED with provisioning ACTIVE;
+  main exec 10962 completed and its own admin logout was verified. Fresh readonly
+  observer 6095 completed 12 PASS gates: actual image/source and nine official
+  SDK JARs, native V29/schema, all nine goal profiles, effective generation cap
+  8192/MEDIUM, unchanged Support read-only authority, ledger/keys/storage/host.
+  Source-exact proof `authoring-0546601da-staging-verified.private.json` is written
+  after logout. The readonly report is `staging-readonly-acceptance-2026-11-25T01-19-54-581Z/`.
+- Linnaeus now owns the exclusive paid staging window for one fresh UI-only
+  `s25-r4-bulk-1` preparation. No manual recovery coaching or hidden config saves
+  are allowed. Await actual saved coverage/provider evidence and normal cleanup;
+  this handoff is not a successful completion or production-activation claim.
+
+### 010.76 R4 Structural Completion And Semantic Gap - 25 November 2026
+
+- Fresh UI-only `s25-r4-bulk-1` reached COMPLETE across three observed segments:
+  10 actions, 14 model calls, three corrections, one executed save, 5/5 source
+  coverage. Actual provider calls now use cap 8192 and return content; one used
+  5395 output tokens, including 3970 reasoning tokens. Typed goal counters are
+  correct. The original request was not coached or resubmitted.
+- Full semantic acceptance is FAIL. The checker first expected an unscoped key
+  alias, while both private routes correctly use their exact customer-scoped
+  stored reference. Separately, both private actions set anonymousAllowed:false,
+  contradicting the source's explicit company-credential/no-visitor-login policy.
+  SDK authorization correctly denies anonymous callers; do not weaken it.
+  Preserve original report and separate retained semantic reevaluation. Normal
+  session/Brain cleanup and both logouts completed. No existing live Harbor
+  configuration was changed by this resource-free test.
+- Linnaeus now owns offline harness fixes only: exact created/catalogued key
+  reference, and fixture-specific visitor policy checks. 55 offline checks pass.
+  Lagrange owns a scoped generic API-profile/action-contract guidance correction:
+  upstream credentials and visitor identity are separate; anonymousAllowed is
+  visitor policy, with existing permissions and WRITE confirmation retained.
+  No phrase matcher, semantic hard validator or SDK change is proposed.
+- New internal-assistant bootstrap default 8192 was committed/pushed as
+  `a1b74bce6982e4cc3228136cfb25a50cd7a3cd82`, with 118 focused PASS checks,
+  including real bootstrap preservation/ownership cases. Existing installations
+  are not reset and ordinary customer Brain defaults are unchanged. Core image
+  CI 45527001756, storage 45527071940 and quota 45527001771 passed; full code
+  45527075434 is running. B4 is NOT deployed; staging backend remains B3.
+- Carver owns the exclusive paid staging control/restart window `s25-r4-controls-1`
+  on existing R4/B3/UI B1. Main will not deploy while this window is active.
+  Native same-container restart is opt-in staging software qualification only;
+  capacity/settings/keys/ledger must remain unchanged. Capture erasure metadata
+  before/after cleanup, retain honest NOT_PROVEN outcomes. Production is unchanged.
+
+### 010.76 Owner Scope Change And Model Qualification - 25 November 2026
+
+- Owner explicitly clarified that AI is a user-invoked configuration helper, not
+  a promised durable service. Exact restart recovery/continuation is deferred;
+  users can trigger work again. Preserve actual saved drafts, trust boundaries,
+  cancellation, finite funding and real effect receipts. Focus remaining work on
+  autonomous in-request planning/repair and semantic quality. Do not expand
+  restart/recovery machinery or delete working generic SDK primitives.
+- Carver control window is released: all owned executions collected, both test
+  goals/sessions/resource-free Brains cleaned up and all owner/foreign/staff
+  logins revoked. No restart was executed. Partial-control evidence is retained,
+  not relabelled PASS. The first native handle existed and executed model/tools,
+  but its 180-second wait ended before an actual WRITE receipt; the helper's
+  generic no-handle message is inaccurate. No more restart qualification is
+  required under the owner's revised scope.
+- Owner approves using the strongest suitable GPT model available. Read-only
+  GET /v1/models using the existing account confirms gpt-6.2-astra availability,
+  among other models. Official current docs identify it as flagship, priced
+  USD8/M input and USD40/M output under the short-context standard rate. No
+  generation call has been sent to it. Existing guarded model/rate-card coverage
+  only permits GPT-4o-mini/GPT-5.4-mini; Carver is tracing a minimal safe upgrade
+  without resetting prior usage/grants or bypassing the approved USD50 ceiling.
+  Catalogue evidence: openai-available-models-20261125.private.json.
+- Generic API visitor-auth guidance patch is frozen in six backend files,
+  430 focused PASS tests. New separate private compiler export:
+  /private/tmp/loomai-01076-workflow-visitor-auth-guidance.json, hash
+  sha256:67ac3a754265a2f2e453f980a6c5a76b8ab96735f9c4d845d38ec189142ddfa2.
+  It has NOT been committed or deployed. Old private fixture remains unchanged.
+- B4 full code CI 45527075434 FAILED: 6249 tests, three failures in the new
+  retained-bootstrap preservation test at line117, zero errors, one skip.
+  No blind CI retry or weakening. Full failure log is retained privately;
+  Lagrange owns diagnosis/fix of the test versus persisted database behavior.
+  Other B4 gates passed. B4 has never been deployed; stage stays B3/R4/UI B1.
+
+### 010.76 Guidance Qualified For Release, Astra Candidate - 25 November 2026
+
+- B5 `91edaf5e6e6828ce95a60aace919c1f601cef713` committed the six generic
+  visitor-auth guidance files and the persisted-timestamp baseline correction.
+  Whole-record preservation is still asserted; database microsecond rounding
+  was the three-failure B4 CI cause, not a product configuration reset.
+  Local guidance 430 PASS and bootstrap closure 119 PASS.
+- B5 all four gates passed: core 45529299080, storage 45529327866, quota/Desk
+  45529330762 and full code 45529334599. Main pipeline 91189 completed normally,
+  rolled staging backend B5 healthy at digest
+  sha256:3695b5a03495f794584f570ba15373aaf7312281f5b6ea01c07503f875fdcbdb,
+  then explicitly published/applied API-profile guidance on the same R4 artifact.
+  Version `ver-9a715db1`, release `rel-70d7bb51`, APPLIED_VERIFIED/PASSED/ACTIVE.
+  Nine profiles, generation mini/8192, other configurations, keys, host capacity,
+  storage, original grant and cumulative usage were preserved. Own logout passed.
+  Actual proof: authoring-guidance-91edaf5e6-staging-verified.private.json.
+- Main owns the exclusive paid staging baseline `s25-b5-guidance-1`, exec 24863:
+  one normal-UI Prepare, no coaching/recovery saves, current B5/R4/UI B1. State
+  observed QUEUED/RUNNING/YIELDED/RUNNING, still awaiting semantic result and
+  normal cleanup. Do not apply/register another runtime until this window closes.
+- R5 `aef8d6a2b7a414540eabe9398b99be034cc20f82` committed 24 frozen native/provider
+  files after 142 provider, 78 ledger and 135 Runtime PASS checks; one paid opt-in
+  Cohere test skipped. Framework SDK stays immutable 0.8.70: no new public tag,
+  publication or framework-core change. Runtime image CI 45532500069 is running;
+  R5 is NOT registered/applied yet. Incidental core image CI 45532500192 is not
+  a backend rollout and must not replace qualified B5 merely for a later SHA.
+- R5 adds one exact-model Astra pricing amendment, additive V30 and private
+  authenticated/idempotent receipt. Original v1/v2 model coverage, budget scope,
+  grant/fingerprint/caps/usage/holds/top-ups/expiry stay unchanged. Only an explicit
+  separate v3 receipt permits future gpt-6.2-astra calls. Text-only pre-send bound
+  224K UTF-8 bytes plus 32K framing, 256K input tokens and <=16384 output retains
+  short-context conservative input pricing USD10/M (default cache writes) and
+  output USD40/M; max hold USD3.21536. Actual model quality is not yet tested.
+- Operational order: qualify R5 image -> apply R5 under mini -> verify V30 ->
+  normal private pricing-amendment POST -> normal published generation-model
+  switch -> real UI autonomy/quality comparison. Never mutate the original
+  LOOMAI_PROVIDER_BUDGET_RATE_CARD_REFERENCE, issue replacement grants, reset usage
+  or bypass guard to test Astra. Owner's USD50 combined ceiling remains active.
+- Lagrange prepared stage-only private amend-authoring-astra-pricing.mjs,
+  68 offline PASS, not invoked. Linnaeus owns private publish-authoring-astra-model.mjs
+  preparation, not invoked. No helper may run while Main's baseline window is open.
+  Four guards in the existing generation/guidance publisher were corrected and
+  independently verified with 30 offline checks before B5 staging execution.
+
+### 010.76 First Semantic Pass And R5 Staging Apply - 25 November 2026
+
+- B5/R4 mini baseline `s25-b5-guidance-1` completed from one normal UI Prepare
+  without user correction or manual configuration saves. All five Harbor
+  actions/routes, exact owned key references, fixture-specific visitor access
+  and WRITE confirmation passed. Three segments, 18 model calls, five
+  corrections, three write attempts and two executed draft-save receipts.
+  Charge delta USD0.3557505; cumulative staging ledger USD5.250642. Source
+  coverage and actual saved semantics were checked separately from COMPLETE.
+  Session/Brain cleanup, both logouts and financial preservation passed.
+- Framework 0.8.70 owns the reusable model/action/observation/repair/continuation
+  loop. Platform supplies scoped authority, APIs, context and UI; no second
+  inference loop is involved. This answer to the owner's architecture question
+  is also recorded in AUTONOMOUS_BUILD_WITH_AI.md.
+- R5 Runtime image CI 45532500069 passed. Staging registration matched all nine
+  official 0.8.70 JARs and declared capabilities/migrations: artifact
+  `dsa-12a00b0d`, digest
+  sha256:953a9450f1ed58c6a020bc179945ce96ccb6bf875b78a8955746775e75e410f4.
+  Registration and same-version apply `rel-c44468a4` both completed with verified
+  logout and APPLIED_VERIFIED/PASSED/ACTIVE under mini/8192. Backend stays B5 and
+  UI B1. Fresh R5 mini run `s25-r5-mini-1` also passed all five operations without
+  coaching: 15 model calls, four corrections, two saves, three segments.
+  Cleanup/logouts passed; USD0.36495075, cumulative staging USD5.61559275.
+- Staging pricing amendment `astra-stg-20261125-qualification-1` is verified with
+  all original financial rows unchanged. The first preflight stopped before
+  POST on manifest set ordering; 112 offline helper checks qualified exact
+  normalized comparison. The next attempt created its one receipt but local
+  clock timing rejected the immediate timestamp. Read-only reconciliation used
+  the same ID, read the existing receipt and did not replay the POST. Original
+  grant, scope, caps, usage, holds and expiry were preserved; own logout passed.
+- Normal published generation-model-only change to Astra passed on staging:
+  version `ver-e914d80e`, release `rel-50b35ab2`, APPLIED_VERIFIED/PASSED/ACTIVE,
+  nine profiles ready, actual generation Astra/8192/timeout40. The helper passed
+  99 local publisher tests and independent invariant review. All original
+  financial rows, keys, host, storage, primary model and other settings were
+  unchanged; own logout passed. Proof:
+  authoring-astra-s25-astra-model-1-staging-verified.private.json.
+- Main owns the first paid Astra Harbor UI window `s25-r5-astra-1`, exec 69834.
+  Await semantic completion, usage and normal cleanup; the model-only apply is
+  not model-quality acceptance. Production autonomy remains unchanged/unqualified.
+  Exact restart recovery remains deferred.
 

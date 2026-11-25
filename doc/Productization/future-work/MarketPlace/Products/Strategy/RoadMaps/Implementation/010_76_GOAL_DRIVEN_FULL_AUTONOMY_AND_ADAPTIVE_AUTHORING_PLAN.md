@@ -1,6 +1,31 @@
 # 010.76 Goal-Driven Full Autonomy and Adaptive Authoring
 
 Status: owner approved; implementation in progress, 24 November 2026.
+
+## Owner Clarification, 25 November 2026
+
+Build with AI is a user-invoked configuration helper, not a promised durable
+background service. Prioritize autonomous planning, authorized draft writes,
+validation repair and answer/configuration quality during the active request.
+After a service interruption the user may trigger the request again against the
+current draft. Preserve actual saved draft configuration; unsaved AI candidates
+and exact in-flight reasoning recovery do not need to survive a restart.
+
+Exact cross-restart continuation, same-container restart qualification and
+long-lived recovery guarantees below are deferred, not production acceptance
+prerequisites for this helper. Retain already-built generic SDK capabilities;
+do not add more recovery infrastructure or remove working shared primitives
+merely to simplify this helper's product promise. Keep ownership, source access,
+cancellation, finite spending, atomic saves and honest effect receipts. Active
+request autonomy must still be driven by the configured Brain/framework, not a
+Platform inference loop. Do not turn this simplification into automatic repeated
+business effects or permission bypasses.
+
+The owner also approves qualifying the strongest suitable GPT model available to
+the account within the existing USD50 combined testing ceiling. Do not blindly
+select a model without supported transport, accurate cost accounting and actual
+quality evidence. A read-only account catalogue check is not a paid model test.
+
 The owner approved this full plan, including FW-G1/G2/G3, and very high testing
 turn/token allowances within USD50 combined qualification spend. Do not ask for
 the same testing approval again. This is not unlimited money or infrastructure
@@ -67,6 +92,16 @@ inspection found `LOOMAI_AUTHORING_MAX_OUTPUT_TOKENS=8192` and MEDIUM reasoning;
 the compiler also declares a 4096-token specialist final-output limit. Neither
 is proof of the effective failed planning call's cap. Trace the actual exchange
 before attributing the failures to token exhaustion or changing model settings.
+
+25 November qualification update: the new native provider diagnostics now prove
+the effective cap on a fresh R3 attempt. Four planning calls ended with `length`,
+4096 output/reasoning tokens and zero content. The controlling override is
+`AI_PROVIDERS_GENERATION_MAX_TOKENS=4096`, not the specialist final-output limit:
+the planner uses `LlmPurpose.GENERATION` without a request-specific override.
+Correct the existing published generation-model token setting to 8192 rather
+than introduce a duplicate workflow knob. Retain the existing financial boundary
+and qualify actual calls. This is not a semantic validator or another retry
+engine. Successful actual Harbor qualification is still required.
 
 Manually narrowing the request produced two READ capabilities: product search
 and delivery policy. Two new approved documents were uploaded/indexed. Harbor
@@ -486,8 +521,9 @@ usage, typed pause, safe resume and scheduling. Separate segment from goal
 lifetime. Preserve existing bounded execution by default.
 
 Add safe host-authority restoration and canonical control/history integration;
-do not enqueue the current ThreadLocal dispatcher unchanged. Verify restart,
-lease expiry, cancellation and release retirement with actual durable storage.
+do not enqueue the current ThreadLocal dispatcher unchanged. Verify lease expiry,
+cancellation and release retirement with actual storage. Exact restart recovery
+is deferred for this helper under the owner clarification above.
 
 ### FW-G2: Failure observations and adaptive recovery
 
@@ -566,8 +602,9 @@ or increased budgets are not proof of production autonomous behavior.
   save followed by narration failure remains executed and is not repeated.
 - Lost callback/timeout around WRITE: reconcile the original operation receipt.
   Never replay a potentially committed mutation under a new operation ID.
-- Kill/restart worker during planning, after save and during delegation: restore
-  progress, ownership/epoch and financial records; no duplicate saves.
+- Deferred durability qualification: kill/restart during planning, after save
+  and during delegation. This is not a helper release gate; saved drafts,
+  financial records and protection against repeated effects remain required.
 - Same malformed plan repeats: manager receives no-progress evidence and changes
   tactic or the system pauses. No uncontrolled paid spin.
 - Real missing credential/host/unsupported connector: no guessed secret, host,
@@ -669,7 +706,8 @@ entry or this plan is not proof of the next deployed version.
 - [ ] Model-led recovery/semantic completion, system-enforced trust and typed pauses.
 - [ ] Incremental draft writes and source-operation coverage; manual edits stay unlocked.
 - [ ] Existing panel/API entry, additive progress/control and published policy forms.
-- [ ] Full Harbor five-operation proof plus regression/security/restart/accounting gates.
+- [ ] Full Harbor five-operation proof plus regression/security/accounting gates;
+  exact restart recovery deferred by owner.
 - [ ] No autonomous publication, new paid infrastructure or increased spending caps.
 
 The owner has now approved implementation. Completion still requires the live

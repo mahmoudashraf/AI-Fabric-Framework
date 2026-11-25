@@ -1,8 +1,8 @@
 # Autonomous Build With AI Qualification
 
-Status: implementation and local qualification in progress. Not a live-release
-acceptance record. Existing hosted services still run framework 0.8.69 until a
-dated deployment record below proves otherwise.
+Status: implementation committed and release CI passed; staging rollout and
+hosted qualification in progress. Not a live-release acceptance record. A
+published artifact is not proof of an applied or qualified customer workflow.
 
 ## Contract
 
@@ -53,11 +53,102 @@ language completion. Full framework/backend/Runtime regression and the hosted
 cases below remain release gates.
 
 Runtime/provider implementation and version alignment were committed and pushed
-as `19282a279420b74d8ffda1df36302adcea199e1c`. Runtime image CI 45503364904
-is running. Backend/UI authoring changes are still being qualified separately.
-No hosted service has yet been updated by this release.
+as `19282a279420b74d8ffda1df36302adcea199e1c`; Runtime image CI 45503364904
+passed. Backend/UI authoring source is
+`0b3197a65097e6ad907803aeb8aa9fd1a385f8be`. Its core image 45505263980,
+storage 45505263845, quota/Desk 45505263933 and full code regression
+45505285987 gates passed. The latter passed on attempt two after the first
+attempt stopped before compilation on a Maven Central HTTP 429 response.
+
+Full backend pre-closure checks passed: 6,191 tests, zero failures/errors and
+one skip. Final assistant/materialization/safety closure checks: 484 passed.
+Staging Runtime artifact `dsa-0a673f73` was registered against the nine official
+JAR checksums and immutable image digest
+`sha256:51fcd9f7eb8752bf5fbcd93e8720f9094e1ea20801a2936c326b8990a017f538`.
+Staging backend and UI are healthy on the exact backend/UI source, with existing
+environment, capacity and storage preserved. Configured authoring release
+`rel-6055b90b` failed before verification: its 68,170-byte workflow bundle exceeded
+the entrypoint downloader's stale 65,536-byte limit, despite the compiler/parser
+declaring 96,000 bytes. Production remained unchanged.
+
+Runtime bootstrap correction `997815dc10e3089571ebc125d0f1e39d2c87dc73`
+aligns both the download and post-download limits for workflow bundles only.
+Ordinary Support specialist bundles retain their 65,536-byte limit. Eleven
+focused shell/parser tests passed, including the exact workflow boundary,
+over-limit download and post-download checks, empty/failed/insecure downloads,
+hash mismatch and conflicting transports. Corrected Runtime image CI
+45510010248 is running. No hosted goal completion or production rollout is
+claimed at this checkpoint; the failed release remains recorded.
 
 ## Hosted Acceptance Gates
+
+### Current Staging Finding, 25 November
+
+Latest checkpoint: B5 backend `91edaf5e6e6828ce95a60aace919c1f601cef713`,
+UI B1, and verified R5 authoring runtime
+`aef8d6a2b7a414540eabe9398b99be034cc20f82` on release `rel-c44468a4` /
+version `ver-9a715db1`. Runtime image CI 45532500069 passed and all nine official
+Framework 0.8.70 JAR checksums matched. Same-version apply retained mini/8192,
+all nine profiles, saved configuration, keys, capacity, storage and original
+funding/usage. Both registration and apply logouts passed.
+
+The preceding B5/R4 one-Prepare UI baseline `s25-b5-guidance-1` passed all five
+Harbor action/route, company-credential, visitor-access and confirmation checks
+without user correction. It used three segments, 18 model calls, five
+corrections, three write attempts and two executed saves, costing USD0.3557505. Normal test resource
+cleanup and both logouts passed. This is the first complete semantic pass, not
+the three fresh runs or complete production qualification required below.
+
+Fresh R5 mini run `s25-r5-mini-1` also passed all five operations, with 15 model
+calls, four corrections and two saves over three segments. Cleanup and both
+logouts passed. Charge delta USD0.36495075; cumulative staging USD5.61559275.
+
+R5 enables separately authorized Astra pricing without replacing funding. Its
+staging amendment is now verified with all six original financial tables
+unchanged. The helper's raw-versus-normalized manifest ordering was corrected
+with 112 offline checks. An immediate receipt timestamp check then required a
+GET-only reconciliation; the existing POST was not replayed. Own logout passed.
+Normal model-only publication passed on staging: version `ver-e914d80e`, release
+`rel-50b35ab2`, verified/ACTIVE with Astra/8192/timeout40. Financial rows, keys,
+primary model and other configuration remained unchanged, with verified logout.
+The first paid Astra UI run `s25-r5-astra-1` is now in progress; this is not yet
+model-quality acceptance.
+Production autonomy and the new walkthrough remain unqualified. Exact restart
+recovery is deferred by owner; basic authority, cancellation and erasure are not.
+The earlier checkpoints below remain historical evidence.
+
+Backend B3 `e2dd3ab1ba4b8927da663376619f851fe7dd0fdc` passed all four
+source-exact gates (code 45518192520 attempt two). Runtime R3
+`8921e6aa579d869b91086c394871db35304b94f4` passed image CI 45520284390 and
+68 focused local checks. Staging authoring release `rel-407a3181` is verified
+and ACTIVE on published version `ver-2a7757a6`, preserving ledger, keys, host
+capacity and storage. Production is unchanged.
+
+The first real R3 Harbor one-Prepare attempt admitted native work but paused
+before any save. Actual provider metadata, not a guessed host setting, shows
+four planning responses exhausted a 4096-token cap entirely on reasoning, with
+no content. The actual controlling setting is the generation purpose override
+AI_PROVIDERS_GENERATION_MAX_TOKENS=4096; its planner does not use the specialist's
+final-output limit. The attempt recorded 0/5 coverage,
+zero writes and USD0.10646625; normal cleanup and both own logouts completed.
+Its report remains at the private `harbor-staging-s25-r3-bulk-1/` directory.
+The existing generation-budget configuration and malformed web usage projection are being
+corrected before another paid attempt. This is not hosted completion evidence.
+
+R4 `0546601da6ab763f20987f80f7b33b6560b038c4` subsequently passed full Runtime
+image CI 45524600734 and 68 focused checks, including real Boot/Jackson3 HTTP
+serialization. Staging version `ver-99a2a21d` / release `rel-630090bd` is verified
+on artifact `dsa-5305d19f`; actual Java process generation cap is 8192/MEDIUM.
+Twelve readonly host/SDK/schema/authority/accounting/storage gates passed.
+
+Fresh `s25-r4-bulk-1` completed structurally from one normal UI Prepare across
+three segments: 10 tool steps, 14 model calls, three corrections, one save and
+5/5 coverage. **Semantic acceptance remains FAIL**: the private actions wrongly
+require visitor sign-in although their company API credential is already bound
+and the documentation says no visitor login. Correct scoped key references do
+not override visitor authorization. Retain the original failed checker report
+and separate semantic reevaluation; no SDK authorization relaxation is allowed.
+Generic authoring guidance is being corrected before fresh qualification.
 
 - Official immutable framework release, successful public build and nine
   official Central JAR checksums matched inside the Runtime image.
@@ -68,8 +159,9 @@ No hosted service has yet been updated by this release.
   operations, private credential references, optional filters and WRITE
   confirmation must be present. No manual recovery coaching or hidden helper
   writes count as assistant success.
-- Durable continuation, pause/resume, cancellation, authenticated recovery,
-  source withdrawal/erasure, denied foreign resources and no duplicate writes.
+- Active-request continuation, pause/cancellation, source withdrawal/erasure,
+  denied foreign resources and no duplicate writes. Exact restart recovery and
+  post-crash continuation are deferred, not credited as passed.
 - Existing Quick edit, preview, Undo, manual editing, other page profiles and
   separate read-only Support behavior retained.
 - Actual Harbor knowledge/indexing retained, explicit publish/apply/verify,
