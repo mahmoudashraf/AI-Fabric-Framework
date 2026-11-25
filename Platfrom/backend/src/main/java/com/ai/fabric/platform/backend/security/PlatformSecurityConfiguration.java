@@ -135,6 +135,7 @@ public class PlatformSecurityConfiguration {
             authorize.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/mcp/runtime/*/*/actions/execute").permitAll();
             // Each exact internal tool verifies dedicated service credentials and the frozen work scope.
             authorize.requestMatchers(org.springframework.http.HttpMethod.POST,
+                "/api/internal/configuration-authoring/*/*/authority",
                 "/api/internal/configuration-authoring/*/*/authoring_get_context",
                 "/api/internal/configuration-authoring/*/*/authoring_read_selected_sources",
                 "/api/internal/configuration-authoring/*/*/authoring_check_candidate",
