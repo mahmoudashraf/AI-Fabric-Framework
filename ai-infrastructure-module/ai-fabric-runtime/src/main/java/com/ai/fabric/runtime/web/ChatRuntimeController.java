@@ -671,9 +671,37 @@ public class ChatRuntimeController {
         }
         putDiagnosticIfMap(metadata, "readActionResolution", rawData == null ? null : rawData.get("readActionResolution"));
         putDiagnosticIfMap(metadata, "readActionResolution", data == null ? null : data.get("readActionResolution"));
+        Map<String, Object> workflow = firstMap(data == null ? null : data.get("workflow"),
+            rawData == null ? null : rawData.get("workflow"));
+        if (!workflow.isEmpty()) metadata.putIfAbsent("workflow", publicConversationWorkflow(workflow));
         return metadata.isEmpty()
             ? Map.of()
             : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
+    }
+
+    private Map<String, Object> publicConversationWorkflow(Map<String, Object> workflow) {
+        Map<String, Object> summary = workflowScalars(workflow,
+            List.of("workId", "state", "stopCode", "segmentNumber", "totalStepCount", "stepOffset", "hasMore"));
+        for (String key : List.of("usage", "segmentUsage")) {
+            Map<String, Object> usage = firstMap(workflow.get(key));
+            if (!usage.isEmpty()) summary.put(key, workflowScalars(usage,
+                List.of("actions", "writes", "modelCalls", "corrections", "elapsedMillis")));
+        }
+        if (workflow.get("steps") instanceof List<?> steps) {
+            summary.put("steps", steps.stream().limit(16).map(this::firstMap)
+                .map(step -> workflowScalars(step, List.of("operationId", "action", "write", "effect"))).toList());
+        }
+        return Collections.unmodifiableMap(summary);
+    }
+
+    private Map<String, Object> workflowScalars(Map<String, Object> source, List<String> fields) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        for (String key : fields) {
+            Object value = source.get(key);
+            if (value instanceof String text && text.length() <= 512 || value instanceof Number || value instanceof Boolean)
+                summary.put(key, value);
+        }
+        return summary;
     }
 
     private void putAllMetadata(Map<String, Object> target, Object value) {

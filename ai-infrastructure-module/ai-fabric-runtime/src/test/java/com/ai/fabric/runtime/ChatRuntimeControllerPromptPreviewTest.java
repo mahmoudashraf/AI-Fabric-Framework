@@ -763,6 +763,32 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void canonicalConversationExposesBoundedWorkflowSummaryWithoutPrivateObservations() {
+        var orchestrator = mock(RAGOrchestrator.class);
+        var workflow = Map.<String, Object>of("workId", "work-1", "state", "COMPLETE", "totalStepCount", 1,
+            "usage", Map.of("actions", 1, "modelCalls", 2, "private", "USAGE_SECRET_CANARY"),
+            "instructions", "PROMPT_SECRET_CANARY",
+            "steps", List.of(Map.of("operationId", "op-1", "action", "lookup_item", "write", false,
+                "effect", "EXECUTED", "parameters", Map.of("secret", "PARAMETER_SECRET_CANARY"),
+                "observation", Map.of("private", "OBSERVATION_SECRET_CANARY"))));
+        when(orchestrator.orchestrate(any(String.class), any(OrchestrationContext.class)))
+            .thenReturn(OrchestrationResult.builder().type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true).message("The item is available.").data(Map.of("workflow", workflow)).build());
+        var controller = controllerFor(orchestrator, null, strictAuthResolver());
+        var request = new ChatQueryRequest(); request.setQuery("Look up the item");
+        var servlet = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servlet, "user-1", "session-1", BASE_QUERY_SCOPES);
+
+        var response = controller.query(request, servlet).getBody();
+
+        assertThat(response.getMetadata().get("workflow")).isEqualTo(Map.of(
+            "workId", "work-1", "state", "COMPLETE", "totalStepCount", 1,
+            "usage", Map.of("actions", 1, "modelCalls", 2),
+            "steps", List.of(Map.of("operationId", "op-1", "action", "lookup_item", "write", false, "effect", "EXECUTED"))));
+        assertThat(response.getMetadata().toString()).doesNotContain("SECRET_CANARY");
+    }
+
+    @Test
     void meQueryExposesSafeResultMetadataInCanonicalResponse() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         Map<String, Object> readActionResolution = Map.of(
