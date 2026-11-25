@@ -52,6 +52,27 @@ class AuthoringTaskIntentTest {
         assertThat(result.editorContext().section()).isEqualTo("ACTIONS");
         assertThat(result.editorContext().selectedDefinitionIds()).containsExactly("product_lookup");
     }
+    @Test void apiGuidanceSeparatesVisitorIdentityFromServiceCredentialsWithoutChangingToolAuthority() {
+        var workflow = new ConfigurationAssistantTemplate(new com.fasterxml.jackson.databind.ObjectMapper())
+            .behavior().path("workflowAssistance");
+        var api = java.util.stream.StreamSupport.stream(workflow.path("profiles").spliterator(), false)
+            .filter(profile -> "api".equals(profile.path("id").asText())).findFirst().orElseThrow();
+        assertThat(api.path("instructions").asText()).contains(
+            "A company API key is not an end-user login",
+            "anonymousAllowed controls visitor sign-in: true permits visitors without sign-in; false requires visitor authentication",
+            "For new operations, follow the visitor policy supplied by the user's request and documentation",
+            "An explicit no-visitor-sign-in policy may use anonymousAllowed:true",
+            "Do not infer visitor login from an API key, a private endpoint or READ/WRITE accessMode",
+            "Preserve existing anonymousAllowed and other permissions unless their change is requested",
+            "requiresConfirmation is independent", "retain required final confirmation for writes",
+            "Surface genuinely unclear visitor policy", "does not grant authoring authority",
+            "Use stored credential references, never raw values", "Do not publish, provision, index, activate, grant access");
+        assertThat(api.path("readActions")).isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper()
+            .valueToTree(AuthoringNativeCapabilities.READS.stream().sorted().toList()));
+        assertThat(api.path("writeActions")).isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper()
+            .valueToTree(AuthoringNativeCapabilities.WRITES.stream().sorted().toList()));
+        assertThat(api.path("delegatedProfiles")).isEmpty();
+    }
     @Test void apiPreparationExplicitlyRequestsCreationAndDraftSaveWithoutSelectingTheActionSequence() {
         for (String task : List.of("ACTIONS", "CONNECTIONS")) {
             var prepared = AuthoringTaskIntent.resolve(task, "", "PREPARE", null);

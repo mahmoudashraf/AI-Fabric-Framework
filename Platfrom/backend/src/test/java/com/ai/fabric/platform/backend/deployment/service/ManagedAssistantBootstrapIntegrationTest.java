@@ -107,10 +107,16 @@ class ManagedAssistantBootstrapIntegrationTest {
         custom.put("generationMaxTokens", retainedBudget).put("generationModel", "retained-model")
             .put("generationApiKeySecretRef", "RETAINED_OWN_KEY").putObject("futureSetting").put("keep", true);
         draft.setProviderConfigJson(custom.toString()); draft.setPromptConfigJson("{\"systemPrompt\":\"Retained manual prompt\"}");
+        draft.setCreatedAt(Instant.parse("2026-11-20T12:00:00.123456789Z"));
+        draft.setUpdatedAt(Instant.parse("2026-11-20T12:01:00.987654321Z"));
         drafts.saveAndFlush(draft);
         deployment.setActiveVersionId(published.getId()); deployment.setStatus("ACTIVE");
         deployment.setRuntimeBaseUrl("https://retained-runtime.example.test"); deployments.saveAndFlush(deployment);
-        JsonNode beforeDraft = mapper.valueToTree(draft), beforeVersion = mapper.valueToTree(published), beforeDeployment = mapper.valueToTree(deployment);
+        // Compare persisted rows on both sides, including the database's timestamp precision.
+        entities.flush(); entities.clear();
+        JsonNode beforeDraft = mapper.valueToTree(drafts.findById(draft.getId()).orElseThrow());
+        JsonNode beforeVersion = mapper.valueToTree(versions.findById(published.getId()).orElseThrow());
+        JsonNode beforeDeployment = mapper.valueToTree(deployments.findById(deployment.getId()).orElseThrow());
         long draftCount = drafts.count(); entities.clear();
         service.createManagedConfigurationAssistant("staging", settings, template);
         entities.flush(); entities.clear();

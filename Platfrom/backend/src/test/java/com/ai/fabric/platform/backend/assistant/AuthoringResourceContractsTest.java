@@ -98,4 +98,23 @@ class AuthoringResourceContractsTest {
         assertThat(catalogue.path("responseMappingRules").asText())
             .contains("also used on failures", "null-versus-omission", "path/query/internal parameters must be excluded");
     }
+    @Test void serviceCredentialGuidanceDoesNotInferVisitorLoginOrRelaxReferenceAndConfirmationBoundaries() {
+        var mapper = new ObjectMapper();
+        for (String task : new String[] {"ACTIONS", "CONNECTIONS", "BRAIN_SETUP"}) {
+            var catalogue = mapper.createObjectNode();
+            AuthoringResourceContracts.populate(mapper, catalogue, task);
+            assertThat(catalogue.path("storedSecretReferenceRules").asText()).contains(
+                "A company API key is not an end-user login",
+                "authenticates the connector to the upstream service, not the visitor",
+                "anonymousAllowed controls visitor sign-in separately",
+                "documented no-visitor-sign-in operation", "anonymousAllowed:true",
+                "Preserve existing visitor permissions unless their change is requested",
+                "retain required write confirmation independently",
+                "only an exact name", "Never create or reveal secret values", "global/foreign name",
+                "does not grant authoring authority or alter global security");
+            assertThat(catalogue.at("/storedSecretReferenceSelection/rawValuesAllowed").asBoolean()).isFalse();
+            assertThat(catalogue.at("/storedSecretReferenceSelection/createsSecrets").asBoolean()).isFalse();
+            assertThat(catalogue.at("/storedSecretReferenceSelection/wireFormat").asText()).isEqualTo("${NAME}");
+        }
+    }
 }

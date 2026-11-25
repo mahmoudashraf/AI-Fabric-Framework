@@ -263,6 +263,45 @@ class AuthoringResourceServiceTest {
         assertThat(catalogue.path("actionContract").asText()).contains("READ_WRITE", "WRITE_ONLY");
     }
 
+    @Test void actionContextExplainsVisitorPolicyWithoutApplyingPermissionDefaults() throws Exception {
+        var draft = brainFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) draft.actionsConfig().at("/actions/0"))
+            .put("anonymousAllowed", false);
+        var original = draft.actionsConfig().deepCopy();
+        for (String task : List.of("ACTIONS", "CONNECTIONS", "BRAIN_SETUP")) {
+            var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, task);
+            assertThat(snapshot.catalogue().path("actionContract").asText()).contains(
+                "anonymousAllowed controls visitor sign-in: true permits visitors without sign-in; false requires visitor authentication",
+                "company API key, do not establish a visitor login requirement",
+                "For new operations follow the visitor policy in the user's request and documentation",
+                "explicit no-visitor-sign-in policy may use anonymousAllowed:true",
+                "Preserve existing anonymousAllowed and other permissions unless their change is requested",
+                "requiresConfirmation is independent", "retains declared final confirmation",
+                "do not grant authoring authority or change global security");
+            assertThat(snapshot.configuration().path("actionsConfig")).isEqualTo(original);
+        }
+        verify(brains, never()).updateDraft(anyString(), any());
+    }
+
+    @Test void requestedVisitorPolicyEditPreservesWriteConfirmationAndUnrelatedPermissions() throws Exception {
+        var draft = brainFixture();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) draft.actionsConfig().at("/actions/1"))
+            .put("anonymousAllowed", false).put("confirmationMessage", "Confirm this callback");
+        var saved = resources.save("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS", json("""
+            [{"path":"/actionsConfig/actions","operation":"UPSERT","key":"send_callback",
+              "value":{"name":"send_callback","anonymousAllowed":true}}]
+            """));
+        var action = saved.configuration().at("/actionsConfig/actions/1");
+        assertThat(action.path("anonymousAllowed").asBoolean()).isTrue();
+        assertThat(action.path("requiresConfirmation").asBoolean()).isTrue();
+        assertThat(action.path("confirmationMessage").asText()).isEqualTo("Confirm this callback");
+        assertThat(action.path("accessMode").asText()).isEqualTo("WRITE_ONLY");
+        assertThat(action.path("futureSiblingField").asInt()).isEqualTo(7);
+        assertThat(saved.configuration().at("/actionsConfig/actions/0")).isEqualTo(draft.actionsConfig().at("/actions/0"));
+        assertThat(saved.configuration().path("routingConfig")).isEqualTo(draft.routingConfig());
+        assertThat(capturedDraftUpdate().securityConfig()).isNull();
+    }
+
     @Test void behaviorGuidanceUsesAnActualNormalizedExampleWithoutApplyingItsDefaults() throws Exception {
         var draft = brainFixture();
         var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "BEHAVIOUR");
