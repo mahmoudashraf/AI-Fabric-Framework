@@ -21,6 +21,7 @@ import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Clock;
 import java.time.Instant;
@@ -51,6 +52,7 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
     private final RuntimePrivateAssertionService assertions;
     private final RuntimeAuthProperties authProperties;
     private final ObjectMapper mapper;
+    private final ObjectMapper projectionMapper;
     private final Clock clock;
 
     record Root(ConfigurationWork work, String conversationId, long userSequence, String interactionKey,
@@ -76,6 +78,7 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
         this.repositories = repositories; this.securities = securities; this.registries = registries; this.snapshots = snapshots;
         this.conversations = conversations; this.handovers = handovers; this.budgets = budgets;
         this.assertions = assertions; this.authProperties = authProperties; this.mapper = mapper; this.clock = clock;
+        this.projectionMapper = mapper.copy().disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     public ChatQueryResponse submit(ChatQueryRequest body, RuntimeResolvedIdentity identity, RuntimeConversationTurn turn,
@@ -621,8 +624,10 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
             goal.put("workflow", snapshot.result().diagnostics().get("workflow"));
             goal.put("providerDiagnostics", snapshot.result().diagnostics().get("providerDiagnostics"));
         }
+        // Keep SDK Jackson2 trees out of Boot's Jackson3 HTTP converter.
+        Map<String, Object> projection = projectionMapper.convertValue(goal, new TypeReference<LinkedHashMap<String, Object>>() {});
         return ChatQueryResponse.builder().success(true).type("WORK_STATUS").conversationId(conversationId)
-            .workId(record.invocationId()).goal(Collections.unmodifiableMap(goal)).build();
+            .workId(record.invocationId()).goal(Collections.unmodifiableMap(projection)).build();
     }
     static TrustedExecutionContext trusted(RuntimeResolvedIdentity identity, String conversationId) {
         var auth = identity.getAuthContext();

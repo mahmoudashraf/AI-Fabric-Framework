@@ -77,6 +77,7 @@ class RuntimeDurableGoalIntegrationTest {
     @Autowired RuntimeBudgetBindingService funded;
     @Autowired RuntimeBudgetTurnScopes goalScopes;
     @Autowired Funding funding;
+    @Autowired org.springframework.web.context.WebApplicationContext web;
     @MockitoSpyBean AICoreService core;
     @MockitoSpyBean AuthoringPlatformClient platform;
     static final ObjectMapper MAPPER = WorkflowAssistanceBundleTest.MAPPER.copy().findAndRegisterModules()
@@ -127,8 +128,11 @@ class RuntimeDurableGoalIntegrationTest {
             } else result.putObject("sourceCoverage").put("required", false);
             return new AuthoringPlatformClient.Reply(200, result);
         }).when(platform).call(anyString(), anyMap(), any());
-        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(conversations)
-            .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(MAPPER)).build();
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web).build();
+        var converters = web.getBean(org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.class).getMessageConverters();
+        assertThat(converters.stream().filter(converter -> converter.canWrite(com.ai.fabric.runtime.web.dto.ChatQueryResponse.class,
+            org.springframework.http.MediaType.APPLICATION_JSON)).findFirst().orElseThrow().getClass().getName())
+            .contains("JacksonJsonHttpMessageConverter");
         var before = funded.readCurrent();
         var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
             .post("/api/chat/me/conversations/{conversation}/messages", client.conversation())
@@ -141,6 +145,13 @@ class RuntimeDurableGoalIntegrationTest {
         assertThat(paused.failureReason()).isEqualTo("AUTHORING_AUTHORITY_UNAVAILABLE");
         assertThat(paused.protectedWorkflowCheckpoint()).isNull(); assertThat(paused.nextEligibleAt()).isNull();
         assertThat(calls).hasValue(0); assertThat(writes).isEmpty();
+        var pausedView = workOverHttp(client, id);
+        assertThat(pausedView.path("state").asText()).isEqualTo("PAUSED");
+        assertThat(pausedView.path("usage").isNull()).isTrue();
+        assertThat(pausedView.path("progress").isNull()).isTrue();
+        assertThat(pausedView.path("questions").isArray()).isTrue();
+        assertThat(pausedView.path("canResume").isBoolean()).isTrue();
+        assertThat(pausedView.path("canResume").asBoolean()).isTrue();
         verify(platform, never()).call(anyString(), anyMap(), any());
         assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
         assertThat(funded.readCurrent().providerAttempts()).isEqualTo(before.providerAttempts());
@@ -160,6 +171,15 @@ class RuntimeDurableGoalIntegrationTest {
         client.request().getHeaderNames().asIterator().forEachRemaining(name -> resume.header(name, client.request().getHeader(name)));
         mvc.perform(resume).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
         await(id, client, ExecutionHandleStatus.SUCCEEDED);
+        var goalView = workOverHttp(client, id);
+        assertThat(goalView.path("usage").path("modelCalls").isIntegralNumber()).isTrue();
+        assertThat(goalView.path("usage").path("modelCalls").asInt()).isEqualTo(2);
+        assertThat(goalView.path("usage").path("writes").asInt()).isEqualTo(1);
+        assertThat(goalView.path("workflow").path("state").asText()).isEqualTo("COMPLETE");
+        assertThat(goalView.path("providerDiagnostics").path("observations").isArray()).isTrue();
+        var nextEligibleAt = repository.findById(id).orElseThrow().nextEligibleAt();
+        assertThat(goalView.path("nextEligibleAt")).isEqualTo(nextEligibleAt == null ? MAPPER.nullNode()
+            : MAPPER.getNodeFactory().textNode(nextEligibleAt.toString()));
         var rootAfter = storedRoot(scope, client.goal());
         assertThat(rootAfter.budgetReceipt()).isEqualTo(rootBefore.budgetReceipt());
         assertThat(rootAfter.sourceVersions()).isEqualTo(MAPPER.createObjectNode().put("source-one", "a".repeat(64)));
@@ -479,9 +499,13 @@ class RuntimeDurableGoalIntegrationTest {
             assertThat(funded.readCurrent().approval()).isEqualTo(original.approval());
             assertThat(calls).hasValue(2);
             assertThat(nativeFixture.sends()).isEqualTo(1);
-            var observed = MAPPER.valueToTree(conversations.work(client.conversation(), id, client.request()).getGoal().get("providerDiagnostics")).path("observations");
+            var goalView = workOverHttp(client, id);
+            assertThat(goalView.path("usage").path("modelCalls").asInt()).isEqualTo(2);
+            var observed = goalView.path("providerDiagnostics").path("observations");
             assertThat(observed.size()).isEqualTo(1); assertThat(observed.get(0).path("inputTokens").asInt()).isEqualTo(12);
             assertThat(observed.get(0).path("finishReason").asText()).isEqualTo("stop");
+            assertThat(observed.get(0).path("contentEmpty").isBoolean()).isTrue();
+            assertThat(observed.get(0).path("contentEmpty").asBoolean()).isFalse();
             chat.deleteConversation(client.conversation(), "erase-funded", client.request());
         } finally {
             funding.ledger.settle(original.approval().id(), original.approval().scope(), hold, new ProviderBudgetLedger.Usage(0, 0, 0), "offline-fixture-hold-reconciled");
@@ -721,6 +745,16 @@ class RuntimeDurableGoalIntegrationTest {
             Thread.sleep(20);
         } while (System.nanoTime() < until);
         assertThat(result.handle().status()).as("native goal %s", result).isEqualTo(expected); return result;
+    }
+    private JsonNode workOverHttp(Client client, String id) throws Exception {
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .get("/api/chat/me/conversations/{conversation}/work/{work}", client.conversation(), id);
+        client.request().getHeaderNames().asIterator().forEachRemaining(name -> request.header(name, client.request().getHeader(name)));
+        var wire = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web).build().perform(request)
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        assertThat(wire).doesNotContain("\"nodeType\"", "\"containerNode\"", "\"missingNode\"");
+        return MAPPER.readTree(wire).path("goal");
     }
     private static String save(String value) { return "{\"type\":\"ACTION\",\"action\":\"authoring_update_draft\",\"parameters\":{\"changes\":[{\"operation\":\"SET\",\"path\":\"/promptConfig/systemPrompt\",\"value\":\"" + value + "\"}]}}"; }
 
