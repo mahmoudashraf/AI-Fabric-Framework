@@ -249,7 +249,15 @@ async function run(name, work, options = {}) {
   finally { await page.close() }
 }
 async function turnOptions(page, visible = true) { const toggle = panel(page).getByRole('button', { name: 'Turn options', exact: true }); if (!visible && !await toggle.count()) return; if (await toggle.getAttribute('aria-expanded') !== String(visible)) await toggle.click() }
-async function open(page, optionsVisible = true) { const button = page.getByRole('button', { name: 'Build with AI', exact: true }); if (await button.getAttribute('aria-expanded') !== 'true') await button.click(); await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor(); await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled); await turnOptions(page, optionsVisible) }
+async function open(page, quickEditOptions = true) {
+  const button = page.getByRole('button', { name: 'Build with AI', exact: true })
+  if (await button.getAttribute('aria-expanded') !== 'true') await button.click()
+  await panel(page).getByRole('textbox', { name: 'Message', exact: true }).waitFor()
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Message"]').disabled)
+  if (quickEditOptions && await panel(page).getByRole('button', { name: 'Quick edit', exact: true }).count())
+    await panel(page).getByRole('button', { name: 'Quick edit', exact: true }).click()
+  await turnOptions(page, quickEditOptions)
+}
 async function send(page, text = 'Use a concise response style') { await panel(page).getByRole('textbox', { name: 'Message', exact: true }).fill(text); await panel(page).getByRole('button', { name: 'Send', exact: true }).click() }
 async function review(page) { await panel(page).getByRole('region', { name: 'Selected documents', exact: true }).getByRole('button').last().click(); const dialog = page.getByRole('dialog', { name: /^Review / }); await dialog.getByText('Redacted imported documentation.', { exact: false }).waitFor(); assert.equal(await page.evaluate(() => window.sourceExecuted), undefined); await dialog.getByRole('button', { name: 'Close source review' }).click() }
 async function addResizeSource(page) {
@@ -309,6 +317,19 @@ async function importDocumentation(page, mode = 'paste', title = 'API reference'
 }
 try {
   browser = await chromium.launch({ headless: true })
+  for (const path of ['', '/models', '/responses', '/knowledge/search', '/knowledge/documents', '/human-support/specialists', '/capabilities', '/capabilities?view=connection']) {
+    await run(`available assistant defaults to a native autonomous request on ${path || 'Brain setup'}`, async ({ page, calls }) => {
+      await open(page, false)
+      assert.equal(await panel(page).getByRole('button', { name: 'Autonomous', exact: true }).getAttribute('aria-pressed'), 'true')
+      assert.equal(calls.filter(call => call.path.endsWith('/turns')).length, 0, 'Opening never invokes a model')
+      await send(page, 'Prepare the requested draft configuration')
+      await panel(page).getByRole('region', { name: 'Autonomous goal', exact: true }).waitFor()
+      const turns = calls.filter(call => call.path.endsWith('/turns'))
+      assert.equal(turns.length, 1)
+      assert.equal(turns[0].input.executionMode, 'AUTONOMOUS')
+      assert.equal('validationFeedback' in turns[0].input, false)
+    }, { goal: true, path: '/smart-brains/brain-37' + path })
+  }
   const startGoal = async page => {
     await open(page, false)
     await panel(page).getByRole('button', { name: 'Autonomous', exact: true }).click()

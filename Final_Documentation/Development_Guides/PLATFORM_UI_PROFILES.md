@@ -79,6 +79,13 @@ publication or ordinary Support write permission. Read
 `AUTONOMOUS_BUILD_WITH_AI.md` for the contract and the latest working-context
 acceptance record for hosted availability.
 
+Owner clarification, 25 November: available Build with AI configuration tasks
+default to Autonomous, not only whole-Brain setup or multi-operation imports.
+Keep an explicit Quick edit choice and preserve it for that editing context.
+Unknown/disabled server availability still uses Quick edit; guidance and explicit
+explanation remain nonmutating. The visible mode must match the actual request
+and configured Framework execution, not a UI-only autonomy label.
+
 ## AI-First Brain Workspace - Owner Approval, 15 November 2026
 
 The owner approved the two AI-first mockups for the Brain library, its guided

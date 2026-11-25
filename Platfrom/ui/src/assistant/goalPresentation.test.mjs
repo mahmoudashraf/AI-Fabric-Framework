@@ -72,11 +72,8 @@ test('only executed receipts in the same goal count, stable IDs deduplicate acro
   assert.deepEqual(savedGoalOperations(session), [executed])
   assert.deepEqual(savedGoalOperations({ turns: session.turns }), [])
 })
-test('Brain setup and multi-operation preparation default to autonomy without classifying user text', () => {
-  assert.equal(defaultExecutionMode({ task: 'BRAIN_SETUP' }, false, 0), 'AUTONOMOUS')
-  assert.equal(defaultExecutionMode({ task: 'ACTIONS' }, true, 0), 'AUTONOMOUS')
-  assert.equal(defaultExecutionMode({ task: 'MODELS' }, false, 2), 'AUTONOMOUS')
-  assert.equal(defaultExecutionMode({ task: 'BEHAVIOUR' }, true, 0), 'BOUNDED')
+test('available configuration assistance defaults to autonomy without task or text classification', () => {
+  assert.equal(defaultExecutionMode(), 'AUTONOMOUS')
 })
 test('pinned editor context comes from original goal turn, not current navigation', () => {
   assert.deepEqual(sessionScope({ resourceKind: 'DEPLOYMENT_DRAFT', resourceId: 'original', task: 'ACTIONS', goal: { turnId: 'root' }, turns: [{ id: 'root', editorContext: { section: 'ACTIONS', selectedDefinitionIds: ['original-action'] } }] }), {

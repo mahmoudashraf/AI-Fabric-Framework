@@ -189,7 +189,7 @@ export function AssistantPanel({ controller: c, inputs, scope: pageScope, onClos
   const continuingGoal = goalOpen(c.session?.goal)
   const showPageTools = !c.session?.goal || prepareOpen
   const availability = autonomousAvailability(c.status.error ? undefined : c.status.data)
-  const executionMode = availability.enabled ? executionPreference ?? defaultExecutionMode(scope, showPreparation, operationIds.length) : 'BOUNDED'
+  const executionMode = availability.enabled ? executionPreference ?? defaultExecutionMode() : 'BOUNDED'
   const autonomous = !guideOnly && executionMode === 'AUTONOMOUS'
   const pinnedReviewHref = scope.resourceId !== pageScope.resourceId && scope.resourceKind === 'DEPLOYMENT_DRAFT' ? `/smart-brains/${encodeURIComponent(scope.resourceId)}/updates` : reviewHref
   const [deleteOpen, setDeleteOpen] = useState(false)

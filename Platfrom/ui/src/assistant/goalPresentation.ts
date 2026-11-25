@@ -79,6 +79,6 @@ export const sessionScope = (session: AssistantSession): AssistantScope => ({
   editorContext: session.turns.find(turn => turn.id === session.goal?.turnId)?.editorContext ?? session.editorContext,
 })
 
-export function defaultExecutionMode(scope: AssistantScope, preparing: boolean, selectedOperations: number) {
-  return scope.task === 'BRAIN_SETUP' || selectedOperations > 1 || preparing && ['ACTIONS', 'CONNECTIONS', 'DATA_PLUGIN', 'DOCUMENT_PREPARATION'].includes(scope.task) ? 'AUTONOMOUS' as const : 'BOUNDED' as const
+export function defaultExecutionMode() {
+  return 'AUTONOMOUS' as const
 }

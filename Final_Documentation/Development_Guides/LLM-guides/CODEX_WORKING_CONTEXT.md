@@ -22101,4 +22101,119 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   independently verified two source and both red/green log hashes. This changes
   the product Runtime adapter only; public Framework remains0.8.70. All test
   execs collected. Commit/Runtime CI/rollout/new-source qualification are next.
+- Runtime R9 committed/pushed as8c9d40db2ef12466c72e9c9f15366a09a495dda8;
+  exactly two Runtime files and two owned documents. Backend remains exact DEA,
+  UI remains B1. Runtime CI45556276099 is running. Main exec50472 waits this exact
+  single CI, then normal staging source registration and same-version apply with
+  explicit backend DEA proof; no core/image/capacity/funding change is queued.
+- Private offline erasure correction is scoped to an explicit hash-pinned
+  original INTERNAL_BOOTSTRAP funding expectation; real zero Platform funding
+  rows must stay zero, native approval/binding/attempts/ingress and whole-row
+  hashes remain required. No original FAIL or capture is overwritten, and no
+  erasure acceptance has yet been claimed.
+- Main browser exec7644 is logged in normally to production for read-only
+  walkthrough preparation. Primary Harbor backup drf-46a65ce8 revision14 has two
+  READ actions and the old failed/bounded conversation; no draft edit, paid
+  preparation, upload, publication or recording has occurred. No current
+  production autonomy or primary Harbor FW70 claim. Close normally when done.
+- Read-only production preparation browser7644 was normally signed out and
+  closed; no recording or mutation occurred. Main exec50472 is the only active
+  main deployment pipeline. Runtime45556276099 now passed both verification and
+  immutable-image publishing, and normal R9 staging registration/apply is next.
+- Private bootstrap verifier correction froze157 passing offline tests and six
+  source hashes, all independently checked. Main reevaluated the existing two
+  actual encrypted withdrawal captures with trusted keys in memory only and an
+  explicit INTERNAL_BOOTSTRAP expectation. New report
+  goal-controls-staging-s25-dea-astra-basic-controls-3/source-erasure-bootstrap-closure.private.json
+  passed26 checks, zero failures/unknowns. Real receipt bodies, authority/request,
+  native encrypted tombstone, canary absence, canonical history removal, preserved
+  draft effects and financial whole-row hashes all passed. Original FAIL/captures/
+  ACKs remained unchanged. No extra model call, SQL mutation or key/plaintext
+  serialization. This covers captured owned stores, not backups/WAL/provider
+  retention, and does not turn the separate NOT_PROVEN Resume into acceptance.
+- Main pipeline50472 completed/collected: staging R9 applied the same published
+  ver-e914d80e as rel-08f95695, verified/PASSED/ACTIVE, artifact dsa-b761a2a8,
+  digest sha256:f2cce01800e402215df15e06aa8cca024aba944605fbdd4f01788d66162fe544.
+  Actual model Astra8192/timeout40 and all existing keys/funding/capacity/storage
+  stayed unchanged; own logout passed. Backend remains DEA. Actual promoted
+  artifact row was independently GET-captured and its normalized manifest checked.
+- Fresh R9 readonly exec61542 completed/collected12 PASS at
+  staging-readonly-acceptance-2026-11-25T06-01-04-017Z, no semantic claim.
+  Basic controls4 exec78916 and composed observer18305 now use R9/DEA proofs and
+  unused label s25-r9-astra-basic-controls-4; restart remains disabled. No separate
+  R9 Harbor paid test or production mutation has happened yet.
+- Production helpers now pin actual Runtime R9 and backend DEA, retaining all
+  original R5 model/pricing authority. 481 offline tests PASS. Walkthrough proof
+  checks passed100 tests, including FW70, required request-body mappings and
+  upload/index provenance. Main independently checked both freeze logs and14
+  source hashes. Neither test fixture nor source freeze is actual live evidence.
+- Controls4 main78916 and exporter18305 completed/collected. R9 genuinely resumed
+  the same goal/work through a model-selected read and new unique executed save
+  (step4), changed the draft, and showed five new provider attempts. All foreign
+  denials, re-auth restoration, cancellation, withdrawal, cleanup/logouts and
+  preserved finance passed. The separate R9 erased-body closure3633 passed26
+  actual decrypted-store checks. No skipped restart test is claimed.
+- Controls4 remains NOT_PROVEN for exactly one required check: after normal UI
+  logout its two metadata snapshots retained pendingControl=PAUSE, not null.
+  Both preserved epoch2, identical goal/work/receipt IDs and unchanged chat331 /
+  provider882 / cost accounting. No inference occurred, but native stop ACK was
+  not proved within the10-second drain plus20-second quiet window. Preserve
+  that report; do not remove the ACK prerequisite or relabel it as PASS.
+- Potential scheduler latency is not a proven root cause. Current read-only DB
+  check after cleanup found zero expired sessions, zero pending/due goals.
+  Actual private jcmd snapshot confirmed one scheduling-1 thread idle at that
+  later instant, not blocked during the original window. No scheduler/product
+  fix is warranted from that snapshot alone. Jason is preparing a tiny separate
+  no-Resume ACK probe with bounded longer observation, no publication or new
+  infrastructure. No live probe has run yet.
+- Fresh R9 Harbor exec17657 completed/collected PASS, all five semantic API
+  capabilities, six actual Astra calls, zero repairs, one executed save and one
+  canonical user request. Resource/session/key cleanup and both logouts passed.
+  Cost USD0.69164, cumulative conservative staging USD22.04900275, unchanged cap25.
+  Astra's fixed conservative per-call reservation2.88768 means only a small
+  additional funded probe remains before the next admission threshold22.11232.
+  Do not run another full paid controls batch or silently increase caps.
+- All Main execs are collected at this checkpoint. Private production smoke
+  helper74 offline tests/three syntax checks passed, but it has not been invoked.
+  No final staging acceptance file or production autonomy rollout exists. The
+  primary Harbor remains v13/FW69, and the new video has not started. This remains
+  our work, not a task waiting for owner approval or additional credentials.
+- Latest-question checkpoint: owner asked whether basic autonomy belongs in the
+  Framework. Answer: yes, public SDK0.8.70 owns the generic loop and READ/WRITE
+  contracts; Runtime hosts its integration and Platform supplies product tools/UI.
+  The loop is not a second Platform inference/retry engine. Core capability is
+  proven separately from the still-unclosed production qualification above.
+- Jason stopped safely with a PRIVATE UNFINISHED272-line draft
+  ~/.codex/private/loomai-autonomy-01076/goal-logout-ack-probe.mjs,
+  sha256:0b38cabef926df98ccb3772a1c9ee45f172d700de6316b32285945dec7ae7a4a.
+  No syntax/unit test has run; DO NOT invoke it live before review/tests. All
+  agents and Main report no running exec IDs. No final staging gate or production
+  rollout was fabricated. This checkpoint does not mark the broader task done.
+- Owner resumed the broader production rollout and explicitly required the
+  user-facing Platform assistant to use the new autonomy mode. UI now defaults
+  all available configuration tasks to Autonomous, preserving an explicit Quick
+  edit choice, unavailable-server fallback, guide/explain-only behavior, and all
+  existing authority. No page redesign, backend or Framework change follows.
+- Local verification passed95 assistant/search units,98 full browser groups
+  (eight new default-mode native-request cases), TypeScript and production build.
+  Build retains existing runtime-config/chunk-size warnings; no new build error.
+  New UI image still requires source-exact CI, staging apply and live mode checks.
+- The unfinished ACK checker was copied to allowed temporary working storage,
+  reviewed and tested15 cases. First live attempt made zero provider calls and
+  stopped on a browser session-tracking race. The fixed second run observed
+  native logout ACK in5228ms, then21724ms independently quiet; zero model calls,
+  writes or changed funding. Its original report is retained FAIL only because
+  the cleanup checker expected200/404 after deletion. A separate exact-ID
+  read-only DB capture confirmed both deletion operations SUCCEEDED and zero
+  remaining draft/session rows; no application permission was relaxed.
+- Actual proof: ack-probe-owned-cleanup-readback.private.json in private01076root.
+  Raw ACK evidence: goal-logout-ack-staging-s25-r9-logout-ack-2. Original controls4
+  NOT_PROVEN remains immutable; final composite qualification must reference this
+  separate successful ACK/quiet observation plus independently confirmed cleanup.
+  Stage spending remains22.04900275/25; no extra paid model attempt occurred.
+- R9/DEA production helper hash verification passed;270 production preflight
+  offline cases passed. The old UI-gate test has one stale R8 helper-hash pin,
+  not an application failure. Update the release helper to the genuinely staged
+  new UI proof and current reviewed R9 hash before production; never invent a
+  staging UI proof, digest or final acceptance.
 
