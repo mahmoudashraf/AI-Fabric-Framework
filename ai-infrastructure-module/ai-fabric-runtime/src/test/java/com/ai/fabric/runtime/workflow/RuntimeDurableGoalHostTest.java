@@ -30,6 +30,51 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class RuntimeDurableGoalHostTest {
+    @Test void finishedGoalsDoNotBlockInterruptionOfANewerQuickEdit() throws Exception {
+        for (var status : List.of(ExecutionHandleStatus.SUCCEEDED, ExecutionHandleStatus.FAILED, ExecutionHandleStatus.CANCELLED,
+            ExecutionHandleStatus.REJECTED, ExecutionHandleStatus.EXPIRED)) {
+            var fixture = new Fixture();
+            var completed = fixture.record.completed(status, null, null, fixture.now, Duration.ofDays(7));
+            when(fixture.repository.findById(fixture.id)).thenReturn(Optional.of(completed));
+            var identity = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+            assertThatCode(() -> fixture.host.interrupt(identity, fixture.conversation, "newer-quick-edit")).doesNotThrowAnyException();
+            verifyNoInteractions(fixture.gateway);
+            verify(fixture.conversations, atLeastOnce()).status(any());
+        }
+    }
+    @Test void activeGoalInterruptionRetainsItsExactTurnAndOwnerChecks() throws Exception {
+        var fixture = new Fixture();
+        var identity = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+        assertThatThrownBy(() -> fixture.host.interrupt(identity, fixture.conversation, "unrelated-turn"))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(fixture.gateway);
+        fixture.host.interrupt(identity, fixture.conversation, fixture.work.turnId());
+        verify(fixture.gateway).controlGoal(eq(fixture.id), eq(GoalExecutionControl.CANCEL), any());
+        var scope = new ConversationScope("tenant", "deployment", fixture.conversation, identity.ownerId());
+        var control = fixture.conversations.status(scope);
+        when(fixture.conversations.status(any())).thenReturn(control);
+        when(fixture.conversations.orchestrationState(any(), eq(0L)))
+            .thenReturn(Optional.of(new ConversationOrchestrationState(scope, 0, fixture.metadata.get(), fixture.now)));
+        var foreign = RuntimeResolvedIdentity.builder().authContext(fixture.auth.toBuilder().subjectId("authoring:foreign").build()).warnings(List.of()).build();
+        assertThatThrownBy(() -> fixture.host.interrupt(foreign, fixture.conversation, fixture.work.turnId()))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoMoreInteractions(fixture.gateway);
+    }
+    @Test void finishedGoalStillRequiresItsOriginalOwnerBeforeItCanBeIgnored() throws Exception {
+        var fixture = new Fixture();
+        var completed = fixture.record.completed(ExecutionHandleStatus.CANCELLED, null, null, fixture.now, Duration.ofDays(7));
+        when(fixture.repository.findById(fixture.id)).thenReturn(Optional.of(completed));
+        var owner = RuntimeResolvedIdentity.builder().authContext(fixture.auth).warnings(List.of()).build();
+        var scope = new ConversationScope("tenant", "deployment", fixture.conversation, owner.ownerId());
+        var control = fixture.conversations.status(scope);
+        when(fixture.conversations.status(any())).thenReturn(control);
+        when(fixture.conversations.orchestrationState(any(), eq(0L)))
+            .thenReturn(Optional.of(new ConversationOrchestrationState(scope, 0, fixture.metadata.get(), fixture.now)));
+        var foreign = RuntimeResolvedIdentity.builder().authContext(fixture.auth.toBuilder().subjectId("authoring:foreign").build()).warnings(List.of()).build();
+        assertThatThrownBy(() -> fixture.host.interrupt(foreign, fixture.conversation, "newer-quick-edit"))
+            .isInstanceOf(ResponseStatusException.class);
+        verifyNoInteractions(fixture.gateway);
+    }
     @Test void submissionPreparationIsLocalAndKeepsTheOriginalQueryIdentityAndDeadline() throws Exception {
         var fixture = new Fixture();
         var root = fixture.root();

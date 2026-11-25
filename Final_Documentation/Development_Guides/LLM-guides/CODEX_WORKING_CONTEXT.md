@@ -22658,3 +22658,46 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   stagingPASSbeforeproduction. Remainingfundingheadroom~1.57stage; stopatguard,
   no65approval. Costdocupdated; unrelatedworktreefilespreserved.
 
+## 2026-11-25 22:08 UTC Low Reasoning Passed Harbor - Final Fixes Pending Images
+
+- Contextreaderfix committed/pushed5bb6c89aed762a3cdc7f8c541bfa963d298177d0.
+  ExactCIcore45707802085/storage45707819632/quota45707826366 PASS; code
+  45707813903 backendtestsPASS, currentlybrowserjourneys. Nothingfrom5bbdeployed
+  yet. Backendtree unchanged by the followingUI/Runtime-onlyfix; reuseexact5bb
+  testedbackendimage/proof, do not pretendnewheadbuiltanotherbackendimage.
+- LOWsoftwareconfigsameMini appliedverified onstage, privateallareas/staging-
+  mini-low-verified; caps/usage/model/profiles/keys/mounts/capacitysame. FullrealUI
+  Harbor mini-low-ui-api-1 PASS/5operations/3saves/9calls/2corrections/no coaching;
+  actualrequired+optionalbody/receipt/price/stock/heightmappingchecksPASS. Exact
+  fixtures/key/sessionscleaned/customer+staffsignedout. All priorfailedrunskept.
+- Stagingmini-low-areas-1 qualified10areasbothmodes (incldocumentprep), overall
+  FAIL: guidanceformatNO_JSONwith0repairs, andhumanSupportgoalcorrectlypaused
+  byMYconcurrentstaffUIlogout. Do NOTcallsameactor testsconcurrently; evenown
+  separatecookie logoutfencesothergoals. Sequentialmini-low-guide-repairs-1
+  PASSguideEXPLAINbothwith1correctioneach/0writes, handoverbothPASS/restored.
+  Composite12/13tasksPASS; realKNOWLEDGEpending5bbcontextfix+retest.
+- UI readonlyformatrepairgapfixedlocally: sharedpolicyallowance nowrespected
+  forguide/Explain; previewOnly/readprofile/noWritestay. Optout/serverceiling
+  remain. Full104browsergroups/89assistantunit/UIbuildPASS; validationtestname
+  corrected, PLATFORM_UI_PROFILES.mdupdated. No promptchangesrequired.
+- Realstage document-shortcut-low-1 observedactualAUTOandBOUNDEDwithcorrect
+  DOCUMENT_PREPARATIONsource. QuickcancelHTTP502 retained; cleanup/restoration/
+  signoutpassed. ConfirmedRuntimeinterruptiondefect: terminaloldgoal rejectsnew
+  Quickturn IDbeforecanonicalinterruption. Newredtestreproduced403; sourceadds
+  record.terminal returnONLYAFTERowned(). Activeexactturn/foreignownerchecks
+  retained, canonicalservice stillrequireslatestinteraction. Focusedhost19+
+  controller4+result4+bundlechecks PASS. No publicFrameworkchange; SDK72stays.
+- TheseUI/Runtime/test/docs editsnotyetcommittedatentry. Needcommit/pushnewhead,
+  publishRuntimeimage, UIcoreimage; use5bbbackend(treeidentical)andnewUI/Runtime
+  source. Can runnewcodeCIbackend_tests=falseONLYwithrecordedexactbackendtree
+  equality to fulltested5bb; do not claimfullnewheadbackendtestexecution.
+  Keep fullRuntimeCI againstofficial72jars. Registrationhelpers sdk72-register-
+  runtime / sdk72-authoring-rollout neednewactualstagingacceptanceproof forprod,
+  neveroverwriteoldprivateacceptance/redo consumedintents. Productionmodelstill
+  Astra butZEROnewproductiontestcalls; productionqualificationmustcheckMiniLOW.
+- Lastidleaccounted31.9227035stage+12.48094prod=44.4036435, caps33+20+reserve2=55.
+  Only~1.077stageheadroom; do NOTraise65, reset ortransferunusedprodgrant. Need
+  stageknowledgeboth+realshortcuts/nointerference+newRuntimesmoke thenactual
+  acceptancegate beforeprod. Currentmainbeforecommit5bb; nativebackend/runtime
+ 23ff, stageUIe694, prodUI23ff. Allshelltestscompleted/collected atcheckpoint.
+

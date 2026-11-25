@@ -487,6 +487,8 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
         var state = required(conversations).orchestrationState(scope, control.controlEpoch()).map(value -> mapper.valueToTree(value.metadata()).path(STATE)).orElse(null);
         if (state == null || !state.path("workId").isTextual() || state.path("workId").asText().isBlank()) return;
         var record = owned(identity, conversationId, state.path("workId").asText());
+        // A finished goal can remain in conversation state after Quick edit starts.
+        if (record.terminal()) return;
         if (!messageKey.equals(persistedRoot(record).work().turnId())) throw denied();
         required(gateways).controlGoal(record.invocationId(), GoalExecutionControl.CANCEL, trusted);
     }

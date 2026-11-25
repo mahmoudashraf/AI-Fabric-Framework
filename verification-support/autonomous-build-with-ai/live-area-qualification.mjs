@@ -85,7 +85,7 @@ async function turn(c, session, requestedMode, prefix) {
   const query = requestedMode === 'AUTONOMOUS' ? c.auto : c.quick
   const request = { query: c.readOnly ? 'Explain only; do not change the draft.\n\n' + query : query, ...(c.readOnly ? {} : { command: 'PREPARE' }),
     executionMode, previewOnly: Boolean(c.readOnly), sourceIds: session.sources.map(s => s.id), operationIds: [],
-    editorContext: c.editorContext ?? { section: c.task, selectedDefinitionIds: [] }, ...(executionMode === 'BOUNDED' ? { validationFeedback: { enabled: !c.readOnly, maxCorrections: 2 } } : {}) }
+    editorContext: c.editorContext ?? { section: c.task, selectedDefinitionIds: [] }, ...(executionMode === 'BOUNDED' ? { validationFeedback: { enabled: true, maxCorrections: 2 } } : {}) }
   save(prefix + '-request', request)
   session = await api(`/api/configuration-assistant/sessions/${session.id}/turns`, 'POST', request, [200], 'area-' + randomUUID())
   const goalId = executionMode === 'AUTONOMOUS' ? session.goal?.id : null

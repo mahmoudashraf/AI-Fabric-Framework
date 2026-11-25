@@ -21,7 +21,7 @@ test('policy uses declared defaults and always sends an explicit disabled policy
   assert.deepEqual(feedbackPolicy(undefined, { enabled: true, maxCorrections: 2 }), { enabled: false, maxCorrections: 0 })
 })
 
-test('opt out and explanation/Kit restrictions send zero corrections without changing preferences', () => {
+test('opt out and an explicit policy restriction send zero corrections without changing preferences', () => {
   assert.deepEqual(feedbackPolicy(declared, { enabled: false, maxCorrections: 2 }), { enabled: false, maxCorrections: 0 })
   const preference = { enabled: true, maxCorrections: 1 }
   assert.deepEqual(feedbackPolicy(declared, preference, false), { enabled: false, maxCorrections: 0 })

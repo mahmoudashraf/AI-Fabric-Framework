@@ -210,8 +210,7 @@ export function AssistantPanel({ controller: c, inputs, scope: pageScope, onClos
   const disabled = Boolean(!c.session || unavailable || editorBusy || earlierHistory)
   const feedbackCapability = c.status.data?.validationFeedback
   const correctionCeiling = feedbackCeiling(feedbackCapability)
-  const correctionAllowed = !explain && !guideOnly && scope.task !== 'KIT'
-  const validationFeedback = feedbackPolicy(feedbackCapability, feedbackPreference, correctionAllowed)
+  const validationFeedback = feedbackPolicy(feedbackCapability, feedbackPreference)
   const correctionLimit = feedbackPolicy(feedbackCapability, { ...feedbackPreference, enabled: true }).maxCorrections
   const submitLabel = continuingGoal ? needsInput ? 'Answer goal' : 'Update goal' : explain || guideOnly ? 'Explain' : preview || readOnly ? 'Preview' : 'Send'
   const messages: Message[] = (c.session?.turns ?? []).flatMap(turn => [
@@ -315,7 +314,7 @@ export function AssistantPanel({ controller: c, inputs, scope: pageScope, onClos
         }
         {(!autonomous || explain) && <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
           <FormControlLabel sx={{ m: 0, minWidth: 0, '& .MuiFormControlLabel-label': { fontSize: 12, overflowWrap: 'anywhere' } }}
-            control={<Switch size="small" checked={validationFeedback.enabled} disabled={c.busy || disabled || !correctionAllowed || !correctionCeiling}
+            control={<Switch size="small" checked={validationFeedback.enabled} disabled={c.busy || disabled || !correctionCeiling}
               onChange={event => setFeedbackPreference(value => ({ ...value, enabled: event.target.checked }))} />} label="Let AI fix validation errors" />
           <TextField select size="small" label="Max corrections" value={correctionLimit || 1} disabled={c.busy || disabled || !validationFeedback.enabled}
             onChange={event => setFeedbackPreference(value => ({ ...value, maxCorrections: Number(event.target.value) }))}

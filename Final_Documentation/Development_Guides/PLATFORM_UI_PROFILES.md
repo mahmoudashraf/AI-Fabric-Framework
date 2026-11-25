@@ -94,6 +94,11 @@ Unknown/disabled server availability still uses Quick edit; guidance and explici
 explanation remain nonmutating. The visible mode must match the actual request
 and configured Framework execution, not a UI-only autonomy label.
 
+Guidance and Explain-only requests retain the configured bounded response-repair
+policy and explicit user opt-out. Nonmutating scope means zero write authority,
+not zero opportunity to repair malformed planning output. Keep previewOnly,
+the read-only profile and its tool restrictions independently enforced.
+
 ## AI-First Brain Workspace - Owner Approval, 15 November 2026
 
 The owner approved the two AI-first mockups for the Brain library, its guided

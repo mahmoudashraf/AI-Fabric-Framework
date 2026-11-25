@@ -183,3 +183,39 @@ not a silent alteration of the model-only comparison. LOW is supported by the
 [model contract](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
 Do not extend authentication leases or disable guards to accommodate slow calls.
 Do not create the staging acceptance gate until all required cases genuinely pass.
+
+### Low-Reasoning Follow-Through
+
+The fresh real Harbor UI import passed on LOW: all5 documented operations,
+actual owned key references, optional query mappings, required/optional write
+body fields, receipt fields, visitor access, confirmation, unrelated-value
+preservation and exact cleanup. Nine model calls, three saves and two corrections;
+no user coaching. Price, stock and adjustableHeight mappings were checked from
+the actual saved configuration, not a generated explanation.
+
+LOW now has passing composite coverage for12 of13 tasks. Knowledge still awaits
+the context-reader deployment and retest. Guidance initially failed because its
+UI disabled all format repairs alongside writes. Allowing the existing bounded
+repair policy produced real EXPLAIN answers with one correction each, no writes.
+UI retains previewOnly, the read-only profile, server ceiling and user opt-out.
+All104 browser groups,89 assistant unit checks and UI build passed this change.
+
+One staff sign-out check interfered with a simultaneous staff-authorized case:
+the account-wide logout fence correctly paused that goal. Its failure remains
+recorded. The clean sequential handover repeat passed both modes and restored
+the draft. Do not run independent live checks with the same staff actor while
+another check may sign that actor out.
+
+The real document shortcut sent both actual modes, but its early Quick edit
+cancellation returned502. Source tracing and a red regression confirmed that
+Runtime rejected interruption of a new bounded turn when a finished older goal
+remained in the conversation. The fix checks original ownership first, ignores
+only a terminal old goal, and retains exact-turn checks for active goals. The
+canonical interruption still validates the latest interaction. Focused Runtime
+tests pass; live qualification awaits its new software image. Do not suppress
+an unacknowledged cancellation or claim this check passed before rerunning it.
+
+No Framework source/release change, prompt rewrite, larger output allowance,
+funding increase or infrastructure change was required for these bounded fixes.
+The last idle staging ledger was USD31.9227035 under33; production remains
+USD12.48094 under20, with the separate2 reserve and55 combined ceiling intact.
