@@ -856,7 +856,7 @@ public class DeploymentService {
         var draft = resolveActiveDraft(deploymentRepository.findById(created.id()).orElseThrow());
         var provider = (ObjectNode) readJson(draft.getProviderConfigJson());
         provider.put("openaiModel", "gpt-5.4-mini").put("generationLlmProvider", "openai")
-            .put("generationModel", "gpt-5.4-mini").put("generationMaxTokens", 4096).put("generationTimeout", 40)
+            .put("generationModel", "gpt-5.4-mini").put("generationMaxTokens", 8192).put("generationTimeout", 40)
             .put("canonicalConversationsEnabled", true);
         draft.setProviderConfigJson(writeJson(provider));
         var security = (ObjectNode) readJson(draft.getSecurityConfigJson());
