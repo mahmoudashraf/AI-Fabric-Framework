@@ -24,10 +24,10 @@ public class StandaloneConversationRuntimeArtifactGate {
 
     public static boolean required(JsonNode provider) {
         if (provider == null || provider.path("canonicalConversationsEnabled").isMissingNode()
-            || provider.path("canonicalConversationsEnabled").isNull()) return false;
+            || provider.path("canonicalConversationsEnabled").isNull()) return DeploymentConversationalAutonomyConfig.enabled(provider);
         var preference = provider.path("canonicalConversationsEnabled");
         if (!preference.isBoolean()) throw new Required();
-        return preference.booleanValue();
+        return preference.booleanValue() || DeploymentConversationalAutonomyConfig.enabled(provider);
     }
 
     public void requireEnabled(DeploymentVersionEntity version, DeploymentReleaseEntity release) {

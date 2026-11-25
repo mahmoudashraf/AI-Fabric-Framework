@@ -276,7 +276,7 @@ public class AuthoringResourceService {
             case "ACTIONS" -> List.of("/actionsConfig", "/routingConfig");
             case "CONNECTIONS" -> List.of("/routingConfig");
             case "KNOWLEDGE" -> List.of("/entityConfig", "/knowledgeSourceConfig", "/marketplaceDatasetConfig");
-            case "BEHAVIOUR" -> List.of("/promptConfig");
+            case "BEHAVIOUR" -> List.of("/promptConfig", "/providerConfig/conversationalAutonomy");
             case "MODELS", "SEARCH" -> List.of("/providerConfig");
             case "HUMAN_SUPPORT" -> List.of("/behaviorConfig/conversationHandover", "/behaviorConfig/humanReview", "/behaviorConfig/executionExtensions");
             case "SPECIALISTS" -> List.of("/behaviorConfig/specialistAssistance", "/behaviorConfig/specialistBundles", "/behaviorConfig/triggers", "/behaviorConfig/executionExtensions");

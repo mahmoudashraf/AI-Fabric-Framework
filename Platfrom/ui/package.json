@@ -19,6 +19,7 @@
     "smoke:customer-scope": "node scripts/customer-ui-scope-regressions.mjs",
     "test:customer-configuration": "node --test scripts/customer-configuration-design.test.mjs scripts/ai-behaviour-editor.presentation.test.mjs",
     "test:search-quality": "node --test src/assistant/*.test.mjs src/components/documents/evaluationComparison.test.mjs",
+    "test:conversation-autonomy": "node --test src/brain/conversationalAutonomy.test.mjs",
     "smoke:customer-support": "node scripts/customer-support-ui-smoke.mjs",
     "smoke:support-team-intake": "node scripts/support-team-intake-ui-smoke.mjs",
     "test:document-storage": "node --test src/components/documents/HostedDocumentStorageSetup.test.mjs scripts/customer-document-storage-scope.test.mjs",

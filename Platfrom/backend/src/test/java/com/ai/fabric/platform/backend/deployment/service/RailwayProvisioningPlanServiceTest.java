@@ -97,6 +97,28 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void autonomousConversationUsesTheSameRuntimeAndNormalConversationAuthority() {
+        var artifacts = mock(DeploymentArtifactService.class);
+        when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(
+            "dep-123", "ver-123", "v1", "hash-123", "https://platform.example/actions", "https://platform.example/entities",
+            "https://platform.example/routing", "https://platform.example/prompts", "https://platform.example/manifest"));
+        var service = new RailwayProvisioningPlanService(properties(),
+            new PlatformDeliveryProperties("https://platform.example", false, Duration.ofDays(1)),
+            artifacts, new DeploymentSourceResolver(properties()), mock(PlatformSecretService.class), new ObjectMapper());
+        var version = version();
+        version.setProviderConfigJson("{\"conversationalAutonomy\":{\"enabled\":true,\"maxWritesPerSegment\":0}}");
+        var env = envMap(service.buildPlan(deployment(), version).services().runtime().env());
+        assertThat(env).containsEntry("AI_ORCHESTRATION_AUTONOMY_ENABLED", "true")
+            .containsEntry("AI_ORCHESTRATION_AUTONOMY_MAX_WRITES_PER_SEGMENT", "0")
+            .containsEntry("LOOMAI_CONVERSATION_CONTROL_ENABLED", "true")
+            .containsEntry("LOOMAI_CONVERSATION_HANDOVER_ENABLED", "false");
+        assertThat(env.get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ANONYMOUS_GRANTED_SCOPES"))
+            .contains("chat:messages").doesNotContain("configuration:author");
+        assertThat(env).doesNotContainKey("LOOMAI_AUTHORING_PLATFORM_URL")
+            .containsEntry("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", "");
+    }
+
+    @Test
     void specialistAssistanceUsesExactPublicationBytesAndExistingRuntimeWithoutRebuild() throws Exception {
         var artifacts = mock(DeploymentArtifactService.class);
         when(artifacts.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(new DeploymentArtifactBundleSummary(

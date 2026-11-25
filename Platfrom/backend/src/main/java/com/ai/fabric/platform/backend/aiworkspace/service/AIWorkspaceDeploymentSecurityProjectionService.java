@@ -199,9 +199,11 @@ public class AIWorkspaceDeploymentSecurityProjectionService {
         try {
             var provider = objectMapper.readTree(raw);
             var value = provider == null ? null : provider.get("canonicalConversationsEnabled");
-            if (provider != null && provider.isObject() && (value == null || value.isBoolean()))
-                return value != null && value.booleanValue();
-        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+            if (provider != null && provider.isObject() && (value == null || value.isBoolean())) {
+                com.ai.fabric.platform.backend.deployment.service.DeploymentConversationalAutonomyConfig.validate(provider);
+                return com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.required(provider);
+            }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException invalid) {
             // A malformed transport configuration cannot choose an identity-scope projection.
         }
         throw new ResponseStatusException(CONFLICT, "Deployment conversation transport configuration requires reconciliation.");

@@ -13,7 +13,7 @@ const expected = {
   '/knowledge': 'KNOWLEDGE', '/knowledge/documents': 'KNOWLEDGE', '/knowledge/sources/source-1': 'KNOWLEDGE',
   '/knowledge/storage': 'KNOWLEDGE', '/knowledge/discover': 'KNOWLEDGE', '/knowledge/proof': 'KNOWLEDGE', '/knowledge/retention': 'KNOWLEDGE',
   '/knowledge/connections': 'KNOWLEDGE', '/knowledge/connections/source-1': 'KNOWLEDGE', '/knowledge/live-data': 'KNOWLEDGE', '/knowledge/search': 'SEARCH',
-  '/responses': 'BEHAVIOUR', '/responses/instructions': 'BEHAVIOUR', '/responses/advanced': 'BEHAVIOUR',
+  '/responses': 'BEHAVIOUR', '/responses/instructions': 'BEHAVIOUR', '/responses/advanced': 'BEHAVIOUR', '/responses/execution': 'BEHAVIOUR',
   '/models': 'MODELS', '/human-support': 'HUMAN_SUPPORT', '/action-reviews': 'KIT',
   '/human-support/specialists': 'SPECIALISTS', '/advanced/providers': 'MODELS', '/advanced/configuration': 'KIT',
 }

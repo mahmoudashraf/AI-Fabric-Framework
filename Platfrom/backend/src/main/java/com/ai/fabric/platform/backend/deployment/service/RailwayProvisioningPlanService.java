@@ -471,7 +471,7 @@ public class RailwayProvisioningPlanService {
         );
         JsonNode conversationHandover = behaviorConfig.path("conversationHandover");
         boolean canonicalConversationsEnabled = conversationHandoverEnabled
-            || providerConfig.path("canonicalConversationsEnabled").asBoolean(false);
+            || StandaloneConversationRuntimeArtifactGate.required(providerConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
             Boolean.toString(specialistChainsEnabled)
@@ -728,6 +728,8 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_RERANKING_API_KEY", "${secret:" + rerankingKey.primarySecretName() + "}"));
         }
         addRuntimeDecisionRecovery(runtimeEnv, providerConfig);
+        DeploymentConversationalAutonomyConfig.environment(providerConfig)
+            .forEach((key, value) -> runtimeEnv.add(new RailwayEnvVarSummary(key, value)));
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig, behaviorConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(
             runtimeEnv,

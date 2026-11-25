@@ -605,6 +605,15 @@ public class DeploymentReleaseVerificationService {
         validateRuntimeOverview(checks, runtimeOverview, expectations);
         validateSpecialistAssistance(checks, runtimeOverview, expectations);
         validateManagedTasks(checks, runtimeOverview, expectations);
+        if (DeploymentConversationalAutonomyConfig.enabled(expectations.providerConfig())) {
+            boolean matches = runtimeOverview.success() && runtimeOverview.body() != null
+                && DeploymentConversationalAutonomyConfig.statusMatches(expectations.providerConfig(), runtimeOverview.body().path("conversationalAutonomy"));
+            addCheck(checks, "runtime_conversational_autonomy_matches_expected", matches ? "PASSED" : "FAILED",
+                matches ? "Runtime autonomous conversation limits match the published policy."
+                    : "Runtime autonomous conversation limits do not match the published policy.",
+                objectMapper.createObjectNode().set("actual", runtimeOverview.body() == null
+                    ? objectMapper.createObjectNode() : runtimeOverview.body().path("conversationalAutonomy")));
+        }
 
         JsonProbeResult runtimeAuthOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
@@ -1331,6 +1340,8 @@ public class DeploymentReleaseVerificationService {
         }
         Set<String> expectedServerOwnedRuntimeActionNames = serverOwnedRuntimeActionNames(behaviorConfig);
         expectedActionNames.addAll(expectedServerOwnedRuntimeActionNames);
+        boolean conversationalAutonomy = DeploymentConversationalAutonomyConfig.enabled(readJson(version.getProviderConfigJson()));
+        if (conversationalAutonomy) expectedActionNames.add(DeploymentConversationalAutonomyConfig.KNOWLEDGE_ACTION);
 
         Set<String> expectedConfirmationInterceptorNames = new LinkedHashSet<>();
         JsonNode confirmationInterceptors = actionsConfig.path("confirmationInterceptors");
@@ -1397,6 +1408,7 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actions, "builtInCardId");
         Set<String> expectedActionNamesWithProvenance = new LinkedHashSet<>(expectedActionNames);
         expectedActionNamesWithProvenance.remove(SpecialistAssistanceCompiler.ACTION);
+        if (conversationalAutonomy) expectedActionNamesWithProvenance.remove(DeploymentConversationalAutonomyConfig.KNOWLEDGE_ACTION);
         Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actions, "postPolicies");
         Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
         int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actions);

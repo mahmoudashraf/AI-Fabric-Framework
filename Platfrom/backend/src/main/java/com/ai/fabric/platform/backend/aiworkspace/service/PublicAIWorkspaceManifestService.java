@@ -117,7 +117,8 @@ public class PublicAIWorkspaceManifestService {
             profile,
             interactionPolicy,
             behaviorConfiguration,
-            readJson(assignment.version().getProviderConfigJson()).path("canonicalConversationsEnabled").asBoolean(false)
+            com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.required(
+                readJson(assignment.version().getProviderConfigJson()))
         );
         ObjectNode delivery = delivery(installation, origin);
         ObjectNode authentication = authentication(interactionPolicy, authenticationProfile);

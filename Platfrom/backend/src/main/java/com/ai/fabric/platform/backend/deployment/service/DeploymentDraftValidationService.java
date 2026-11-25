@@ -173,6 +173,13 @@ public class DeploymentDraftValidationService {
             validateEntities(entityNode, providerNode, issues);
             validateRouting(routingNode, marketplaceDatasetNode, actionValidation, issues);
             validateProviders(providerNode, promptNode, issues);
+            if (DeploymentConversationalAutonomyConfig.enabled(providerNode) && actionsNode.path("actions").isArray()) {
+                for (var action : actionsNode.path("actions")) {
+                    if (DeploymentConversationalAutonomyConfig.KNOWLEDGE_ACTION.equals(action.path("name").asText()))
+                        issues.add(error("actions", "CONVERSATIONAL_AUTONOMY_ACTION_RESERVED", "$.actions",
+                            "ai_search_knowledge is reserved for the runtime's authorized knowledge-search tool when autonomy is enabled."));
+                }
+            }
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
@@ -1915,6 +1922,10 @@ public class DeploymentDraftValidationService {
         validatePurposeSpecificLlmProviders(providerNode, issues);
         validateOrchestrationModeOverrides(providerNode, issues);
         validateDecisionRecovery(providerNode, issues);
+        try { DeploymentConversationalAutonomyConfig.validate(providerNode); }
+        catch (IllegalArgumentException invalid) {
+            issues.add(error("providers", "CONVERSATIONAL_AUTONOMY_INVALID", "$.conversationalAutonomy", invalid.getMessage()));
+        }
         try {
             KnowledgeRetrievalSettings.runtimeEnvironment(providerNode, promptNode);
         } catch (IllegalArgumentException invalid) {

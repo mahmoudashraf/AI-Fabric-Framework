@@ -43,6 +43,12 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
         new PlatformAIWorkspaceProperties(Path.of("."), false, 120, Duration.ofSeconds(60), null, null,
             "apps.loomai.test", "https://workspace.loomai.test"));
 
+    @Test void malformedAutonomyCannotSilentlyProjectASmallerSignInScope() {
+        assertThatThrownBy(() -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(service(),
+            "canonicalConversationsEnabled", "{\"conversationalAutonomy\":{\"enabled\":\"true\"}}"))
+            .isInstanceOf(ResponseStatusException.class).hasMessageContaining("requires reconciliation");
+    }
+
     @Test
     void publicationLeavesUnconfiguredDeploymentsUnchanged() {
         var deployment = deployment();
@@ -84,6 +90,12 @@ class AIWorkspaceDeploymentSecurityProjectionServiceTest {
         assertThat(first.path("externalIdentityBrokerEnabled").asBoolean()).isTrue();
         assertThat(first.path("externalIdentityIssuer").asText()).isEqualTo("https://synthetic.supabase.co/auth/v1");
         assertThat(first.path("externalIdentityGrantedScopes").asText()).doesNotContain("handover");
+
+        draft.setProviderConfigJson("{\"conversationalAutonomy\":{\"enabled\":true}}");
+        service.synchronizeBeforePublication("deployment-1");
+        var autonomous = objectMapper.readTree(draft.getSecurityConfigJson());
+        assertThat(autonomous.path("externalIdentityGrantedScopes").asText())
+            .contains("chat:messages", "chat:handover:read").doesNotContain("configuration:author", "chat:handover:request");
 
         draft.setBehaviorConfigJson("""
             {"executionExtensions":["CONVERSATION_HANDOVER"],"conversationHandover":{"enabled":true}}

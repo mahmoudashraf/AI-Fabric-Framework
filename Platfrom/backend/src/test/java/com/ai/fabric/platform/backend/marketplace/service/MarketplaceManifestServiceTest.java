@@ -20,6 +20,17 @@ class MarketplaceManifestServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
+    @Test void templatesMayPackageTheSameBoundedAutonomyWithoutGrantingAuthority() throws Exception {
+        var manifest = runtimeDefaultsManifest();
+        var provider = (ObjectNode) manifest.at("/contributions/template/providerConfig");
+        provider.putObject("conversationalAutonomy").put("enabled", true).put("maxWritesPerSegment", 0);
+        var parsed = service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString()));
+        assertThat(parsed.manifest().at("/contributions/template/providerConfig/conversationalAutonomy/enabled").asBoolean()).isTrue();
+        ((ObjectNode) provider.path("conversationalAutonomy")).put("maxElapsedSeconds", -1);
+        assertThatThrownBy(() -> service.parseAndValidate(templatePlugin(), templateVersion(manifest.toString())))
+            .hasMessageContaining("maxElapsedSeconds");
+    }
+
     @Test
     void templateRuntimeDefaultsUseExistingReadPlanningAndRagBudgetContracts() throws Exception {
         ObjectNode manifest = runtimeDefaultsManifest();

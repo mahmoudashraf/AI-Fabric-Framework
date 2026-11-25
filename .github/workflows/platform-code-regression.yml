@@ -110,6 +110,7 @@ jobs:
         working-directory: Platfrom/ui
         run: |
           npm run test:search-quality
+          npm run test:conversation-autonomy
           node --test scripts/plugin-creator-document.test.mjs scripts/plugin-json-fidelity.test.mjs scripts/plugin-creator-requirements.test.mjs scripts/plugin-library-api.test.mjs
 
       - name: Verify customer authentication and session continuity
@@ -128,6 +129,11 @@ jobs:
         env:
           ASSISTANT_EVIDENCE_DIR: ${{ runner.temp }}/configuration-assistant-browser
         run: node src/assistant/assistant.browser.mjs
+
+      - name: Verify response settings and conversational autonomy controls
+        if: ${{ inputs.ui_build }}
+        working-directory: Platfrom/ui
+        run: node scripts/brain-responses.browser.mjs
 
       - name: Verify customer authentication browser journeys
         if: ${{ inputs.ui_build }}

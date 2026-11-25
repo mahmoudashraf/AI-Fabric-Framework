@@ -87,7 +87,7 @@ public class DeploymentExecutionSecretService {
             names.add(integrationServiceApiKeyName(deployment.getId()));
             names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
         }
-        if (readJson(version.getProviderConfigJson()).path("canonicalConversationsEnabled").asBoolean(false)) {
+        if (StandaloneConversationRuntimeArtifactGate.required(readJson(version.getProviderConfigJson()))) {
             names.add(conversationHandoverEncryptionSecretName(deployment.getId()));
             names.add(conversationControlFingerprintSecretName(deployment.getId()));
         }

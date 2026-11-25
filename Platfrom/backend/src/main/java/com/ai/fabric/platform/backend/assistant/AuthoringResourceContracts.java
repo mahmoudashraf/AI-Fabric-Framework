@@ -13,6 +13,9 @@ final class AuthoringResourceContracts {
         boolean wholeBrain = "BRAIN_SETUP".equals(task);
         catalogue.put("contractVersion", "loomai-authoring-catalogue-v1");
         catalogue.put("maxChanges", 30);
+        if ("BEHAVIOUR".equals(task) || "MODELS".equals(task) || wholeBrain) {
+            catalogue.put("conversationAutonomyRules", "providerConfig.conversationalAutonomy configures ordinary conversational execution: enabled:false by default, defaultEnabled:true, maxElapsedSeconds:5..300 (120), segmentSeconds:5..120 (30), maxActionsPerSegment:1..64 (8), maxWritesPerSegment:0..64 (3, never greater than actions), maxModelCallsPerSegment:1..64 (12), maxCorrectionsPerSegment:0..8 (3), maxConsecutiveNoProgress:1..100 (8), maxConsecutivePlannerFailures:1..20 (4), replanNonAuthorityReadFailures:true, instructions:text up to 8000 characters. Enable only when requested; preserve unmentioned and unknown values. This reuses the Framework goal runner inside the active conversation request, not private authoring access or a promise of background/restart recovery. Segment limits are renewed only within the root deadline and real provider budgets. Existing source permissions, business input and write-confirmation policies are unchanged. A configuration save is not publication, activation, compatibility verification, a funding increase or permission to execute a business tool. Do not set canonicalConversationsEnabled or alter unrelated provider credentials as a shortcut; deployment derives the required conversation support and checks the runtime capability.");
+        }
         catalogue.set("collectionShapes", mapper.valueToTree(Map.of(
             "/actionsConfig/actions", Map.of("type", "array", "identity", "name"),
             "/actionsConfig/mcpServers", Map.of("type", "array", "identity", "serverRef"),

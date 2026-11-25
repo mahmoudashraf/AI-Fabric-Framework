@@ -20,6 +20,7 @@ import { PromptsPage } from '../pages/PromptsPage'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useBrainEditor, useBrainWorkspace } from './BrainWorkspaceContext'
 import { BrainPageHeader, brainPaneSx } from './BrainPageLayout'
+import { ConversationAutonomyEditor } from './ConversationAutonomyEditor'
 
 const profileFields = [
   { key: 'tone', label: 'Tone', Icon: RecordVoiceOverRoundedIcon },
@@ -38,15 +39,16 @@ export function BrainResponsesPage() {
   const { brainId, href } = useBrainWorkspace()
   const { pathname } = useLocation()
   const suffix = pathname.split('/responses')[1]?.replace(/^\/+|\/+$/g, '') ?? ''
-  const view = suffix === 'instructions' ? 'instructions' : suffix === 'advanced' ? 'advanced' : 'reply-style'
+  const view = suffix === 'instructions' ? 'instructions' : suffix === 'advanced' ? 'advanced' : suffix === 'execution' ? 'execution' : 'reply-style'
   return <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
     <BrainPageHeader title="How your AI answers" />
-    <Tabs value={view} aria-label="Responses views" sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0, mb: 2 }}>
+    <Tabs value={view} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label="Responses views" sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0, mb: 2 }}>
       <Tab value="reply-style" label="Reply style" component={RouterLink} to={href('responses')} />
+      <Tab value="execution" label="Conversation flow" component={RouterLink} to={href('responses/execution')} />
       <Tab value="instructions" label="Instructions" component={RouterLink} to={href('responses/instructions')} />
       <Tab value="advanced" label="Advanced" component={RouterLink} to={href('responses/advanced')} />
     </Tabs>
-    {view === 'reply-style' ? <ReplyStyleEditor key={brainId} />
+    {view === 'reply-style' ? <ReplyStyleEditor key={brainId} /> : view === 'execution' ? <ConversationAutonomyEditor key={brainId} />
       : <Box sx={{ ...brainPaneSx, flex: 1 }}><PromptsPage key={brainId} workspaceView={view} /></Box>}
   </Box>
 }

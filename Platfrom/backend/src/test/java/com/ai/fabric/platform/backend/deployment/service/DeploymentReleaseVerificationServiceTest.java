@@ -62,6 +62,21 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
+    @Test void autonomousRuntimeAddsOnlyTheNativeSearchToolToExpectedActions() throws Exception {
+        var service = releaseVerificationService(runtimePrivateSecrets(), mock(DeploymentArtifactService.class));
+        var version = version();
+        var provider = (ObjectNode) objectMapper.readTree(version.getProviderConfigJson());
+        provider.putObject("conversationalAutonomy").put("enabled", true);
+        version.setProviderConfigJson(provider.toString());
+        Object expectations = ReflectionTestUtils.invokeMethod(service, "buildExpectations",
+            deployment("https://runtime.example", null), version, release(), artifactBundle(), null);
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNames"))
+            .isEqualTo(Set.of("list_products", "view_cart", "ai_search_knowledge"));
+        assertThat((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedActionNamesWithProvenance"))
+            .isEqualTo(Set.of("list_products", "view_cart"));
+        assertThat(((Set<?>) ReflectionTestUtils.invokeMethod(expectations, "expectedRoutingActions")).contains("ai_search_knowledge")).isFalse();
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void releaseExpectsOnlyEnabledActionsAndStillRejectsUnexpectedActiveReadback(boolean unexpectedEnabledAction) throws Exception {

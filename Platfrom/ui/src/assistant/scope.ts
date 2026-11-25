@@ -8,6 +8,7 @@ const sections: Record<string, AssistantSection> = {
   'knowledge/search': 'SEARCH', 'knowledge/storage': 'STORAGE',
   'knowledge/discover': 'DOCUMENTS', 'knowledge/proof': 'DOCUMENTS', 'knowledge/retention': 'DOCUMENTS',
   responses: 'BEHAVIOUR', 'responses/instructions': 'INSTRUCTIONS', 'responses/advanced': 'INSTRUCTIONS',
+  'responses/execution': 'BEHAVIOUR',
   models: 'MODELS', 'human-support': 'HUMAN_SUPPORT', 'action-reviews': 'ACTION_REVIEWS',
   'human-support/specialists': 'SPECIALISTS', 'advanced/providers': 'MODELS',
   'advanced/configuration': 'KIT',

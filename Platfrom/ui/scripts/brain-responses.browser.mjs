@@ -118,12 +118,13 @@ async function run(name, execute, options = {}) {
   page.setDefaultTimeout(15000)
   const calls = [], errors = [], unexpected = []
   let saved = structuredClone(options.config ?? original), failSave = options.failSave, failCompose = options.failCompose
+  let provider = structuredClone(options.provider ?? { curatedModuleId: 'default' })
   page.on('pageerror', error => errors.push(error.message))
   await page.route('**/*', route => {
     if (new URL(route.request().url()).origin === baseUrl) return route.continue()
     unexpected.push(route.request().url()); return route.abort()
   })
-  const draft = () => ({ id: 'draft-one', deploymentId: 'dep-one', promptConfig: structuredClone(saved), providerConfig: { curatedModuleId: 'default' }, revisionNumber: 1 })
+  const draft = () => ({ id: 'draft-one', deploymentId: 'dep-one', promptConfig: structuredClone(saved), providerConfig: structuredClone(provider), revisionNumber: 1 })
   await page.route(`${baseUrl}/api/**`, async route => {
     const request = route.request(), path = new URL(request.url()).pathname, method = request.method()
     const body = request.postData() ? JSON.parse(request.postData()) : null
@@ -136,9 +137,11 @@ async function run(name, execute, options = {}) {
       return send(compose(body))
     }
     if (path === '/api/deployment-drafts/draft-one' && method === 'PUT') {
-      assert.deepEqual(Object.keys(body), ['promptConfig'])
+      assert.ok(JSON.stringify(Object.keys(body)) === '["promptConfig"]' || JSON.stringify(Object.keys(body)) === '["providerConfig"]')
       if (failSave) { failSave = false; return send({ message: 'Save failed. Retry.' }, 503) }
-      saved = structuredClone(body.promptConfig); return send(draft())
+      if (body.promptConfig) saved = structuredClone(body.promptConfig)
+      if (body.providerConfig) provider = structuredClone(body.providerConfig)
+      return send(draft())
     }
     if (path === '/api/deployment-curated-modules') return send([{ id: 'default', name: 'Default', promptPresetId: 'default', description: 'Fixture baseline' }])
     if (path.endsWith('/prompt-baseline')) return send({ versionId: 'v1', promptConfig: original, populatedPromptCount: 7 })
@@ -156,7 +159,7 @@ async function run(name, execute, options = {}) {
     await page.getByRole('heading', { name: 'How your AI answers' }).waitFor()
     if (!options.readonly) await page.getByRole('button', { name: 'Save draft', exact: true }).waitFor()
     await page.waitForFunction(() => !document.body.textContent.includes('Loading response settings...'))
-    await execute({ page, calls, select, saved: () => saved, changeSaved: value => { saved = value } })
+    await execute({ page, calls, select, saved: () => saved, changeSaved: value => { saved = value }, provider: () => provider, changeProvider: value => { provider = value } })
     assert.deepEqual(errors, [], `${name}: browser errors`)
     assert.deepEqual(unexpected, [], `${name}: unexpected requests`)
     console.log(`PASS ${++passed}: ${name}`)
@@ -164,6 +167,52 @@ async function run(name, execute, options = {}) {
 }
 const writes = calls => calls.filter(call => call.method === 'PUT')
 try {
+  await run('autonomy is opt-in and merges only requested provider fields', async ({ page, calls, provider, changeProvider }) => {
+    assert.equal(await page.getByRole('button', { name: 'Standard', exact: true }).getAttribute('aria-pressed'), 'true')
+    assert.equal(writes(calls).length, 0)
+    await page.getByRole('button', { name: 'Autonomous', exact: true }).click()
+    changeProvider({ ...provider(), futureProviderField: { retain: true } })
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; live configuration unchanged', { exact: true }).waitFor()
+    assert.equal(provider().conversationalAutonomy.enabled, true)
+    assert.deepEqual(provider().futureProviderField, { retain: true })
+    assert.equal(provider().openaiModel, 'existing-model')
+    assert.deepEqual(Object.keys(writes(calls)[0].body), ['providerConfig'])
+  }, { view: '/execution', provider: { openaiModel: 'existing-model' } })
+  await run('autonomy advanced limits validate, retain unknowns and restore inheritance', async ({ page, provider }) => {
+    await page.getByRole('button', { name: 'Advanced execution limits', exact: true }).click()
+    await page.getByRole('spinbutton', { name: 'Tools per segment', exact: true }).fill('2')
+    assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
+    await page.getByRole('spinbutton', { name: 'Writes per segment', exact: true }).fill('0')
+    await page.getByRole('spinbutton', { name: 'Time per request (seconds)', exact: true }).fill('')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; live configuration unchanged', { exact: true }).waitFor()
+    assert.equal(provider().conversationalAutonomy.maxWritesPerSegment, 0)
+    assert.equal(provider().conversationalAutonomy.maxActionsPerSegment, 2)
+    assert.equal('maxElapsedSeconds' in provider().conversationalAutonomy, false)
+    assert.deepEqual(provider().conversationalAutonomy.futurePolicy, { retained: true })
+  }, { view: '/execution', provider: { conversationalAutonomy: { enabled: true, maxElapsedSeconds: 60, futurePolicy: { retained: true } } } })
+  await run('autonomy failed save retains mode selection and supports retry', async ({ page, provider }) => {
+    await page.getByRole('button', { name: 'Autonomous', exact: true }).click()
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Save failed. Retry.', { exact: true }).waitFor()
+    assert.equal(provider().conversationalAutonomy, undefined)
+    assert.equal(await page.getByRole('button', { name: 'Autonomous', exact: true }).getAttribute('aria-pressed'), 'true')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await page.getByText('Draft saved; live configuration unchanged', { exact: true }).waitFor()
+    assert.equal(provider().conversationalAutonomy.enabled, true)
+  }, { view: '/execution', failSave: true })
+  await run('read-only autonomy controls cannot mutate', async ({ page, calls }) => {
+    assert.equal(await page.getByRole('button', { name: 'Autonomous', exact: true }).isDisabled(), true)
+    assert.equal(writes(calls).length, 0)
+  }, { view: '/execution', readonly: true })
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    for (const dark of [false, true]) await run(`autonomy ${dark ? 'dark' : 'light'} ${viewport.width}`, async ({ page }) => {
+      await page.getByRole('button', { name: 'Advanced execution limits', exact: true }).click()
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+      await page.screenshot({ path: join(screenshots, `autonomy-${dark ? 'dark' : 'light'}-${viewport.width}.png`) })
+    }, { view: '/execution', viewport, dark })
+  }
   await run('catalogue controls, explicit-only composition and lossless one-command save', async ({ page, calls, select, saved }) => {
     assert.equal(await page.getByRole('combobox').count(), 4)
     assert.equal(calls.filter(call => call.path.endsWith('/compose')).length, 0)

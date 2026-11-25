@@ -133,7 +133,7 @@ public class MarketplaceManifestService {
         TEMPLATE_PROVIDER_STRING_FIELDS,
         TEMPLATE_PROVIDER_INTEGER_FIELDS,
         TEMPLATE_PROVIDER_BOOLEAN_FIELDS,
-        Set.of("orchestrationModeOverrides")
+        Set.of("orchestrationModeOverrides", "conversationalAutonomy")
     ).flatMap(Set::stream).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private static final Set<String> TEMPLATE_PROMPT_BUDGET_FIELDS = Set.of(
         "ragMaxDocumentsUsedForContext", "ragMaxContextChars"
@@ -794,6 +794,8 @@ public class MarketplaceManifestService {
         List<String> expectedCapabilities = new ArrayList<>(contract.requiredRuntimeCapabilities());
         if (com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.required(providerConfig))
             expectedCapabilities.add(com.ai.fabric.platform.backend.deployment.service.StandaloneConversationRuntimeArtifactGate.CAPABILITY);
+        if (com.ai.fabric.platform.backend.deployment.service.DeploymentConversationalAutonomyConfig.enabled(providerConfig))
+            expectedCapabilities.add(com.ai.fabric.platform.backend.deployment.service.DeploymentConversationalAutonomyConfig.CAPABILITY);
         List<String> requiredCapabilities = resolvedExactTemplateValues(
             plugin,
             version,
@@ -942,6 +944,8 @@ public class MarketplaceManifestService {
         }
         rejectUnknownFields(plugin, version, providerConfig, TEMPLATE_PROVIDER_FIELDS,
             "template providerConfig contribution");
+        try { com.ai.fabric.platform.backend.deployment.service.DeploymentConversationalAutonomyConfig.validate(providerConfig); }
+        catch (IllegalArgumentException invalidPolicy) { throw invalid(plugin, version, invalidPolicy.getMessage()); }
         providerConfig.fields().forEachRemaining(entry -> {
             String field = entry.getKey();
             JsonNode value = entry.getValue();

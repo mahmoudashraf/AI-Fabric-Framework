@@ -625,6 +625,7 @@ public class DeploymentConfigCompiler {
             // Runtime orchestration policy does not change stored vectors or their indexed representation.
             objectNode.remove("orchestrationModeOverrides");
             objectNode.remove("decisionRecovery");
+            objectNode.remove(DeploymentConversationalAutonomyConfig.FIELD);
             objectNode.remove("knowledgeRetrieval");
         }
         return comparable;

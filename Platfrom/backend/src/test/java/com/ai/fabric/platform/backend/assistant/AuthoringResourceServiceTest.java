@@ -257,6 +257,24 @@ class AuthoringResourceServiceTest {
         verifyNoInteractions(validation);
     }
 
+    @Test void responseTaskMayConfigureAutonomyButCannotChangeOtherProviderSettings() throws Exception {
+        var draft = brainFixture();
+        var snapshot = resources.load("DEPLOYMENT_DRAFT", BRAIN, "BEHAVIOUR");
+        assertThat(snapshot.allowedPaths()).containsExactly("/promptConfig", "/providerConfig/conversationalAutonomy");
+        assertThat(snapshot.catalogue().path("conversationAutonomyRules").asText()).contains("active conversation request", "confirmation");
+        var saved = resources.save("DEPLOYMENT_DRAFT", BRAIN, "BEHAVIOUR", json("""
+            [{"path":"/providerConfig/conversationalAutonomy","operation":"SET","value":{"enabled":true,"maxWritesPerSegment":0}}]
+            """));
+        var request = capturedDraftUpdate();
+        assertThat(request.providerConfig().path("llmModel")).isEqualTo(draft.providerConfig().path("llmModel"));
+        assertThat(saved.configuration().at("/providerConfig/conversationalAutonomy/enabled").asBoolean()).isTrue();
+        clearInvocations(brains);
+        assertStatus(HttpStatus.BAD_REQUEST, () -> resources.save("DEPLOYMENT_DRAFT", BRAIN, "BEHAVIOUR", json("""
+            [{"path":"/providerConfig/llmModel","operation":"SET","value":"another-model"}]
+            """)));
+        verify(brains, never()).updateDraft(anyString(), any());
+    }
+
     @Test void catalogueUsesActualConnectorAccessModes() throws Exception {
         brainFixture();
         var catalogue = resources.load("DEPLOYMENT_DRAFT", BRAIN, "ACTIONS").catalogue();

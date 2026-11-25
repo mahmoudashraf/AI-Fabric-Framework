@@ -41,6 +41,14 @@ merges, and retain optional Advanced JSON. Do not add an editable
 `ragRequiredWithReadActions`: that is a derived diagnostic. See
 `SMART_BRAIN_CONFIGURATION_FORM_COVERAGE.md` for field coverage and limits.
 
+Responses > Conversation flow owns Standard / Autonomous ordinary-chat policy,
+with inherited Advanced limits and focused providerConfig.conversationalAutonomy
+draft merges. Reuse the existing Brain footer and publication lifecycle; no
+duplicate editor or private-authoring permission. Build with AI may edit this
+specific provider subtree from its existing BEHAVIOUR task. The setting does not
+change a fixed Task or explicit workflow binding. See 010.77 and its actual
+release evidence before claiming hosted availability.
+
 Customer-owned credentials have one canonical home at
 `/smart-brains/:brainId/secrets` (Keys & secrets), with links from AI models and
 Search settings. Reuse the same page for customer-delegated staff; do not expose

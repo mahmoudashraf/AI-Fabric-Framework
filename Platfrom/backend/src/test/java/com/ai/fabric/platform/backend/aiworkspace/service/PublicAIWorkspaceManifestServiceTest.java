@@ -63,8 +63,9 @@ class PublicAIWorkspaceManifestServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin(boolean canonicalOnly) throws Exception {
+    @ValueSource(strings = {"standard", "canonical", "autonomous"})
+    void returnsOnlySafeAssignedRuntimeProjectionForAllowedOrigin(String transport) throws Exception {
+        boolean canonicalOnly = !"standard".equals(transport);
         AIWorkspaceInstallationEntity installation = installation();
         PlatformConsumerEntity consumer = consumer();
         DeploymentEntity deployment = deployment();
@@ -72,7 +73,8 @@ class PublicAIWorkspaceManifestServiceTest {
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-1");
         version.setSecurityConfigJson("{\"privateSecret\":\"must-not-leak\"}");
-        version.setProviderConfigJson("{\"canonicalConversationsEnabled\":" + canonicalOnly + "}");
+        version.setProviderConfigJson("autonomous".equals(transport) ? "{\"conversationalAutonomy\":{\"enabled\":true}}"
+            : "{\"canonicalConversationsEnabled\":" + canonicalOnly + "}");
         AIWorkspaceAssignmentService.Assignment assignment = new AIWorkspaceAssignmentService.Assignment(
             consumer, deployment, release, version, objectMapper.readTree(version.getSecurityConfigJson()),
             "https://dep-example.loomai.pro", "sha256:" + "a".repeat(64));

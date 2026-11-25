@@ -407,6 +407,7 @@ public class DeploymentService {
             boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
             boolean managedMcpRequired = com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(readJson(version.getActionsConfigJson()));
             boolean decisionRecoveryRequired = DeploymentDecisionRecoveryConfig.requested(readJson(version.getProviderConfigJson()));
+            boolean autonomyRequired = DeploymentConversationalAutonomyConfig.enabled(readJson(version.getProviderConfigJson()));
             boolean profiledRetrievalRequired = KnowledgeRetrievalSettings.profileEnabled(readJson(version.getProviderConfigJson()));
             if (artifact.capabilityManifest() == null || artifact.capabilityManifest().isEmpty()) {
                 return !requirements.capabilityManifestRequired()
@@ -415,6 +416,7 @@ public class DeploymentService {
                     && !customerBackendIngestionRequired
                     && !managedMcpRequired
                     && !decisionRecoveryRequired
+                    && !autonomyRequired
                     && !profiledRetrievalRequired;
             }
             DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
@@ -431,6 +433,7 @@ public class DeploymentService {
             sourceCapabilityManifestService.requireSupports(artifact.capabilityManifest(), requirements);
             if (managedMcpRequired) sourceCapabilityManifestService.requireManagedMcpSupport(artifact.capabilityManifest());
             if (decisionRecoveryRequired) DeploymentDecisionRecoveryConfig.requireSupport(artifact.capabilityManifest());
+            if (autonomyRequired) DeploymentConversationalAutonomyConfig.requireSupport(artifact.capabilityManifest());
             KnowledgeRetrievalSettings.requireRuntimeSupport(readJson(version.getProviderConfigJson()), artifact.capabilityManifest());
             if (documentKnowledgeRequired) {
                 sourceCapabilityManifestService.requireDocumentKnowledgeSupport(artifact.capabilityManifest());
@@ -1985,6 +1988,7 @@ public class DeploymentService {
         boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
         boolean managedMcpRequired = com.ai.fabric.platform.backend.mcp.runtime.McpConnectionReadiness.required(readJson(version.getActionsConfigJson()));
         boolean decisionRecoveryRequired = DeploymentDecisionRecoveryConfig.requested(readJson(version.getProviderConfigJson()));
+        boolean autonomyRequired = DeploymentConversationalAutonomyConfig.enabled(readJson(version.getProviderConfigJson()));
         boolean profiledRetrievalRequired = KnowledgeRetrievalSettings.profileEnabled(readJson(version.getProviderConfigJson()));
         boolean operationalDrainRequired = readJson(version.getProviderConfigJson()).path("operationalDrainEnabled").asBoolean(false);
         boolean taskReceiptsRequired = com.ai.fabric.platform.backend.deployment.tasks.ManagedTaskCompiler
@@ -1996,6 +2000,7 @@ public class DeploymentService {
             && !managedMcpRequired
             && !operationalDrainRequired
             && !decisionRecoveryRequired
+            && !autonomyRequired
             && !profiledRetrievalRequired) {
             if (!StringUtils.hasText(sourceArtifactId)) {
                 return;
@@ -2071,6 +2076,7 @@ public class DeploymentService {
         );
         if (managedMcpRequired) sourceCapabilityManifestService.requireManagedMcpSupport(manifest);
         if (decisionRecoveryRequired) DeploymentDecisionRecoveryConfig.requireSupport(manifest);
+        if (autonomyRequired) DeploymentConversationalAutonomyConfig.requireSupport(manifest);
         KnowledgeRetrievalSettings.requireRuntimeSupport(readJson(version.getProviderConfigJson()), manifest);
         if (operationalDrainRequired) {
             com.ai.fabric.platform.backend.deployment.operations.lifecycle.RuntimeDrainArtifactGate.require(manifest);
