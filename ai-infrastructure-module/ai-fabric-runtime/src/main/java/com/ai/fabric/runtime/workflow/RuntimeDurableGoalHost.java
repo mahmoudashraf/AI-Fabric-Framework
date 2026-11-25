@@ -8,6 +8,7 @@ import ai.fabric.execution.state.*;
 import ai.fabric.intent.orchestration.OrchestrationContext;
 import ai.fabric.intent.orchestration.conversation.ApprovedConversationSnapshot;
 import ai.fabric.intent.orchestration.control.OrchestrationControlException;
+import ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint;
 import com.ai.fabric.budget.ProviderBudgetLedger.ChatReceipt;
 import com.ai.fabric.runtime.auth.*;
 import com.ai.fabric.runtime.budget.RuntimeBudgetTurnScopes;
@@ -54,7 +55,13 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
 
     record Root(ConfigurationWork work, String conversationId, long userSequence, String interactionKey,
                 long controlEpoch, ChatReceipt budgetReceipt, JsonNode sourceVersions,
-                String issuer, List<String> audiences, String customerId) { }
+                String issuer, List<String> audiences, String customerId) {
+        Root { if (sourceVersions != null && sourceVersions.isNull()) sourceVersions = null; }
+        Root withSources(JsonNode sources) {
+            return new Root(work, conversationId, userSequence, interactionKey, controlEpoch, budgetReceipt,
+                sources == null ? null : sources.deepCopy(), issuer, audiences, customerId);
+        }
+    }
     public record Control(String command, String authorityId, String goalId, String sessionId, String turnId,
                           long requestRevision, long cancellationEpoch, int segment, JsonNode directive) { }
 
@@ -75,6 +82,9 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
         ChatReceipt receipt) {
         var profile = dispatcher.validate(body, identity, turn);
         var work = body.getConfigurationWork();
+        var auth = identity.getAuthContext();
+        if (auth.getSubjectType() != RuntimeAuthSubjectType.END_USER || auth.getExpiresAt() == null
+            || !clock.instant().isBefore(auth.getExpiresAt())) throw denied();
         if (!work.goalMode() || receipt == null || body.getAttachments() != null && !body.getAttachments().isEmpty()
             || body.getActionDraftSubmission() != null || body.getContext() != null && !body.getContext().isEmpty())
             throw new ResponseStatusException(BAD_REQUEST, "AUTHORING_GOAL_REQUIRES_SCOPED_WORK_REFERENCES");
@@ -83,14 +93,8 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
             .findFirst().orElseThrow(() -> new ResponseStatusException(CONFLICT, "AUTHORING_GOAL_USER_MESSAGE_MISSING"));
         var policy = required(registries).require(profile.specialist()).executionProfile().workflowPolicy();
         Instant deadline = clock.instant().plus(policy.goal().maxElapsed());
-        var auth = identity.getAuthContext();
         var root = new Root(work, body.getConversationId(), user.sequence(), work.turnId(), turn.lease().controlEpoch(), receipt, null,
             auth.getIssuer(), auth.getAudiences(), auth.getCustomerId());
-        var authority = platform.renew(work, null);
-        renewedIdentity(root, work, authority, trusted(identity, body.getConversationId()), null);
-        if (!authority.path("sourceVersions").isObject()) throw denied();
-        root = new Root(work, root.conversationId(), root.userSequence(), root.interactionKey(), root.controlEpoch(), receipt,
-            authority.path("sourceVersions").deepCopy(), root.issuer(), root.audiences(), root.customerId());
         installRoot(root, trusted(identity, body.getConversationId()));
         var input = mapper.createObjectNode().put("query", body.getQuery());
         ExecutionHandle handle;
@@ -120,39 +124,43 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
         var request = submission.request();
         Root root = lookupRoot(request.trustedExecutionContext(), submission.authorityReference());
         var work = root.work();
+        var trusted = request.trustedExecutionContext();
+        var profile = bundle.select(work.task(), work.profileId());
         if (!work.goalMode() || !submission.authorityReference().equals(work.authorityReference())
             || !work.goalId().equals(work.authorityReference()) || request.conversationBinding() != null
             || root.budgetReceipt() == null || root.userSequence() < 1 || !root.interactionKey().equals(work.turnId())
-            || request.trustedExecutionContext().subject() == null
-            || !root.conversationId().equals(request.trustedExecutionContext().subject().subjectId())) throw denied();
-        var lease = platform.renew(work, null);
-        var identity = renewedIdentity(root, work, lease, request.trustedExecutionContext(), null);
-        var pins = lease.path("sourceVersions");
-        if (!pins.isObject()) throw denied();
-        if (!root.sourceVersions().equals(pins)) throw denied();
+            || !root.interactionKey().equals(request.idempotencyKey()) || !profile.specialist().equals(request.specialistId())
+            || trusted.subject() == null || !root.conversationId().equals(trusted.subject().subjectId())
+            || trusted.source() != ExecutionSource.APPLICATION || trusted.initiator().principalType() != ExecutionPrincipalType.SERVICE
+            || !trusted.grantedScopes().contains("configuration:author") || !trusted.grantedScopes().containsAll(profile.requiredScopes())
+            || !platform.releaseId().equals(work.releaseId()) || !bundle.contentHash().equals(work.bundleHash())
+            || work.authorityDeadline() == null || !clock.instant().isBefore(work.authorityDeadline())
+            || request.deadline() == null || !clock.instant().isBefore(request.deadline())) throw denied();
         var query = mapper.valueToTree(request.input()).path("query");
         if (!query.isTextual() || query.textValue().isBlank()) throw denied();
         var input = mapper.createObjectNode().put("query", query.textValue());
-        return new AIExecutionRequest<>(request.specialistId(), input, trusted(identity, root.conversationId()), null,
+        return new AIExecutionRequest<>(request.specialistId(), input, trusted, null,
             request.deadline(), request.idempotencyKey());
     }
 
     @Override public AIExecutionResult<?> executeSegment(GoalExecutionClaim claim, AIExecutionRequest<?> persisted,
         Function<AIExecutionRequest<?>, AIExecutionResult<?>> execute) {
         var record = required(repositories).findById(claim.invocationId()).orElseThrow();
-        Root root = persistedRoot(record);
-        if (!claim.authorityReference().equals(root.work().authorityReference())) throw denied();
+        Root initial = persistedRoot(record);
+        if (!claim.authorityReference().equals(initial.work().authorityReference())) throw denied();
         try {
-            bindWork(root, claim.invocationId());
-            var scope = scope(persisted.trustedExecutionContext(), root);
-            var state = state(scope, root.controlEpoch());
+            bindWork(initial, claim.invocationId());
+            var scope = scope(persisted.trustedExecutionContext(), initial);
+            var state = state(scope, initial.controlEpoch());
+            if (initial.sourceVersions() == null) requireUnadmitted(record, state);
             var checkpoint = checkpoint(record);
             int segment = checkpoint.path("goal").path("segmentNumber").asInt(0) + 1;
             if ("RUNNING".equals(checkpoint.path("state").asText())) segment = Math.max(1, segment - 1);
-            ConfigurationWork requestedWork = root.work().renewed(state.path("requestRevision").asLong(root.work().requestRevision()),
-                state.path("cancellationEpoch").asLong(root.work().cancellationEpoch()), segment, root.work().authorityDeadline());
+            ConfigurationWork requestedWork = initial.work().renewed(state.path("requestRevision").asLong(initial.work().requestRevision()),
+                state.path("cancellationEpoch").asLong(initial.work().cancellationEpoch()), segment, initial.work().authorityDeadline());
             var lease = platform.renew(requestedWork, claim.invocationId());
-            var identity = renewedIdentity(root, requestedWork, lease, persisted.trustedExecutionContext(), claim.invocationId());
+            var identity = renewedIdentity(initial, requestedWork, lease, persisted.trustedExecutionContext(), claim.invocationId());
+            Root root = admitSources(initial, requestedWork, scope, claim, lease.path("sourceVersions"));
             ConfigurationWork work = requestedWork.renewed(requestedWork.requestRevision(), requestedWork.cancellationEpoch(),
                 requestedWork.segment(), Instant.parse(lease.path("validUntil").asText()));
             if (!root.sourceVersions().equals(lease.path("sourceVersions"))) throw new ResponseStatusException(CONFLICT, "AUTHORING_SOURCE_VERSION_CHANGED");
@@ -195,6 +203,10 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
                         authorityFailure.compareAndSet(null, code);
                         throw new OrchestrationControlException(code, "Current authoring authority must be restored before work continues.");
                     }
+                    catch (IllegalStateException unavailable) {
+                        authorityFailure.compareAndSet(null, "AUTHORING_AUTHORITY_UNAVAILABLE");
+                        throw new OrchestrationControlException("AUTHORING_AUTHORITY_UNAVAILABLE", "Current authoring authority is unavailable.");
+                    }
                 }
                 public void verifyBeforeAction(ai.fabric.intent.action.AIActionMetaData metadata, ai.fabric.intent.action.ActionContext action) {
                     verifyBeforeOrchestration(); delegate.verifyBeforeAction(metadata, action);
@@ -216,7 +228,8 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
                     var result = execute.apply(new AIExecutionRequest<>(persisted.specialistId(), persisted.input(),
                         trusted(identity, root.conversationId()).withCallerIdentity(liveCaller), binding,
                         min(persisted.deadline(), claim.deadline()), persisted.idempotencyKey()));
-                    if (authorityFailure.get() != null) result = paused(claim, persisted, authorityFailure.get());
+                    if (authorityFailure.get() != null && pauseAuthorityCheckpoint(claim, authorityFailure.get()))
+                        result = paused(claim, persisted, authorityFailure.get());
                     var diagnostics = new LinkedHashMap<>(result.diagnostics());
                     diagnostics.put("providerDiagnostics", budget.providerDiagnostics());
                     diagnostics.put("authoringRequestRevision", work.requestRevision());
@@ -347,6 +360,89 @@ public final class RuntimeDurableGoalHost implements DurableGoalExecutionHost {
             || auth.getCallerType() != RuntimeAuthCallerType.TRUSTED_BACKEND || auth.getAuthMode() != RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED
             || !clock.instant().isBefore(auth.getExpiresAt()) || !clock.instant().isBefore(Instant.parse(lease.path("validUntil").asText()))) throw denied();
         return identity;
+    }
+
+    private Root admitSources(Root initial, ConfigurationWork work, ConversationScope scope, GoalExecutionClaim claim, JsonNode sources) {
+        JsonNode pins = sourcePins(sources);
+        if (initial.sourceVersions() != null) {
+            if (!initial.sourceVersions().equals(pins)) throw new ResponseStatusException(CONFLICT, "AUTHORING_SOURCE_VERSION_CHANGED");
+            return initial;
+        }
+        var admitted = new java.util.concurrent.atomic.AtomicReference<Root>();
+        // The canonical row lock fences erasure/control and makes the first source pin immutable.
+        required(conversations).updateOrchestrationState(scope, initial.controlEpoch(), values -> {
+            var state = mapper.valueToTree(values.get(STATE));
+            if (!work.goalId().equals(state.path("goalId").asText()) || !claim.invocationId().equals(state.path("workId").asText())
+                || work.requestRevision() != state.path("requestRevision").asLong(-1)
+                || work.cancellationEpoch() != state.path("cancellationEpoch").asLong(-1)
+                || Set.of("PAUSED", "CANCELLED").contains(state.path("state").asText())) throw denied();
+            var latest = required(repositories).findById(claim.invocationId()).orElseThrow(RuntimeDurableGoalHost::missing);
+            if (latest.status() != ExecutionHandleStatus.RUNNING || !claim.leaseOwner().equals(latest.leaseOwner())
+                || latest.attemptCount() != claim.attemptCount() || latest.leaseUntil() == null
+                || !clock.instant().isBefore(latest.leaseUntil())) throw denied();
+            var roots = mapper.convertValue(values.get(ROOTS), new TypeReference<LinkedHashMap<String, Object>>() {});
+            if (roots == null || !(roots.get(work.goalId()) instanceof String protectedRoot)) throw missing();
+            var current = mapper.convertValue(required(securities).unprotect(protectedRoot, "canonical-goal-root:" + work.goalId()).get("root"), Root.class);
+            if (!current.withSources(null).equals(initial.withSources(null))) throw denied();
+            if (current.sourceVersions() == null) {
+                requireUnadmitted(latest, state);
+                current = current.withSources(pins);
+                roots.put(work.goalId(), required(securities).protect(Map.of("root", mapper.valueToTree(current)), "canonical-goal-root:" + work.goalId()));
+            } else if (!current.sourceVersions().equals(pins)) throw denied();
+            admitted.set(current);
+            var copy = new LinkedHashMap<>(values); copy.put(ROOTS, roots); return copy;
+        });
+        return Objects.requireNonNull(admitted.get());
+    }
+
+    private JsonNode sourcePins(JsonNode pins) {
+        if (!pins.isObject() || pins.size() > 10) throw denied();
+        var fields = pins.fields();
+        while (fields.hasNext()) {
+            var entry = fields.next();
+            if (!entry.getKey().matches("[A-Za-z0-9][A-Za-z0-9:_-]{0,199}") || !entry.getValue().isTextual()
+                || !entry.getValue().textValue().matches("(?:sha256:)?[a-f0-9]{64}")) throw denied();
+        }
+        return pins.deepCopy();
+    }
+
+    private void requireUnadmitted(DurableExecutionRecord record, JsonNode state) {
+        if (record.protectedWorkflowCheckpoint() != null || state.hasNonNull("segmentLease")) throw unpinnedProgress();
+        if (record.protectedResult() == null) return;
+        var result = mapper.valueToTree(required(securities).unprotect(record.protectedResult(), record.invocationId() + ":result"));
+        if (!"PAUSED".equals(result.path("status").asText()) || !result.path("output").isNull()
+            || !result.path("evidence").isArray() || !result.path("evidence").isEmpty()
+            || result.hasNonNull("actionProposal") || result.hasNonNull("needsUserInput")) throw unpinnedProgress();
+        var diagnostics = result.path("diagnostics");
+        if (!diagnostics.isObject()) throw unpinnedProgress();
+        var fields = diagnostics.fieldNames();
+        while (fields.hasNext()) if (!"workflow".equals(fields.next())) throw unpinnedProgress();
+        if (diagnostics.has("workflow")) {
+            var workflow = diagnostics.path("workflow");
+            if (!workflow.isObject() || !"PAUSED".equals(workflow.path("state").asText())) throw unpinnedProgress();
+            fields = workflow.fieldNames();
+            while (fields.hasNext()) if (!Set.of("state", "stopCode").contains(fields.next())) throw unpinnedProgress();
+        }
+    }
+    private static OrchestrationControlException unpinnedProgress() {
+        return new OrchestrationControlException("AUTHORING_GOAL_SOURCE_PINS_MISSING", "Execution progress has no pinned source authority.");
+    }
+
+    private boolean pauseAuthorityCheckpoint(GoalExecutionClaim claim, String code) {
+        var latest = required(repositories).findById(claim.invocationId()).orElseThrow();
+        if (latest.attemptCount() != claim.attemptCount() || !claim.leaseOwner().equals(latest.leaseOwner())) throw denied();
+        var store = new DurableWorkflowCheckpointStore(required(repositories), required(securities), mapper, clock, latest);
+        var checkpoint = store.find(claim.invocationId()).orElse(null);
+        if (checkpoint == null) return true;
+        if (checkpoint.state() != WorkflowCheckpoint.State.RUNNING)
+            return Set.of(WorkflowCheckpoint.State.PAUSED, WorkflowCheckpoint.State.NEEDS_INPUT, WorkflowCheckpoint.State.COMPLETE).contains(checkpoint.state());
+        // Authority can fail between bootstrap and the runner's protected loop. Fence the actual
+        // checkpoint through the SDK store without resetting usage or touching irreversible steps.
+        var paused = new WorkflowCheckpoint(checkpoint.workId(), checkpoint.requestFingerprint(), checkpoint.authorityFingerprint(),
+            checkpoint.definitionFingerprint(), checkpoint.deadline(), checkpoint.version() + 1, checkpoint.usage(), checkpoint.steps(),
+            WorkflowCheckpoint.State.PAUSED, checkpoint.message(), checkpoint.questions(), code, checkpoint.goal());
+        if (!store.compareAndSet(checkpoint, paused)) throw denied();
+        return true;
     }
 
     private OrchestrationContext hostContext(RuntimeResolvedIdentity identity, Root root, RuntimeConversationTurn turn) {

@@ -30,6 +30,125 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class RuntimeDurableGoalHostTest {
+    @Test void submissionPreparationIsLocalAndKeepsTheOriginalQueryIdentityAndDeadline() throws Exception {
+        var fixture = new Fixture();
+        var root = fixture.root();
+        var work = root.work().renewed(1, 0, 1, fixture.freshGrant);
+        fixture.root(new RuntimeDurableGoalHost.Root(work, root.conversationId(), root.userSequence(), root.interactionKey(),
+            root.controlEpoch(), root.budgetReceipt(), null, root.issuer(), root.audiences(), root.customerId()));
+        var prepared = fixture.host.prepareSubmission(new GoalExecutionRequest(fixture.request, fixture.goal));
+        assertThat(prepared.input()).isEqualTo(fixture.request.input());
+        assertThat(prepared.trustedExecutionContext()).isEqualTo(fixture.request.trustedExecutionContext());
+        assertThat(prepared.deadline()).isEqualTo(fixture.request.deadline());
+        assertThat(fixture.root().sourceVersions()).isNull();
+        verify(fixture.platform, never()).renew(any(), any());
+        var trusted = fixture.request.trustedExecutionContext();
+        var narrowed = new ai.fabric.execution.context.TrustedExecutionContext(trusted.initiator(), trusted.subject(), trusted.source(),
+            trusted.tenantId(), trusted.deploymentId(), Set.of("chat:messages"), null, null);
+        assertThatThrownBy(() -> fixture.host.prepareSubmission(new GoalExecutionRequest(new AIExecutionRequest<>(
+            fixture.request.specialistId(), fixture.request.input(), narrowed, null, fixture.freshGrant, fixture.work.turnId()), fixture.goal)))
+            .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> fixture.host.prepareSubmission(new GoalExecutionRequest(new AIExecutionRequest<>(
+            fixture.request.specialistId(), fixture.request.input(), trusted, null, fixture.freshGrant, "different-root"), fixture.goal)))
+            .isInstanceOf(ResponseStatusException.class);
+        verify(fixture.platform, never()).renew(any(), any());
+    }
+
+    @Test void firstWorkerPinsSourcesBeforeTheDelegateAndKeepsTheExistingReceipt() throws Exception {
+        for (boolean sourceLess : List.of(false, true)) {
+            var fixture = new Fixture(); fixture.root(fixture.root().withSources(null));
+            if (sourceLess) fixture.pins.removeAll();
+            when(fixture.platform.renew(any(), anyString())).thenReturn(fixture.lease());
+            var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> {
+                assertThat(fixture.root().sourceVersions()).isEqualTo(fixture.pins);
+                assertThat(request.input()).isEqualTo(fixture.request.input());
+                return fixture.success();
+            });
+            assertThat(result.status()).isEqualTo(AIExecutionStatus.SUCCEEDED);
+            assertThat(fixture.root().budgetReceipt()).isNotNull();
+            verify(fixture.budgets).openGoalSegment(any(), eq(fixture.root().budgetReceipt()), any());
+        }
+    }
+
+    @Test void unavailableFirstRenewalLeavesAnUnpinnedPausedRootWithoutModelOrBudgetScope() throws Exception {
+        var fixture = new Fixture(); fixture.root(fixture.root().withSources(null)); var calls = new AtomicInteger();
+        when(fixture.platform.renew(any(), anyString())).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+        var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+        assertThat(result.status()).isEqualTo(AIExecutionStatus.PAUSED);
+        assertThat(result.failure().reason()).isEqualTo("AUTHORING_AUTHORITY_UNAVAILABLE");
+        assertThat(fixture.root().sourceVersions()).isNull(); assertThat(calls).hasValue(0);
+        verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+    }
+
+    @Test void unpinnedCheckpointOrExecutionProgressIsAnIntegrityDenialNotAFreshAdmission() throws Exception {
+        for (String progress : List.of("checkpoint", "segmentLease", "model", "tool", "effect")) {
+            var fixture = new Fixture(); fixture.root(fixture.root().withSources(null));
+            if (progress.equals("checkpoint")) when(fixture.repository.findById(fixture.id))
+                .thenReturn(Optional.of(fixture.record.withWorkflowCheckpoint("protected-checkpoint", fixture.now)));
+            else if (progress.equals("segmentLease")) {
+                var metadata = new LinkedHashMap<>(fixture.metadata.get());
+                var state = new LinkedHashMap<>((Map<String, Object>) metadata.get("authoringGoal"));
+                state.put("segmentLease", Map.of("leaseId", "old-worker")); metadata.put("authoringGoal", state); fixture.metadata.set(metadata);
+            } else {
+                var result = new LinkedHashMap<String, Object>(); result.put("status", "PAUSED");
+                result.put("output", progress.equals("effect") ? Map.of("saved", true) : null); result.put("evidence", List.of());
+                result.put("diagnostics", Map.of("workflow", Map.of("state", "PAUSED", "usage", Map.of(progress + "Calls", 1))));
+                var protectedResult = fixture.security.protect(result, fixture.id + ":result");
+                when(fixture.repository.findById(fixture.id)).thenReturn(Optional.of(fixture.record.goalTransition(
+                    ExecutionHandleStatus.PAUSED, protectedResult, "fixture", null, fixture.now, false)));
+            }
+            var calls = new AtomicInteger();
+            var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+            assertThat(result.status()).isEqualTo(AIExecutionStatus.PAUSED);
+            assertThat(result.failure().reason()).isEqualTo("AUTHORING_GOAL_SOURCE_PINS_MISSING");
+            assertThat(calls).hasValue(0); verify(fixture.platform, never()).renew(any(), any());
+            verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+        }
+    }
+
+    @Test void firstSourcePinCannotResurrectErasedRootsOrCrossAnExplicitPauseFence() throws Exception {
+        for (boolean erase : List.of(false, true)) {
+            var fixture = new Fixture(); fixture.root(fixture.root().withSources(null)); var calls = new AtomicInteger();
+            when(fixture.platform.renew(any(), anyString())).thenAnswer(call -> {
+                var metadata = new LinkedHashMap<>(fixture.metadata.get());
+                if (erase) metadata.put("authoringGoalRoots", Map.of());
+                else {
+                    var state = new LinkedHashMap<>((Map<String, Object>) metadata.get("authoringGoal"));
+                    state.put("state", "PAUSED"); state.put("cancellationEpoch", 1L); metadata.put("authoringGoal", state);
+                }
+                fixture.metadata.set(metadata); return fixture.lease();
+            });
+            var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+            assertThat(result.status()).isEqualTo(AIExecutionStatus.PAUSED); assertThat(calls).hasValue(0);
+            if (erase) assertThat((Map<?, ?>) fixture.metadata.get().get("authoringGoalRoots")).isEmpty();
+            else assertThat(fixture.root().sourceVersions()).isNull();
+            verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+        }
+    }
+
+    @Test void malformedAndChangedSourcePinsNeverReachTheDelegateAndLegacyPinnedRootsRemainValid() throws Exception {
+        for (String problem : List.of("missing", "array", "digest", "oversized", "changed")) {
+            var fixture = new Fixture();
+            if (!problem.equals("changed")) fixture.root(fixture.root().withSources(null));
+            var lease = fixture.lease().deepCopy();
+            switch (problem) {
+                case "missing" -> lease.remove("sourceVersions");
+                case "array" -> lease.putArray("sourceVersions");
+                case "digest" -> lease.putObject("sourceVersions").put("source-one", "not-a-source-hash");
+                case "oversized" -> { var sources = lease.putObject("sourceVersions"); for (int i = 0; i < 11; i++) sources.put("source-" + i, "a".repeat(64)); }
+                case "changed" -> lease.putObject("sourceVersions").put("source-one", "b".repeat(64));
+            }
+            when(fixture.platform.renew(any(), anyString())).thenReturn(lease); var calls = new AtomicInteger();
+            var result = fixture.host.executeSegment(fixture.claim, fixture.request, request -> { calls.incrementAndGet(); return fixture.success(); });
+            assertThat(result.status()).isEqualTo(AIExecutionStatus.PAUSED); assertThat(calls).hasValue(0);
+            verify(fixture.budgets, never()).openGoalSegment(any(), any(), any());
+        }
+        var fixture = new Fixture(); var original = fixture.metadata.get().get("authoringGoalRoots");
+        when(fixture.platform.renew(any(), anyString())).thenReturn(fixture.lease());
+        assertThat(fixture.host.executeSegment(fixture.claim, fixture.request, request -> fixture.success()).status()).isEqualTo(AIExecutionStatus.SUCCEEDED);
+        assertThat(fixture.metadata.get().get("authoringGoalRoots")).isEqualTo(original);
+    }
+
     @Test void expiredLoginPausesWithoutCallsAndFreshAuthorityResumesWithinTheOriginalRootLifetime() throws Exception {
         var fixture = new Fixture(); var calls = new AtomicInteger();
         when(fixture.platform.renew(any(), anyString())).thenThrow(new ResponseStatusException(UNAUTHORIZED));
@@ -183,6 +302,7 @@ class RuntimeDurableGoalHostTest {
         final AIExecutionGateway gateway = mock(AIExecutionGateway.class);
         final DurableExecutionRepository repository = mock(DurableExecutionRepository.class);
         final ObjectNode pins = mapper.createObjectNode().put("source-one", "sha256:" + "a".repeat(64));
+        final DurableExecutionSecurity security;
 
         Fixture() throws Exception {
             ObjectNode compiled;
@@ -199,7 +319,8 @@ class RuntimeDurableGoalHostTest {
                 false, 2, true, goal, goal, now.minusSeconds(60), 1, 0, 1);
             var receipt = new ChatReceipt(UUID.randomUUID(), 1, true);
             var root = new RuntimeDurableGoalHost.Root(work, conversation, 1, work.turnId(), 0, receipt, pins, auth.getIssuer(), auth.getAudiences(), auth.getCustomerId());
-            var security = new DurableExecutionSecurity(mapper, "host-test-encryption-at-least-32-characters", "host-test-fingerprint-at-least-32-characters");
+            security = new DurableExecutionSecurity(mapper, "host-test-encryption-at-least-32-characters", "host-test-fingerprint-at-least-32-characters");
+            when(platform.releaseId()).thenReturn("release");
             var payload = new LinkedHashMap<String, Object>();
             payload.put("input", Map.of("query", "Original immutable query")); payload.put("principalId", identity.ownerId());
             payload.put("subjectType", "conversation"); payload.put("subjectId", conversation); payload.put("tenantId", "tenant"); payload.put("deploymentId", "deployment");
@@ -234,6 +355,15 @@ class RuntimeDurableGoalHostTest {
             host = new RuntimeDurableGoalHost(bundle, platform, dispatcher, provider(gateway), provider(repository),
                 provider(security), provider(registry), provider(snapshots), provider(conversations),
                 provider(handovers), provider(budgets), assertions, properties, mapper, Clock.systemUTC());
+        }
+        RuntimeDurableGoalHost.Root root() {
+            var protectedRoot = ((Map<?, ?>) metadata.get().get("authoringGoalRoots")).get(goal).toString();
+            return mapper.convertValue(security.unprotect(protectedRoot, "canonical-goal-root:" + goal).get("root"), RuntimeDurableGoalHost.Root.class);
+        }
+        void root(RuntimeDurableGoalHost.Root root) {
+            var copy = new LinkedHashMap<>(metadata.get());
+            copy.put("authoringGoalRoots", Map.of(goal, security.protect(Map.of("root", mapper.valueToTree(root)), "canonical-goal-root:" + goal)));
+            metadata.set(copy);
         }
         ObjectNode lease() {
             var result = mapper.createObjectNode().put("authorityId", goal).put("goalId", goal).put("sessionId", work.sessionId())

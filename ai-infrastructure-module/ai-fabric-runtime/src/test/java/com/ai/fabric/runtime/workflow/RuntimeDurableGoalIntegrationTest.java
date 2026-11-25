@@ -79,7 +79,8 @@ class RuntimeDurableGoalIntegrationTest {
     @Autowired Funding funding;
     @MockitoSpyBean AICoreService core;
     @MockitoSpyBean AuthoringPlatformClient platform;
-    static final ObjectMapper MAPPER = WorkflowAssistanceBundleTest.MAPPER;
+    static final ObjectMapper MAPPER = WorkflowAssistanceBundleTest.MAPPER.copy().findAndRegisterModules()
+        .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     static final String OFFLINE_KEY = "offline-goal-budget-fixture-not-a-provider-key";
 
     @DynamicPropertySource static void published(DynamicPropertyRegistry properties) throws Exception {
@@ -97,6 +98,132 @@ class RuntimeDurableGoalIntegrationTest {
         byte[] bytes = MAPPER.writeValueAsBytes(compiled); String hash = WorkflowAssistanceBundleTest.hash(bytes);
         properties.add("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_BASE64", () -> Base64.getEncoder().encodeToString(bytes));
         properties.add("LOOMAI_WORKFLOW_ASSISTANCE_BUNDLE_HASH", () -> hash);
+    }
+
+    @Test void canonicalHttpAdmissionSurvivesUnavailableRenewalAndResumesTheSameNativeRoot() throws Exception {
+        var client = client(); var unavailable = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();
+        renew(client, null);
+        var successfulRenewal = lease(client, List.of(), List.of("source-one"));
+        doAnswer(call -> {
+            assertThat(call.getArgument(1, String.class)).startsWith("exec-");
+            if (unavailable.get()) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
+            var lease = successfulRenewal.apply(call.getArgument(0), call.getArgument(1));
+            ((ObjectNode) lease.path("sourceVersions")).put("source-one", "a".repeat(64));
+            return lease;
+        }).when(platform).renew(any(), nullable(String.class));
+        var decisions = new ConcurrentLinkedQueue<>(List.of(save("Saved after authority restoration"),
+            "{\"type\":\"COMPLETE\",\"message\":\"The requested draft operation is saved.\"}"));
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall(); calls.incrementAndGet();
+            return AIGenerationResponse.builder().content(Objects.requireNonNull(decisions.poll())).build();
+        }).when(core).generateContent(any(), any());
+        doAnswer(call -> {
+            String action = call.getArgument(0); Map<String, Object> parameters = call.getArgument(1);
+            var result = MAPPER.createObjectNode();
+            if ("authoring_update_draft".equals(action)) {
+                writes.add(String.valueOf(parameters.get("operationId")));
+                result.put("operationId", String.valueOf(parameters.get("operationId"))).put("status", "EXECUTED");
+            } else result.putObject("sourceCoverage").put("required", false);
+            return new AuthoringPlatformClient.Reply(200, result);
+        }).when(platform).call(anyString(), anyMap(), any());
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(conversations)
+            .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(MAPPER)).build();
+        var before = funded.readCurrent();
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/chat/me/conversations/{conversation}/messages", client.conversation())
+            .contentType("application/json").content(MAPPER.writeValueAsBytes(client.body())).header("Idempotency-Key", client.turn());
+        client.request().getHeaderNames().asIterator().forEachRemaining(name -> request.header(name, client.request().getHeader(name)));
+        var response = mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isAccepted()).andReturn();
+        String id = MAPPER.readTree(response.getResponse().getContentAsByteArray()).path("workId").asText();
+        assertThat(id).startsWith("exec-"); await(id, client, ExecutionHandleStatus.PAUSED);
+        var paused = repository.findById(id).orElseThrow();
+        assertThat(paused.failureReason()).isEqualTo("AUTHORING_AUTHORITY_UNAVAILABLE");
+        assertThat(paused.protectedWorkflowCheckpoint()).isNull(); assertThat(paused.nextEligibleAt()).isNull();
+        assertThat(calls).hasValue(0); assertThat(writes).isEmpty();
+        verify(platform, never()).call(anyString(), anyMap(), any());
+        assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
+        assertThat(funded.readCurrent().providerAttempts()).isEqualTo(before.providerAttempts());
+        var scope = new ai.fabric.chat.control.ConversationScope("tenant-test", "dep-test", client.conversation(), "authoring:" + client.session());
+        var rootBefore = storedRoot(scope, client.goal());
+        assertThat(rootBefore.sourceVersions()).isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_conversation_ai_interaction WHERE conversation_id=? AND idempotency_key=?",
+            String.class, client.conversation(), client.turn())).isEqualTo("COMPLETED");
+        var replay = mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isAccepted()).andReturn();
+        assertThat(MAPPER.readTree(replay.getResponse().getContentAsByteArray()).path("workId").asText()).isEqualTo(id);
+        assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
+        unavailable.set(false);
+        var control = new RuntimeDurableGoalHost.Control("RESUME", client.goal(), client.goal(), client.session(), client.turn(), 1, 0, 1, null);
+        var resume = org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/chat/me/conversations/{conversation}/work/{work}/control", client.conversation(), id)
+            .contentType("application/json").content(MAPPER.writeValueAsBytes(control)).header("Idempotency-Key", "resume-original-root");
+        client.request().getHeaderNames().asIterator().forEachRemaining(name -> resume.header(name, client.request().getHeader(name)));
+        mvc.perform(resume).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        await(id, client, ExecutionHandleStatus.SUCCEEDED);
+        var rootAfter = storedRoot(scope, client.goal());
+        assertThat(rootAfter.budgetReceipt()).isEqualTo(rootBefore.budgetReceipt());
+        assertThat(rootAfter.sourceVersions()).isEqualTo(MAPPER.createObjectNode().put("source-one", "a".repeat(64)));
+        assertThat(repository.findById(id).orElseThrow().requestFingerprint()).isEqualTo(paused.requestFingerprint());
+        assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
+        assertThat(writes).containsExactly(id + ":step:1"); assertThat(calls).hasValue(2);
+        long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role='AI'", Integer.class, client.conversation()) == 0
+            && System.nanoTime() < until) Thread.sleep(20);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role='USER'", Integer.class, client.conversation())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role='AI'", Integer.class, client.conversation())).isEqualTo(1);
+        chat.deleteConversation(client.conversation(), "erase-admission-test", client.request());
+    }
+
+    @Test void aRenewalTransportFailurePausesTheRealCheckpointBeforeAnyModelAndResumesWithoutNewIngress() throws Exception {
+        var client = client(); var renewal = lease(client, List.of(), List.of("source-one"));
+        var calls = new AtomicInteger();
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall(); calls.incrementAndGet();
+            return AIGenerationResponse.builder().content("{\"type\":\"COMPLETE\",\"message\":\"The explanation is complete.\"}").build();
+        }).when(core).generateContent(any(), any());
+        doReturn(new AuthoringPlatformClient.Reply(200, MAPPER.createObjectNode().set("sourceCoverage", MAPPER.createObjectNode().put("required", false))))
+            .when(platform).call(eq("authoring_get_work_status"), anyMap(), any());
+        doAnswer(call -> {
+            String id = call.getArgument(1);
+            if (id != null && repository.findById(id).orElseThrow().protectedWorkflowCheckpoint() != null)
+                throw new IllegalStateException("AUTHORING_GOAL_AUTHORITY_UNAVAILABLE");
+            return renewal.apply(call.getArgument(0), id);
+        }).when(platform).renew(any(), nullable(String.class));
+        var before = funded.readCurrent();
+        String id = conversations.message(client.conversation(), client.turn(), client.body(), client.request()).getBody().getWorkId();
+        await(id, client, ExecutionHandleStatus.PAUSED);
+        var trusted = RuntimeDurableGoalHost.trusted(RuntimeResolvedIdentity.builder().authContext(client.auth()).warnings(List.of()).build(), client.conversation());
+        var checkpoint = gateway.findWorkflowCheckpoint(id, trusted).orElseThrow();
+        assertThat(checkpoint.state()).isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.State.PAUSED);
+        assertThat(checkpoint.stopCode()).isEqualTo("AUTHORING_AUTHORITY_UNAVAILABLE");
+        assertThat(calls).hasValue(0); assertThat(checkpoint.usage().writes()).isZero();
+        assertThat(funded.readCurrent().providerAttempts()).isEqualTo(before.providerAttempts());
+        renew(client, null);
+        conversations.controlWork(client.conversation(), id, "resume-renewal-transport", new RuntimeDurableGoalHost.Control("RESUME",
+            client.goal(), client.goal(), client.session(), client.turn(), 1, 0, 1, null), client.request());
+        await(id, client, ExecutionHandleStatus.SUCCEEDED); assertThat(calls).hasValue(1);
+        assertThat(funded.readCurrent().chatAttempts()).isEqualTo(before.chatAttempts() + 1);
+        chat.deleteConversation(client.conversation(), "erase-renewal-transport", client.request());
+    }
+
+    @Test void sourceLessNativeGoalsPinAnEmptyFrozenMapRatherThanRemainingUnadmitted() throws Exception {
+        var client = client(); renewSources(client, List.of());
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall();
+            return AIGenerationResponse.builder().content("{\"type\":\"COMPLETE\",\"message\":\"The source-less explanation is complete.\"}").build();
+        }).when(core).generateContent(any(), any());
+        doReturn(new AuthoringPlatformClient.Reply(200, MAPPER.createObjectNode().set("sourceCoverage", MAPPER.createObjectNode().put("required", false))))
+            .when(platform).call(eq("authoring_get_work_status"), anyMap(), any());
+        String id = conversations.message(client.conversation(), client.turn(), client.body(), client.request()).getBody().getWorkId();
+        await(id, client, ExecutionHandleStatus.SUCCEEDED);
+        var scope = new ai.fabric.chat.control.ConversationScope("tenant-test", "dep-test", client.conversation(), "authoring:" + client.session());
+        assertThat(storedRoot(scope, client.goal()).sourceVersions()).isEqualTo(MAPPER.createObjectNode());
+        chat.deleteConversation(client.conversation(), "erase-empty-sources", client.request());
+    }
+
+    private RuntimeDurableGoalHost.Root storedRoot(ai.fabric.chat.control.ConversationScope scope, String goal) {
+        var roots = MAPPER.valueToTree(canonical.orchestrationState(scope, 0).orElseThrow().metadata()).path("authoringGoalRoots");
+        return MAPPER.convertValue(security.unprotect(roots.path(goal).asText(), "canonical-goal-root:" + goal).get("root"), RuntimeDurableGoalHost.Root.class);
     }
 
     @Test void canonicalGoalUsesRealDurableSchedulerFreshScopesOneIngressAndOneFinalThenErasesAllContent() throws Exception {
@@ -558,8 +685,11 @@ class RuntimeDurableGoalIntegrationTest {
         renewUpdates(client, List.of(), sources);
     }
     private void renewUpdates(Client client, List<String> updates, List<String> sources) {
-        doAnswer(call -> {
-            ChatQueryRequest.ConfigurationWork work = call.getArgument(0); String id = call.getArgument(1);
+        var renewal = lease(client, updates, sources);
+        doAnswer(call -> renewal.apply(call.getArgument(0), call.getArgument(1))).when(platform).renew(any(), nullable(String.class));
+    }
+    private java.util.function.BiFunction<ChatQueryRequest.ConfigurationWork, String, ObjectNode> lease(Client client, List<String> updates, List<String> sources) {
+        return (work, id) -> {
             var lease = MAPPER.createObjectNode().put("authorityId", client.goal()).put("goalId", client.goal()).put("sessionId", client.session())
                 .put("turnId", client.turn()).put("conversationId", client.conversation()).put("profileId", work.profileId()).put("releaseId", "release-test")
                 .put("bundleHash", bundle.contentHash()).put("previewOnly", false).put("validUntil", Instant.now().plusSeconds(3600).toString())
@@ -578,7 +708,7 @@ class RuntimeDurableGoalIntegrationTest {
             lease.putObject("runtimeHeaders").put(assertions.authorizationHeaderName(), assertions.tokenScheme() + " "
                 + assertions.issueAssertion(client.auth().toBuilder().expiresAt(Instant.now().plusSeconds(180)).build()));
             return lease;
-        }).when(platform).renew(any(), nullable(String.class));
+        };
     }
     private ExecutionSnapshot await(String id, Client client, ExecutionHandleStatus expected) throws Exception {
         long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
