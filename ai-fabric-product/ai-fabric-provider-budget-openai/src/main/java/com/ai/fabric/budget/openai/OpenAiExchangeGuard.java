@@ -293,6 +293,7 @@ final class OpenAiExchangeGuard implements Interceptor {
             || body.path("stream").asBoolean() || (body.has("n") && integer(body.get("n")) != 1)
             || !"default".equals(body.path("service_tier").asText())) throw unsupported();
         boolean astra = ASTRA_MODEL.equals(model);
+        if (astra && body.has("n")) throw unsupported();
         if (isGpt54Mini(model) || astra) {
             if (astra && reasoningEffort == GuardedReasoningEffort.NONE) throw unsupported();
             if (!reasoningEffort.wireValue().equals(body.path("reasoning_effort").asText())

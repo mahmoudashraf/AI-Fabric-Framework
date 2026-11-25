@@ -21790,11 +21790,70 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
 - The generic guard hides the distinction between non-success HTTP responses,
   invalid usage/model/tier data and I/O failure. OpenAIIoException alone does not
   establish a timeout; the observed attempt stopped in about five seconds.
-  Carver owns a minimal safe diagnostics-only native/provider correction, not
-  committed or deployed yet. No blind paid retry, model allowlist/rate widening,
+  R6 diagnostics-only native/provider correction is committed/pushed as
+  `80c466fbd10060db529d5a5fefc23a0d3ad1a788`. Three frozen files, 121 focused
+  transport and 248 full provider/ledger tests passed. Marker
+  GUARDED_OPENAI_EXCHANGE_FAILURE records bounded typed metadata, never source
+  bodies, credential values or provider prose. It is not deployed yet.
+  No blind paid retry, model allowlist/rate widening,
   HTTP retry, grant replacement or new framework publication is authorized by
   this diagnosis. Preserve the failed report and original pricing receipt.
 - Production autonomy remains unchanged/unqualified. Staging currently runs
   R5/Astra pending diagnosis; the prior mini runs remain the successful quality
   baseline. Exact restart recovery remains deferred.
+- Main exec 73145 owns R6 image CI 45536761108 -> normal staging registration ->
+  same-published-Astra-version software apply. Runtime verification passed; image
+  publication is still running at this checkpoint. Backend stays B5/UI B1; no
+  public SDK publication is required. The upgrader now compares the retained
+  pricing receipt too and attests generation model/cap/timeout from the actual
+  Java process, preserving them during software-only apply.
+- Read-only observer exec 62889 captured a fresh pre-apply Support, funding,
+  settings and storage baseline, waiting for actual R6 proof. Its explicit
+  guidance hash is 67ac3a..., model Astra and model-publication proof is
+  byte-pinned. Twelve read-only gates are separate from provider/semantic
+  qualification. It makes no inference or account mutations.
+- Normal Pause/Resume remains a required live control, distinct from the
+  deferred restart guarantee. Jason is adding explicit in-service Resume to the
+  basic control harness after logout/re-auth quietness; erasure still requires
+  a real saved receipt and protected-body proof, not metadata-only reassurance.
+
+### 010.76 Astra Rejection Traced, R7 Candidate - 25 November 2026
+
+- R6 Runtime image CI 45536761108 passed. Main 73145 completed registration,
+  same-version apply and verified logout: artifact `dsa-11addd13`, digest
+  sha256:503b491c32203c2e162c16923d370c78af8d4496a0125da744fa0b269eac4f31,
+  version `ver-e914d80e`, release `rel-ec888186`, APPLIED_VERIFIED/PASSED/ACTIVE.
+  Actual Java generation remains Astra/8192/timeout40; profiles/guidance,
+  original funds, ambiguous hold, pricing receipt, keys, host and storage match.
+- Read-only 62889 finished 11 PASS / one FAIL. The SDK check incorrectly requires
+  exactly nine total packaged AI Fabric JARs, although nine are the required
+  critical subset: actual image has 22 public SDK 0.8.70 JARs and two private
+  product 1.0.0 JARs. Main independently verified each of the nine official
+  critical hashes and all public versions; no SDK mismatch was found.
+  Original failed report is retained. Jason owns an exact-set validator and
+  separate reevaluation, not a rewrite or fabricated passing acceptance.
+- Controlled fresh `s25-r6-astra-diagnostics-1` again paused before any tool/save.
+  New safe diagnostics prove HTTP400, invalid_request_error,
+  unsupported_parameter, param=n. Provider request ID is recorded privately.
+  This is the product adapter's unconditional n=1, not model reasoning,
+  source access or a Framework autonomy failure. Official Chat Completions
+  documentation confirms newer models reject explicit n and omission generates
+  one choice. No response-model or price widening is needed.
+- R7 is a bounded native/provider candidate: omit n for Astra, retain n=1 for
+  existing models, and reject explicit unsupported Astra n before admission/send.
+  Four frozen files passed 332 checks: 173 provider, 78 ledger and 81 Runtime,
+  including 15 native goal integrations. Native wire tests prove omitted n and
+  one result; explicit Astra n=1/2/null cannot reserve/send. Existing models
+  still send n=1. R7 is not deployed yet. All financial/rate,
+  output, authorization, confirmation and retry rules remain unchanged; SDK70
+  needs no republication. Await real native-wire tests, release CI and actual
+  fresh UI qualification before claiming Astra quality or production readiness.
+- R6 failed-test cleanup and both logouts passed. The second uncertain exchange
+  retains another USD2.88768 bound; cumulative staging ledger USD11.39095275.
+  These two conservative holds are not confirmed invoice charges and must not
+  be reset. Original funding identity/limits/expiry remain intact.
+- Optional mini rollback sidecar supports the actual R6 apply plus original R5
+  model/pricing configuration authority; 110 offline tests passed, not invoked.
+  Production remains on the prior configured bounded assistant, unmodified by
+  the staging model comparison. Primary Harbor and the new video remain pending.
 

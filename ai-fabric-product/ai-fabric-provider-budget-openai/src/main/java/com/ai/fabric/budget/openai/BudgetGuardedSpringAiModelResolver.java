@@ -124,7 +124,8 @@ public final class BudgetGuardedSpringAiModelResolver extends SpringAiModelResol
         if (!isReviewedChatModel(options.getModel()) || cap == null || cap < 1 || cap > CHAT_MAX_OUTPUT_TOKENS
             || (options.getMaxTokens() != null && options.getMaxCompletionTokens() != null))
             throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);
-        var guarded = options.mutate().n(1).serviceTier("default");
+        // Astra rejects explicit n; omission retains the API's single-choice default.
+        var guarded = options.mutate().n(ASTRA_MODEL.equals(options.getModel()) ? null : 1).serviceTier("default");
         if (isGpt54Mini(options.getModel()) || ASTRA_MODEL.equals(options.getModel())) {
             if (ASTRA_MODEL.equals(options.getModel()) && reasoningEffort == GuardedReasoningEffort.NONE)
                 throw new OpenAiBudgetException(UNSUPPORTED_CONFIGURATION);

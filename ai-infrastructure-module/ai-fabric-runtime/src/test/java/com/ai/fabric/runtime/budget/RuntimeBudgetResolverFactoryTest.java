@@ -37,6 +37,7 @@ class RuntimeBudgetResolverFactoryTest extends RuntimeBudgetFixture.TestScope {
             assertThat(options.getModel()).isEqualTo(ReviewedOpenAiRateCard.ASTRA_MODEL);
             assertThat(options.getReasoningEffort()).isEqualTo("medium"); assertThat(options.getTemperature()).isNull();
             assertThat(options.getMaxCompletionTokens()).isEqualTo(8192);
+            assertThat(options.getN()).isNull();
         } finally { resolver.destroy(); }
         assertThatThrownBy(() -> RuntimeBudgetResolverFactory.create(config, ObservationRegistry.NOOP, fixture.ledger,
             budgets, new RuntimeBudgetTurnScopes(budgets), null, OutputCapMode.MAX_COMPLETION_TOKENS)).isInstanceOf(OpenAiBudgetException.class);
@@ -53,6 +54,7 @@ class RuntimeBudgetResolverFactoryTest extends RuntimeBudgetFixture.TestScope {
         try {
             var options = (org.springframework.ai.openai.OpenAiChatOptions) resolver.resolveChatOptions("openai", null);
             assertThat(options.getReasoningEffort()).isEqualTo("low"); assertThat(options.getMaxCompletionTokens()).isEqualTo(300);
+            assertThat(options.getN()).isEqualTo(1);
             assertThat(budgets.readStore().binding().state()).isEqualTo(RuntimeBudgetBindingService.State.UNINITIALIZED);
         } finally { resolver.destroy(); }
     }

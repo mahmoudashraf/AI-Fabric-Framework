@@ -63,6 +63,7 @@ class GuardedNativeTransportTest {
     private final ConcurrentLinkedQueue<String> requests = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<String> clientRequestIds = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<String> acceptEncodings = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Boolean> quantityHeaders = new ConcurrentLinkedQueue<>();
     private final List<AutoCloseable> closeables = new ArrayList<>();
     private ProviderBudgetLedger ledger;
     private OpenAiMeteringStops meteringStops;
@@ -91,6 +92,7 @@ class GuardedNativeTransportTest {
             sends.incrementAndGet();
             clientRequestIds.add(exchange.getRequestHeaders().getFirst("X-Client-Request-Id"));
             acceptEncodings.add(exchange.getRequestHeaders().getFirst("Accept-Encoding"));
+            quantityHeaders.add(exchange.getRequestHeaders().containsKey("n"));
             requests.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             Reply reply = replies.poll();
             if (reply == null) reply = new Reply(500, "{}", null, null);
@@ -147,6 +149,7 @@ class GuardedNativeTransportTest {
             assertEquals(chat(model, 400_000, 1000), ledger.read("approval", scope).accountedUsage());
             var body = json.readTree(requests.element());
             assertEquals(model, body.path("model").textValue());
+            assertEquals(1, body.path("n").intValue());
             assertEquals(1000, body.path("max_completion_tokens").intValue());
             assertFalse(body.has("max_tokens")); assertFalse(body.has("temperature"));
             assertEquals(effort.wireValue(), body.path("reasoning_effort").textValue());
@@ -185,8 +188,11 @@ class GuardedNativeTransportTest {
         var request = AIGenerationRequest.builder().model(ASTRA_MODEL).maxTokens(8192).temperature(0.2)
             .parameters(Map.of("response_format", Map.of("type", "json_object"))).build();
         var resolver = resolver(MAX_COMPLETION_TOKENS, GuardedReasoningEffort.MEDIUM);
-        assertDoesNotThrow(() -> resolver.resolveChatModel("openai", request).call(new Prompt("private-request-canary")), denied::toString);
+        assertNull(((OpenAiChatOptions) resolver.resolveChatOptions("openai", request)).getN());
+        var result = assertDoesNotThrow(() -> resolver.resolveChatModel("openai", request).call(new Prompt("private-request-canary")), denied::toString);
+        assertEquals(1, result.getResults().size());
         var body = json.readTree(requests.element());
+        assertFalse(body.has("n")); assertFalse(quantityHeaders.element());
         assertEquals(8192, body.path("max_completion_tokens").intValue());
         assertEquals("medium", body.path("reasoning_effort").asText()); assertFalse(body.has("temperature"));
         assertEquals("json_object", body.path("response_format").path("type").asText());
@@ -198,6 +204,32 @@ class GuardedNativeTransportTest {
         assertTrue(metadata.contains(ASTRA_MODEL)); assertFalse(metadata.contains("private-request-canary"));
         assertEquals(2, observed.element().reasoningTokens());
         assertTrue(logs.list.isEmpty());
+        assertEquals(UUID.fromString(clientRequestIds.element()), observed.element().attemptId());
+        try (var connection = source.getConnection(); var query = connection.prepareStatement(
+            "SELECT attempt_state,actual_input_tokens,actual_output_tokens,actual_cost_nano_usd,evidence_reference,ambiguity_reason FROM provider_budget_attempt WHERE attempt_id=?")) {
+            query.setString(1, observed.element().attemptId().toString());
+            try (var row = query.executeQuery()) {
+                assertTrue(row.next()); assertEquals("SETTLED", row.getString(1));
+                assertEquals(12, row.getLong(2)); assertEquals(3, row.getLong(3));
+                assertEquals(chat(ASTRA_MODEL, 12, 3).costNanoUsd(), row.getLong(4));
+                assertEquals("pricing:" + ASTRA_REFERENCE + ":amendment:astra-test:openai-request:req_fixture_1:client-attempt:"
+                    + observed.element().attemptId(), row.getString(5));
+                assertNull(row.getString(6)); assertFalse(row.next());
+            }
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"1", "2", "null"})
+    void explicitAstraQuantityCannotReserveOrReachTheProvider(String quantity) throws Exception {
+        approveAstra(); astraAmended = true;
+        var before = ledger.read("approval", scope);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper(); var body = astraBody(json);
+        body.set("n", json.readTree(quantity));
+        var failure = assertThrows(OpenAiBudgetTransportException.class, () -> rawAstra(json.writeValueAsBytes(body)));
+        assertEquals(OpenAiBudgetException.Code.UNSUPPORTED_REQUEST, failure.guardCode().orElseThrow());
+        assertTrue(failure.failureMetadata().isEmpty());
+        assertEquals(before, ledger.read("approval", scope));
+        assertEquals(0, sends.get()); assertTrue(requests.isEmpty());
     }
 
     @Test void astraWithoutAmendmentOrWithNoneReasoningCannotSendOrReserve() {
@@ -465,6 +497,7 @@ class GuardedNativeTransportTest {
         assertTrue(requests.element().contains("\"max_completion_tokens\":1000"));
         assertFalse(requests.element().contains("\"max_tokens\""));
         assertTrue(requests.element().contains("\"service_tier\":\"default\""));
+        assertTrue(requests.element().contains("\"n\":1"));
         assertEquals("JSON_OBJECT", options.getResponseFormat().getType().name());
         Snapshot snapshot = ledger.read("approval", scope);
         assertEquals(1, snapshot.providerAttempts());
