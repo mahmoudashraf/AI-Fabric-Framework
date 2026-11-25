@@ -127,9 +127,12 @@ function ScopedAssistant({ scope, enabled, open, onSaved, onBusyChange, sourceRe
       const added = session.sources.filter(source => !before.has(source.id))
       inputs.setSourceIds(current => [...new Set([...current, ...added.map(source => source.id)])])
       inputs.setOperationIds(current => [...new Set([...current, ...added.flatMap(source => source.operations.map(operation).filter(Boolean).map(item => item!.id))])])
-      if (sourceRequest.prepare) await controller.submit({ query: '', command: 'PREPARE', editorContext: editorContext(scope),
-        previewOnly: false, sourceIds: added.map(source => source.id), operationIds: [],
-        validationFeedback: feedbackPolicy(controller.status.data?.validationFeedback, {}) })
+      if (sourceRequest.prepare) {
+        const executionMode = autonomousAvailability(controller.status.data).enabled ? inputs.executionPreference ?? defaultExecutionMode() : 'BOUNDED'
+        await controller.submit({ query: '', command: 'PREPARE', editorContext: editorContext(scope),
+          previewOnly: false, sourceIds: added.map(source => source.id), operationIds: [], executionMode,
+          ...(executionMode === 'BOUNDED' ? { validationFeedback: feedbackPolicy(controller.status.data?.validationFeedback, inputs.feedbackPreference) } : {}) })
+      }
     } catch (failure) { if (live.current) setSourceError(failure instanceof Error ? failure.message : 'The source could not be attached.') }
     finally { if (live.current) setAttaching(false) }
   }

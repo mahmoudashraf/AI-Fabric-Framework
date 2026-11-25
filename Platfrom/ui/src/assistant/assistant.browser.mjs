@@ -14,7 +14,7 @@ const harness = `
 import React,{useState} from 'react';import{createRoot}from'react-dom/client';
 import{createBrowserRouter,RouterProvider,Link,useLocation,useParams}from'react-router-dom';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';
 import{Box,TextField}from'@mui/material';import{CustomerConsoleTheme}from'/src/theme/CustomerConsoleTheme.tsx';
-import{AssistantWorkspace}from'/src/assistant/AssistantWorkspace.tsx';import{brainAssistantScope,brainPageAssistantScope}from'/src/assistant/scope.ts';
+import{AssistantWorkspace,useAssistantSource}from'/src/assistant/AssistantWorkspace.tsx';import{brainAssistantScope,brainPageAssistantScope}from'/src/assistant/scope.ts';
 import{KitAssistantGuide}from'/src/assistant/KitAssistantGuide.tsx';
 import{PluginLibraryPage}from'/src/pluginLibrary/PluginLibraryPage.tsx';
 import{SmartBrainShell}from'/src/brain/SmartBrainShell.tsx';import{BrainModelsPage}from'/src/brain/BrainSettingsPage.tsx';
@@ -28,14 +28,15 @@ function Editor(){const[value,setValue]=useState('Saved manual value');const[oth
  if(params.has('workflowForm'))return <Box sx={{p:2}}><CustomerWorkflowAssistance draft={window.__workflowDraft} canEdit={true}/></Box>;
  if(real)return <SmartBrainShell session={{role:'CUSTOMER_ADMIN',actorId:'actor-37',customerId:'customer-37',authenticationMode:'SUPABASE',displayName:'Customer',authenticated:true}} onSignOut={async()=>{}}>{location.pathname.includes('/action-reviews')?<BrainActionReviewsPage/>:location.pathname.includes('/human-support')?<BrainHumanSupportPage/>:location.pathname.includes('/capabilities')?<BrainCapabilitiesPage/>:<BrainModelsPage/>}</SmartBrainShell>;
  const defaultOpen=params.has('defaultOpen');
- const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:(defaultOpen?brainPageAssistantScope:brainAssistantScope)(location.pathname,location.search,brainId??'brain-37');
+ const scope=kind==='ENGAGE_APP'?{resourceKind:kind,resourceId:'app-37',task:'ENGAGE'}:kind==='DOCUMENT_SOURCE'?{resourceKind:kind,resourceId:'brain-37|target-stage|release-37|source-37',task:'DOCUMENT_PREPARATION'}:(defaultOpen?brainPageAssistantScope:brainAssistantScope)(location.pathname,location.search,brainId??'brain-37');
  return <Box sx={{height:'100dvh',display:'flex'}}><AssistantWorkspace scope={scope} initiallyOpen={defaultOpen} visibilityKey={defaultOpen?brainId:undefined} readOnlyReason={params.has('active')?'Active Engage apps can only be previewed.':undefined}
  onSaved={async()=>{const saved=await platformRequest('/api/editor');setValue(saved.value)}}>
- <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/>
+ <Box sx={{p:3,display:'flex',gap:2,flexDirection:'column'}}><h1>Selected editor</h1><TextField label="Manual value" value={value} onChange={e=>setValue(e.target.value)}/><TextField label="Unrelated value" value={other} onChange={e=>setOther(e.target.value)}/>{params.has('sourceShortcut')&&<SourceShortcut/>}
  {params.has('scopeTest')&&<><Link to="/smart-brains/brain-37/models?scopeTest">Select Models task</Link><Link to="/smart-brains/brain-38/models?scopeTest">Select another Brain</Link></>}
  {defaultOpen&&<><Link to="/smart-brains/brain-37/models?defaultOpen">Select Models task</Link><Link to="/smart-brains/brain-37/updates?defaultOpen">Select Updates guidance</Link><Link to="/smart-brains/brain-38/models?defaultOpen">Select another Brain</Link></>}
  {params.has('contextTest')&&[['models','Models context'],['knowledge/search','Search context'],['responses','Behaviour context'],['responses/instructions','Instructions context'],['knowledge/documents','Documents context'],['knowledge/connections/source-1','Live data context'],['knowledge/storage','Storage context'],['capabilities/action%3Aread','Selected action context']].map(([path,label])=><Link key={path} to={'/smart-brains/brain-37/'+path+'?contextTest'}>{label}</Link>)}</Box>
  </AssistantWorkspace></Box>}
+function SourceShortcut(){const request=useAssistantSource();return <button onClick={()=>request({notice:'Selected authorized document sample',prepare:true,load:id=>platformRequest('/api/configuration-assistant/sessions/'+id+'/sources',{method:'POST',body:JSON.stringify({title:'Document sample',mediaType:'text/plain',content:'Authorized sample for preparation.'})})})}>Optimize selected sample</button>}
 function KitGuideFixture(){const[brainId,setBrainId]=useState('brain-37');return <><button onClick={()=>setBrainId('brain-38')}>Select another Kit Brain</button><KitAssistantGuide brainId={brainId}/></>}
 const router=createBrowserRouter([{path:'/library/plugins/*',element:<PluginLibraryPage/>},{path:'/kits/scope-fixture',element:<KitGuideFixture/>},{path:'/kits/:id',element:<ExperienceKitOverview customerId="customer-37" id="kit-37"/>},{path:'/smart-brains/:brainId/*',element:<Editor/>}]);
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false,refetchOnWindowFocus:false}}})}><CustomerConsoleTheme><RouterProvider router={router}/></CustomerConsoleTheme></QueryClientProvider>);
@@ -822,6 +823,28 @@ try {
       assert.equal(await panel(page).isVisible(), true)
       assert.equal(calls.filter(call => /\/turns|\/apply|\/publish/.test(call.path)).length, 0)
     }, { path: '/smart-brains/brain-37/models?real', viewport, dark: viewport.width === 1440 })
+  }
+  for (const [area, target, task] of [['documents', '/smart-brains/brain-37/knowledge/documents?sourceShortcut&kind=DOCUMENT_SOURCE', 'DOCUMENT_PREPARATION'], ['search', '/smart-brains/brain-37/knowledge/search?sourceShortcut', 'SEARCH']]) {
+    for (const choice of ['default', 'quick', 'unavailable']) {
+      await run(`external preparation ${area} respects ${choice} execution mode`, async ({ page, calls, finish }) => {
+        await open(page, false)
+        if (choice === 'quick') await panel(page).getByRole('button', { name: 'Quick edit', exact: true }).click()
+        assert.equal(calls.filter(c => c.path.endsWith('/turns')).length, 0)
+        const sent = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/turns'))
+        await page.getByRole('button', { name: 'Optimize selected sample', exact: true }).click()
+        await sent
+        const turns = calls.filter(c => c.path.endsWith('/turns'))
+        assert.equal(turns.length, 1)
+        assert.equal(calls.find(c => c.path.endsWith('/sessions') && c.method === 'POST').input.task, task)
+        const input = turns[0].input
+        assert.equal(input.executionMode, choice === 'default' ? 'AUTONOMOUS' : 'BOUNDED')
+        assert.equal(input.command, 'PREPARE'); assert.equal(input.previewOnly, false)
+        assert.deepEqual(input.sourceIds, ['source-1'])
+        if (choice === 'default') assert.equal(input.validationFeedback, undefined)
+        else assert.deepEqual(input.validationFeedback, { enabled: true, maxCorrections: 2 })
+        finish(); await latestSaved(page)
+      }, { path: target, autonomousEnabled: choice !== 'unavailable' })
+    }
   }
   for (const mode of ['paste', 'file', 'url']) {
     await run(`page aware ${mode} documentation prepares actions with no hint and no inference on import`, async ({ page, calls, finish }) => {

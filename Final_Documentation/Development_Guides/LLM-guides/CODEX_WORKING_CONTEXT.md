@@ -22496,3 +22496,134 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   FiveexactCIgates then stage-first acceptance sequence in01077 still REQUIRED.
   SDK70 production/Harbor and earlieraa stagingUI/backend remain unchanged.
 
+## 2026-11-25 18:15 UTC SDK72 Live Rollout And Video In Progress
+
+- SDK72publisher45659897069 PASS; official9jar checksum proof PASS. Main23ff368a5
+  pushed Platform-V11. All5exactCIgates PASS: runtime45663649124,core45663648966,
+  code45663661477,storage45663667504,quota45663675930. Quota attempt1 failed
+  Central429 beforetests; cooldown+failed-job-only attempt2 PASS, originalretained.
+- BOTH ConsoleUI/backend now23ff/exactOCIhealthy/capacity+env+storage unchanged.
+  Runtime dsa22edc279stage / dsab941860fprod, samecbd93713digest,9officialjars
+  verified fromactualimage. NativeBWA now72: stagerel-b45c27db/ver-99b788c7;
+  prodrel-7d669d23/ver-8560b9e9. Nineprofiles/goal/inference/keybindings preserved.
+  Raw-vs-expanded preset prompt falsepositive reviewed via normal compose API:
+  completeeffectivepromptconfig EXACTequals appliedbaseline, no draftPUT. First
+  preflightfailure retained; helper now checks full normalized equality, not ignore.
+- Stagefirstlivecase shared-072-1 paused PROVIDER_BUDGET_LIMIT_EXCEEDED after2
+  modelcalls/validcheckedcandidate/0writes, NOT unnecessaryclarification. Model
+  worst-case reservation2.88768USD exceeded remaining2.76182725 understage25cap.
+  Allocated3 from EXISTINGowner50ceiling using audited native top-up
+  autonomy-01077-20261125-staging-reserve3: stage28+prod20+Harborreserve2=50.
+  Originalapproval/store/scope/limits/usage/expiry/ratecard retained; no reset,
+  token/turn/infrachange. Private staging-reserve3-verified includes native receipt.
+  Oldprivate service signingKey is stale; current configured nativebinding was
+  checked against retained pre-upgrade binding byHASH, not overwritten. Stale
+  helpercomparison failed BEFOREfundingintent; its local log is secret-redacted.
+- Actualstage shared-072-2 AUTONOMOUS import5actions/routes PASS/1save, no coaching;
+  QuickEdit PASS withfollowup/Undo/WarmBrief/Search preservation. Actualprod
+  shared-072-2 Autonomous+QuickEdit PASS. AlltempBrains/sessions deleted/logouts
+  verified. Additionalownerrequested RECORDING recorded-072-1prod PASS/1save/
+  5actions, raw94sMP4-sourceWebM private, productionvideo trims sign-in/cleanup.
+  Mousehighlights captured. No businesswriteyet. Nativecurrentbudgetactuals must
+  be reread; newcapbaseline is explicitnative top-up receipt, NOT old25baseline.
+- HarborfirstUIobserver timedout BEFOREanyPUT/publication; rawintent exists.
+  Fresh normalcustomer explicit-target/settlededitor diagnosticsaved+reviewed
+  mode viaUI PASS (harbor-23ff368a5-save-diagnostic-final). No bypassAPI draftPUT.
+  Continued ONLYafterUISave using apply-after-ui-save helper, not wholeparent.
+  SAMEBrain/app nowapplying rel-1c93b2e8; finalobservedPROVISIONING at18:15.
+  Needwait75910, sameappconsumerrebind/readiness/explicitactivate, then run SDK72
+  harbor-business source23ff labelshared-072-2 (NOT yetstarted, records actualvideo).
+  No parentstillrunning;51171 collected. Never replay consumedintent/publication.
+- Latestuser asks productionautonomyVIDEO. RecordedBWAproof root
+  harbor-production-recorded-072-1/report.private.json. Exporter added source
+  verification-support/conversational-autonomy/export-videos.mjs, syntaxPASS;
+  requires BWA+chatPASSreports andtrims raw credential scene, H264/faststart,
+  mousehighlight, <20min, visualQArequired. Startframe inspectedclean/no login.
+  Pending: Harborbusiness/security quality+video, finalbudget/cleanup/native
+  readback, videoencode/inspect, actual finaldocs+commit. Do NOT claim fullyclosed.
+
+## 2026-11-25 18:44 UTC SDK72 Recording Complete - Harbor Quality Open
+
+- Supersedes18:15: same Harbor app ACTIVE/ready, rel-1c93b2e8 APPLIED_VERIFIED/
+  PASSED, all13checksPASS. ver-fa36dbc0/SDK72/dsa-b941860f. Mode saved/reviewed
+  throughUI, normallypublished/applied/activated. Public URL unchanged; its
+  physical target remains dtp-coolify-staging-behavior, NOT productionRuntime.
+  Disable intentionally removed sharedfrontend route; unchanged-config Prepare
+  re-entered normal DRAFT route provision before explicitactivation. Connector
+  expectedcoldstop was not startupfailure. First harnessfailures retained.
+- ProductionBWA recorded-072-1 PASS/5actions/1draftsave/no coaching. Exported
+  verification-support/conversational-autonomy/video/2026-11-25/
+  build-with-ai-autonomous-production-walkthrough.mp4,90.87s,H264,yuv420p,
+  faststart,1440x1000,mousehighlights,noaudio. Start/middle/end inspected,
+  credentialframes excluded; rawWebM private. Video delivered inline. Separate
+  harbor-autonomous-live-trial-quality-findings.mp4,71.8s,diagnosticNOTqualified,
+  publicapp/existingstagingRuntime, stopsnearconfirmation. Do not combine the
+  failed trial into a claimed passing productioncustomerchat walkthrough.
+- Ordinary Harbor shared-072-2 INCOMPLETE: catalogueonly1of3, freshproductREAD
+  rejected then history/RAGanswer, returnswrong18vs25charge/missing30day/48hour,
+  compound499 incorrectlyclaimedabove500/free. Originalloosecompoundchecker
+  PASS was rejected bysemanticreview. Confirmed enquiry inventedslug insteadof
+  returnedprd-desk-01, actualUPSTREAM_HTTP_404. Labcount14before/14after=0effect,
+  no replay. Receipt/rejection/visitorauthoringdenial NOTreachedinthisbatch.
+- Traced source: ConversationRecordingStep.shouldRecordAfterTermination skips
+  successful ordinaryautonomy earlyresults despite internalPinnedTargets
+  extraction. Live nextturntargetseedingfalse; approvedIDs lost. Existing
+  PipelineContext.terminate DOESset intentResult+earlyTerminationResult. Proposed
+  bounded recorderfix notimplemented; ownerreviewquestion sent. Need actual
+  READ->recordrefs->naturalfollowup->consent/write fullpipeline tests +knownforeign
+  ownerdenial. Do NOT promise recorderfixsolvesseparatemodelpolicy/arithmetic.
+  No evidence of configuredRAGbudgetloss; Harborhadnoexplicitnumericdraftsettings.
+- FinalnativeGETs both72/ready/9profiles; budgetsACTIVE/notstopped. Identity,
+  originallimits/usage/expiry/ratecard preserved against approvedbaseline/topup.
+  USD24.53210275stage +12.48094prod=37.01304275assistantaccounted. Caps28+20,
+  Harborreserve2 withinowner50. Reserveisallocation,notactualmeasuredHarborcost.
+  Finalownstaffreadbacklogout verified; recorders/helpers allclosed/collected.
+- Docs01077/verificationREADMEupdated. CurrentdeployedMain remains23ff368a5;
+  newvideotooling/docs are notanotherRuntime release. SDKsource636934bd clean.
+  Remaining: boundedfollowupreview/implementation+stage/prodqualification,
+  naturalbusinessquality and missingsecurity/writecases. BWA itselfpassed onboth.
+
+## 2026-11-25 Build With AI All-Area Cost Qualification
+
+- Owner requested all13tasks/nineprofiles live Autonomous and Quick edit on
+  staging beforeproduction. New verification-support/autonomous-build-with-ai/
+  area-matrix.mjs,resource-area-matrix.mjs,live-area-qualification.mjs and
+  area-matrix.test.mjs coverall13. Two matrix testsPASS. Harness uses public
+  customerAPI/normalUIauth; existingdocument/handoverresource tests use normal
+  staffauthority, restoreexactsettings and neverindex/publish. Do not callthis
+  an all-page liveUIpass: mostmodelcases are publicAPI tests. UIaliases/modes
+  have their separate actualcomponent browser coverage.
+- Private rootloomai-build-ai-all-areas-20261125: staging-baseline-models-1
+  modelAUTO PASS, Quickeditactualsavebutfinalnarrationstoppedbyfunding. All-brain-
+  auto-1 eightauthoringareas+readonlyKIT PASS; humanfixture400BEFOREinference was
+  invalidtestsetup, not productdefect. Correctexistinginstalledhandoverresource
+  in resource-areas-1 passedbothmodes/restored. PrivateDATApassedboth/archived;
+  EngageAUTOpassed/Quickeditfundinginterrupted, exactinactiveapp/consumer/Brain
+  removed. Documentpreparationnotreached. Allbrowser/staffsessionsclosed/logout.
+- Ownerapproved extraUSD5staging via call_1a34768fcdab4d4691f00ecd300067dd;
+  auditedtopupbuild-ai-areas-20261125-staging-extra5 PASS. Caps33stage+20prod+
+  Harborreserve2=USD55. USD65proposal NOTapproved/applied. Lastaccountedstage
+  30.13473275+prod12.48094=42.61567275 includingearlierqualification. Thisround
+  17requests/84providerattempts/536007input+6064output/USD5.60263conservative,
+  notinvoice. No resets. USD2.88768worst-caseAstrareservationblockednewcall
+  beforecap; not anactualper-callcharge. Do notbypassthisguard.
+- ActualUIbug confirmed by six new source-shortcut browser tests: document
+  Optimize and Search optimization omitted executionMode, silently BOUNDED.
+  Fixed locally in ScopedAssistant.attachSource tohonoravailability/default/
+  explicitQuickedit anditsfeedbackpreferences. Sixred->green; full104browser
+  groupsPASS,89assistantunitPASS,fullUIbuildPASS(existingbundle/runtime-config
+  scriptwarnings). Notcommitted/pushed/deployedyet. Retainallunrelateddirtyfiles.
+- Latestowner: stayawayfromAstra,qualifycheaperqualitythenalltestswithin55;
+  firstresearchbestpractices/recommend. OfficialOpenAIdocsfetchedforcost/latency/
+  caching/mini/qualityeval. Recommendations savedin
+  verification-support/autonomous-build-with-ai/COST_AND_QUALITY_OPTIMIZATION.md.
+  Candidatepinnedgpt-5.4-mini-2026-03-17; noAstraautomaticfallback. KeepMEDIUM/
+  8192/prompts/tools unchangedforfirstmodel-onlycomparison. Separatefuture
+  proposedpromptfastpath,taskcontextprojection,cachestableprefix; noFramework
+  or promptoptimizationimplementedbythatrecommendation.
+- Staging-onlymodelapply helper/private/tmp/loomai-build-ai-qualify-mini.mjs
+  running(session73209). Exclusiveintentrootprivateall-areas/staging-mini-model-
+  only-1-*. Needobserveexistingrelease, DO NOTreplay. Productionrequiresnew
+  staging-mini-qualification-accepted.private.jsonwithallAreasPassed/Quickedit.
+  No productionmodelchangeatthischeckpoint. Modelapplydoesnotprovequality.
+
