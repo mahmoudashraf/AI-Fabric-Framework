@@ -1,8 +1,19 @@
 # 010.77 Reusable Conversational Autonomy
 
-Status: implementation started, 25 November 2026. Owner requested autonomy for
+Status: source implemented, release qualification in progress, 25 November 2026. Owner requested autonomy for
 any AI product after the live Harbor public-chat probe found the authoring-only
 Runtime integration. No live rollout or quality improvement is established yet.
+
+Release target: **0.8.72**. Version 0.8.71 is officially published and its nine
+checked Central artifacts passed checksum verification, but rollout was held
+before any Brain update. Final review reproduced an execution-alias collision:
+an explicitly configured `standard` or `autonomous` mode could inherit the
+default mode's tool policy instead of its own. The bounded correction preserves
+the named policy and treats only unclaimed names as execution choices. Existing
+named modes follow the published execution default rather than being silently
+reinterpreted as an opt-in/out. No action, source, consent or funding authority
+is added. Qualification and immutable publication of the corrected version are
+required before customer rollout; do not overwrite the published 0.8.71.
 
 ## Outcome
 
@@ -100,3 +111,28 @@ identity or permissions. No inference was submitted by that form test.
 This is not Central publication, a customer Runtime rollout or Harbor quality
 improvement. Those gates remain pending. Earlier tooling/mock/test-fixture failures
 are retained in the verification logs; no security or test gate was disabled.
+
+### Corrected Release Qualification
+
+Framework source `636934bd97334e75dd8ebf07dbdd130b5fd0d5dc` targets 0.8.72.
+The full 33-module 0.8.72 reactor passed before the final alias consistency
+refinement. Final core installation passed 1,311 core and 17 curated tests,
+including case-insensitive named policies and both published execution defaults.
+Release source guards passed. Hosted build `45648988414` is the final release
+gate; do not publish from the earlier candidate commit.
+
+Platform source `e11f8a27e7bf8467e2e6ad777c4676223476c9c3` passed Runtime image,
+core image, storage and quota checks. Its full code regression found a browser
+assertion racing the effect-updated footer immediately after Discard. The test
+now waits for the actual disabled Save state and retains its assertion; no
+product behavior or test gate was relaxed. All 27 response-editor browser cases
+passed after that test correction. The failed CI evidence remains retained.
+Final Runtime against SDK72 passed 878 tests, with the same five optional
+external-service skips. Focused Platform compiler/capability/real-Postgres
+binding checks passed 41 tests, zero skips.
+
+Version 0.8.71 is published but was held before runtime registration or apply.
+No production Brain or Harbor update has happened at this checkpoint. See
+`verification-support/conversational-autonomy/README.md` and the latest working
+context for subsequent evidence, rather than interpreting this checkpoint as
+proof of the eventual rollout.

@@ -89,6 +89,21 @@ second intelligence endpoint. Scheduling and status reads make no model calls.
 Exactly one final conversational outcome is recorded for a completed root;
 individual segments are not fabricated user messages.
 
+Baseline before 010.77, live checked 25 November: the Runtime goal
+host accepts `configurationWork` only for the private, backend-mediated authoring
+identity and its `configuration:author` scope. Ordinary Engage customer chat
+does not yet have a public conversational goal host. `mode: autonomous` returns
+an unsupported-mode error; setting a workflow goal policy alone does not route
+ordinary customer messages through the loop. Do not grant authoring authority to
+visitors to bypass this distinction. A customer-chat integration must reuse the
+generic Framework loop with normal business actions, authorized knowledge search
+and the existing per-action confirmation contract. This is product host work,
+not evidence that the generic SDK lacks autonomous execution.
+
+The subsequent reusable conversational host and its release evidence are tracked
+in 010.77 and `SMART_BRAIN_CONVERSATIONAL_AUTONOMY.md`. Do not infer current hosted
+availability from this historical baseline or from source implementation alone.
+
 ## Published Settings
 
 The existing workflow settings/Advanced editor manages the operator's published

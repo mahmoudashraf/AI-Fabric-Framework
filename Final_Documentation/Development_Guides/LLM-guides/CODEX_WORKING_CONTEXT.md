@@ -22350,3 +22350,104 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   to genuine native Autonomous; explicit Quick edit remains. Harbor quality
   follow-through and a clean <=20-minute mouse-highlighted video remain ours.
 
+## 2026-11-25 Harbor Customer-Chat Autonomy Probe
+
+- Owner requested trying Autonomous for Harbor customer chat, observing and
+  reporting, not weakening visitor authority. Source trace found the current
+  Runtime native-goal host is connected to configurationWork/private authoring
+  only. Generic SDK autonomy exists, but ordinary Engage has no customer goal
+  dispatcher/retrieval/confirmation host. Do not pretend a config flag enables it.
+- Actual fresh visitor baseline: catalogue PASS; product-name follow-up again
+  called harbor_get_product with the name and got404. Care original question
+  PASS this time with two authorized raw document results and correct content.
+  This is ordinary chat, not an autonomous improvement or a replaced old failure.
+- Live mode:autonomous returnedHTTP200/typeERROR/Unsupported mode twice, with
+  no workflow/goal observed. Incomplete configurationWork first got400 before
+  auth could be established; its checker INCOMPLETE is retained. A separately
+  complete request under fresh actual visitor authorization got403. Never grant
+  configuration:author or reuse authoring identity for public chat as a shortcut.
+- Both evidence dirs private harbor-public-autonomy[-boundary]-20261125; final
+  boundary report OBSERVED_UNSUPPORTED_PUBLIC_AUTONOMY_AND_DENIED_AUTHORING.
+  Exact draft hash/app release/status/consumer/rowVersion/config unchanged.
+  No publish, business write, source/credential grant, global default or infra
+  change. Both owner normal UI logouts/local identity clearing/browser closures
+  PASS; Main82389 and94601 collected. First process permission review timed out
+  before execution; its single retry started normally. No active Main process.
+- Safe next step would reuse SDK goal loop in a customer conversational host,
+  with normal business action authority, an authorized knowledge-search adapter
+  and existing pending write confirmation/resume, on the normal chat endpoint.
+  Not implemented or claimed as a successful mode switch in this experiment.
+
+## 2026-11-25 Reusable Conversational Autonomy 010.77 In Progress
+
+- Owner then requested closing the public integration gap for any AI product.
+  Source now reuses the SDK workflow/goal engine for ordinary conversational
+  turns, with authorized READ/WRITE/knowledge tools, approved observations,
+  model-led recovery and normal pending-action confirmation. Explicit native
+  authoring/specialist/Task bindings retain precedence. Active-request journals
+  do not promise restart/background continuation or replay uncertain writes.
+- Console has one opt-in Standard/Autonomous editor under Responses >
+  Conversation flow, Advanced limits and focused provider subtree saves. New
+  Runtime capability is conversational-autonomy-v1. Existing Brains stay Standard
+  until explicitly saved, published and applied; this is not a visitor authoring
+  grant. See 010.77 and SMART_BRAIN_CONVERSATIONAL_AUTONOMY.md.
+- Framework candidate0.8.71 source53b486e9b7d331fb0c4a69262537d908a33b5756
+  build45637489689 PASS, including vector contracts and all application smokes.
+  Earlier failure exposed stale Behavior Churn manual execution columns, then
+  standalone Incident Room's mixed67core/71execution dependency. Additive sample
+  schema and selected SDK BOM fixes passed; no tests/security gates disabled.
+  Final core1308/chat98/curated17 and owned-reference class10 tests PASS.
+- Runtime full local883 tests:878PASS/5optional external skips. Earlier restricted
+  rerun could not open local test services; permitted rerun passed unchanged.
+  Safe workflow response summary additionally passed36 controller tests with
+  prompt/parameter/observation secret canaries excluded. Platform285 focused+
+  157assistant backend/42UIunit/27browser cases passed previously.
+- Sourceaa4238022 is actually staged on UI/backend with exact OCI identity,
+  unchanged capacity/storage/environment. Fresh customer form save PASS, exact
+  resource-free temporary Brain deleted and sessions logged out. No inference.
+  Framework single immutable release tag created; publicationrun45640227468 is
+  processing. Do NOT reupload. Private evidence root loomai-conversational-
+  autonomy-01077; Central proof observer session45195. Source33d69fa84 and
+  490930ba2 Runtime adoption committed locally, NOT pushed pending official jars.
+- NO customer Runtime/production Console change or new model qualification yet.
+  Production Build with AI remains SDK70/R9/Astra/nine native goal profiles;
+  Harbor remains14/rel-e26602db on SDK70. Before budgets saved read-only: stage
+ 22.04900275 + prod10.71304 USD, existing25/20caps+Harbor5reserve/owner50ceiling.
+  Keys, financial identity, ledgers and infrastructure remain unchanged. Pending:
+  official Central proof, product image CI, staged authoring71/AI regression,
+  production rollout, actual Harbor autonomy business/security comparison.
+
+## 2026-11-25 Conversational Autonomy Release Held For Named Modes
+
+- SDK71 is officially published (release45640227468 PASS, nine Central jar
+  checksums verified) but was NOT registered, promoted or applied. Final review
+  reproduced explicit named mode restrictions being replaced by default policy.
+  Rollout watchers stopped before any e11 intent/effect. No Harbor or production
+  Brain change; both authoring runtimes remain70/R9, Harbor14/rel-e26602db.
+- Immutable corrected SDK72 final source636934bd97334e75dd8ebf07dbdd130b5fd0d5dc,
+  hosted build45648988414 in progress. Case-insensitive configured mode policy
+  wins; only unclaimed standard/autonomous names are execution choices. Registered
+  names follow published execution preference. Full72reactor PASS before final
+  refinement; final core1311/curated17 PASS, release guards PASS. Do NOT publish
+  from earlier ac881 candidate or replace71. Single guarded72publisher observes
+  final CI; no72upload yet at this checkpoint.
+- Main e11f8a27e7bf8467e2e6ad777c4676223476c9c3 pushed: Runtime/core images,
+  storage/quota CI PASS. Code45643840217 failed on immediate footer isDisabled
+  after Discard. Test now waits for React footer update; all27browser cases PASS,
+  no product behavior/test gate weakened. SDK72Runtime/full focused Platform
+  tests running; adoption source not yet pushed pending official72jars.
+- Actual staging remainsaa4238022 UI/backend only. No e11 effect, model tests or
+  business writes. BeforeUSD22.04900275stage+10.71304prod retained,25/20caps and
+  Harbor5reserve under owner50ceiling; no ledger reset/infra/key/cap changes.
+  Next: final72CI, immutable publication/official proof, Main72push+fiveCIgates,
+  staged authoring+BWAautonomous/QuickEdit before production/Harbor UIapply and
+  real read/write/knowledge/visitor-boundary comparison. Preparedsdk72helpers
+  must use final SDK/Main fullSHAs; reconcile any consumed effect, never replay.
+
+- 15:54 UTC corrected SDK72 local Runtime full suite PASS878/5optional skips
+  (883total), Platform41compiler/capability/Postgres checks PASS/0skip. Both
+  processes collected, no native inference. Responses27browser PASS. Final
+  Framework CI45648988414 is still in progress; publication watcher86963 has
+  not created72intent/tag/upload yet. Main72adoption may be committed locally,
+  but must not push its Runtime image build before official72jar proof.
+

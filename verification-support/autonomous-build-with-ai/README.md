@@ -72,6 +72,39 @@ walkthrough. The continuation was deliberately not recorded. The customer was
 normally signed out, local identity cleared, browser closed with zero recorded
 page errors, and all verification processes collected.
 
+### Customer-Chat Autonomy Experiment, 25 November
+
+At the owner's request, the actual Harbor visitor interface was checked for a
+configuration-only switch to autonomy. The active app still uses v14. Its saved
+draft has no workflow-assistance profile. A normal fresh visitor repeat again
+failed the product-name follow-up: `harbor_get_product` received the name rather
+than its returned ID and got404. The care question passed this repeat, with two
+authorized document search results and correct guidance. Neither result used
+autonomous execution.
+
+Two live mode probes returned HTTP200 with type ERROR and
+`Unsupported mode: autonomous`; no workflow/goal result was observed. A complete
+native-goal request using only the browser-issued visitor authorization returned
+HTTP403. The earlier incomplete request returned400 at parsing; its checker
+report remains INCOMPLETE, not an authorization success. The separate complete
+request closes that check without changing any permission.
+
+Source tracing confirms the integration limit: `ChatRuntimeController` dispatches
+the goal host only for `configurationWork`, and
+`RuntimeConfiguredWorkflowDispatcher.validate` requires the private authoring
+identity, canonical turn and configuration-authoring scope. Compiled authoring
+profiles also disable direct retrieval. A safe customer-chat experiment therefore
+needs a normal customer workflow host and authorized retrieval/confirmation
+adapters, not a mode label, larger chat retry count or public authoring scope.
+No autonomous-versus-normal quality improvement is claimed from these probes.
+
+Final owner readback proved the entire draft hash unchanged and the existing app
+status/release/consumer/row version/configuration unchanged. Both normal owner
+sign-outs and browser closures passed. No draft, publication, business write,
+credential grant, infrastructure or global setting was changed. Actual evidence
+is private `harbor-public-autonomy-20261125/` and the independently completed
+`harbor-public-autonomy-boundary-20261125/` report.
+
 ## Contract
 
 See [010.76](../../doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_76_GOAL_DRIVEN_FULL_AUTONOMY_AND_ADAPTIVE_AUTHORING_PLAN.md)

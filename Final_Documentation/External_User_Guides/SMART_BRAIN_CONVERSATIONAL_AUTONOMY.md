@@ -2,6 +2,8 @@
 
 Implementation candidate, 25 November 2026. Hosted availability requires the
 compatible Framework/Runtime rollout and live qualification recorded in 010.77.
+The qualified rollout target is Framework 0.8.72 or later; 0.8.71 must not be
+used for this rollout because of the named-mode policy issue tracked there.
 
 ## Choose Conversation Handling
 
@@ -30,6 +32,11 @@ Advanced execution limits control elapsed time, per-segment tool/model use and
 no-progress protection. Segments may continue within the request's deadline;
 they do not create extra funding. Zero allowed writes makes the autonomous
 catalogue read-only. Normal provider accounting and spending limits still apply.
+
+Existing named mode policies keep their configured tool and source restrictions.
+The optional API execution aliases `standard` and `autonomous` apply only when
+no named mode already owns that name. Otherwise the published execution default
+is used alongside that named mode's existing policy.
 
 ## What Stays Protected
 

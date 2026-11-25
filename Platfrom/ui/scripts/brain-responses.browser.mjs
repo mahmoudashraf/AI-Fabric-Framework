@@ -247,6 +247,7 @@ try {
     assert.equal(writes(calls).length, 0)
     await page.getByRole('button', { name: 'Discard', exact: true }).click()
     assert.match(await page.getByRole('combobox', { name: 'Answer length', exact: true }).textContent(), /Balanced/)
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Save draft' && button.disabled))
     assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).isDisabled(), true)
   }, { failCompose: true })
   await run('newer saved prompts are not silently overwritten', async ({ page, calls, select, changeSaved }) => {
