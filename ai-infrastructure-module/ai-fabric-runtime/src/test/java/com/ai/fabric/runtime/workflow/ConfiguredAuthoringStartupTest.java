@@ -177,4 +177,51 @@ class ConfiguredAuthoringStartupTest {
         assertThat(actualOperations).hasSize(1);
         assertThat(jdbc.queryForList("SELECT content FROM ai_conversation_message WHERE conversation_id=?", String.class, conversation)).isEmpty();
     }
+    @Test void rejectedCandidateCanRecoverToTheModelsDependencyExplanationWithoutAWrongSave() throws Exception {
+        String suffix = UUID.randomUUID().toString(), session = "cas-" + suffix, turn = "cat-" + suffix, conversation = "authoring-" + suffix;
+        var profile = bundle.select("KNOWLEDGE", null);
+        var scopes = new ArrayList<>(profile.requiredScopes()); scopes.addAll(List.of("chat:query", "chat:messages", "chat:conversations"));
+        var auth = RuntimeAuthContext.builder().subjectId("authoring:" + session).sessionId("authoring:" + session)
+            .subjectType(RuntimeAuthSubjectType.END_USER).authMode(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED)
+            .callerType(RuntimeAuthCallerType.TRUSTED_BACKEND).tenantId("tenant-test").customerId("customer-test").deploymentId("dep-test")
+            .issuer("backend-test").audiences(List.of("dep-test")).expiresAt(Instant.now().plusSeconds(180)).grantedScopes(scopes).build();
+        var request = new org.springframework.mock.web.MockHttpServletRequest(); addPrivateRuntimeHeaders(request, authProperties, auth);
+        var decisions = new ArrayDeque<>(List.of(
+            "{\"type\":\"ACTION\",\"action\":\"authoring_get_context\",\"parameters\":{}}",
+            "{\"type\":\"ACTION\",\"action\":\"authoring_check_candidate\",\"parameters\":{\"changes\":[{\"path\":\"/knowledgeSourceConfig/sources\",\"operation\":\"UPSERT\",\"key\":\"source-one\",\"value\":{\"enabled\":false}}]}}",
+            "{\"type\":\"COMPLETE\",\"message\":\"The source is required, so I left it unchanged.\"}"));
+        var feedback = new java.util.concurrent.atomic.AtomicBoolean();
+        doAnswer(call -> {
+            ai.fabric.dto.AIGenerationRequest generated = call.getArgument(0);
+            var input = WorkflowAssistanceBundleTest.MAPPER.readTree(generated.getPrompt());
+            WorkflowModelCallScope.beforeModelCall();
+            if (!decisions.isEmpty()) return AIGenerationResponse.builder().content(decisions.remove()).build();
+            assertThat(input.path("previousFinding").asText()).isEqualTo("WORKFLOW_CANDIDATE_REQUIRES_CORRECTION");
+            assertThat(input.path("previousFindingDetail").asText()).contains("REQUIRED_SOURCE_DISABLED", "UNSUPPORTED");
+            feedback.set(true);
+            return AIGenerationResponse.builder().content("{\"type\":\"UNSUPPORTED\",\"message\":\"The retained specialist requires this enabled source. I left the draft unchanged.\"}").build();
+        }).when(core).generateContent(any(), any());
+        doAnswer(call -> {
+            String action = call.getArgument(0);
+            var value = WorkflowAssistanceBundleTest.MAPPER.createObjectNode();
+            if ("authoring_get_context".equals(action)) value.putObject("configuration").putObject("knowledgeSourceConfig");
+            else {
+                assertThat(action).isEqualTo("authoring_check_candidate");
+                value.put("draftSaveRequested", true).put("hasChanges", true).put("requiresCorrection", true);
+                value.putObject("findings").put("valid", false).put("errorCount", 1).putArray("issues").addObject()
+                    .put("severity", "ERROR").put("code", "REQUIRED_SOURCE_DISABLED").put("message", "The retained specialist requires this enabled source.");
+            }
+            return new AuthoringPlatformClient.Reply(200, value);
+        }).when(platform).call(anyString(), anyMap(), any());
+        var body = new ChatQueryRequest(); body.setQuery("Disable the source, but preserve the specialist. If required, explain and leave the draft unchanged.");
+        body.setConfigurationWork(new ChatQueryRequest.ConfigurationWork(session, turn, "KNOWLEDGE", profile.id(),
+            "release-test", bundle.contentHash(), false, 2));
+        var result = conversations.message(conversation, turn, body, request).getBody();
+        assertThat(result).isNotNull(); assertThat(feedback.get()).isTrue();
+        var workflow = WorkflowAssistanceBundleTest.MAPPER.valueToTree(result.getMetadata()).path("workflow");
+        assertThat(workflow.path("state").asText()).isEqualTo("UNSUPPORTED");
+        assertThat(workflow.at("/usage/writes").asInt()).isZero();
+        assertThat(result.getAnswer()).contains("specialist requires", "unchanged");
+        assertThat(chat.deleteConversation(conversation, "delete-" + turn, request).getStatusCode().value()).isEqualTo(204);
+    }
 }

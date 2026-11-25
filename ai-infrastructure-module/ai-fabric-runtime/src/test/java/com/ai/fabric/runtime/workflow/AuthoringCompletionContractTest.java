@@ -54,6 +54,44 @@ class AuthoringCompletionContractTest {
         var failedReceipt = step("save", "authoring_update_draft", true, Map.of("status", "FAILED"));
         assertThat(AuthoringCompletionContract.validate(checkpoint(check(true, true, "candidate"), failedReceipt), mapper)).isNotNull();
     }
+    @Test void rejectedCandidatesExplainTheirFindingsInsteadOfDemandingAnImpossibleSave() {
+        var checked = step("check", "authoring_check_candidate", false, Map.of(
+            "draftSaveRequested", true, "hasChanges", true, "requiresCorrection", true,
+            "findings", Map.of("valid", false, "errorCount", 1, "issues", List.of(Map.of(
+                "severity", "ERROR", "code", "REQUIRED_SOURCE_DISABLED", "path", "/knowledgeSourceConfig/sources",
+                "message", "The retained specialist requires this enabled source.")))));
+        var finding = AuthoringCompletionContract.validate(checkpoint(checked), mapper);
+        assertThat(finding.code()).isEqualTo("WORKFLOW_CANDIDATE_REQUIRES_CORRECTION");
+        assertThat(finding.detail()).contains("REQUIRED_SOURCE_DISABLED", "UNSUPPORTED", "not saved", "preserve");
+        assertThat(AuthoringCompletionContract.validate(checkpoint(checked, write("corrected")), mapper)).isNull();
+    }
+    @Test void incompleteCandidatesAndSavedCoverageExposeTheActualPendingMappings() {
+        var coverage = Map.of("required", true, "complete", false, "completed", 4, "total", 5, "items", List.of(Map.of(
+            "state", "PENDING", "operationId", "operation-five", "label", "POST /v1/requests", "savedCandidates", List.of(Map.of(
+                "actionName", "create_request", "missingRequiredMappings", List.of(Map.of("location", "body", "name", "productId")))))));
+        var checked = step("check", "authoring_check_candidate", false, Map.of(
+            "draftSaveRequested", true, "hasChanges", true, "requiresCorrection", false, "sourceCoverage", coverage));
+        var finding = AuthoringCompletionContract.validate(checkpoint(checked), mapper);
+        assertThat(finding.code()).isEqualTo("WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED");
+        assertThat(finding.detail()).contains("POST /v1/requests", "create_request", "productId", "authoring_update_draft");
+        var status = mapper.createObjectNode().set("sourceCoverage", mapper.valueToTree(coverage));
+        assertThat(AuthoringCompletionContract.coverage(status, false).detail())
+            .contains("POST /v1/requests", "productId", "CURRENT_SAVED_CONFIGURATION");
+    }
+    @Test void advisoryBaselineFindingsDoNotReplaceASaveRequirementAndFeedbackIsBounded() {
+        var issues = java.util.stream.IntStream.range(0, 100).mapToObj(i -> Map.of("severity", "ERROR",
+            "code", "ISSUE_" + i, "message", "x".repeat(10000))).toList();
+        var checked = step("check", "authoring_check_candidate", false, Map.of(
+            "draftSaveRequested", true, "hasChanges", true, "requiresCorrection", false,
+            "findings", Map.of("valid", false, "errorCount", 100, "issues", issues)));
+        assertThat(AuthoringCompletionContract.validate(checkpoint(checked), mapper).code())
+            .isEqualTo("WORKFLOW_CHECKED_CANDIDATE_NOT_SAVED");
+        var rejected = step("check", "authoring_check_candidate", false, Map.of(
+            "draftSaveRequested", true, "hasChanges", true, "requiresCorrection", true,
+            "findings", Map.of("valid", false, "errorCount", 100, "issues", issues)));
+        assertThat(AuthoringCompletionContract.validate(checkpoint(rejected), mapper).detail())
+            .hasSizeLessThanOrEqualTo(2000).contains("truncated", "UNSUPPORTED");
+    }
     @Test void previewUsesCheckedCandidateCoverageAndNeverRequiresSavingIt() {
         var status = mapper.createObjectNode();
         status.putObject("sourceCoverage").put("required", true).put("complete", false);

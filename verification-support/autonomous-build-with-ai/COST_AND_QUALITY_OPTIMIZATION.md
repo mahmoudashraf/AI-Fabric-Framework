@@ -249,3 +249,83 @@ a claim that either cancelled document optimization completed successfully.
 
 Production is still unchanged at this checkpoint. No acceptance gate has been
 created prematurely. Last idle staging accounting was USD32.0451905 under33.
+
+### Corrected Knowledge Test And Repeat Reliability
+
+The knowledge test fixture means controlled starting data for a real staging
+test, not a mocked Platform or a separate assistant. The corrected case uses
+the installed approved support-document source through the public assistant
+API after normal UI sign-in. It changes only its citation label, checks the
+actual saved draft and unrelated-value preservation, then restores the original
+settings and deletes the test conversation. No document approval, indexing,
+publication or active release change is performed. This case verifies knowledge
+configuration editing, not retrieval-answer quality. Other checks exercise
+the actual UI, including document shortcuts and the full Harbor API import.
+
+Backend `6455fb8dc` passed all four exact gates: core45713092786,
+code45713176566, storage45713180242 and quota45713184539. Its full backend tests
+ran; UI build was deliberately omitted because the UI/Runtime trees exactly
+match the already-qualified `defa59983` images. Staging backend native source,
+digest and health were verified, with environment, capacity and storage retained.
+
+`staging-mini-low-knowledge-contract-1` passed both actual modes: Autonomous
+6 calls/1 correction/1 real save; Quick edit5 calls/0 corrections/1 real save.
+Exact restoration, unchanged versions/releases, foreign-resource denial and
+customer/staff sign-out passed. There is now passing composite routine coverage
+for all13 configured tasks, not a fresh all-area production qualification.
+
+Two additional findings prevent whole-workload acceptance:
+
+- The separate knowledge dependency test left the draft unchanged and executed
+  no write, but ended FAILED/WORKFLOW_CORRECTION_LIMIT rather than explaining
+  the dependency. Its completion check demanded a save after a nonempty checked
+  candidate. Preserve the original failure; do not call it a passing rejection.
+- A fresh, uncoached Harbor import on the current Runtime/UI repeated only4 of5
+  operations, then paused WORKFLOW_NO_PROGRESS after32 calls/6 saves/12
+  corrections. The remaining operation was POST /v1/enquiries. It repeatedly
+  reached a checked-candidate-without-later-save completion finding. The first
+  LOW import's five-operation pass remains valid, but does not prove repeat
+  reliability. Exact created Brain, key and sessions were cleaned up and both
+  actors signed out. No business API call or publication was performed.
+
+The existing workflow profiles do not select different generation models;
+routine/complex model separation needs an explicit configured contract, not a
+hidden Platform router or Astra fallback. Do not create the production mini
+acceptance gate from routine passes alone. No new Framework release, shared
+prompt optimization or profile-model routing has been implemented here.
+
+Last idle accounting: stagingUSD32.49458075 under33, productionUSD12.48094
+under20. The separate Harbor reserve2 and combined55 ceiling remain unchanged.
+Production has received no new paid test calls or software/model changes in
+this optimization task. Further paid checks must retain the reservation guard;
+do not silently transfer grants or count the Harbor allocation as unspent cash.
+
+### Completion Feedback Repair In Qualification
+
+The completion contract previously treated every changed checked candidate as
+ready to save, including candidates with `requiresCorrection:true`. It therefore
+gave a misleading missing-save instruction after a real dependency rejection.
+The repair retains the no-false-save contract, but feeds the model the actual
+bounded validation findings and allows it to choose UNSUPPORTED with a useful
+dependency explanation, rather than demanding an invalid write or missing input.
+The model still chooses the outcome; no answer replacement or wording matcher
+has been added. Actual refined saves remain authoritative.
+
+Checked and saved-state coverage findings now include bounded pending operation
+and required mapping details. The retained failed Harbor draft had a whole
+`{{params}}` body mapping, while coverage reported missing required body fields.
+Previously the generic completion finding did not expose those details directly.
+This feedback change is a qualified repair candidate, not proof of live quality.
+The shared workflow prompt, model, limits and source contracts remain unchanged.
+
+Two red regressions reproduced the feedback gaps. All62 focused Runtime tests
+then passed, including real SDK/governed-action integration, no wrong draft
+write on a rejected candidate, earlier/uncertain receipt rejection, actual
+refined-save acceptance, cancellation/goal-host regressions and bounded feedback.
+New immutable Runtime image and live staging qualification are still required.
+
+The owner approved redistribution of USD2 from unused production allowance to
+staging, with intended caps35/18 plus Harbor2 =55. Approval does not itself change
+either native ledger; record the completed operation separately, lower production
+first, preserve original approvals/usage/history and never claim a transfer before
+both live readbacks prove it. No additional overall funding was authorized.

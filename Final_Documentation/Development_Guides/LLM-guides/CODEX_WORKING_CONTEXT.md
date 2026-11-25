@@ -22742,3 +22742,55 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   UIdef+RuntimeDef, Mini modelnormalpublish/apply, LOWconfigsamecap, fullfresh
   prod13both+negative+HarborUI+documenthandoff/guide. Don't overwriteoldgates.
 
+## 2026-11-25 22:48 UTC Routine Knowledge Passed - Complex Qualification Open
+
+- Main6455fb8dc45e644a1feb7ca1f61d3140b09f7c40 pushed; exact4CIgates PASS:
+  core45713092786/code45713176566/storage45713180242/quota45713184539. Full
+  backendtests ran; ui_build=false because UI/Runtime trees exactlymatchdefa.
+  STAGEbackend6455 nativehealthy/OCI43629b15a059/jobqzxce6y439ip0devwt04zpt2,
+  capacity/env/storagepreserved. Watcher1908 finished successfully. Keep UI+
+  RuntimeDef/dsa722/verc474/rel38ba/SDK72/MiniLOW; no new Framework release.
+- Actualstagingknowledge-contract-1 bothPASS: AUTO6calls/1correction/1save;
+  Quick5calls/0corrections/1save. Fullconfig+versions/releases preservation,
+  exactoriginaldraftrestoration/sessiondeletion/bothsignoutsPASS. Fixture means
+  controlledstartingdata inrealstagingPlatform, notmockedinference or a private
+  assistant; thiscase testscitationconfigediting, notRAGanswerquality/indexing.
+  Composite13routineareasnowhavepassingLOWcoverage; NOTproductionacceptance.
+- Separatenegativeknowledge-dependency-1 FAILED honestlyretained: 4calls/2repairs,
+  0writes/fulloriginaldraftrestored. Completionguard demandedlaterEXECUTEDsave
+  aftercheckednonemptycandidate; gotgenericfailure insteadofdependencyexplanation.
+  Tracebeforechangingguard; don'tweakenconfirmation/ownership/actualsavereceipts.
+- NewfullrealHarborUI mini-low-current-1 FAILED ondefRuntime/5bbbackend:
+  4/5operations, POST/v1/enquiriesremaining;32calls/6saves/12corrections/5segments,
+  WORKFLOW_NO_PROGRESS checkedcandidatewithoutlatersave. PriorLOW5operationPASS
+  retained, NOTrepeat-reliabilityproof. No coaching/businessAPIcall/publish;
+  exactBrain/key/sessionscleanup+bothlogoutsPASS. Do notpromoteMiniwholeworkload
+  fromroutine-onlypasses. Currentprofileslackper-profilegenerationmodelselection;
+  don'tinventhiddenPlatformrouter/Astrafallback. No newpromptoptimizationyet.
+- LastidleStageUSD32.49458075/33, ProdUSD12.48094/20; separateHarborreserve2,
+  owner55combinedunchanged. No newproductionpaidcalls/software/modelchanges.
+  No acceptancegatecreated; productionstill23ff/Astra(currentconfig, notusedfor
+  thesechecks). Alllivecheck/watch/nativebudget execsessionscompleted/collected.
+  Costdocupdated. Needqualityfix/qualificationbeforeproduction; preserveall
+  originalfailures, financialhistory, consumedintents and unrelateddirtyfiles.
+
+## 2026-11-25 23:01 UTC Completion Feedback Repair Local Pass
+
+- Owner requestedfixremainingcompletion/recovery, stagePASSthenprod. Bounded
+  RuntimeAuthoringCompletionContract fix retains actualEXECUTEDsavereceipts but
+  distinguishesrequiresCorrection:true fromsaveablecandidate. Givesmodeltyped
+  validation/dependencyfindingsandUNSUPPORTEDoption; no automaticwrite/answer
+  replacement/newFrameworkrelease. Feedbackincludessmallpendingoperation/mapping
+  details, markedtruncationatSDK2000chars. Sharedprompt/model/budgetsunchanged.
+- TwoREDregressionsreproducedwrongsaveinstructionandmissingmappingdetails; all62
+  focusedRuntime/SDKintegration/goalhost testsPASS afterfix. Addedactualcanonical
+  rejectedcandidate->feedback->modelUNSUPPORTED/0writes test. NeedCInewimmutable
+  Runtimeimage/stagingrelease/repeatknowledge-negativeanduncoachedHarbor, then
+  freshareaqualificationbeforeproduction. No codefromthispatchdeployedyet.
+- Owner explicitlyAPPROVEDUSD2redistributionprod20->18/stage33->35 (async
+  call_a23c000d72714743b2a8d287a20dd806), combined55unchangedinclHarbor2. Notyet
+  appliedatentry. NativeAPIonlysupportsadditivetopups; do notfakearefund/topup,
+  resetusage, deletehistory or claimnewcapsbeforebothactualreadbacks. Lower
+  prodceilingfirstusinganexplicitlyauditedscopedoperatoradjustmentifneeded,
+  thennormalstagingtopup. Existingusage32.49458075/12.48094 unchangedcurrently.
+
