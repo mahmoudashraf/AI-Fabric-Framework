@@ -308,6 +308,18 @@ public final class RuntimeConfiguredWorkflowDispatcher implements WorkflowExecut
             }
             public BoundedWorkflowRunner.Outcome reconcile(WorkflowCheckpoint.Step reserved) {
                 verify(root);
+                var metadata = required(actions).findMetadata(reserved.action()).orElseThrow(() -> new SecurityException("AUTHORING_RECEIPT_ACTION_UNKNOWN"));
+                if (metadata.getAccessMode() == null || reserved.write() == (metadata.getAccessMode() == ActionAccessMode.READ))
+                    throw new SecurityException("AUTHORING_RECEIPT_ACTION_MISMATCH");
+                if (!reserved.write()) {
+                    if (!invocation.profile().allowedActions().contains(reserved.action())
+                        || !definition.executionProfile().requestedCapabilities().requestableReadActions().contains(reserved.action())
+                        || !request.trustedExecutionContext().grantedScopes().contains("action:" + reserved.action()))
+                        throw new SecurityException("AUTHORING_RECEIPT_SCOPE_DENIED");
+                    // Reads have no saved-write receipt. Preserve the missing observation and let the planner choose its next action.
+                    return new BoundedWorkflowRunner.Outcome(WorkflowCheckpoint.Effect.REJECTED,
+                        Map.of("code", "AUTHORING_READ_INTERRUPTED", "observationAvailable", false), "AUTHORING_READ_INTERRUPTED", true);
+                }
                 var data = status(Map.of("operationId", reserved.operationId()));
                 var result = data.path("result");
                 var receipts = result.isArray() ? result : result.path("operations");

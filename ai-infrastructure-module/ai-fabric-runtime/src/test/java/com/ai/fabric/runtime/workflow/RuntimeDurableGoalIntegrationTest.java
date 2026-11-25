@@ -68,7 +68,7 @@ class RuntimeDurableGoalIntegrationTest {
     @Autowired RuntimeAuthProperties authProperties;
     @Autowired RuntimePrivateAssertionService assertions;
     @MockitoSpyBean RuntimeDurableGoalHost durableHost;
-    @Autowired DurableExecutionRepository repository;
+    @MockitoSpyBean DurableExecutionRepository repository;
     @Autowired DurableExecutionSecurity security;
     @Autowired AIExecutionGateway gateway;
     @Autowired ai.fabric.execution.specialist.SpecialistRegistry specialists;
@@ -126,6 +126,114 @@ class RuntimeDurableGoalIntegrationTest {
             for (String role : List.of("USER", "AI")) assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role=?", Integer.class, client.conversation(), role)).isEqualTo(1);
         } finally { chat.deleteConversation(client.conversation(), "erase-normal-resume", client.request()); }
+    }
+
+    static java.util.stream.Stream<Arguments> interruptedReads() {
+        return java.util.stream.Stream.of(Arguments.of("authoring_get_context", Map.of()),
+            Arguments.of("authoring_read_selected_sources", Map.of("sourceId", "source-one")));
+    }
+    @ParameterizedTest @MethodSource("interruptedReads")
+    void pausedReservedReadReturnsAnHonestFindingAndThePlannerChoosesANewReadBeforeSaving(String action, Map<String, Object> parameters) throws Exception {
+        var nextRead = MAPPER.createObjectNode().put("type", "ACTION").put("action", action).set("parameters", MAPPER.valueToTree(parameters)).toString();
+        var run = pausedReservedHttpStep(action, parameters, List.of(nextRead, save("The resumed source-backed draft is saved."),
+            "{\"type\":\"COMPLETE\",\"message\":\"The resumed draft is saved.\"}"));
+        var client = run.client();
+        try {
+            var before = workflowCheckpoint(run.id(), client);
+            assertThat(before.steps()).singleElement().satisfies(step -> {
+                assertThat(step.effect()).isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Effect.DISPATCHING);
+                assertThat(step.write()).isFalse();
+            });
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "resume-pending-read", new RuntimeDurableGoalHost.Control("RESUME",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 2, 1, null), 200);
+            await(run.id(), client, ExecutionHandleStatus.SUCCEEDED);
+            var checkpoint = workflowCheckpoint(run.id(), client);
+            assertThat(checkpoint.steps().getFirst().effect()).isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Effect.REJECTED);
+            assertThat(checkpoint.steps().getFirst().code()).isEqualTo("AUTHORING_READ_INTERRUPTED");
+            assertThat(checkpoint.steps().getFirst().observation()).containsEntry("observationAvailable", false);
+            assertThat(run.planning().stream().skip(1).findFirst().orElseThrow().path("observations").toString())
+                .contains("AUTHORING_READ_INTERRUPTED", "REJECTED", "observationAvailable");
+            assertThat(run.calls()).hasValue(4);
+            assertThat(run.dispatched().stream().filter(action::equals)).hasSize(1);
+            assertThat(run.writes()).containsExactly(run.id() + ":step:3");
+            assertThat(checkpoint.usage().actions()).isEqualTo(3); assertThat(checkpoint.usage().writes()).isEqualTo(1);
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_conversation_message WHERE conversation_id=? AND participant_role='USER'",
+                Integer.class, client.conversation())).isEqualTo(1);
+        } finally { chat.deleteConversation(client.conversation(), "erase-resumed-read", client.request()); }
+    }
+
+    @Test void anUnresolvedReservedWriteStillPausesAndIsNeverRedispatchedOrReportedAsReadInterruption() throws Exception {
+        var parameters = MAPPER.convertValue(MAPPER.readTree(save("An uncertain draft save.")).path("parameters"),
+            new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        var run = pausedReservedHttpStep("authoring_update_draft", parameters, List.of()); var client = run.client();
+        try {
+            for (int epoch : List.of(2, 3)) {
+                authoringPostOverHttp(client, "/work/" + run.id() + "/control", "resume-uncertain-write-" + epoch,
+                    new RuntimeDurableGoalHost.Control("RESUME", client.goal(), client.goal(), client.session(), client.turn(), 1, epoch, 1, null), 200);
+                await(run.id(), client, ExecutionHandleStatus.PAUSED);
+                var checkpoint = workflowCheckpoint(run.id(), client);
+                assertThat(checkpoint.stopCode()).isEqualTo("AUTHORING_RECEIPT_UNRESOLVED");
+                assertThat(checkpoint.steps()).singleElement().satisfies(step -> {
+                    assertThat(step.write()).isTrue();
+                    assertThat(step.effect()).isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Effect.OUTCOME_UNKNOWN);
+                });
+            }
+            assertThat(run.calls()).hasValue(1); assertThat(run.writes()).isEmpty();
+            assertThat(run.dispatched()).containsExactly("authoring_get_work_status", "authoring_get_work_status");
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+        } finally { chat.deleteConversation(client.conversation(), "erase-uncertain-write", client.request()); }
+    }
+
+    @Test void aCheckpointCannotRelabelATrustedWriteActionAsAReadToAvoidReceiptReconciliation() throws Exception {
+        var parameters = MAPPER.convertValue(MAPPER.readTree(save("An uncertain draft save.")).path("parameters"),
+            new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        var run = pausedReservedHttpStep("authoring_update_draft", parameters, List.of()); var client = run.client();
+        try {
+            var checkpoint = workflowCheckpoint(run.id(), client); var step = checkpoint.steps().getFirst();
+            var mislabeled = new ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint(checkpoint.workId(), checkpoint.requestFingerprint(),
+                checkpoint.authorityFingerprint(), checkpoint.definitionFingerprint(), checkpoint.deadline(), checkpoint.version() + 1, checkpoint.usage(),
+                List.of(new ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Step(step.operationId(), step.action(), false, step.parameters(),
+                    step.parameterFingerprint(), step.effect(), step.observation(), step.code())), checkpoint.state(), checkpoint.message(),
+                checkpoint.questions(), checkpoint.stopCode(), checkpoint.goal());
+            var record = repository.findById(run.id()).orElseThrow();
+            assertThat(repository.compareAndSet(record, record.withFencedWorkflowOutcome(security.protect(Map.of("checkpoint", MAPPER.valueToTree(mislabeled)),
+                "workflow-checkpoint:" + run.id()), Instant.now()))).isTrue();
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "resume-mislabeled-write", new RuntimeDurableGoalHost.Control("RESUME",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 2, 1, null), 200);
+            await(run.id(), client, ExecutionHandleStatus.FAILED);
+            assertThat(run.calls()).hasValue(1); assertThat(run.dispatched()).isEmpty(); assertThat(run.writes()).isEmpty();
+            assertThat(workflowCheckpoint(run.id(), client).steps().getFirst().effect())
+                .isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Effect.DISPATCHING);
+        } finally { chat.deleteConversation(client.conversation(), "erase-mislabeled-write", client.request()); }
+    }
+
+    static java.util.stream.Stream<Arguments> interruptedReadAuthorityChanges() {
+        return java.util.stream.Stream.of(Arguments.of(true), Arguments.of(false));
+    }
+    @ParameterizedTest @MethodSource("interruptedReadAuthorityChanges")
+    void interruptedReadRecoveryCannotBypassChangedSourcePinsOrMissingCurrentReadAuthority(boolean changeSources) throws Exception {
+        var run = pausedReservedHttpStep("authoring_read_selected_sources", Map.of("sourceId", "source-one"), List.of()); var client = run.client();
+        var currentLease = lease(client, List.of(), List.of("source-one"));
+        doAnswer(call -> {
+            var renewed = currentLease.apply(call.getArgument(0), call.getArgument(1));
+            if (changeSources) ((ObjectNode) renewed.path("sourceVersions")).put("source-one", "sha256:" + "b".repeat(64));
+            else {
+                var scopes = new ArrayList<>(client.auth().getGrantedScopes()); scopes.remove("action:authoring_read_selected_sources");
+                ((ObjectNode) renewed.path("runtimeHeaders")).put(assertions.authorizationHeaderName(), assertions.tokenScheme() + " "
+                    + assertions.issueAssertion(client.auth().toBuilder().grantedScopes(scopes).build()));
+            }
+            return renewed;
+        }).when(platform).renew(any(), nullable(String.class));
+        try {
+            authoringPostOverHttp(client, "/work/" + run.id() + "/control", "resume-denied-read", new RuntimeDurableGoalHost.Control("RESUME",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 2, 1, null), changeSources ? 200 : 403);
+            await(run.id(), client, ExecutionHandleStatus.PAUSED);
+            assertThat(run.calls()).hasValue(1); assertThat(run.dispatched()).isEmpty(); assertThat(run.writes()).isEmpty();
+            assertThat(workflowCheckpoint(run.id(), client).steps().getFirst().effect())
+                .isEqualTo(ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint.Effect.DISPATCHING);
+            assertThat(funded.readCurrent().chatAttempts()).isEqualTo(run.before().chatAttempts() + 1);
+        } finally { chat.deleteConversation(client.conversation(), "erase-denied-read", client.request()); }
     }
 
     @Test void rolledBackControlAdmissionCannotPublishEitherQueuedRowOrAuthorizeWorkerEffects() throws Exception {
@@ -866,6 +974,60 @@ class RuntimeDurableGoalIntegrationTest {
     }
 
     private record ResumeRun(Client client, String id, AtomicInteger calls, ConcurrentLinkedQueue<String> writes, ProviderBudgetLedger.Snapshot before) { }
+    private record PendingRun(Client client, String id, AtomicInteger calls, ConcurrentLinkedQueue<String> writes,
+                              ConcurrentLinkedQueue<String> dispatched, ConcurrentLinkedQueue<JsonNode> planning, ProviderBudgetLedger.Snapshot before) { }
+    private PendingRun pausedReservedHttpStep(String action, Map<String, Object> parameters, List<String> following) throws Exception {
+        var client = client(); renew(client, null);
+        var decisions = new ConcurrentLinkedQueue<String>();
+        decisions.add(MAPPER.createObjectNode().put("type", "ACTION").put("action", action).set("parameters", MAPPER.valueToTree(parameters)).toString());
+        decisions.addAll(following);
+        var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();
+        var dispatched = new ConcurrentLinkedQueue<String>(); var planning = new ConcurrentLinkedQueue<JsonNode>();
+        doAnswer(call -> {
+            WorkflowModelCallScope.beforeModelCall(); calls.incrementAndGet();
+            planning.add(MAPPER.readTree(call.getArgument(0, ai.fabric.dto.AIGenerationRequest.class).getPrompt()));
+            return AIGenerationResponse.builder().content(Objects.requireNonNull(decisions.poll())).build();
+        }).when(core).generateContent(any(), any());
+        doAnswer(call -> {
+            String selected = call.getArgument(0); Map<String, Object> arguments = call.getArgument(1);
+            dispatched.add(selected); var result = MAPPER.createObjectNode();
+            if ("authoring_update_draft".equals(selected)) {
+                writes.add(String.valueOf(arguments.get("operationId")));
+                result.put("operationId", String.valueOf(arguments.get("operationId"))).put("status", "EXECUTED");
+            } else if ("authoring_get_work_status".equals(selected)) {
+                result.putArray("operations"); result.putObject("sourceCoverage").put("required", false);
+            } else result.put("content", "The current owned source observation.");
+            return new AuthoringPlatformClient.Reply(200, result);
+        }).when(platform).call(anyString(), anyMap(), any());
+        var reserved = new java.util.concurrent.CountDownLatch(1); var release = new java.util.concurrent.CountDownLatch(1);
+        var held = new java.util.concurrent.atomic.AtomicBoolean();
+        doAnswer(call -> {
+            boolean changed = (boolean) call.callRealMethod();
+            var updated = call.getArgument(1, DurableExecutionRecord.class);
+            if (changed && updated.status() == ExecutionHandleStatus.RUNNING && updated.protectedWorkflowCheckpoint() != null && !held.get()) {
+                var checkpoint = MAPPER.valueToTree(security.unprotect(updated.protectedWorkflowCheckpoint(), "workflow-checkpoint:" + updated.invocationId()).get("checkpoint"));
+                if (checkpoint.path("steps").size() == 1 && "DISPATCHING".equals(checkpoint.path("steps").get(0).path("effect").asText())
+                    && held.compareAndSet(false, true)) {
+                    reserved.countDown(); assertThat(release.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                }
+            }
+            return changed;
+        }).when(repository).compareAndSet(any(), any());
+        var before = funded.readCurrent();
+        String id = authoringPostOverHttp(client, "/messages", client.turn(), client.body(), 202).path("workId").asText();
+        try {
+            assertThat(reserved.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            authoringPostOverHttp(client, "/work/" + id + "/control", "pause-reserved-step", new RuntimeDurableGoalHost.Control("PAUSE",
+                client.goal(), client.goal(), client.session(), client.turn(), 1, 1, 1, null), 200);
+        } finally { release.countDown(); }
+        await(id, client, ExecutionHandleStatus.PAUSED);
+        assertThat(calls).hasValue(1); assertThat(dispatched).isEmpty(); assertThat(writes).isEmpty();
+        return new PendingRun(client, id, calls, writes, dispatched, planning, before);
+    }
+    private ai.fabric.intent.orchestration.workflow.WorkflowCheckpoint workflowCheckpoint(String id, Client client) {
+        return gateway.findWorkflowCheckpoint(id, RuntimeDurableGoalHost.trusted(
+            RuntimeResolvedIdentity.builder().authContext(client.auth()).warnings(List.of()).build(), client.conversation())).orElseThrow();
+    }
     private ResumeRun pausedHttpGoal() throws Exception {
         var client = client(); renew(client, null);
         var calls = new AtomicInteger(); var writes = new ConcurrentLinkedQueue<String>();

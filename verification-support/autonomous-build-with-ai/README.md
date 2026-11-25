@@ -13,6 +13,39 @@ Platform supplies authenticated authority, resource adapters and a bounded UI
 projection. No private generation endpoint, automatic publishing, manual-edit
 lock, ordinary Support write grant or extra infrastructure is introduced.
 
+### Framework Versus Product Responsibility
+
+Basic autonomy is in the public Framework 0.8.70, not a Platform-owned inference
+loop. `BoundedWorkflowRunner` owns model-led planning, authorized READ/WRITE
+steps, observation, configured repairs and goal continuation. The execution
+module supplies the generic goal gateway and segment scheduling. These APIs
+have no dependency on the Console UI or Platform authoring services; another
+application supplies their action, authorization and execution-host contracts.
+
+The product Runtime implements those host contracts for the configured Brain,
+canonical conversation and normal scoped Platform tools. Platform supplies the
+editable resource, document context, delegated identity and visible controls.
+Opt-in goal profiles do not turn every ordinary chat or read-only specialist
+chain into an unbounded writer. Real permission, confirmation, funding and
+execution limits remain in force.
+
+As of 25 November, staging B7/R8 source `dea4450e9` passed all five release
+gates and twelve read-only deployment checks. Its fresh one-Prepare Harbor UI
+run passed all five API operations with six model calls, zero repairs and one
+save. These are not production acceptance. The control run proved repaired
+Resume admission, foreign denials, logout/cancel quietness and source withdrawal,
+but a lost READ observation still paused on the WRITE-only receipt path. That
+adapter distinction is being corrected separately. Production remains unchanged;
+the first basic-controls report remains NOT_PROVEN, not relabeled as success.
+
+The bounded Runtime adapter correction passed41 focused tests (25 native
+HTTP/scheduler integrations and16 host tests). Interrupted authorized READs now
+retain an honest missing-observation finding for the next planner step. Unknown
+WRITE outcomes still require real receipt reconciliation and are never replayed.
+Current metadata/source/scope checks prevent treating a write as a retryable read.
+Both real paused-READ tests failed before the correction. These local checks are
+not the pending new-image live Resume acceptance.
+
 ## Completed Local Checks
 
 - Framework candidate `d59a452d8e1368c16b0a5e0fb68afd0dd5d493cf`: all 32

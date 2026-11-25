@@ -22019,4 +22019,86 @@ backend, keep both failed stage folders and normal oldaa676567 healthy service.
   staging software rollout preserving model/funds/keys/storage, fresh genuine
   Resume+save and encrypted erasure qualification, then production and Harbor
   video. Production still unchanged; no new inference or cap increase at freeze.
+- Combined Backend B7 / Runtime R8 candidate committed/pushed as
+  `dea4450e981c0f8e11547cad3cbd1075bc53aeb4`. Exactly eight owned files were
+  committed; unrelated .gitignore, UI build metadata and images remain untouched.
+  Source-exact gates: core45551312458, storage45551362918 and quota45551365888
+  PASS; full code45551368864 and Runtime image45551312388 are still running.
+- Main pipeline43011 waits all five gates, then normal staging backend rollout,
+  Runtime registration and same-published-version software apply in that order.
+  Until it returns a genuine verified/logout proof, staging remains B6/R7 and no
+  paid test or parallel release is allowed. Framework stays immutable0.8.70;
+  no new public Maven release, funding reset, capacity or storage change.
+- Private production helpers are being aligned to actual new source/proofs while
+  keeping original R5 model/pricing authority immutable. No invented current
+  software-apply hash or acceptance gate is allowed. Final new-source qualification
+  and actual source-body erasure are still pending; production is unchanged.
+- Runtime image45551312388 also passed; only full code45551368864 is finishing
+  browser checks. Production helpers are frozen for exact DEA backend/runtime,
+  470 offline tests PASS. They keep original R5 model/pricing hash pins and load
+  current source-specific apply/registration proofs with gate-bound actual hashes.
+  Before final gate, capture the actual source-artifact GET record after normal
+  promotion to `runtime-dea4450e9-staging-registered-artifact.private.json`
+  (and production equivalent later); do not alter original registration proof.
+  The fresh readonly `backend-current` file is also required. No synthetic current
+  proof or placeholder gate was created. All inactive agent test execs collected.
+- Pipeline43011 completed and was collected. All five exact-DEA gates passed.
+  Staging backend B7 job biugdorub17aspdjmle1seh5 is healthy at
+  sha256:f0468a6bd4b9daacf4afa51304bf4e0ef906beee85b8315c13a652fcb4c9aac8;
+  native R8 artifact dsa-1f429041 at
+  sha256:f081ff39d3624b65cba65dbafeb7c3cda0f704e40cd8816eb2efeafe97b94732
+  applied the same published ver-e914d80e as rel-eb800d39, APPLIED_VERIFIED/PASSED.
+  Astra8192, funding, keys, environment, capacity and storage remained unchanged;
+  every helper verified its own staff logout.
+- Actual post-promotion artifact row was captured from the supported source-list
+  GET (there is no single-artifact GET route). Manifest comparison uses existing
+  normalization because catalogue lists are canonicalized. Two read-only capture
+  attempts stopped on route/array-order assumptions, logged out, and made no
+  writes; the third passed the unchanged exact-role/source/digest validator.
+- Fresh DEA readonly report staging-readonly-acceptance-2026-11-25T05-33-28-122Z
+  passed12 gates; it explicitly does not claim model/control quality. Main exec92517
+  is the first new-source one-request Harbor UI run, label s25-dea-astra-1.
+  Normal Resume plus real save and decrypted-body erasure remain pending.
+  Production is unchanged and Framework remains immutable0.8.70.
+- DEA Harbor exec92517 completed PASS: normal UI blank one-request preparation,
+  five semantic API operations, six actual Astra calls, zero corrections, one
+  executed save, exact owned key and confirmation, all cleanup/logouts preserved.
+  Cost USD0.68795; cumulative staging then USD19.36691275.
+- Basic controls3 exec71216 collected NOT_PROVEN, not PASS. R8 admission fix
+  genuinely resumed the same native work as epoch3/segment2/RUNNING, but a paused
+  READ's lost observation was then reconciled against the WRITE-only receipt
+  journal and stopped AUTHORING_RECEIPT_UNRESOLVED. No extra inference, WRITE or
+  duplicate effect occurred. Carver is tracing a bounded Runtime adapter change;
+  no public Framework release or production change is authorized by this result.
+- All real foreign-versus-missing typed denials, paused refresh/navigation,
+  normal UI logout/re-auth quietness, second-goal real save, UI cancellation,
+  source withdrawal, retained receipt metadata, session deletion, financial
+  preservation and both fixture/owner/foreign/staff cleanup passed. No pageerrors.
+  Composed encrypted observer31524 collected CAPTURED all six exact phases.
+  Current cumulative staging USD20.10890275; no active paid helper or login.
+- Separate offline body-erasure verifier stopped BEFORE decryption with
+  COMPLETE_FINANCIAL_METADATA_REQUIRED: it assumed one Platform allocation and
+  nonzero grants, but this pre-existing internal native bootstrap has zero of
+  each (binding1, actual approval/provider/chat-ingress/top-up rows retained).
+  Original FAIL remains immutable. Trace exact approved funding-path baselines
+  before adjusting the private verifier; do not invent grants, remove crypto
+  identity checks, or claim erased-body PASS from metadata alone.
+- Production remains held. Private production UI rollout gate was narrowed to
+  separately attested uiSource B1 because native readonly componentSources
+  correctly contains backend/runtime only; eight offline tests and two syntax
+  checks passed. Original frozen Astra loaders remain unchanged. No final
+  staging acceptance file exists, and primary Harbor/video has not been rebuilt.
+- Runtime-only interrupted-READ candidate is frozen: twelve adapter lines check
+  trusted current metadata, profile/read capability, scope and live authority,
+  then record REJECTED/AUTHORING_READ_INTERRUPTED with observationAvailable=false.
+  The normal Framework planner chooses whether to read again; no synthetic
+  EXECUTED result or automatic tool retry is introduced. Uncertain WRITE
+  reconciliation still uses actual receiver receipts and pauses without replay.
+- Two red real HTTP/scheduler regressions reproduced the live pause. Green41
+  passed (25 integration,16 host), no skips, including a fresh model-selected
+  read followed by real governed save, two unresolved-write Resume attempts,
+  trusted metadata mismatch and changed source/missing-scope denials. Main
+  independently verified two source and both red/green log hashes. This changes
+  the product Runtime adapter only; public Framework remains0.8.70. All test
+  execs collected. Commit/Runtime CI/rollout/new-source qualification are next.
 
